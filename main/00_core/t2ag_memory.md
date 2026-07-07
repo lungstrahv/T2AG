@@ -34,12 +34,12 @@
 
 | 项目 | 当前值 | 详情位置 |
 |---|---|---|
-| 活跃课程组 | G01 | 成员见 `20_groups/G01.md` |
-| 当前课程组 | G01 | 成员见 `20_groups/G01.md` |
+| 活跃课程组 | — | 首次启动后创建 |
+| 当前课程组 | — | 首次启动后创建 |
 | 活跃 lesson | — | — |
-| 当前教师 | TR01（按课程映射） | `10_case/teacher_overlay.md` |
-| 当前学生 | S002 | `10_case/students/S002/` |
-| T2AG 版本 | 0.0.06 | `t2ag.md` 顶部 |
+| 当前教师 | — | 首次启动后配置 |
+| 当前学生 | S001 | `10_case/students/S001/`（模板） |
+| t2ag 版本 | 0.0.06 | `t2ag.md` 顶部 |
 
 > **进度权威链**：各课程 `course_status.md` 是唯一真相源；本表为缓存，
 > 只允许在结课仪式中由真相源刷新。冲突时以真相源为准，先跑 doctor 再修复。
@@ -84,11 +84,8 @@
 
 > 只留最近 5 条，更早的沉入 changelog，删行注明"沉到 changelog"。
 
-1. **[2026-07-08]** v0.0.06：20_groups 整治（指针+overlay 声明）+ 大小写修复 11 处 + T2AG-lite 生成
-2. **[2026-07-08]** v0.0.06：skin 系统升级(core-playbook) + skeleton 预建目录 + git_workflow→core-playbook + Hermes 清除
-3. **[2026-07-08]** v0.0.06：全局 T2AC→T2AG 改名 + 文件夹重构 + skeleton 整治 + doctor 修复
-4. **[2026-07-07]** 产品改名 T2AC→T2AG + skeleton 分仓 + project_schedule.md 入库
-5. **[2026-07-07]** Git 操作手册入库 + 仓库初始化：`git_workflow.md` + 两处引用挂钩 + git init
+1. **[2026-07-08]** v0.0.06：骨架重建（全小写目录名）+ skin 系统 + core-playbook 提升
+2. （更早条目沉入 changelog）
 
 > 旧条目（README 清理 / lite→skeleton / v0.0.06 合并）沉到 changelog。
 

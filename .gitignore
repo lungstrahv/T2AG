@@ -1,0 +1,9 @@
+.venv/
+.tools/
+.uploads/
+.agents/
+__pycache__/
+*.pyc
+*.exe
+*.o
+.env
