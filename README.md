@@ -1,4 +1,4 @@
-﻿# T2AG — vibe learning 教学系统（by T2AG）
+﻿# T2AG — vibe learning 教学系统（by T2AC）
 
 > 一个因懒惰而生的 AI 教学辅导系统。本目录是**从零开始的空白骨架**，
 > 不含任何真实师生数据，可直接用于初始化一个新的 T2AG 实例。

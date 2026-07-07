@@ -1,14 +1,15 @@
 ﻿#!/usr/bin/env python3
 """
-t2ag_doctor —— 档案一致性体检（骨架版）
+t2ag_doctor —— 档案一致性体检
 
+职责边界：确定性机器检查（同输入同输出，零裁量）。需要理解判断的检查不属于本文件——那归 50_playbook/。
 零依赖。退出码：0 = 无 FAIL，1 = 至少一个 FAIL。
-本骨架版在原有检查基础上，内置了治理增强的检查项：
-  - memory 分节预算制（各节行数上限，超限 FAIL）
-  - venv/env 审核（.venv/.env 被 git 追踪 = FAIL）
-  - 版本号跨文件一致性（AGENTS/README/t2ag.md）
 
-实际使用中按课程/实践结构补全 check_course_structure 等业务检查。
+检查项：
+  - 启动文件存在性 / 宪法分章预算 / 结构清单登记
+  - memory 分节预算制 / 版本号一致性 / venv/env 审核
+  - 复利回路模式声明 / 课程组规则 / overlay 引用完整性
+  - 考试题库引用隔离 / 皮肤系统配置
 """
 from __future__ import annotations
 import os
@@ -460,6 +461,49 @@ def check_skin_system() -> None:
             if d.is_dir() and d.name.startswith("SK") and d.name not in registered:
                 rep("WARN", f"未登记的皮肤文件夹：{rel(d)}")
 
+    # 检查 welcome_msg 是否包含疑似指令词（外观不得成为 overlay 后门）
+    welcome = skin_config.get("welcome_msg", "")
+    if welcome:
+        instruction_words = ["必须", "规则", "进度", "禁止", "要求", "应该", "不得"]
+        for w in instruction_words:
+            if w in welcome:
+                rep("WARN", f"active 皮肤 welcome_msg 含疑似指令词「{w}」（外观不得携带教学语义）")
+                break
+
+
+# ---------- overlay 引用检查 ----------
+def check_overlay_references() -> None:
+    """检查 20_groups/overlays/ 的引用完整性。"""
+    groups_dir = MAIN / "20_groups"
+    overlays_dir = groups_dir / "overlays"
+    if not overlays_dir.exists():
+        return  # skeleton 初始状态无 overlays
+
+    # 收集所有 overlay 文件名
+    overlay_files = set()
+    for f in overlays_dir.glob("overlay_*.md"):
+        overlay_files.add(f.name)
+
+    if not overlay_files:
+        return  # 空目录，跳过
+
+    # 收集所有 Gxx.md 中引用的 overlay 路径
+    referenced_overlays: set[str] = set()
+    group_files = list(groups_dir.glob("G*.md"))
+    for gf in group_files:
+        content = gf.read_text(encoding="utf-8")
+        # 匹配 overlays/overlay_xxx.md 引用
+        for m in re.finditer(r"overlays/(overlay_\w+\.md)", content):
+            referenced_overlays.add(m.group(1))
+
+    # 1. 孤儿 overlay：overlays/ 下文件未被任何 Gxx.md 引用 → WARN
+    for orphan in sorted(overlay_files - referenced_overlays):
+        rep("WARN", f"overlay 孤儿文件（未被任何 Gxx.md 引用）：overlays/{orphan}")
+
+    # 2. 断链：Gxx.md 引用的 overlay 路径不存在 → FAIL
+    for broken in sorted(referenced_overlays - overlay_files):
+        rep("FAIL", f"Gxx.md 引用了不存在的 overlay：overlays/{broken}")
+
 
 def main() -> int:
     check_startup_files()
@@ -470,6 +514,7 @@ def main() -> int:
     check_env_hygiene()
     check_pattern_declarations()
     check_course_group_rules()
+    check_overlay_references()
     check_exam_pool_isolation()
     check_skin_system()
     fails = sum(1 for lv, _ in RESULTS if lv == "FAIL")
