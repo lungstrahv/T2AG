@@ -1,8 +1,8 @@
-# playbook 管理流程
+﻿# playbook 管理流程
 
 **保护级别**：meta-playbook
 
-> 本文件是 t2ac「技能固化」文档之一。
+> 本文件是 T2AG「技能固化」文档之一。
 > 当模型准备新增、重写、合并或保护某个 `main/50_playbook/*.md` 时触发。
 >
 > **来源参考**：Hermes 原始 skill 目录 `C:\Users\MikeChen\AppData\Local\hermes\skills\`；主要依据 `software-development/skill-creation-gate/SKILL.md`、`software-development/hermes-memory-and-skills/SKILL.md`。`~/.hermes/journal/` 只作为事件摘要参考，不作为规则原文。
@@ -15,8 +15,8 @@
 
 - playbook 是**程序性记忆**，不是事实、日志或记录。
 - playbook 保存的是“怎么做一件事的方法”，尤其是经过试错、修订、验证后的流程。
-- 能写入 `t2ac_memory.md` 的事实，不等于应该写成 playbook。
-- 能写进 `t2ac_problemlog.md` 的案例，也不等于应该立刻写成 playbook。
+- 能写入 `t2ag_memory.md` 的事实，不等于应该写成 playbook。
+- 能写进 `t2ag_problemlog.md` 的案例，也不等于应该立刻写成 playbook。
 
 ---
 
@@ -33,7 +33,7 @@
 7. 没有现成 playbook 覆盖同一流程。
 8. 能写清楚触发条件、输入输出、复用价值和常见坑。
 
-不满足时，只写入 `t2ac_problemlog.md` 或 `t2ac_memory.md`，不要强行新增 playbook。
+不满足时，只写入 `t2ag_problemlog.md` 或 `t2ag_memory.md`，不要强行新增 playbook。
 
 ---
 
@@ -56,14 +56,14 @@
 
 ## 四、核心/保护 playbook
 
-t2ac 没有 Hermes 的 pinned skill 机制，但可以用“核心 playbook”语义保护高价值流程。满足任一条件时，在文件顶部写明 `**保护级别**：核心 playbook`：
+T2AG 没有 Hermes 的 pinned skill 机制，但可以用“核心 playbook”语义保护高价值流程。满足任一条件时，在文件顶部写明 `**保护级别**：核心 playbook`：
 
 - 用户明确要求长期保留。
 - 管理其他 playbook、journal、memory、problemlog 生命周期，属于 meta-playbook。
 - 高复杂度：开发中至少 3 次重大修订，且最终流程至少 12 个关键步骤。
 - 13 天内被触发 5 次以上。
 
-核心 playbook 不应被自动归档、合并或大幅改写；如需修改，必须在 `t2ac_changelog.md` 中说明原因。核心保护不等于不可编辑，它只阻止自动清理和随意合并。
+核心 playbook 不应被自动归档、合并或大幅改写；如需修改，必须在 `t2ag_changelog.md` 中说明原因。核心保护不等于不可编辑，它只阻止自动清理和随意合并。
 
 ---
 
@@ -71,17 +71,17 @@ t2ac 没有 Hermes 的 pinned skill 机制，但可以用“核心 playbook”�
 
 1. 先查 `main/50_playbook/` 是否已有同类流程。
 2. 若已有流程，只更新旧文件，不重复创建。
-3. 若来自系统问题，先确保 `t2ac_problemlog.md` 有案例记录。
+3. 若来自系统问题，先确保 `t2ag_problemlog.md` 有案例记录。
 4. 按本文件门槛判断是否值得提炼。
 5. 新增或重大修改 playbook 后，同步更新：
-   - `main/t2ac.md` 的当前 playbook 文件表。
-   - `main/00_core/t2ac_changelog.md`。
-   - 必要时更新 `main/00_core/t2ac_memory.md` 的关键决策索引。
+   - `main/t2ag.md` 的当前 playbook 文件表。
+   - `main/00_core/t2ag_changelog.md`。
+   - 必要时更新 `main/00_core/t2ag_memory.md` 的关键决策索引。
 6. 若涉及 journal 写入规则，同时检查 `main/50_playbook/journal_management.md`。
 
 ### 清理与归档
 
-t2ac 没有 Hermes curator 命令，但沿用其治理原则：
+T2AG 没有 Hermes curator 命令，但沿用其治理原则：
 
 - 清理前先预览，不直接删除。
 - 优先归档到人工指定位置，而不是永久删除。
@@ -92,8 +92,8 @@ t2ac 没有 Hermes curator 命令，但沿用其治理原则：
 
 ## 六、关联文件
 
-- `main/t2ac.md` —— playbook 总规则与种子说明。
-- `main/00_core/t2ac_problemlog.md` —— 系统/流程案例来源。
+- `main/t2ag.md` —— playbook 总规则与种子说明。
+- `main/00_core/t2ag_problemlog.md` —— 系统/流程案例来源。
 - `main/50_playbook/problemlog_maintenance.md` —— problemlog 到 playbook 的升级流程。
 - `main/50_playbook/journal_management.md` —— journal 记录边界。
-- `main/00_core/t2ac_changelog.md` —— playbook 规则变更记录。
+- `main/00_core/t2ag_changelog.md` —— playbook 规则变更记录。

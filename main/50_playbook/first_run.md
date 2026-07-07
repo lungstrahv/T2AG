@@ -1,28 +1,28 @@
-# 首次启动流程（agent 操作手册）
+﻿# 首次启动流程（agent 操作手册）
 
 **保护级别**：core-playbook
 
 > **触发条件**（满足任一即为首次）：
-> - `00_core/t2ac_memory.md`「上次课摘要」为空（日期为 `—`）
+> - `00_core/t2ag_memory.md`「上次课摘要」为空（日期为 `—`）
 > - `10_case/student_info.md` 中 SN01 仍指向 S001（默认模板）
 >
-> **非首次**则走 `t2ac.md` 4.2 日常接管，详见 `00_core/t2ac_flow.md`。
+> **非首次**则走 `t2ag.md` 4.2 日常接管，详见 `00_core/t2ag_flow.md`。
 
 ---
 
 ## 一、人类已完成的前置步骤（agent 不执行，仅确认）
 
-1. 解压 `T2AC_skeleton` 到目标目录
+1. 解压 `T2AG-skeleton` 到目标目录
 2. 在 AI 环境（TRAE / Cursor / Claude Code / Kimi）中打开该目录
 
-> agent 确认：根目录存在 `AGENTS.md`（或 CLAUDE.md / .cursorrules）且 `main/t2ac.md` 存在 → 前置步骤已完成。
+> agent 确认：根目录存在 `AGENTS.md`（或 CLAUDE.md / .cursorrules）且 `main/t2ag.md` 存在 → 前置步骤已完成。
 
 ---
 
 ## 二、agent 首次启动流程
 
 ### 步骤 1：读取宪法
-读取 `main/t2ac.md`（宪法与结构清单），理解五章内容。
+读取 `main/t2ag.md`（宪法与结构清单），理解五章内容。
 
 ### 步骤 2：检测 AI 环境
 检查根目录存在哪个入口文件：
@@ -37,7 +37,7 @@
 > **只生成当前环境需要的入口文件**，不全部生成。TRAE 读 AGENTS.md，不会读 CLAUDE.md。
 
 ### 步骤 3：跑 doctor 基线
-运行 `70_tools/t2ac_doctor.py`，确认骨架完整性（0 FAIL）。
+运行 `70_tools/t2ag_doctor.py`，确认骨架完整性（0 FAIL）。
 若 FAIL，先修骨架问题再继续。
 
 ### 步骤 4：询问用户
@@ -70,8 +70,8 @@
 **5c. 更新配置文件**
 - `10_case/teacher_overlay.md`：课程-教师映射表加行（默认指向 T001）
 - `10_case/course_info.md`：课程列表加行，填写课程代码/名称/路径/初始进度
-- `10_case/t2ac_case.md`：填写教学总体描述、培养方案树形图、当前师生配置
-- `00_core/t2ac_memory.md`：状态指针更新（活跃课程、当前 lesson、当前学生 SN01→S002）
+- `10_case/t2ag_case.md`：填写教学总体描述、培养方案树形图、当前师生配置
+- `00_core/t2ag_memory.md`：状态指针更新（活跃课程、当前 lesson、当前学生 SN01→S002）
 
 **5d. 复利回路声明**
 - 给每门课的 `mistake_bank.md` 加头部声明：
@@ -80,11 +80,11 @@
   `> 【边界】决策执行类错误转投 40_practices/trading/trade_journal.md`
 
 ### 步骤 6：验证
-运行 `70_tools/t2ac_doctor.py`，确认 0 FAIL。
+运行 `70_tools/t2ag_doctor.py`，确认 0 FAIL。
 若 WARN，逐条评估是否需要修复。
 
 ### 步骤 7：展示欢迎信息
-1. 读取 `main/welpic/` 中的 ASCII 艺术，展示给用户
+1. 读取 `main/skin/` 中的 ASCII 艺术，展示给用户
 2. 说明：
    - 已创建哪些档案和课程
    - 当前教师是谁（默认 T001）
@@ -94,7 +94,7 @@
    > 档案建好了。你现在学 [课程1] 和 [课程2]。
    > 教师是 [T001 名称]，风格是 [一句话]。
    > 发送「继续学 [课程代码]」开始第一课。
-   > 其他指令：发送 `t2ac` 随时回到主界面。
+   > 其他指令：发送 `T2AG` 随时回到主界面。
 
 ---
 
@@ -102,5 +102,5 @@
 
 - **不伪造数据**：用户没说的不编，不知道的留空标注「待填写」
 - **不跳步骤**：步骤 1-7 顺序执行，不跳过验证
-- **不携带其他实例数据**：首次启动隔离原则，不复制其他 t2ac 实例的师生/课程数据
+- **不携带其他实例数据**：首次启动隔离原则，不复制其他 T2AG 实例的师生/课程数据
 - **询问优先于假设**：拿不准的问用户，不自行决定

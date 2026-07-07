@@ -1,4 +1,4 @@
-# t2ac — 环境管理（按 repo_governance.md 执行标准）
+﻿# T2AG — 环境管理（按 repo_governance.md 执行标准）
 .venv/
 __pycache__/
 *.pyc

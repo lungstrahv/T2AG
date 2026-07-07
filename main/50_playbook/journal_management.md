@@ -1,8 +1,8 @@
-# journal 管理流程
+﻿# journal 管理流程
 
 **保护级别**：meta-playbook
 
-> 本文件是 t2ac「技能固化」文档之一。
+> 本文件是 T2AG「技能固化」文档之一。
 > 当用户明确要求保存重要对话、关键决策、待办或跨课程事件记录时触发。
 >
 > **来源参考**：Hermes 原始 skill 目录 `C:\Users\MikeChen\AppData\Local\hermes\skills\`；主要依据 `software-development/hermes-journal/SKILL.md` 与 `software-development/hermes-journal-management/SKILL.md`。Hermes journal 默认位置为 `~/.hermes/journal/`，采用 `INDEX.md` 总索引、`YYYY-MM.md` 月度索引、`YYYY-MM-DD-<主题>.md` 单篇记录。
@@ -26,11 +26,11 @@
 
 | 内容类型 | 写入位置 |
 |---|---|
-| 规则、结构、模板、工具变更 | `main/00_core/t2ac_changelog.md` |
-| 系统/流程问题与解决 | `main/00_core/t2ac_problemlog.md` |
+| 规则、结构、模板、工具变更 | `main/00_core/t2ag_changelog.md` |
+| 系统/流程问题与解决 | `main/00_core/t2ag_problemlog.md` |
 | 课程进度、停顿点、教学记录 | `[课程]/course_status.md` / `lessonXX.md` |
 | 学生知识错误 | `[课程]/mistake_bank.md` |
-| 学生情绪、性格、课程感受 | `t2ac_emo.md` / 学生档案 |
+| 学生情绪、性格、课程感受 | `t2ag_emo.md` / 学生档案 |
 | 跨课程、跨实践、非故障类的重要事件/决策/待办 | `main/60_journal/` |
 
 journal 是回看层，不覆盖任何真相源。
@@ -102,6 +102,6 @@ main/60_journal/
 
 - `main/60_journal/INDEX.md` —— journal 总索引。
 - `main/60_journal/YYYY-MM.md` —— 月度索引。
-- `main/00_core/t2ac_changelog.md` —— 规则变更。
-- `main/00_core/t2ac_problemlog.md` —— 系统/流程问题。
+- `main/00_core/t2ag_changelog.md` —— 规则变更。
+- `main/00_core/t2ag_problemlog.md` —— 系统/流程问题。
 - `main/50_playbook/playbook_management.md` —— 程序性记忆管理。

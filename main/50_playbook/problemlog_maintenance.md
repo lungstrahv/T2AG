@@ -1,16 +1,16 @@
-# problemlog 维护流程
+﻿# problemlog 维护流程
 
 **保护级别**：meta-playbook
 
-> 本文件是 t2ac「技能固化」文档之一。
+> 本文件是 T2AG「技能固化」文档之一。
 > 当会话中出现工具、环境、文件结构、规则执行或记忆治理问题时触发。
 >
 > **适用场景**：OCR、下载、依赖、路径、编码、课程初始化、课程恢复、doctor 修复、权威链冲突、playbook 过时、规则升级。
 >
 > **关联文件**：
-> - 规则定义：`main/t2ac.md` → 「问题与解决日志 main/00_core/t2ac_problemlog.md」
-> - 系统错题本：`main/00_core/t2ac_problemlog.md`
-> - 启动索引：`main/00_core/t2ac_memory.md`
+> - 规则定义：`main/t2ag.md` → 「问题与解决日志 main/00_core/t2ag_problemlog.md」
+> - 系统错题本：`main/00_core/t2ag_problemlog.md`
+> - 启动索引：`main/00_core/t2ag_memory.md`
 > - 结课流程：`main/50_playbook/session_close.md`
 
 ---
@@ -34,15 +34,15 @@
 |---|---|
 | 学生概念、证明、计算、代码理解错误 | `[课程]/mistake_bank.md` |
 | 课程进度、停顿点、累计课时 | `[课程]/course_status.md` |
-| 学生情绪或稳定学习状态 | `t2ac_emo.md` / `10_case/students/Sxxx/` |
-| 工具、环境、文件结构、规则执行、记忆治理问题 | `main/00_core/t2ac_problemlog.md` |
+| 学生情绪或稳定学习状态 | `t2ag_emo.md` / `10_case/students/Sxxx/` |
+| 工具、环境、文件结构、规则执行、记忆治理问题 | `main/00_core/t2ag_problemlog.md` |
 
 ### 步骤 2：先查旧记录
 
 在动手修复前，用关键词检索：
 
 ```powershell
-rg -n "关键词1|关键词2" main/00_core/t2ac_problemlog.md main/playbook
+rg -n "关键词1|关键词2" main/00_core/t2ag_problemlog.md main/50_playbook
 ```
 
 若已有 playbook，优先按 playbook 执行；若旧日志有相似案例，先读对应条目再行动。
@@ -80,7 +80,7 @@ rg -n "关键词1|关键词2" main/00_core/t2ac_problemlog.md main/playbook
 
 ### 步骤 5：同步 memory
 
-若条目复用价值为中/高，更新 `main/00_core/t2ac_memory.md`：
+若条目复用价值为中/高，更新 `main/00_core/t2ag_memory.md`：
 
 - 「最近 5 条问题」加入一句摘要。
 - 若会影响未来启动或行动顺序，加入「关键决策索引」。
@@ -109,8 +109,8 @@ rg -n "关键词1|关键词2" main/00_core/t2ac_problemlog.md main/playbook
 
 ## 四、关联文件
 
-- `main/00_core/t2ac_problemlog.md` —— 系统/流程错题本
-- `main/00_core/t2ac_memory.md` —— 启动索引与行动调度器
+- `main/00_core/t2ag_problemlog.md` —— 系统/流程错题本
+- `main/00_core/t2ag_memory.md` —— 启动索引与行动调度器
 - `main/50_playbook/session_close.md` —— 结课时触发收割
-- `main/00_core/t2ac_changelog.md` —— 规则或文件结构变更历史
+- `main/00_core/t2ag_changelog.md` —— 规则或文件结构变更历史
 - `[课程]/mistake_bank.md` —— 学生知识错题本

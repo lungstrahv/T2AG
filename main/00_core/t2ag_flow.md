@@ -1,8 +1,8 @@
-# t2ac 功能流程图（00_core/t2ac_flow.md）
+﻿# T2AG 功能流程图（00_core/t2ag_flow.md）
 
-> 本文件回答"系统跑起来是什么样"，与 t2ac.md（规则）、feedback_map（反馈分层）、
+> 本文件回答"系统跑起来是什么样"，与 t2ag.md（规则）、feedback_map（反馈分层）、
 > pattern_retire_loop（复利模式）互补。纯 ASCII，任何 agent/编辑器可读。
-> 规则与本图冲突时以 t2ac.md 为准，并修本图。
+> 规则与本图冲突时以 t2ag.md 为准，并修本图。
 
 ## 图 1 · 一次教学会话的完整生命周期（主流程）
 

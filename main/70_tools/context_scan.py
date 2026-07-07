@@ -1,16 +1,16 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-t2ac 上下文安全扫描工具 (context_scan)
+T2AG 上下文安全扫描工具 (context_scan)
 =====================================
 
-这是 t2ac 无运行时 Markdown 教学系统的上下文安全扫描器。
-t2ac 中的 LLM 会读取多种外部来源文本（OCR 结果、联网搜索内容、下载的 PDF 文本、
+这是 T2AG 无运行时 Markdown 教学系统的上下文安全扫描器。
+T2AG 中的 LLM 会读取多种外部来源文本（OCR 结果、联网搜索内容、下载的 PDF 文本、
 学生粘贴文本等），这些内容在送入教学上下文前需要经过提示注入（Prompt Injection）检测，
 防止外部内容劫持教师人格、覆盖系统指令或外泄数据。
 
 本脚本仅依赖 Python 标准库 + 正则表达式，不依赖任何第三方 ML 库，适合在无额外依赖的
-环境中运行（如 t2ac 的 temppage/ 临时页面工作区）。
+环境中运行（如 T2AG 的 temppage/ 临时页面工作区）。
 
 用法
 ----
@@ -47,7 +47,7 @@ t2ac 中的 LLM 会读取多种外部来源文本（OCR 结果、联网搜索内
                          把数据发送到 http://... 等
 
 注意：基于正则的检测存在误报可能（如正常教学文本中出现 "you are now ready"）。
-      t2ac 建议将本扫描器作为"送入上下文前的第一道过滤"，命中内容由人工或上层
+      T2AG 建议将本扫描器作为"送入上下文前的第一道过滤"，命中内容由人工或上层
       流程复核，而非直接丢弃全部输入。
 """
 
@@ -459,7 +459,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         prog="context_scan.py",
-        description="t2ac 上下文安全扫描工具：检测送入教学上下文前的提示注入。",
+        description="T2AG 上下文安全扫描工具：检测送入教学上下文前的提示注入。",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "示例:\n"

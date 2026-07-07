@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-t2ac_doctor —— 档案一致性体检（骨架版）
+t2ag_doctor —— 档案一致性体检（骨架版）
 
 零依赖。退出码：0 = 无 FAIL，1 = 至少一个 FAIL。
 本骨架版在原有检查基础上，内置了治理增强的检查项：
   - memory 分节预算制（各节行数上限，超限 FAIL）
   - venv/env 审核（.venv/.env 被 git 追踪 = FAIL）
-  - 版本号跨文件一致性（AGENTS/README/t2ac.md）
+  - 版本号跨文件一致性（AGENTS/README/t2ag.md）
 
 实际使用中按课程/实践结构补全 check_course_structure 等业务检查。
 """
@@ -37,9 +37,9 @@ def rel(p: Path) -> str:
 # ---------- 1. 启动文件存在性 ----------
 def check_startup_files() -> None:
     expect = {
-        MAIN / "t2ac.md": "FAIL",
-        MAIN / "00_core" / "t2ac_memory.md": "WARN",
-        MAIN / "10_case" / "t2ac_case.md": "WARN",
+        MAIN / "t2ag.md": "FAIL",
+        MAIN / "00_core" / "t2ag_memory.md": "WARN",
+        MAIN / "10_case" / "t2ag_case.md": "WARN",
         MAIN / "10_case" / "teacher_overlay.md": "WARN",
         MAIN / "10_case" / "student_info.md": "WARN",
         MAIN / "10_case" / "course_info.md": "WARN",
@@ -56,12 +56,12 @@ MEMORY_TOTAL_MAX = 180
 
 
 def check_memory_budget() -> None:
-    mem = MAIN / "00_core" / "t2ac_memory.md"
+    mem = MAIN / "00_core" / "t2ag_memory.md"
     if not mem.exists():
         return
     lines = mem.read_text(encoding="utf-8").splitlines()
     if len(lines) > MEMORY_TOTAL_MAX:
-        rep("FAIL", f"t2ac_memory.md 共 {len(lines)} 行 > 总预算 {MEMORY_TOTAL_MAX}")
+        rep("FAIL", f"t2ag_memory.md 共 {len(lines)} 行 > 总预算 {MEMORY_TOTAL_MAX}")
     # 逐节数行
     cur_name, cur_max, cur_count = None, None, 0
 
@@ -97,7 +97,7 @@ def _first_version(path: Path) -> str | None:
 
 def check_version_consistency() -> None:
     sources = {
-        "t2ac.md": _first_version(MAIN / "t2ac.md"),
+        "t2ag.md": _first_version(MAIN / "t2ag.md"),
         "AGENTS.md": _first_version(ROOT / "AGENTS.md"),
         "README.md": _first_version(ROOT / "README.md"),
     }
@@ -145,7 +145,7 @@ def check_pattern_declarations() -> None:
     """检查复利回路模式实例的头部声明"""
     # Known instances (relative to MAIN)
     known_instances = [
-        "00_core/t2ac_problemlog.md",
+        "00_core/t2ag_problemlog.md",
     ]
     # When courses exist, also check:
     # - 30_courses/*/mistake_bank.md
@@ -171,17 +171,17 @@ def check_pattern_declarations() -> None:
 
 # ---------- 宪法分章预算（同 memory 分节预算制） ----------
 CH_RE = re.compile(r"^##\s+第.+?章.*?\[max\s+(\d+)\]\s*$")
-T2AC_TOTAL_MAX = 400
+T2AG_TOTAL_MAX = 400
 
 
 def check_constitution_budget() -> None:
-    t2ac = MAIN / "t2ac.md"
-    if not t2ac.exists():
-        rep("FAIL", "t2ac.md 缺失，请从 skeleton 恢复")
+    t2ag = MAIN / "t2ag.md"
+    if not t2ag.exists():
+        rep("FAIL", "t2ag.md 缺失，请从 skeleton 恢复")
         return
-    lines = t2ac.read_text(encoding="utf-8").splitlines()
-    if len(lines) > T2AC_TOTAL_MAX:
-        rep("FAIL", f"t2ac.md 共 {len(lines)} 行 > 总预算 {T2AC_TOTAL_MAX}（防复辟：模板/流程正文勿回流）")
+    lines = t2ag.read_text(encoding="utf-8").splitlines()
+    if len(lines) > T2AG_TOTAL_MAX:
+        rep("FAIL", f"t2ag.md 共 {len(lines)} 行 > 总预算 {T2AG_TOTAL_MAX}（防复辟：模板/流程正文勿回流）")
     cur_max, cur_count, cur_title = None, 0, None
 
     def flush():
@@ -199,20 +199,20 @@ def check_constitution_budget() -> None:
                 cur_count += 1
     flush()
     if cur_max is None:
-        rep("WARN", "t2ac.md 未使用分章预算标记 [max N]，建议按宪法五章结构组织")
+        rep("WARN", "t2ag.md 未使用分章预算标记 [max N]，建议按宪法五章结构组织")
 
 
 # ---------- 结构清单登记检查（防漂移） ----------
 # 已知系统部件目录（数字前缀段 + 可选辅助），仓库有而清单未登记 → WARN
 def check_manifest_registration() -> None:
-    t2ac = MAIN / "t2ac.md"
-    if not t2ac.exists():
+    t2ag = MAIN / "t2ag.md"
+    if not t2ag.exists():
         return
-    manifest = t2ac.read_text(encoding="utf-8")
+    manifest = t2ag.read_text(encoding="utf-8")
     # 扫 main/ 下的一级数字前缀目录与关键文件名，检查是否在清单中被提及
     for entry in sorted(MAIN.iterdir()):
         name = entry.name
-        if name == "t2ac.md":
+        if name == "t2ag.md":
             continue
         # 只审数字前缀部件目录与 .py/.md 顶层部件
         is_numbered = re.match(r"^\d\d_", name)
@@ -232,7 +232,7 @@ def check_course_group_rules() -> None:
 
     groups_dir = MAIN / "20_groups"
 
-    # 2. 全库 active 组数量 ≠ 1 → FAIL (check first, used by other checks)
+    # 2. 全库 active 组数量 ≠ 1 → FAIL（空 skeleton 豁免：无 20_groups 目录或目录空时只 WARN）
     active_count = 0
     active_groups = []
     active_group_file = None
@@ -245,10 +245,14 @@ def check_course_group_rules() -> None:
                 if active_group_file is None:
                     active_group_file = gf
     if active_count != 1:
-        rep("FAIL", f"active 组数量 = {active_count}（应为 1）：{active_groups}")
+        groups_empty = not groups_dir.exists() or not any(groups_dir.iterdir())
+        if active_count == 0 and groups_empty:
+            rep("WARN", "20_groups/ 不存在或为空（skeleton 初始状态，首次启动后应创建课程组）")
+        else:
+            rep("FAIL", f"active 组数量 = {active_count}（应为 1）：{active_groups}")
 
     # 1. memory 指针指向的组文件不存在或状态非 active → FAIL
-    mem = MAIN / "00_core" / "t2ac_memory.md"
+    mem = MAIN / "00_core" / "t2ag_memory.md"
     if mem.exists():
         content = mem.read_text(encoding="utf-8")
         m = GROUP_PTR_RE.search(content)
@@ -278,7 +282,7 @@ def check_course_group_rules() -> None:
 
     # 4. 权威链外的 .md 出现枚举式课程清单 → WARN
     enum_re = re.compile(r"当前课程.*?([A-Z]{2,4}\d{3,4}[A-Z]?).+?([A-Z]{2,4}\d{3,4}[A-Z]?)")
-    skip_dirs = {"00_core", "50_playbook", "70_tools", ".venv", "__pycache__", "T2AC_skeleton"}
+    skip_dirs = {"00_core", "50_playbook", "70_tools", ".venv", "__pycache__"}
     for root_dir, dirs, files in os.walk(MAIN):
         dirs[:] = [d for d in dirs if d not in skip_dirs]
         for f in files:
@@ -295,6 +299,107 @@ def check_course_group_rules() -> None:
                 rel = os.path.relpath(filepath, MAIN)
                 rep("WARN", f"枚举式课程清单（应改指针）：{rel}")
 
+
+# ---------- 考试题库检查 ----------
+EXAM_META_REQUIRED = ["题号", "类型", "知识节点", "难度档", "已用于教学", "已考", "解答页码"]
+
+
+def _md_table_rows(path: Path) -> tuple[list[str], list[list[str]]]:
+    header: list[str] = []
+    rows: list[list[str]] = []
+    if not path.exists():
+        return header, rows
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        s = line.strip()
+        if not s.startswith("|") or "---" in s:
+            continue
+        cells = [c.strip().strip("`") for c in s.strip("|").split("|")]
+        if not header:
+            header = cells
+        else:
+            rows.append(cells)
+    return header, rows
+
+
+def _row_value(header: list[str], row: list[str], key: str) -> str:
+    for i, h in enumerate(header):
+        if key in h and i < len(row):
+            return row[i].strip()
+    return ""
+
+
+def check_exam_pool_isolation() -> None:
+    """检查考核池隔离、卷夹登记和题级 meta 完整性。"""
+    courses_dir = MAIN / "30_courses"
+    if not courses_dir.exists():
+        return
+
+    for exam_dir in courses_dir.glob("*/_exam"):
+        index = exam_dir / "index.md"
+        papers_dir = exam_dir / "papers"
+        course_dir = exam_dir.parent
+        index_header, index_rows = _md_table_rows(index)
+        registered: set[str] = set()
+        exam_pool_ids: set[str] = set()
+
+        for row in index_rows:
+            exam_id = _row_value(index_header, row, "卷ID") or (row[0].strip() if row else "")
+            pool = _row_value(index_header, row, "池别")
+            if exam_id and exam_id != "卷ID":
+                registered.add(exam_id)
+            if exam_id and "考核池" in pool:
+                exam_pool_ids.add(exam_id)
+
+        if papers_dir.exists():
+            if not index.exists():
+                rep("WARN", f"考试题库存在 papers/ 但缺 index.md：{rel(exam_dir)}")
+            for paper_dir in sorted(p for p in papers_dir.iterdir() if p.is_dir()):
+                if paper_dir.name not in registered:
+                    rep("WARN", f"papers/ 卷夹未在 index 登记：{rel(paper_dir)}")
+
+                meta = paper_dir / "meta.md"
+                meta_header, meta_rows = _md_table_rows(meta)
+                if not meta.exists():
+                    rep("WARN", f"卷夹缺 meta.md：{rel(paper_dir)}")
+                    continue
+                missing = [col for col in EXAM_META_REQUIRED if not any(col in h for h in meta_header)]
+                if missing:
+                    rep("WARN", f"meta.md 缺列 {missing}：{rel(meta)}")
+                if any("解答页码" in h for h in meta_header):
+                    for row in meta_rows:
+                        qid = _row_value(meta_header, row, "题号")
+                        page = _row_value(meta_header, row, "解答页码")
+                        if qid and page in {"", "-", "—", "无", "待填"}:
+                            rep("WARN", f"meta.md 缺解答页码：{rel(meta)} 题号 {qid}")
+
+        if not exam_pool_ids:
+            continue
+
+        exam_questions: dict[str, set[str]] = {}
+        for exam_id in exam_pool_ids:
+            meta = papers_dir / exam_id / "meta.md"
+            meta_header, meta_rows = _md_table_rows(meta)
+            qids = {
+                _row_value(meta_header, row, "题号")
+                for row in meta_rows
+                if _row_value(meta_header, row, "题号")
+            }
+            exam_questions[exam_id] = qids
+
+        for md in course_dir.rglob("*.md"):
+            if "_exam" in md.parts:
+                continue
+            rel_parts = set(md.relative_to(course_dir).parts)
+            if not any(part.startswith("lesson") or part in {"practice", "practices"} for part in rel_parts):
+                continue
+            content = md.read_text(encoding="utf-8", errors="ignore")
+            for exam_id, qids in exam_questions.items():
+                if exam_id in content:
+                    for qid in qids:
+                        q_patterns = [qid, f"第{qid}题", f"题{qid}", f"Q{qid}"]
+                        if any(p and p in content for p in q_patterns):
+                            rep("FAIL", f"考核池题号被教学文件引用：{rel(md)} 引用 {exam_id} / {qid}")
+
 def main() -> int:
     check_startup_files()
     check_constitution_budget()
@@ -304,6 +409,7 @@ def main() -> int:
     check_env_hygiene()
     check_pattern_declarations()
     check_course_group_rules()
+    check_exam_pool_isolation()
     fails = sum(1 for lv, _ in RESULTS if lv == "FAIL")
     warns = sum(1 for lv, _ in RESULTS if lv == "WARN")
     print(f"\nresult: {fails} FAIL, {warns} WARN")

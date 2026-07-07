@@ -1,7 +1,7 @@
-#!/usr/bin/env sh
+﻿#!/usr/bin/env sh
 # 可选启动脚本：进入项目目录并展示欢迎信息。
 # 真正的教学交互仍需在 AI 对话环境发送 `t2ac` 或「读取 t2ac.md」。
 cd "$(dirname "$0")/../.." || exit 1
 echo "欢迎使用，因懒惰而生的 vibe learning，agent t2ac。"
 [ -f main/welpic/welcome_ascii.txt ] && cat main/welpic/welcome_ascii.txt
-echo "版本 0.1.0 —— 请在 AI 对话环境发送「读取 t2ac.md」开始。"
+echo "版本 0.0.05 —— 请在 AI 对话环境发送「读取 t2ac.md」开始。"

@@ -1,4 +1,4 @@
-# t2ac 跨会话记忆索引（分节预算制）
+﻿# T2AG 跨会话记忆索引（分节预算制）
 
 > **作用**：启动时优先读本文件，快速恢复跨会话上下文。changelog / problemlog
 > 改为**按需展开**——需要细节时按本文件行号指针去对应文件读取。
@@ -20,7 +20,7 @@
 
 ## 上次课摘要  [max 12]
 
-> 每次结课仪式（`50_50_playbook/session_close.md`）重写本节，开课时最先读。
+> 每次结课仪式（`50_playbook/session_close.md`）重写本节，开课时最先读。
 
 - **日期**：—
 - **学到哪**：—
@@ -37,9 +37,9 @@
 | 活跃课程 | — | — |
 | 当前课程组 | — | — |
 | 活跃 lesson | — | — |
-| 当前教师 | T001（默认） | `10_10_case/10_case/teachers/T001.md` + `teacher_overlay.md` |
-| 当前学生 | S001（占位模板） | `10_10_case/10_case/students/S001/` |
-| t2ac 版本 | 0.1.0 | `t2ac.md` 顶部 |
+| 当前教师 | T001（默认） | `10_case/teachers/T001.md` + `teacher_overlay.md` |
+| 当前学生 | S001（占位模板） | `10_case/students/S001/` |
+| T2AG 版本 | 0.0.06 | `t2ag.md` 顶部 |
 
 > **进度权威链**：各课程 `course_status.md` 是唯一真相源；本表为缓存，
 > 只允许在结课仪式中由真相源刷新。冲突时以真相源为准，先跑 doctor 再修复。
@@ -67,8 +67,8 @@
 5. 重复流程先查 `50_playbook/`。
 6. 相似历史问题按索引展开 `problemlog.md`。
 7. 读学生 `students/Sxxx/` 三文件，调整节奏语气。
-8. 环境可执行代码则跑 `70_70_tools/t2ac_doctor.py`。
-9. 按 `50_50_playbook/mistake_retest.md` 开课复测。
+8. 环境可执行代码则跑 `70_tools/t2ag_doctor.py`。
+9. 按 `50_playbook/mistake_retest.md` 开课复测。
 
 ---
 
@@ -86,7 +86,7 @@
 
 1. **[<日期>]** 骨架初始化，采用数字前缀命名 + 分节预算制
 
-> 完整变更历史见 `t2ac_changelog.md`（按需展开）。
+> 完整变更历史见 `t2ag_changelog.md`（按需展开）。
 
 ---
 
@@ -96,7 +96,7 @@
 
 1. （骨架为空）
 
-> 完整问题历史见 `t2ac_problemlog.md`（按需展开）。
+> 完整问题历史见 `t2ag_problemlog.md`（按需展开）。
 
 ---
 

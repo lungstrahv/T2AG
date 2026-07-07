@@ -1,4 +1,4 @@
-# Git 与 GitHub 操作手册（git_workflow.md）
+﻿# Git 与 GitHub 操作手册（git_workflow.md）
 
 **保护级别**：normal
 
@@ -12,14 +12,14 @@
 git --version
 
 # 2. 自报家门(commit 会记录作者)
-git config --global user.name  "MikeChen"
+git config --global user.name  "<你的名字>"
 git config --global user.email "你的邮箱"
 
 # 3. Windows 换行符设置(防止 CRLF 警告刷屏)
 git config --global core.autocrlf true
 
-# 4. 项目初始化(在 T2AC 根目录)
-cd C:/Users/MikeChen/T2AC
+# 4. 项目初始化(在 T2AG 根目录)
+cd <你的项目路径>
 git init
 
 # 5. ★先写 .gitignore 再第一次提交(顺序铁律:先 ignore 后 commit)
@@ -32,16 +32,16 @@ git init
 
 # 6. 第一次存档
 git add .
-git commit -m "T2AC 0.0.05 初始入库"
+git commit -m "T2AG 0.0.06 初始入库"
 ```
 
 ## 二、连接 GitHub（一次性）
 
-1. github.com 注册 → 右上 New repository → 名 `T2AC` → **Private（铁律:仓库含学生档案）**
+1. github.com 注册 → 右上 New repository → 名 `T2AG` → **Private（铁律:仓库含学生档案）**
    → 不勾选任何初始化文件（README/gitignore 都不勾,本地已有）→ Create
 2. 按页面提示两行（照抄它显示的,以下是样例）：
 ```bash
-git remote add origin https://github.com/你的用户名/T2AC.git
+git remote add origin https://github.com/你的用户名/T2AG.git
 git push -u origin main
 ```
 3. 首次 push 会要登录：跳出浏览器授权点确认即可。若要求 token:
@@ -73,19 +73,19 @@ git checkout 编号 -- 文件名  # 把某个文件恢复到那个历史时刻(�
 ## 五、换电脑 / 灾难恢复
 
 ```bash
-git clone https://github.com/你的用户名/T2AC.git   # 整仓库拉回来
-cd T2AC && python -m venv .venv && pip install -r requirements.txt  # 环境按真相源重建
+git clone https://github.com/你的用户名/T2AG.git   # 整仓库拉回来
+cd T2AG && python -m venv .venv && pip install -r requirements.txt  # 环境按真相源重建
 ```
 一句话:**GitHub 上有 = 电脑烧了也没事;只在本地 = 硬盘寿命就是系统寿命。**
 
-## 六、与 T2AC 制度的对接点
+## 六、与 T2AG 制度的对接点
 
 | 制度 | Git 动作 |
 |---|---|
 | 结课仪式第九步 | add + commit(留言=确认块首行),周内至少一次 push |
 | 里程碑 M 完成 | `git tag M2-done` 打标签,验收记录可引用 |
 | doctor 提交间隔检查 | `git log` 即数据源(>7天 WARN,休息日豁免) |
-| 版本发布(0.0.05…) | changelog 记录的同一天 commit 留言带版本号 |
+| 版本发布(0.0.06…) | changelog 记录的同一天 commit 留言带版本号 |
 | .venv/.env 追踪检查 | `git ls-files | grep -E "\.venv|\.env"` 应为空,非空=FAIL |
 | 独立性审计 | `git log -p 文件名` 看任一文件的逐行演变史 |
 
