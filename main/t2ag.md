@@ -97,6 +97,7 @@
 | 项目线验证 | `50_playbook/project_verification.md` | M 级验收操作细则 | 自身 | — |
 | Git 操作手册 | `50_playbook/git_workflow.md` | Git/GitHub 日常操作 | 自身 | — |
 | 皮肤管理 | `50_playbook/skin_playbook.md` | 皮肤创建/切换/校验 | 自身 | doctor 皮肤检查 |
+| 教材管理 | `50_playbook/book_management.md` | 教材分类与目录结构 | 自身 | — |
 | 卷面考核 | `50_playbook/exam_protocol.md` | 语言线真题选编考核 | 自身 | doctor 引用隔离 |
 | 题库规范 | `50_playbook/exam_bank_spec.md` | 卷库结构与考前检查 | 自身 | doctor 题库检查 |
 | 皮肤系统 | `skin/skin.yaml` | 启动欢迎画面配置 | skin_playbook | doctor 皮肤检查 |
