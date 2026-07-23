@@ -1,18 +1,24 @@
-﻿# 跨会话恢复课程上下文流程
+# 跨会话恢复课程上下文流程
 
 > 本文件是 T2AG「技能固化」文档之一。
 > 当学生在新对话中说「继续学 XXX」时，按本流程恢复上次教学上下文，包括进度、教材原文、情绪状态。
 >
 > **适用场景**：新对话中恢复某门课程的教学上下文。
 >
+> **路径解析约定**：本流程中“对应课程”的文件路径按 `naming_conventions.md` §5 解析。
+> 兼容期多数课程仍在 `30_courses/`；迁移后 Definition 在 `30_course_definitions/`，Run 在 `35_course_runs/`。
+> 不得用英文标题或中文显示名猜目录。
+>
 > **关联文件**：
 > - 规则定义：`main/t2ag.md` →「快速恢复某门课」
 > - 课程列表：`main/10_case/course_info.md` →「课程列表」「快速恢复某门课」
 > - 课程状态：对应课程 `course_status.md` →「当前进度」
 > - 课程笔记：对应课程 `lessonXX/lessonXX.md`
+> - 课程疑问：对应课程 `question_bank.md` →「待解决 / 需要回看」
 > - 课程错题库：对应课程 `mistake_bank.md`
-> - 学生状态档案：`main/00_core/t2ag_emo.md` + 当前学生 `main/10_case/students/Sxxx/`
-> - 教材缓存：对应课程 `lessonXX/temppage/temp_page.md`
+> - 学生状态档案：`main/10_case/student_info.md` + 当前学生 `main/10_case/students/Sxxx/`
+> - 教材缓存：对应课程 `lessonXX/working_pages/source_excerpt.md`
+> - 交接管理：`main/50_playbook/handoff_management.md` + 运行时 `<handoff_root>/README.md`
 > - 自检工具：`main/70_tools/t2ag_doctor.py`
 
 ---
@@ -46,22 +52,44 @@
 >
 > `course_status.md` 是进度真相源；`course_info.md` 是缓存。
 
+### 步骤 1.5：条件读取 active 课堂交接
+
+若入口声明交接索引，或运行时存在约定的 `<handoff_root>/README.md`，按 `handoff_management.md` 检查是否有同时满足以下条件的条目：
+
+- `status=active`
+- `scope=course_session`
+- `applies_to` 与当前课程/lesson 一致
+- 上次课堂未完成 `session_close`，或正式来源存在待核对差异
+
+命中时先读“最小状态摘要”，需要恢复用户意图、讨论演化或方案理由时再读“连续性摘要”；无匹配、已 resolved 或无关专题交接一律跳过。交接只作恢复证据，不能覆盖 `course_status.md`。
+
+若交接或 lesson 显示的精确停点比 `course_status.md` 更新，先暂停新内容，核对教材页、lesson 与学生确认记录，向学生确认后修复 `course_status.md`，再刷新 memory/course_info，最后继续教学。
+
+若课程存在 `progress_nodes.md`，同时核对当前 completion node、checkpoint 和确认状态。lesson/云端证据可以作为
+待提升证据，但不得静默覆盖真相源；经学生确认后按 `progress_tracking.md` 写回。
+
 ### 步骤 2：读 course_status.md「当前进度」节
 
 读取对应课程的 `course_status.md`，重点关注「当前进度」节。本文件是该课程进度唯一真相源。
+文件头还应区分 `lifecycle_status` 与容量状态：生命周期来自本文件，容量状态从 active G 文件派生。
 
 - **正在学**：第几课、第几章、第几节
 - **已完成**：已讲完的内容
 - **已投入学习时长（小时）**：累计时长
 - **下一步计划**：接下来要讲的内容
 
-**文件路径**：`main/[课程代码]_[课程英文名]/course_status.md`
+**文件路径**：按 `naming_conventions.md` §5.3 解析当前课程的 `course_status.md`
 
-**示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/course_status.md`
+**兼容期示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/course_status.md`
+**迁移后示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/course_status.md`
 
 > 同时读取「教学记录」节的最后几条记录，了解最近的教学情况和学生的掌握程度。
 >
 > 若存在「已掌握知识点」节，也一并读取，避免重复讲授已掌握内容。
+
+### 步骤 2.5：读 question_bank.md
+
+读取当前课程 `question_bank.md` 的「待解决」与「需要回看」部分。恢复课堂时优先处理阻断当前进度的问题；已解答条目只按当前知识点需要回看，不全量加载。
 
 ### 步骤 3：读 lessonXX.md 最后教学记录
 
@@ -71,10 +99,12 @@
 - **「问答记录」最后几条**：了解学生最后问的问题和教师的回答
 - **「错误尝试记录」**：了解学生犯过的错误，避免重复
 - **核心内容的讲解进度**：确认讲到哪个概念、定理、例题
+- **节点状态**：核对 lesson 头部机器生成的 completion node/checkpoint 是否与真相源一致
 
-**文件路径**：`main/[课程代码]_[课程英文名]/lessonXX/lessonXX.md`
+**文件路径**：按 §5.3 解析出的课程根 + `lessonXX/lessonXX.md`
 
-**示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/lesson01/lesson01.md`
+**兼容期示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/lesson01/lesson01.md`
+**迁移后示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/lesson01/lesson01.md`
 
 > **当前教学进度标记示例**：
 > ```
@@ -83,50 +113,56 @@
 >
 > 此标记是恢复教学节奏的关键，必须严格遵守「逐节确认，不得跳内容」规则。
 
-### 步骤 4：读当前学生三文件档案
+### 步骤 4：读当前学生四文件档案
 
-先读取 `main/00_core/t2ag_emo.md` 找到当前学生状态指针，再读取当前学生的 `main/10_case/students/Sxxx/` 三文件，重点关注：
+先读取 `main/10_case/student_info.md` 找到当前学生状态指针，再读取当前学生的 `main/10_case/students/Sxxx/` 四文件，重点关注：
 
 - **`basic_info.md`**：确认学生背景、当前课程、教材与学习目标
 - **`personality_baseline.md`**：读取总纲、相关情绪感悟元素和哲学/生活感悟
 - **`course_reflections.md`**：读取当前课程知识点树形图和最近 3 条课程感想
+- **`reasoning_patterns.md`**：处理练习、复测或跨课程迁移时，按需读取相关条目
 
-**文件路径**：`main/00_core/t2ag_emo.md`（索引）+ `main/10_case/students/Sxxx/`（学生档案文件夹）
+**文件路径**：`main/10_case/student_info.md`（索引）+ `main/10_case/students/Sxxx/`（学生档案文件夹）
 
 **读取规则**：
 1. 通过 `student_info.md` 确认当前学生编号 SN01
 2. 读取对应的 `10_case/students/Sxxx/basic_info.md`
 3. 读取 `10_case/students/Sxxx/personality_baseline.md` 的「总纲」和相关元素
 4. 读取 `10_case/students/Sxxx/course_reflections.md` 中当前课程的知识点树形图和最近 3 条感想
-5. **据此调整教学语气和节奏**：
+5. 处理练习、复测或跨课程迁移时，按需读取 `10_case/students/Sxxx/reasoning_patterns.md`；涉及替代方法训练或状态更新时，同时执行 `method_distillation.md`
+6. **据此调整教学语气和节奏**：
    - 若学生近期有焦虑、挫败等负面情绪 → 适当放慢节奏、多确认
    - 若学生情绪积极 → 可适当增加挑战
 
 > **情绪状态只调整"怎么教"**：恢复上下文时，必须先确认学生状态再调整节奏，但不得降低课程标准、回避纠错或复测放水。
 
-### 步骤 5：读 temppage/temp_page.md（若存在）恢复教材上下文
+### 步骤 5：读 working_pages/source_excerpt.md（若存在）恢复教材上下文
 
-若对应 lesson 的 `temppage/temp_page.md` 存在，读取以恢复教材原文上下文。
+若对应 lesson 的 `working_pages/source_excerpt.md` 存在，读取以恢复教材原文上下文。
 
-**文件路径**：`main/[课程代码]_[课程英文名]/lessonXX/temppage/temp_page.md`
+**文件路径**：按 §5.3 解析出的课程根 + `lessonXX/working_pages/source_excerpt.md`
 
-**示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/lesson01/temppage/temp_page.md`
+**兼容期示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/lesson01/working_pages/source_excerpt.md`
+**迁移后示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/lesson01/working_pages/source_excerpt.md`
 
 **关注内容**：
 - **头部信息**：当前 temp 窗口（如 `[22, 23, 24, 25]`）、当前讲授页、OCR 状态说明
 - **教材原文**：恢复上次讲授的教材内容，确保讲解连续
 - **OCR 状态**：哪些页已校对可放心使用，哪些页仍需对照原图复核
 
-> **若 temppage/ 不存在**：
+> **若 working_pages/ 不存在**：
 > - 可能是上次课程结束时已清理（课程结束整目录删除）
 > - 需要重新扫描教材原文：按 `ocr_correct_flow.md` 流程重新渲染 PNG、OCR、校对
-> - 重新生成 `temppage/` 目录及 `temp_page.md`
+> - 重新生成 `working_pages/` 目录及 `source_excerpt.md`
 >
-> **若 temppage/ 存在但内容不全**：
+> **若 working_pages/ 存在但内容不全**：
 > - 检查 temp 窗口是否覆盖当前需要讲授的页码
 > - 若不足，按翻页窗口管理规则加载新页
 
 ### 步骤 6：运行 doctor 并执行开课复测
+
+在 doctor 前先运行 `python main/70_tools/t2ag_state_refresh.py --check`。生成缓存漂移属于当前恢复阻断项：
+先修真相源或经确认提升证据，再用 `--write` 刷新，不得直接手抄生成区块。
 
 若环境可执行代码，运行：
 
@@ -135,8 +171,8 @@ python main/70_tools/t2ag_doctor.py
 ```
 
 - 若有 FAIL：先按提示修复权威链，再开课。
-- 若当前课程 `mistake_bank.md` 有到期复测条目：按 `main/50_playbook/mistake_retest.md` 做 2-3 条变形复测。
-- 若无到期条目：跳过复测，进入下一步。
+- 按 `main/50_playbook/mistake_retest.md` 做 2 个课程知识点覆盖抽查、最多 8 个活跃错误知识点和最多 1 个陈年反刍。
+- 无对应候选时跳过该类槽位，不为了凑题制造记录。
 
 ### 步骤 7：向学生确认「上次讲到 XXX，继续?」
 
@@ -158,15 +194,44 @@ python main/70_tools/t2ag_doctor.py
 
 ---
 
-## 三、恢复时的翻页窗口管理
+## 三、展现形式选择与现场生成
 
-恢复上下文后，`temppage/` 中的物理文件（OCR 原图、OCR 结果、扫描图等）按以下窗口管理：
+> 学生始终可以提出需求，让模型换一种或者加一种展现形式，以协助其学习。学生明确提出的形式要求优先于默认判断。
+
+| 形式 | 优点 | 局限 | 默认场景 |
+|---|---|---|---|
+| 原图裁切 PNG | 忠于教材、成本低 | 不易修改和交互 | 教材原图清楚可读 |
+| SVG | 清晰、轻量、适合结构图 | 不适合照片与复杂纹理 | 集合图、流程图、静态关系 |
+| TikZ | 数学排版严谨、可复现 | 编译和查看成本较高 | 几何、论文式数学图 |
+| HTML | 可操作、可反馈、可模拟 | 需打开浏览器并维护交互 | 滑块、动画、交互测验 |
+
+默认决策：原图可读则裁切；结构可由正文唯一确定则自动生成最合适的一种格式；比例、数据或几何关系不确定时先询问；纯装饰不生成；需要操纵与即时反馈时才使用 HTML。根据正文重建的图必须标注“AI 根据教材正文重建的示意图，并非教材原图”。
+
+一次性展示可留在课堂；有复用价值的资产保存到当前 `lessonXX/illustration/` 并在 lesson 中登记来源、格式和日期。课程内反复出现的偏好写入 `course_reflections.md`，跨课程稳定偏好写入 `basic_info.md`。
+
+---
+
+## 四、恢复时的翻页窗口管理
+
+恢复上下文后，`working_pages/` 中的物理文件（OCR 原图、OCR 结果、扫描图等）按以下窗口管理：
 
 ### 基准窗口：4 页
 
 常态下保留 4 页物理文件。窗口组成为「前一页 + 当前讲授页 + 后两页」，确保知识上下文完整。
 
 > **教材阅读通用规则**：讲授当前页时，必须同时包含前一页、当前页和后两页的内容，确保知识上下文完整。若感觉知识仍有缺失（定义不完整、证明链条断裂、概念跳跃），可请求多阅读几页。
+
+### 预加载验收门（教材驱动课程强制）
+
+教材驱动课程一旦存在 `lessonXX/working_pages/source_excerpt.md`，进入当前页教学前必须同时满足：
+
+1. `course_status.md` 文件头包含 `textbook_page` 与 `working_pages_window`，并与 `source_excerpt.md` 头部的“当前讲授页 / 当前 temp 窗口”一致。
+2. 基准窗口严格等于 `[当前页-1, 当前页, 当前页+1, 当前页+2]`；扩展到 5–6 页时，头部必须明确标注扩展窗口及原因，不能口头宣称已加载。
+3. 当前窗口每页均存在 `working_pages/pages/pageNN.png` 与 `working_pages/raw_ocr/page_NN_raw.txt`，且文件非空。
+4. `source_excerpt.md` 中每页均有 `## 第 NN 页` 校对章节，页面状态表中的“扫描 / OCR / 校对 / 已加载”全部为 `✓`。
+5. 原图和 OCR 只证明材料已取得；“校对 ✓”必须来自对照原图的人工逐符号核验，doctor 不替代视觉判断。
+
+翻页必须作为一个原子流程执行：**渲染 → 目视检查 → OCR 留档 → 逐符号校对 → 更新摘录头与状态表 → 更新 course_status → 运行 doctor**。任一步未完成，不得讲授新页；doctor 出现教材窗口 FAIL 时，课堂停在原页。
 
 ### 可扩展至 6 页
 
@@ -191,15 +256,15 @@ python main/70_tools/t2ag_doctor.py
 → 阅读到 P4（从 newest 往 old 数第 4 页），删除 P2、P3 → P4–P7（4 页，回到基准）
 ```
 
-> **temp_page.md 不受窗口限制**：`temp_page.md` 持续累积所有讲授过的页面原文，不做删除。窗口管理仅针对物理文件（`pages/` 原图、`raw_ocr/` 原始 OCR、`scripts/` 脚本等）。课程结束后随 `temppage/` 目录一起删除。
+> **source_excerpt.md 不受窗口限制**：`source_excerpt.md` 持续累积所有讲授过的页面原文，不做删除。窗口管理仅针对物理文件（`pages/` 原图、`raw_ocr/` 原始 OCR、`scripts/` 脚本等）。课程结束后随 `working_pages/` 目录一起删除。
 
 ---
 
-## 四、注意事项
+## 五、注意事项
 
 ### 1. 确认学生情绪状态再调整节奏
 
-- 恢复上下文时，**必须先读取 `t2ag_emo.md` 和当前学生三文件档案**，了解学生性格基调与近期课程感想
+- 恢复上下文时，**必须先读取 `student_info.md` 和当前学生四文件档案**，了解学生性格基调与近期课程感想；处理练习或复测时按需读取解题思维档案
 - 若学生近期有焦虑、挫败等负面情绪 → 适当放慢节奏、多鼓励、降低难度
 - 若学生情绪积极 → 可适当增加挑战、加快进度
 - **不能只看进度不看人**：教学节奏由学生掌握程度和情绪状态共同决定
@@ -208,8 +273,17 @@ python main/70_tools/t2ag_doctor.py
 
 - 恢复后，从上次**尚未讲完**的位置继续，不得跳过未讲完的内容
 - 讲完当前页/当前节的全部内容后，必须停下来问学生：「确认理解了？继续 / 再讲一遍 / 提问？」
+- 学生使用 `问题：` 或 `疑问：` 时按同一触发处理：暂停后续推进、先回答并写入当前 lesson 问答记录
 - 在学生明确确认「继续」之前，不得跳到后续内容
 - 即使学生问了后续相关的问题，也只能回答该问题本身，不能提前展开尚未讲授的后续内容
+
+### 2.1 习题闭环门
+
+- 每道习题结束后，检查学生本次回答是否明确表示“没有疑问”
+- 若未明确表示：先基于学生实际写出的步骤分析其思维方法，再询问“有无疑问”
+- 若只有最终答案、过程证据不足：不得补写或猜测学生思路，应请学生补充方法
+- 若学生已在本次回答中明确表示“没有疑问”：可跳过本题的思维分析与疑问询问
+- 习题闭环不替代逐节确认；准备进入下一概念、定义或定理时，仍须学生明确表示“继续”
 
 ### 3. 教材原文优先
 
@@ -217,10 +291,10 @@ python main/70_tools/t2ag_doctor.py
 - 教学方案提供框架，教材原文提供内容
 - 「看教材原文」意味着真正去扫描、提取原文，而不是凭已有材料复述
 
-### 4. temppage/ 生命周期
+### 4. working_pages/ 生命周期
 
-- `temppage/` 是当堂课的临时工作区，**课程结束时整目录删除**
-- 跨会话恢复时，若 `temppage/` 已被删除，需重新扫描教材原文
+- `working_pages/` 是当堂课的临时工作区，**课程结束时整目录删除**
+- 跨会话恢复时，若 `working_pages/` 已被删除，需重新扫描教材原文
 - `illustration/` 是持久保存的，不受课程结束影响
 
 ### 5. 状态指针可靠性
@@ -228,6 +302,7 @@ python main/70_tools/t2ag_doctor.py
 - `course_status.md` 的「当前进度」节和「教学记录」是恢复进度的唯一真相源
 - `lessonXX.md` 头部的「当前教学进度」标记是细粒度证据,用于帮助修复真相源
 - 若各文件状态不一致,先运行 `main/70_tools/t2ag_doctor.py`,再以 `course_status.md` 为准;若 lessonXX 证据更细,需向学生口头确认后写回 `course_status.md`
+- checkpoint 可静默保存精确停点，但 completion node 只有满足课程既有关闭证据才完成；二者不得混写
 
 ### 6. 恢复后同步更新
 
@@ -237,3 +312,4 @@ python main/70_tools/t2ag_doctor.py
   - `[课程]/mistake_bank.md` 的新增知识错误与复测结果
   - `main/00_core/t2ag_memory.md` 与 `main/10_case/course_info.md` 的进度缓存
   - `main/10_case/students/Sxxx/personality_baseline.md` 或 `course_reflections.md`（若有新的状态/感想记录）
+  - 若本次由 active 课堂交接恢复，按 `handoff_management.md` 在正式写回验证后关闭交接

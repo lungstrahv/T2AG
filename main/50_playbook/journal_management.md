@@ -28,7 +28,7 @@
 | 系统/流程问题与解决 | `main/00_core/t2ag_problemlog.md` |
 | 课程进度、停顿点、教学记录 | `[课程]/course_status.md` / `lessonXX.md` |
 | 学生知识错误 | `[课程]/mistake_bank.md` |
-| 学生情绪、性格、课程感受 | `t2ag_emo.md` / 学生档案 |
+| 学生情绪、性格、课程感受 | `student_info.md` / 学生档案 |
 | 跨课程、跨实践、非故障类的重要事件/决策/待办 | `main/60_journal/` |
 
 journal 是回看层，不覆盖任何真相源。

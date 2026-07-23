@@ -1,4 +1,4 @@
-﻿# OCR 校对标准流程
+# OCR 校对标准流程
 
 > 本文件是 T2AG「技能固化」文档之一。
 > 当教材 Text PDF 文字层损坏、`pdftotext` / PyMuPDF 提取中文乱码时，按本流程使用 OCR 从 Image Container PDF 提取原文并校对。
@@ -10,6 +10,20 @@
 > - 通用要求：`main/10_case/course_info.md` →「OCR 工具选择与结果校对」
 > - 问题日志：`main/00_core/t2ag_problemlog.md`
 > - 课程命令：对应课程 `course_status.md` →「常用命令」
+
+---
+
+## 零、依赖与模型下载闸门
+
+1. 默认优先使用已经存在的工具或模型视觉识读，不因进入课程、doctor、OCR 失败或
+   “效果可能更好”而自动安装包。
+2. `pip install`、包升级、OCR 权重和模型首次下载都必须先向用户说明：
+   包/模型名称、用途、预计下载量、预计磁盘占用、安装/缓存位置和是否可复用。
+3. 只有用户明确批准本次动作后，才可使用项目 `.venv\Scripts\python.exe -m pip`
+   安装锁定版本；禁止向全局 Python 重复安装，禁止删除重建整个 `.venv`。
+4. 若依赖树会引入 Torch、Transformers、ONNX、OpenCV 等大型组件，必须把它们列入
+   体积说明；不能把 `pix2text` 描述成“纯 Python、依赖较轻”。
+5. lite 只供线上模型审查，任何安装或模型下载建议都只能作为审查发现返回，不执行。
 
 ---
 
@@ -33,8 +47,8 @@
 | 优先级 | 工具 | 适用场景 | 获取方式 | 备注 |
 |---|---|---|---|---|
 | 1 | **模型视觉识读原图** | 公式密集的数学教材、符号识别 | 无需安装，直接读取渲染后的 PNG | 零安装、对公式最准、可逐符号转录 |
-| 2 | **PaddleOCR** | 中文教材通用 OCR | `pip install paddleocr` | 开源，本地运行，中文识别优于 Tesseract |
-| 3 | **Pix2Text** | 含大量数学公式的教材 | `pip install pix2text` | 专门识别数学公式，对 LaTeX 符号支持好 |
+| 2 | **PaddleOCR** | 中文教材通用 OCR | 用户授权后安装锁定版本 | 开源，本地运行；可能下载额外模型 |
+| 3 | **Pix2Text** | 含大量数学公式的教材 | 用户授权后安装锁定版本 | 会引入大型 ML 依赖和模型缓存 |
 | 4 | **MathPix API** | 数学公式精确识别 | mathpix.com（需 API key） | 在线服务，公式识别效果最佳，需网络 |
 | 5 | **Tesseract** | 无上述工具时的兜底方案 | `C:\Program Files\Tesseract-OCR` | 数学符号识别差，需大量人工校对 |
 
@@ -64,12 +78,12 @@ doc = fitz.open('MATH1607H_book/数学分析_陈纪修_第三版_上.pdf')
 # 渲染第 21 页（页码从 0 开始，第 21 页 = index 20）
 page = doc.load_page(20)
 pixmap = page.get_pixmap(dpi=300)
-pixmap.save('temppage/pages/page21.png')
+pixmap.save('working_pages/pages/page21.png')
 
 doc.close()
 ```
 
-> **命名规范**：渲染后的 PNG 命名为 `pageXX.png`（如 `page21.png`），存入对应 lesson 的 `temppage/pages/` 目录。
+> **命名规范**：渲染后的 PNG 命名为 `pageXX.png`（如 `page21.png`），存入对应 lesson 的 `working_pages/pages/` 目录。
 >
 > **批量渲染**：若需渲染多页，可循环 `load_page` 并依次保存。
 
@@ -93,13 +107,14 @@ doc.close()
 from pix2text import Pix2Text
 
 p2t = Pix2Text()
-text = p2t.recognize('temppage/pages/page21.png')
+text = p2t.recognize('working_pages/pages/page21.png')
 print(text)
 ```
 
 > Pix2Text 专门识别数学公式，对 LaTeX 符号支持好，适合数学教材批量处理。
 >
-> 首次使用会自动下载模型，需联网。
+> 首次使用通常会下载模型。执行前必须按“依赖与模型下载闸门”报告体积与缓存位置并取得授权；
+> 未授权时停在这里，继续使用模型视觉识读或现有工具。
 
 ### 步骤 4：Tesseract 兜底
 
@@ -111,7 +126,7 @@ export PATH="$PATH:/c/Program Files/Tesseract-OCR"
 export TESSDATA_PREFIX="$HOME/tessdata"
 
 # OCR 识别一页（中英文混合）
-tesseract temppage/pages/page21.png temppage/raw_ocr/page_21_raw -l chi_sim+eng
+tesseract working_pages/pages/page21.png working_pages/raw_ocr/page_21_raw -l chi_sim+eng
 ```
 
 > 也可使用 `pytesseract` Python 接口，但 Bash 直接调用 / 文件输出模式更稳定（避免 subprocess stdout 编码问题）。
@@ -129,17 +144,17 @@ tesseract temppage/pages/page21.png temppage/raw_ocr/page_21_raw -l chi_sim+eng
 4. 关键定义、定理编号、公式必须对照 Image Container PDF 图片做最终核对
 5. 校对过程中的错误模式记入「常见错误对照表」（见下文），持续积累
 
-### 步骤 6：校对后写入 temp_page.md，原始结果保留 raw_ocr/page_XX_raw.txt
+### 步骤 6：校对后写入 source_excerpt.md，原始结果保留 raw_ocr/page_XX_raw.txt
 
 **文件保存规则**：
-- **校对后的正确文本** → 写入 `lessonXX/temppage/temp_page.md`
-  - `temp_page.md` 是当堂课教材原文缓存，持续累积，课程结束随 `temppage/` 目录删除
+- **校对后的正确文本** → 写入 `lessonXX/working_pages/source_excerpt.md`
+  - `source_excerpt.md` 是当堂课教材原文缓存，持续累积，课程结束随 `working_pages/` 目录删除
   - 写入时标注页码、OCR 状态、校对情况
-- **原始 OCR 结果** → 保留在 `lessonXX/temppage/raw_ocr/page_XX_raw.txt`
+- **原始 OCR 结果** → 保留在 `lessonXX/working_pages/raw_ocr/page_XX_raw.txt`
   - 原始结果不修改，备查
   - 命名格式：`page_XX_raw.txt`（如 `page_22_raw.txt`）
 
-**temp_page.md 头部模板**：
+**source_excerpt.md 头部模板**：
 
 ```markdown
 > 本文件为当堂课的临时教材原文缓存，课程结束时删除。
@@ -220,7 +235,7 @@ OCR 对数学符号识别错误率极高，校对时务必对照下表逐项排�
 
 1. **OCR 不能替代人工校对**：任何 OCR 工具都无法保证 100% 准确，数学公式部分必须逐符号人工核对。
 2. **原始结果保留备查**：`page_XX_raw.txt` 保留原始 OCR 结果，不修改，便于追溯校对过程。
-3. **temp_page.md 持续累积**：随着教学推进，不断追加新扫描页的校对后内容，不做删除。课程结束后随 `temppage/` 目录一起删除。
+3. **source_excerpt.md 持续累积**：随着教学推进，不断追加新扫描页的校对后内容，不做删除。课程结束后随 `working_pages/` 目录一起删除。
 4. **优先使用模型视觉识读**：在条件允许时，优先使用模型视觉识读原图，可显著减少校对工作量。
 5. **DPI 不低于 200**：渲染 DPI 低于 200 会导致文字模糊，增加 OCR 错误率；推荐 300 DPI。
 6. **批量处理效率**：多页 OCR 时，可先批量渲染 PNG，再逐页识读校对，避免反复打开 PDF。

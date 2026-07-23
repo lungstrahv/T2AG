@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T2AG 操作目录册</title>
+<style>
+:root {
+  --paper: #f7f4ee;
+  --surface: #fffdf9;
+  --ink: #272320;
+  --muted: #746d66;
+  --line: #ddd6cc;
+  --clay: #b96549;
+  --clay-soft: #f1ddd3;
+  --sage: #6f806d;
+  --sage-soft: #e5ebe1;
+  --lilac: #7b7087;
+  --lilac-soft: #ebe7ef;
+  --gold: #99805a;
+  --gold-soft: #eee7d9;
+  --danger: #9c5146;
+  --serif: "Goudy Old Style", "STKaiti", "华文楷体", "KaiTi", serif;
+  --sans: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--sans);
+  line-height: 1.68;
+  letter-spacing: 0;
+}
+a { color: inherit; }
+code {
+  font-family: var(--mono);
+  font-size: .88em;
+  color: #4e4640;
+  overflow-wrap: anywhere;
+}
+.wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+.hero {
+  min-height: 560px;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+.hero-inner {
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  padding: 72px 0 64px;
+}
+.kicker {
+  width: fit-content;
+  padding: 5px 8px;
+  border: 1px solid #cfc6bb;
+  border-radius: 4px;
+  color: var(--clay);
+  font: 700 .84rem/1.2 var(--mono);
+  text-transform: uppercase;
+}
+h1, h2, h3 { font-family: var(--serif); font-weight: 500; }
+h1 {
+  max-width: 680px;
+  margin: 22px 0 14px;
+  font-size: clamp(3.5rem, 8vw, 6.3rem);
+  line-height: 1.02;
+}
+.hero-copy {
+  max-width: 600px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+.hero-rule {
+  max-width: 640px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 36px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.hero-rule div { padding: 13px 14px 13px 0; font-size: .85rem; }
+.hero-rule div + div { border-left: 1px solid var(--line); padding-left: 14px; }
+.hero-rule strong { display: block; color: var(--ink); }
+.snail {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: max(-70px, calc((100vw - 1260px) / 2));
+  transform: translateY(-48%);
+  width: min(650px, 52vw);
+  mix-blend-mode: multiply;
+  filter: saturate(.84) contrast(.98);
+  -webkit-mask-image: radial-gradient(ellipse 68% 72% at 51% 53%, #000 56%, transparent 88%);
+  mask-image: radial-gradient(ellipse 68% 72% at 51% 53%, #000 56%, transparent 88%);
+  pointer-events: none;
+}
+.jump {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.jump-inner { display: flex; gap: 4px; overflow-x: auto; padding: 10px 0; }
+.jump a {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: .82rem;
+}
+.jump a:hover { background: var(--clay-soft); color: var(--ink); }
+section { padding: 72px 0; border-bottom: 1px solid var(--line); }
+.section-head {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 36px;
+  margin-bottom: 34px;
+}
+.section-index {
+  color: var(--clay);
+  font: 700 .72rem/1.3 var(--mono);
+  text-transform: uppercase;
+}
+.section-head h2 { margin: 0; font-size: clamp(2rem, 4vw, 3.3rem); line-height: 1.05; }
+.section-head p { max-width: 680px; margin: 12px 0 0; color: var(--muted); }
+.intro-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+}
+.intro-item { padding: 26px 28px 28px 0; }
+.intro-item + .intro-item { border-left: 1px solid var(--line); padding-left: 28px; }
+.intro-item h3 { margin: 0 0 8px; font-size: 1.45rem; }
+.intro-item p { margin: 0; color: var(--muted); font-size: .92rem; }
+.materialize {
+  margin-top: 30px;
+  padding: 24px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.materialize h3 { margin: 0 0 8px; font-size: 1.4rem; }
+.materialize > p { margin: 0; max-width: 780px; color: var(--muted); }
+.routes { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.route {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.route:first-child { border-top: 4px solid var(--clay); }
+.route:last-child { border-top: 4px solid var(--sage); }
+.route h3 { margin: 0 0 8px; font-size: 1.35rem; }
+.route p { margin: 0; color: var(--muted); }
+.path {
+  display: block;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+.experience-section { background: var(--clay-soft); }
+.experience-flow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.experience-step { padding-top: 18px; border-top: 1px solid #d8bcae; }
+.experience-step b {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--clay);
+  font: 700 .72rem/1.2 var(--mono);
+}
+.experience-step h3 { margin: 0 0 8px; font-size: 1.35rem; }
+.experience-step p { margin: 0; color: var(--muted); font-size: .92rem; }
+.student-prompts {
+  display: grid;
+  grid-template-columns: .9fr 1.1fr;
+  gap: 38px;
+  margin-top: 34px;
+  padding-top: 28px;
+  border-top: 1px solid #d8bcae;
+}
+.student-prompts h3 { margin: 0 0 10px; font-size: 1.35rem; }
+.student-prompts p { margin: 0; color: var(--muted); }
+.prompt-list { margin: 0; padding-left: 19px; color: #5f5149; }
+.prompt-list li + li { margin-top: 7px; }
+.timeline { counter-reset: step; }
+.step {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  min-height: 126px;
+}
+.step-mark { position: relative; border-right: 1px solid var(--line); }
+.step-mark::before {
+  counter-increment: step;
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  top: 1px;
+  right: 22px;
+  color: var(--clay);
+  font: 700 .76rem/1 var(--mono);
+}
+.step-body { padding: 0 0 38px 34px; }
+.step-body h3 { margin: 0 0 6px; font-size: 1.35rem; }
+.step-body p { margin: 0; color: var(--muted); }
+.step-files { margin-top: 10px; color: #514a44; font-size: .85rem; }
+.matrix { width: 100%; border-collapse: collapse; border-top: 1px solid var(--line); }
+.matrix th, .matrix td { padding: 15px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.matrix th { width: 20%; color: var(--clay); font: 700 .73rem/1.3 var(--mono); }
+.matrix td { color: var(--muted); font-size: .9rem; }
+.matrix td:last-child { width: 38%; }
+.feedback-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 26px;
+  margin-bottom: 30px;
+}
+.feedback-item { padding-top: 18px; border-top: 1px solid var(--line); }
+.feedback-item h3 { margin: 0 0 8px; font-size: 1.35rem; }
+.feedback-item p { margin: 0; color: var(--muted); font-size: .92rem; }
+.feedback-route {
+  margin: 0 0 30px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.feedback-route > p { margin: 0 0 14px; color: var(--muted); }
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  align-items: center;
+}
+.node {
+  padding: 8px 10px;
+  border: 1px solid #d3cadb;
+  border-radius: 4px;
+  background: var(--surface);
+  font: .78rem/1.3 var(--mono);
+}
+.arrow { color: var(--lilac); }
+.guardrails { display: grid; grid-template-columns: 1.1fr .9fr; gap: 26px; }
+.guardrail {
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.guardrail h3 { margin: 0 0 12px; font-size: 1.4rem; }
+.guardrail ul { margin: 0; padding-left: 19px; color: var(--muted); }
+.guardrail li + li { margin-top: 8px; }
+.guardrail.clay { background: var(--clay-soft); border-color: #dfc3b7; }
+.naming-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 32px; }
+.naming-row {
+  display: grid;
+  grid-template-columns: 42% 1fr;
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.naming-row span { color: var(--muted); font-size: .88rem; }
+footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
+.footer-inner { display: flex; justify-content: space-between; gap: 20px; }
+@media (max-width: 820px) {
+  .hero { min-height: 650px; }
+  .hero-inner { min-height: 650px; justify-content: flex-start; padding-top: 64px; }
+  h1 { font-size: 4rem; }
+  .snail { top: 48%; width: 620px; max-width: 110vw; right: -210px; opacity: .42; }
+  .section-head { grid-template-columns: 1fr; gap: 8px; }
+  .intro-grid, .routes, .guardrails, .naming-grid, .student-prompts { grid-template-columns: 1fr; }
+  .experience-flow, .feedback-grid { grid-template-columns: repeat(2, 1fr); }
+  .intro-item + .intro-item { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
+  .matrix { display: block; overflow-x: auto; }
+}
+@media (max-width: 560px) {
+  .wrap { width: min(100% - 28px, 1120px); }
+  .hero-rule { grid-template-columns: 1fr; }
+  .hero-rule div + div { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
+  .step { grid-template-columns: 48px 1fr; }
+  .step-mark::before { right: 12px; }
+  .step-body { padding-left: 20px; }
+  .experience-flow, .feedback-grid { grid-template-columns: 1fr; }
+  .naming-row { grid-template-columns: 1fr; gap: 3px; }
+  .footer-inner { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap hero-inner">
+    <span class="kicker">T2AG / Directory Guide / 0.1.2</span>
+    <h1>操作<br>目录册</h1>
+    <p class="hero-copy">你只需说清想学什么、哪里卡住、哪里用得不顺。Agent 会读取你的状态，按需改造文件、生成工具和展现形式，再把反馈变成下一次更顺手的起点。</p>
+    <div class="hero-rule">
+      <div><strong>01 说出需求</strong>目标、卡点和体验都算输入</div>
+      <div><strong>02 当场改造</strong>换形式、改文件、做工具</div>
+      <div><strong>03 反馈写回</strong>下一次少解释、少摩擦</div>
+    </div>
+  </div>
+  <img class="snail" src="assets/fable_snail.png" alt="自然史风格的蜗牛插图">
+</header>
+
+<nav class="jump" aria-label="页内导航">
+  <div class="wrap jump-inner">
+    <a href="#intro">序言</a>
+    <a href="#principles">设计理念</a>
+    <a href="#start">启动判断</a>
+    <a href="#session">课堂循环</a>
+    <a href="#branches">按需流程</a>
+    <a href="#feedback">反馈调节</a>
+    <a href="#naming">命名</a>
+    <a href="#environment">环境</a>
+  </div>
+</nav>
+
+<main>
+<section id="intro">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">01 / Preface</span>
+      <div><h2>一个伴学生共同成长的本地学习系统</h2><p>T2AG 把可更换的 AI agent 接到一组学生主导、可以直接阅读和修改的本地文件上。它保存连续性，但不预先替学生决定完整形态。</p></div>
+    </div>
+    <div class="intro-grid">
+      <article class="intro-item"><h3>本地记忆</h3><p>课程进度、学生体验、错误、方法和下一步都留在可检查的文件里。换一个 agent，学习不必从自我介绍重新开始。</p></article>
+      <article class="intro-item"><h3>学生主导</h3><p>学生对文件和规则拥有最终决定权，可以根据学习体验对系统内容进行生成、修改与重新组织，而不是被一个固定的学习框架束缚。</p></article>
+      <article class="intro-item"><h3>使用中成长</h3><p>初装只提供最小可运行结构，课程、技能、工具和偏好在真实使用中逐步形成。学生提出需求后，系统可以立即改造文件、生成展现形式或工具；使用后的反馈又会继续修正它，让系统越来越贴近学生需求，也让学生对工具形成更清楚、更从容的掌控感。</p></article>
+    </div>
+  </div>
+</section>
+
+<section id="principles" class="experience-section">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">02 / Principles</span>
+      <div><h2>设计围绕学生，而不是围绕文件</h2><p>文件只是可改造的器具。系统的价值是把学生的需求迅速变成可试用的改变，再让有效改变留下来，减少以后重复说明和重复忍受。</p></div>
+    </div>
+    <div class="experience-flow">
+      <article class="experience-step"><b>01</b><h3>说出需求或不适</h3><p>可以谈目标、卡点、阅读体验、情绪、节奏，也可以直接说“这个文件不好用”或“我想换一种学法”。</p></article>
+      <article class="experience-step"><b>02</b><h3>当场生成与改造</h3><p>Agent 可以换一种或加一种展现形式，修改课程文件，生成图、交互页、小工具、检查脚本或技能原型。</p></article>
+      <article class="experience-step"><b>03</b><h3>真实使用并反馈</h3><p>学生不必先设计完整方案，只需使用后说明哪里更顺、哪里仍烦、哪里误解，Agent 据此继续调整。</p></article>
+      <article class="experience-step"><b>04</b><h3>固化或撤回</h3><p>一次性产物留在 lesson；稳定偏好写入学生档案；成熟流程才固化为 playbook 或 tool。不好用的改变可以撤回。</p></article>
+    </div>
+    <div class="student-prompts">
+      <div><h3>你可以直接这样说</h3><ul class="prompt-list"><li>“换一种或者加一种展现形式。”</li><li>“把这个步骤做成以后能复用的技能。”</li><li>“这个文件让我很费劲，改造一下。”</li><li>“先做一个小工具，我用完再给反馈。”</li></ul></div>
+      <div><h3>摩擦如何被真正减少</h3><p>反馈不会只停在对话里。课程内偏好进入 <code>course_reflections.md</code>，跨课程稳定偏好进入 <code>basic_info.md</code>，解题方式进入 <code>reasoning_patterns.md</code>，重复流程按门槛进入 <code>50_playbook/</code>，确定性检查进入 <code>70_tools/</code>。学生始终拥有修改、拒绝和撤回这些文件的 root 权限。</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">03 / Start</span>
+      <div><h2>把基础安装包变成自己的 T2AG</h2><p>第一次使用只需要回答少量问题。系统会把空白结构变成你的学生档案、课程入口和下一步行动；以后回来时，不必重新解释自己和学习进度。</p></div>
+    </div>
+    <div class="materialize">
+      <h3>第一次打开时，你会经历什么</h3>
+      <p>你拿到的是一个极简的基础安装包。把它复制为自己的 <code>t2ag</code> 文件夹，在 AI 环境中打开并发送“T2AG”，然后回答昵称、课程、教材、当前进度和学习偏好。确认信息后，你会看到自己的档案与课程生成、欢迎信息出现，并得到一条可以直接开始的下一步。此后文件会随着使用和反馈继续变化，最终成为更贴近你习惯的个人学习系统。</p>
+      <div class="chain"><span class="node">拿到基础安装包</span><span class="arrow">→</span><span class="node">复制为自己的 t2ag</span><span class="arrow">→</span><span class="node">回答 5 个问题</span><span class="arrow">→</span><span class="node">看到档案与课程生成</span><span class="arrow">→</span><span class="node">获得可直接执行的下一步</span><span class="arrow">→</span><span class="node">以后直接继续学</span></div>
+    </div>
+    <div class="routes">
+      <article class="route"><h3>第一次使用</h3><p>按问题告诉系统你是谁、要学什么、用什么教材、学到哪里和怎样学更舒服。系统复述确认后再创建内容，不替你猜测。</p><code class="path">main/50_playbook/first_run.md</code></article>
+      <article class="route"><h3>以后再回来</h3><p>直接说“继续学某门课”即可恢复课程、教材位置、未解决问题和复测内容。新的课程、技能、工具与偏好仍可随时继续加入。</p><code class="path">main/50_playbook/lesson_recover.md</code></article>
+    </div>
+  </div>
+</section>
+
+<section id="session">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">04 / Session</span>
+      <div><h2>一节课的完整循环</h2><p>读取很容易，真正决定系统是否可靠的是结课写回。</p></div>
+    </div>
+    <div class="timeline">
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>运行 doctor</h3><p>FAIL 先修；skeleton 的首次启动提示和 lite 的无 Git 提示可以保留。</p><div class="step-files"><code>python main/70_tools/t2ag_doctor.py</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>恢复热上下文</h3><p>读 memory、当前课程组、课程状态和学生四文件。课程状态是进度唯一真相源。</p><div class="step-files"><code>00_core/t2ag_memory.md · course_status.md · 10_case/students/Sxxx/</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>执行知识点抽查</h3><p>课程覆盖题、活跃错题和陈年反刍按 2 + 8 + 1 上限抽取；同一知识点用不同题面验证。</p><div class="step-files"><code>50_playbook/mistake_retest.md · mistake_bank.md</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>基于来源教学</h3><p>教材课先读当前原文；工作区使用可读路径，不凭模型记忆跳页。学生随时可以要求换一种或增加一种展现形式。</p><div class="step-files"><code>lessonNN/working_pages/source_excerpt.md · lessonNN.md</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>执行结课仪式</h3><p>更新真相源、收割知识点错误、写学生档案、刷新 memory、处理工作页、输出写入确认。</p><div class="step-files"><code>50_playbook/session_close.md</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>再次体检与可选存档</h3><p>doctor 回到 0 FAIL。Git 只在已有授权时按明确路径提交，网络失败不阻塞结课。</p><div class="step-files"><code>50_playbook/git_workflow.md</code></div></div></article>
+    </div>
+  </div>
+</section>
+
+<section id="branches">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">05 / Branches</span>
+      <div><h2>需要时才展开重流程</h2><p>入口保持短，教材、OCR、考试和项目验证按触发条件加载。</p></div>
+    </div>
+    <table class="matrix">
+      <tbody>
+        <tr><th>新课程</th><td>建立状态、题库、错题库、教材入口与课程驱动。</td><td><code>50_playbook/new_course_init.md</code></td></tr>
+        <tr><th>外部资料</th><td>先登记 ER 编号，再决定课程私有或跨课程共享位置。</td><td><code>book_management.md · 30_courses/_shared/external_resources.md</code></td></tr>
+        <tr><th>OCR</th><td>结构化文本优先；模型视觉识读其次；本地重模型必须先获下载授权。</td><td><code>50_playbook/ocr_correct_flow.md</code></td></tr>
+        <tr><th>卷面考核</th><td>题面与答案隔离，考试状态独立于日常 lesson。</td><td><code>exam_protocol.md · exam_bank_spec.md</code></td></tr>
+        <tr><th>通识轨</th><td>阅读型和项目型分流，不占课程组预算。</td><td><code>50_playbook/general_learning.md</code></td></tr>
+        <tr><th>Praxis</th><td>面向混沌的实践修炼课，学习效果必须由学生真实行动参与完成。</td><td><code>course_status.md: course_driver: praxis</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="feedback">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">06 / Feedback</span>
+      <div><h2>反馈持续调节下一步</h2><p>系统不替学生定义一个固定“状况”。它把学生主动反馈、长期体验、学习结果和进度一致性当作参考，形成调整提案，学生确认后才执行。</p></div>
+    </div>
+    <div class="feedback-grid">
+      <article class="feedback-item"><h3>学生主动反馈</h3><p>学生此刻说出的目标、卡点、不适、兴趣和形式要求优先。系统先回应当前体验，而不是用档案覆盖本人陈述。</p></article>
+      <article class="feedback-item"><h3>长期体验参考</h3><p><code>basic_info.md</code>、<code>personality_baseline.md</code> 和课程感想提供稳定偏好与历史摩擦，但只用于提出更合适的节奏、语气和形式。</p></article>
+      <article class="feedback-item"><h3>学习结果参考</h3><p><code>reasoning_patterns.md</code>、疑问和知识点状态提供可观察证据，帮助决定该解释、练习、复测，还是换一种反馈方式。</p></article>
+      <article class="feedback-item" id="authority"><h3>进度一致性参考</h3><p>权威链只校准“实际学到哪里”：<code>course_status.md</code> 是进度真相源，memory 与 course_info 是缓存，doctor 负责发现冲突。</p></article>
+    </div>
+    <div class="feedback-route">
+      <p>参考不会直接变成处置。先形成可撤回的调整提案，再由学生确认，并用下一轮体验检验它是否真的降低了摩擦。</p>
+      <div class="chain"><span class="node">主动反馈</span><span class="arrow">+</span><span class="node">体验档案</span><span class="arrow">+</span><span class="node">学习结果</span><span class="arrow">+</span><span class="node">进度权威链</span><span class="arrow">→</span><span class="node">调整提案</span><span class="arrow">→</span><span class="node">学生确认</span><span class="arrow">→</span><span class="node">改教法 / 改文件</span><span class="arrow">→</span><span class="node">继续反馈</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="naming">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">07 / Naming</span>
+      <div><h2>路径负责稳定，标题负责表达</h2><p>显示名称可以自然，机器路径必须可预测。已有 ID 不做装饰性改名。</p></div>
+    </div>
+    <div class="naming-grid">
+      <div class="naming-row"><code>S002/ · T001.md · G02.md</code><span>实体 ID</span></div>
+      <div class="naming-row"><code>lesson01/lesson01.md</code><span>两位课时编号</span></div>
+      <div class="naming-row"><code>MATH1607H_MathematicalAnalysis/</code><span>课程码 + PascalCase 描述</span></div>
+      <div class="naming-row"><code>course_status.md</code><span>规则和状态用 snake_case</span></div>
+      <div class="naming-row"><code>working_pages/source_excerpt.md</code><span>当前教材工作区</span></div>
+      <div class="naming-row"><code>t2ag_directory_guide.html</code><span>本目录册固定入口</span></div>
+    </div>
+    <p><a href="main/50_playbook/naming_conventions.md">打开完整命名与迁移规范</a></p>
+  </div>
+</section>
+
+<section id="environment">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">08 / Environment</span>
+      <div><h2>环境默认保持安静</h2><p>进入项目、上课和普通验收都不能成为下载理由。</p></div>
+    </div>
+    <div class="guardrails">
+      <article class="guardrail clay"><h3>默认动作</h3><ul><li>复用现有解释器，不创建、删除、升级或重建 <code>.venv</code>。</li><li>只检查 <code>pyvenv.cfg</code>、版本、直接依赖、<code>pip check</code> 与最小 smoke test。</li><li>不递归枚举虚拟环境每个文件。</li></ul></article>
+      <article class="guardrail"><h3>需要下载时</h3><ul><li>先报告名称、用途、预计下载量、磁盘、缓存位置和耗时。</li><li>用户明确授权后才执行。</li><li>预计超出申报值 20% 或新增超过 500 MB 时停止并重新确认。</li></ul></article>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap footer-inner"><span>T2AG 0.1.2 · 从基础形态开始，在使用中生长</span><span>skeleton 是安装包与模板源，实例化后即为 t2ag</span></div>
+</footer>
+</body>
+</html>

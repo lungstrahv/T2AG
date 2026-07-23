@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "updated": "2026-07-23",
+  "artifacts": [
+    {
+      "artifact_id": "DIR_ACTIVITY_RECORDS",
+      "canonical_path": "main/12_activity_records/",
+      "redirects": [],
+      "status": "active",
+      "migration_reason": "0.1.2 结构准备：ActivityRecord 目标容器（空骨架）"
+    },
+    {
+      "artifact_id": "DIR_EXECUTION",
+      "canonical_path": "main/20_execution/",
+      "redirects": [],
+      "status": "active",
+      "migration_reason": "0.1.2 结构准备：G/R 执行绑定共同容器（空骨架）"
+    },
+    {
+      "artifact_id": "DIR_COURSE_DEFINITIONS",
+      "canonical_path": "main/30_course_definitions/",
+      "redirects": [],
+      "status": "active",
+      "migration_reason": "0.1.2 结构准备：CourseDefinition 目标容器（空骨架）"
+    },
+    {
+      "artifact_id": "DIR_COURSE_RUNS",
+      "canonical_path": "main/35_course_runs/",
+      "redirects": [],
+      "status": "active",
+      "migration_reason": "0.1.2 结构准备：CourseRun 目标容器（空骨架）"
+    },
+    {
+      "artifact_id": "DIR_FIELD_PRACTICES",
+      "canonical_path": "main/40_field_practices/",
+      "redirects": [],
+      "status": "active",
+      "migration_reason": "0.1.2 结构准备：FieldPractice 目标容器（空骨架）"
+    }
+  ]
+}
+

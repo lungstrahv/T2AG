@@ -1,26 +1,12 @@
-﻿# T2AG 跨会话记忆索引（分节预算制）
+# T2AG 跨会话记忆索引（短版缓存）
 
-> **作用**：启动时优先读本文件，快速恢复跨会话上下文。changelog / problemlog
-> 改为**按需展开**——需要细节时按本文件行号指针去对应文件读取。
->
-> **记忆治理三制度**：
-> 1. **分节预算制**：每节有独立行数上限，超限在**节内**淘汰，防止某节膨胀挤占全局。
-> 2. **超限报错制**：doctor 检查各节行数，超限 = FAIL，逼出显式淘汰决策，禁止静默丢弃。
-> 3. **下沉制**：能沉到 playbook（=skills 层）或 lesson 文件（=会话层）的，绝不留在 memory。
->
-> **总预算**：180 行（8 节各自设限，合计 160 + 20 行缓冲由周复盘裁决）。
->
-> **淘汰留痕**：删行时注明"沉到哪个文件"，治"不敢删"的心病。
->
-> **最后更新**：2026-07-08
-
-<!-- 各节行数上限见节标题后的 [max N]，doctor 逐节校验 -->
+> 启动时优先读取；只保存恢复所需指针、摘要和行动检查。
+> 详细规则下沉到 `50_playbook/`，系统历史见 `t2ag_changelog.md`，问题历史见 `t2ag_problemlog.md`。
+> 最后更新：—
 
 ---
 
 ## 上次课摘要  [max 12]
-
-> 每次结课仪式（`50_playbook/session_close.md`）重写本节，开课时最先读。
 
 - **日期**：—
 - **学到哪**：—
@@ -28,88 +14,51 @@
 - **学生状态**：—
 - **下次第一件事**：—
 
----
-
 ## 当前状态指针  [max 20]
 
 | 项目 | 当前值 | 详情位置 |
 |---|---|---|
 | 活跃课程组 | — | 首次启动后创建 |
-| 当前课程组 | — | 首次启动后创建 |
 | 活跃 lesson | — | — |
 | 当前教师 | — | 首次启动后配置 |
 | 当前学生 | S001 | `10_case/students/S001/`（模板） |
-| t2ag 版本 | 0.0.06 | `t2ag.md` 顶部 |
+| R 活跃绑定 | — | `25_general/_README.md` |
+| T2AG 版本 | 0.1.2 | `t2ag.md` 顶部 |
 
-> **进度权威链**：各课程 `course_status.md` 是唯一真相源；本表为缓存，
-> 只允许在结课仪式中由真相源刷新。冲突时以真相源为准，先跑 doctor 再修复。
+> 课程进度以各课程 `course_status.md` 为唯一真相源；本表只缓存恢复指针。
 
----
+## 记忆治理与下一次教学前检查  [max 18]
 
-## 记忆治理约束表  [max 18]
-
-| 约束目标 | 主要约束文件 | 下一次教学前必须执行 |
-|---|---|---|
-| 避免跳课/跳页 | memory, course_status, lessonXX | 先确认课程/lesson/页码/停顿点 |
-| 避免漏读教材原文 | course_info, temppage | 讲新内容前读教材当前页±缓存 |
-| 避免重复踩坑 | problemlog, memory | 相似任务前查决策索引与历史问题 |
-| 避免忽视学生状态 | emo, students/Sxxx | 开课前读性格总纲与最近感想 |
-| 避免旧错误复发 | [课程]/mistake_bank | 按 mistake_retest 复测到期旧错误 |
-
----
-
-## 下一次教学行动前检查  [max 16]
-
-1. 读「当前状态指针」，确认课程/lesson/页码/学生/教师。
-2. 有课程组先读 `20_groups/Gxx.md`，再读对应 `course_status.md`。
-3. 读 `course_info.md` 通用教学规则（教材原文、逐节确认、OCR 校对）。
-4. 读当前 `lessonXX.md`，确认上轮进度与未解决问题。
-5. 重复流程先查 `50_playbook/`。
-6. 相似历史问题按索引展开 `problemlog.md`。
-7. 读学生 `students/Sxxx/` 三文件，调整节奏语气。
+1. 先读当前状态指针，确认课程、lesson、页码、学生和教师。
+2. 若存在约定的交接索引，按 `handoff_management.md` 只读匹配当前任务的 active 交接；无匹配即跳过，交接不覆盖真相源。
+3. 有课程组先读 `20_groups/Gxx.md`，再读对应 `course_status.md`。
+4. 讲新内容前读教材当前页与 working_pages 缓存，逐节确认，不跳页。
+5. 重复流程先查 `50_playbook/`；相似历史问题按索引展开 `t2ag_problemlog.md`。
+6. 读 `student_info.md` 与当前学生四文件；处理练习/复测时按需读 `reasoning_patterns.md`。
+7. 按 `mistake_retest.md` 做近期/远期覆盖、活跃知识点和陈年反刍；结课按 `session_close.md` 写回。
 8. 环境可执行代码则跑 `70_tools/t2ag_doctor.py`。
-9. 按 `50_playbook/mistake_retest.md` 开课复测。
 
----
+## 关键决策索引  [max 12]
 
-## 关键决策索引  [max 30]
-
-| 主题 | 关键词 | 时间 | 位置 |
-|---|---|---|---|
-| （骨架为空，实际使用中追加） | — | — | — |
-
----
+| 主题 | 关键词 | 位置 |
+|---|---|---|
+| 学生档案路由 | 四文件、证据门槛 | `10_case/student_info.md` |
+| 知识点掌握 | 2+8+1、maintenance、aged | `50_playbook/mistake_retest.md` |
+| 陈年复习日历 | 3-1-3=6 学习日、关联闭合、跨日连对 2 次 | `50_playbook/mistake_retest.md` |
+| 发行同步 | core-playbook 三版本 SHA-256 一致 | `50_playbook/playbook_management.md` |
+| 交接上下文 | active/scope 路由、最小充分上下文、真相源核对 | `50_playbook/handoff_management.md` |
+| 环境惰性 | 不自动重建 venv / 安装依赖 / 下载模型 | `50_playbook/project_verification.md` |
+| 路径命名 | 稳定 ID、snake_case、working_pages | `50_playbook/naming_conventions.md` |
+| 卷面考核 | 真题选编、隔离池、补考 | `50_playbook/exam_protocol.md` |
 
 ## 最近变更摘要  [max 8]
 
-> 只留最近 5 条，更早的沉入 changelog，删行注明"沉到 changelog"。
-
-1. **[2026-07-08]** v0.0.06：骨架重建（全小写目录名）+ skin 系统 + core-playbook 提升
-2. （更早条目沉入 changelog）
-
-> 旧条目（README 清理 / lite→skeleton / v0.0.06 合并）沉到 changelog。
-
-> 完整变更历史见 `t2ag_changelog.md`（按需展开）。
-
----
+1. **[2026-07-23]** v0.1.2 第二阶段：完整 Markdown 对象分层迁移结构契约与空骨架——新增 7 类对象目标目录、领域契约、命名规范、三版 README、doctor 物理位置检查+引用完整性、state_refresh 双路径读取（main+skeleton）。尚未迁移任何实例。
+2. **[2026-07-20]** v0.1.2：生命周期与容量组合分离，建立 checkpoint/completion 两级进度、确定性缓存刷新、路径注册表、handoff 老化与云端双范围。
+3. **[2026-07-17]** v0.1.1：lessonXX 进度行纳入结课写回，新增课中手动存档规则。
+4. **[2026-07-17]** v0.1.1：句尾改为字面标记 `md.imurs`；教材窗口增加物理页/OCR/校对/course_status 一致性 doctor 门。
+5. **[2026-07-16]** v0.1.1：云端项目确认为 `personal_instance`，加入 S002 / `TR01→T003` 只读身份路由与 skeleton 隔离。
 
 ## 最近问题摘要  [max 8]
 
-> 只留最近 5 条，更早的沉入 problemlog。
-
 1. （骨架为空）
-
-> 完整问题历史见 `t2ag_problemlog.md`（按需展开）。
-
----
-
-## 课程进度速览  [max 20]
-
-| 课程 | 代码 | 进度 | 恢复关键词 |
-|---|---|---|---|
-| （用户确认课程后填入） | — | — | — |
-
----
-
-<!-- 预算说明：8 节 max 合计 = 12+20+18+16+30+8+8+20 = 132 行内容 + 表头/分隔约 28 行 ≈ 160，留 20 行缓冲。
-     doctor 应逐节数行，任一节超 max 报 FAIL；总行超 180 亦 FAIL。 -->

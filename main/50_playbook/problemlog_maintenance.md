@@ -34,7 +34,7 @@
 |---|---|
 | 学生概念、证明、计算、代码理解错误 | `[课程]/mistake_bank.md` |
 | 课程进度、停顿点、累计课时 | `[课程]/course_status.md` |
-| 学生情绪或稳定学习状态 | `t2ag_emo.md` / `10_case/students/Sxxx/` |
+| 学生情绪或稳定学习状态 | `student_info.md` / `10_case/students/Sxxx/` |
 | 工具、环境、文件结构、规则执行、记忆治理问题 | `main/00_core/t2ag_problemlog.md` |
 
 ### 步骤 2：先查旧记录

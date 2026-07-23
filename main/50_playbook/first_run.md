@@ -6,17 +6,18 @@
 > - `00_core/t2ag_memory.md`「上次课摘要」为空（日期为 `—`）
 > - `10_case/student_info.md` 中 SN01 仍指向 S001（默认模板）
 >
-> **非首次**则走 `t2ag.md` 4.2 日常接管，详见 `00_core/t2ag_flow.md`。
+> **非首次**则走 `t2ag.md` 4.2 日常接管，详见 `lesson_recover.md`。
 
 ---
 
 ## 一、人类已完成的前置步骤（agent 不执行，仅确认）
 
-1. 解压 `T2AG-skeleton` 到目标目录（数字前缀目录 00~70 已预建，内含 `_README.md` 说明文件）
-2. 在 AI 环境（TRAE / Cursor / Claude Code / Kimi）中打开该目录
+1. 复制或解压 `T2AG-skeleton` 到新的目标目录，默认把目标目录命名为 `t2ag`；若开发环境同时保留模板源，不在 `t2ag-skeleton` 原目录内写入学生数据
+2. 在 AI 环境（TRAE / Cursor / Claude Code / Kimi）中打开目标 `t2ag` 目录
 
 > agent 确认：根目录存在 `AGENTS.md`（或 CLAUDE.md / .cursorrules）且 `main/t2ag.md` 存在 → 前置步骤已完成。
 > 目录结构已就位——agent 的职责是**填充内容**（学生档案、课程文件夹、课程组），不是创建目录。
+> `t2ag-skeleton` 只是安装包名。目标目录完成步骤 5 后即成为基础 T2AG 实例，不需要新增 `instance.yaml` 或另一套身份文件。
 
 ---
 
@@ -56,29 +57,26 @@
 根据用户确认的信息，按顺序创建：
 
 **5a. 学生档案**
-- 复制 `10_case/students/S001/` 三文件到 `S002/`
+- 复制 `10_case/students/S001/` 四文件到 `S002/`
 - 填写 `S002/basic_info.md`：姓名、学校、年级、学习目标
-- `S002/personality_baseline.md` 和 `course_reflections.md` 保持模板空，随教学填充
+- `S002/personality_baseline.md`、`course_reflections.md` 和 `reasoning_patterns.md` 保持模板空，随教学填充
 - 更新 `10_case/student_info.md`：SN01 指向 S002，学生库索引表加一行
 
 **5b. 课程文件夹**
-- 为每门课在 `30_courses/` 下创建 `[课程代码]_[课程英文名称]/`
-- 创建 `course_status.md`（课程状态与教学方案）
-- 创建 `mistake_bank.md`（知识错题库，加复利回路头部声明）
-- 创建 `[课程缩写]_book/`（存放教材）
-- 若用户提供了教材文件，移入 `_book/` 并创建 `README.md` 登记书目
+- 每门课完整执行 `50_playbook/new_course_init.md`
+- 使用其中的 `MISTAKE_BANK_TEMPLATE_V1` 生成知识错题库，不在首次启动流程另写一份格式
+- 若用户提供教材或外部资料，按 `50_playbook/book_management.md` 登记和落位
 
 **5c. 更新配置文件**
 - `10_case/teacher_overlay.md`：课程-教师映射表加行（默认指向 T001）
 - `10_case/course_info.md`：课程列表加行，填写课程代码/名称/路径/初始进度
-- `10_case/t2ag_case.md`：填写教学总体描述、培养方案树形图、当前师生配置
-- `00_core/t2ag_memory.md`：状态指针更新（活跃课程、当前 lesson、当前学生 SN01→S002）
+- `10_case/t2ag_case.md`：填写教学总体描述、培养方案指针、当前师生配置
+- `00_core/t2ag_memory.md`：状态指针更新（活跃课程、当前 lesson、当前学生 SN01→S002）；把「上次课摘要」日期写为初始化日期，并把「下次第一件事」写成可直接开始第一课的动作
 
-**5d. 复利回路声明**
-- 给每门课的 `mistake_bank.md` 加头部声明：
-  `> 【模式】复利回路（00_core/pattern_retire_loop.md）实例`
-  `> 【参数】域=知识（课程代码）｜时机=事后归因｜归因层=概念层｜消费方=开课复测→改理解｜退役=权重 0`
-  `> 【边界】决策执行类错误转投 40_practices/trading/trade_journal.md`
+**5d. 完成实例化**
+- 确认 SN01 已不再指向 S001，且 memory「上次课摘要」日期不再为空
+- 两项同时成立后，当前目标目录的身份就是**基础 T2AG 实例**；后续对话不得重复执行首次启动
+- 基础实例不要求预先填满课程、技能或工具，缺少尚未被学生需要的内容是正常状态，之后按真实使用逐步填充
 
 ### 步骤 6：验证
 运行 `70_tools/t2ag_doctor.py`，确认 0 FAIL。
