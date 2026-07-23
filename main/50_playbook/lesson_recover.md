@@ -28,7 +28,7 @@
 满足以下任一条件，即触发跨会话恢复流程：
 
 1. **学生说「继续学 XXX」**：如「继续学 CS1953」「继续学 MATH1607H」。
-2. **学生说「读取 course_status.md」**：如「读取 main/30_courses/CS1953_CppProgramming/course_status.md」。
+2. **学生说「读取 course_status.md」**：如「读取 main/35_course_runs/S002/CR-S002-CS1953/course_status.md」。
 3. **学生提及课程名称或代码**：在新对话中提及某门已有课程，意图继续学习。
 4. **新对话开始，学生未明确说继续但提及课程内容**：根据上下文判断是否需要恢复。
 
@@ -80,7 +80,7 @@
 
 **文件路径**：按 `naming_conventions.md` §5.3 解析当前课程的 `course_status.md`
 
-**兼容期示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/course_status.md`
+**兼容期示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/course_status.md`
 **迁移后示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/course_status.md`
 
 > 同时读取「教学记录」节的最后几条记录，了解最近的教学情况和学生的掌握程度。
@@ -103,7 +103,7 @@
 
 **文件路径**：按 §5.3 解析出的课程根 + `lessonXX/lessonXX.md`
 
-**兼容期示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/lesson01/lesson01.md`
+**兼容期示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/lesson01/lesson01.md`
 **迁移后示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/lesson01/lesson01.md`
 
 > **当前教学进度标记示例**：
@@ -142,7 +142,7 @@
 
 **文件路径**：按 §5.3 解析出的课程根 + `lessonXX/working_pages/source_excerpt.md`
 
-**兼容期示例**：`main/30_courses/MATH1607H_MathematicalAnalysis/lesson01/working_pages/source_excerpt.md`
+**兼容期示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/lesson01/working_pages/source_excerpt.md`
 **迁移后示例**：`main/35_course_runs/S002/CR-S002-MATH1607H/lesson01/working_pages/source_excerpt.md`
 
 **关注内容**：

@@ -51,8 +51,8 @@ pending 状态和课堂要点写入 `course_status.md` 与 lesson，再运行状
 
 > **前置解析**：按 `naming_conventions.md` §5.1–5.3 取得当前课程的唯一 `course_status.md` 路径。
 > 若解析 FAIL（碰撞、缺载体、Case 归属不一致）→ 停止结课写回，不得猜路径。
-> 兼容期示例：`30_courses/MATH1607H_MathematicalAnalysis/course_status.md`；
-> 迁移后示例：`35_course_runs/SN01/CR-SN01-MATH1607H/course_status.md`。
+> 兼容期示例（旧混装，仅当该课尚未迁移时）：`30_courses/MATH1607H_MathematicalAnalysis/course_status.md`；
+> 迁移后示例（真实 case_id，勿写字面 SN01）：`35_course_runs/S002/CR-S002-MATH1607H/course_status.md`。
 
 - 「当前进度」：正在学第几课、已完成内容、**精确停顿点**（页码 + 小节 + 一句话说明停在哪个概念，要求下次能直接翻开继续）
 - 更新 `lifecycle_status`、`current_completion_node`、`current_checkpoint`、`checkpoint_state` 与 `next_action`

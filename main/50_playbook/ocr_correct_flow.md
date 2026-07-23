@@ -173,6 +173,15 @@ tesseract working_pages/pages/page21.png working_pages/raw_ocr/page_21_raw -l ch
 （校对后的文本内容）
 ```
 
+同时在教材驱动课程的 `course_status.md` YAML 文件头写入机器可检字段：
+
+```yaml
+textbook_page: 23
+working_pages_window: [22, 23, 24, 25]
+```
+
+每次翻页必须在同一次变更中同步更新这两个字段、`source_excerpt.md` 头部、翻页管理表和页面状态跟踪表；不得只改其中一处。标准物理文件名固定为 `pages/pageNN.png` 与 `raw_ocr/page_NN_raw.txt`，doctor 据此验收。
+
 ---
 
 ## 四、常见错误对照表
