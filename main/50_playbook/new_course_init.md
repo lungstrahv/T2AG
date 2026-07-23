@@ -28,15 +28,20 @@
 
 用户没有提供的信息保留“待确认”，不得编造。
 
-### 未来两步流程（结构契约，待试迁移通过后切换）
+### 默认两步流程（§5.5；S002 分层迁移后生效）
 
-完整对象分层迁移完成后，新课程将区分两步：
+新建课程**必须**拆成两步，不得再向 `30_courses/` 创建混装课程目录：
 
-1. **创建或复用 CourseDefinition**：在 `30_course_definitions/` 中确认或新建课程定义
-2. **创建 CourseRun**：用户真正开始学习时，在 `35_course_runs/<case_id>/` 中创建运行实例
+1. **创建或复用 CourseDefinition**  
+   路径：`main/30_course_definitions/<definition_id>_<PascalName>/`  
+   含 `course_definition.md`、`[代码]_book/` 等可复用定义；**禁止**写入学生进度。
+2. **创建 CourseRun**  
+   路径：`main/35_course_runs/<case_id>/CR-<case_id>-<definition_id>/`  
+   `case_id` 默认取 `student_info.md` 的 SN01；含 `course_status.md`（进度唯一真相源）、
+   banks、lesson 等运行态文件。
 
-> **当前状态**：兼容路径 `30_courses/` 仍继续使用。本批次不切换默认写入位置。
-> 默认写入位置只能在试迁移通过后切换。
+> **兼容**：仅当 §5.2–5.3 解析命中旧路径且无新路径碰撞时，才读/写旧混装树。  
+> **禁止**：同一 `definition_id` 新旧 live 并存；禁止为“省事”把新课写回 `30_courses/`。
 
 ---
 
@@ -44,19 +49,22 @@
 
 ### 步骤 1：登记课程缓存
 
-课程索引不再手写行。创建 `course_status.md` 后运行 `t2ag_state_refresh.py --write`，
+课程索引不再手写行。创建 CourseRun 的 `course_status.md` 后运行 `t2ag_state_refresh.py --write`，
 由真相源和容量组生成 `course_info.md` 缓存。
 
-### 步骤 2：创建目录
+### 步骤 2：创建目录（Def + Run）
 
 ```text
-main/30_courses/[代码]_[英文名]/
+main/30_course_definitions/[代码]_[英文名]/
+|-- course_definition.md
+`-- [代码]_book/
+    `-- README.md
+
+main/35_course_runs/<case_id>/CR-<case_id>-[代码]/
 |-- course_status.md
-|-- progress_nodes.md      # 激活/恢复时惰性生成；planned 课程可暂不创建
+|-- progress_nodes.md      # 激活/恢复时惰性生成；planned 可暂不创建
 |-- question_bank.md
 |-- mistake_bank.md
-|-- [代码]_book/
-|   `-- README.md
 `-- lesson01/                 # 第一次开课时创建
     |-- lesson01.md
     |-- thinking.txt
@@ -69,13 +77,31 @@ main/30_courses/[代码]_[英文名]/
         `-- source_excerpt.md
 ```
 
-课程目录固定放在 `main/30_courses/`（按 `naming_conventions.md` §5.5，试迁移通过前默认写入仍为旧路径）。英文名用 PascalCase，不含空格或特殊符号。
+英文名用 PascalCase，不含空格或特殊符号。`course_definition_id` 兼容期等于课程代码。
+创建前按 §5.2 确认新路径无重复目录、且旧路径无同码碰撞。
 
-### 步骤 3：生成 course_status.md
+### 步骤 3：生成 course_definition.md 与 course_status.md
 
-文件头必须声明：
+**Definition** 载体至少声明：
 
 ```yaml
+type: course_definition
+course_definition_id: [代码]
+school_course_code: [代码或—]
+name: [显示名]
+course_type: mastery
+default_driver: textbook  # textbook / goal / project / praxis
+prerequisites: []
+status: active
+```
+
+**Run** 的 `course_status.md` 文件头必须声明：
+
+```yaml
+type: course_run
+course_run_id: CR-<case_id>-[代码]
+case_id: <case_id>
+course_definition_id: [代码]
 course_driver: textbook  # textbook / goal / project / praxis
 lifecycle_status: planned  # planned / ongoing / completed / dropped
 ```

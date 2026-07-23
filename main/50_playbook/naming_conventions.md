@@ -128,12 +128,16 @@
 
 兼容期旧 `30_courses/` 仍可混装 Definition 与 Run 内容；拆分迁移后按上表归属，不得把学生进度写进 Definition，也不得把可复用定义正文复制进 Run。
 
-### 5.5 默认写入（试迁移通过前）
+### 5.5 默认写入（S002 分层迁移后）
 
 - **读取 / 恢复 / 结课写回**：一律按 §5.2–5.3 解析出的**当前唯一** `course_status.md` 及其旁路文件。
-- **新建课程默认 live 写入**：仍为 `30_courses/`（见 `new_course_init.md`）。
-- **禁止**：用户明确批准试迁移并完成切换前，向 live `30_course_definitions/` 或
-  `35_course_runs/` 写入正式实例；禁止为“让 doctor 变绿”而删除旧路径唯一副本。
+- **新建课程默认 live 写入**（见 `new_course_init.md`）：
+  1. **CourseDefinition** → `30_course_definitions/<definition_id>_<PascalName>/`
+     （含 `course_definition.md`、`[代码]_book/` 等可复用定义；**不**写学生进度）
+  2. **CourseRun** → `35_course_runs/<case_id>/CR-<case_id>-<definition_id>/`
+     （含 `course_status.md` 进度真相源、mistake/question bank、lesson 等）
+- **`30_courses/`**：仅兼容读回与共享层（如 `_shared/`）。**禁止**再向 `30_courses/` 新建混装课程目录。
+- **禁止**：同一 `definition_id` 新旧路径同时 live；禁止为“让 doctor 变绿”而删除 recovery 或旧路径唯一副本（recovery 删除须另文授权）。
 
 ## 六、重命名迁移
 

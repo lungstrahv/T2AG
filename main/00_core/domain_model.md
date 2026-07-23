@@ -333,7 +333,7 @@ ActivityRecord → 正式课程的升级必须满足：
 
 > **2026-07-23 状态**：S002 的五门兼容期课程（MATH1607H / PY1001 / CS1953 / IV1001 / MATH1205H）已切换为
 > CourseDefinition + CourseRun live 实例。下列「旧路径」仍被 doctor 支持；「新路径」**已承载**这些实例真相，
-> 不再是空骨架。新建课程的默认写入位置仍见 `50_playbook/naming_conventions.md` §5.5。
+> 不再是空骨架。**新建课程默认写入** `30_course_definitions/` + `35_course_runs/`（见 `naming_conventions.md` §5.5）。
 
 ### 旧路径（兼容期；迁移完成前仍有效，不得提前删除）
 
