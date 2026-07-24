@@ -2,6 +2,8 @@
 .tools/
 .uploads/
 .agents/
+.staging/
+.recovery/
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -10,4 +12,13 @@ __pycache__/
 .cache/
 *.exe
 *.o
+# SQL 运行时数据（schema.sql 等文本脚本仍然入库）
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
 .env
+# Large local archives under compatibility courses (live content is layered; recovery holds cold copies)
+main/30_courses/*.zip

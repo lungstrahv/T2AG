@@ -22,11 +22,32 @@
 课程已经存在时不得重新初始化，改走 `lesson_recover.md`。创建前确认：
 
 - 课程代码与名称
+- **课程来源与后缀**（必问，见下方说明）
 - 当前学生和学习使命
 - 课程驱动：`textbook / goal / project / praxis`
 - 已有教材、外部资料、当前基础和期望产物
 
-用户没有提供的信息保留“待确认”，不得编造。
+用户没有提供的信息保留"待确认"，不得编造。
+
+#### 课程码后缀询问（强制）
+
+新建课程时，agent **必须主动询问**：
+
+> “这门课的来源是什么？你想给它什么后缀？”
+
+后缀编码课程的**来源类型**，参考：
+
+| 来源 | 说明 | 示例 |
+|---|---|---|
+| 培养方案 | 学校教学计划内的课程 | MATH1607**H**（H=荣誉，沿用学校码） |
+| 职业培训 | 职业考试或培训体系 | ACCA-F3（自设前缀） |
+| 兴趣班 | 生活偶发兴趣 | 无固定后缀，用户自定 |
+| 技艺/习惯 | 决心提炼为技艺的持续实践 | 无固定后缀，用户自定 |
+
+- 后缀由用户决定，agent 不猜测、不默认。
+- 用户说"不要后缀"则不加。
+- 已有后缀语义：`H` = 荣誉（学校码沿用）；`r` = 冻结后缀，不再新发。
+- 自设码先登记后使用，在 `naming_conventions.md` 课程码规范节记录。
 
 ### 默认两步流程（§5.5；S002 分层迁移后生效）
 
@@ -161,7 +182,7 @@ next_action: <唯一下一步>
 ## 添加外部学习资料
 
 - 课程专属资料登记在本 README。
-- 跨课程资料只引用 `main/30_courses/_shared/external_resources.md` 的 ER 编号。
+- 跨课程资料只引用 `main/30_course_definitions/_shared/external_resources.md` 的 ER 编号。
 ```
 
 分类、路径、查重、本地持有和 ER 编号全部按 `book_management.md` 执行。
@@ -172,6 +193,10 @@ next_action: <唯一下一步>
 
 ```markdown
 <!-- QUESTION_BANK_TEMPLATE_V1 -->
+> 【模式】复利回路·部件（00_core/pattern_retire_loop.md）｜角色=流量台账
+> 【服务】所属回路=question_bank 集合层→教师画像（存量=students/[Sxxx]/reasoning_patterns.md）｜结算=answered/closed｜再入=学生复问→转“需要回看”
+> 【边界】知识性错误转投同课 mistake_bank；系统问题转投 t2ag_problemlog
+
 # [课程代码] 课程疑问库
 
 > lesson 保存完整问答上下文；本文件提供跨课时汇总、状态与回看入口，不复制整段课堂正文。
@@ -221,8 +246,8 @@ next_id: 1
 <!-- MISTAKE_BANK_TEMPLATE_V1 -->
 # [课程代码] 知识点错题库
 
-> 【模式】复利回路（00_core/pattern_retire_loop.md）实例
-> 【参数】域=知识点（[课程代码]）｜时机=事后归因｜归因层=概念层｜消费方=开课抽查→改理解｜退出=maintenance/aged
+> 【模式】复利回路·衰减（00_core/pattern_retire_loop.md）实例
+> 【参数】域=知识点（[课程代码]）｜时机=事后归因｜归因层=概念层｜消费方=开课抽查→改理解｜退出=maintenance/aged｜再入=陈年卷答错→回强化
 > 【边界】工具、环境、文件结构与流程问题转投 `00_core/t2ag_problemlog.md`
 
 next_id: 1

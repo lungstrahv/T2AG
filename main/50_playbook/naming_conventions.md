@@ -29,7 +29,7 @@
 | 课时 | `lesson` + 两位数字 | `lesson01/`、`lesson01.md` |
 | 课程 | `课程码_PascalCaseTitle` | `MATH1607H_MathematicalAnalysis/` |
 | R 绑定（兼容路径） | `课程码r_PascalCaseTitle.md` | （实例化后登记） |
-| 实践 | `Pxxx_PascalCaseTitle.md` | `P002_TradingDiscipline.md` |
+| 实践（旧） | Pxxx 前缀已退役，现役为 `FP-<case>-NNNN` / `AR-<case>-NNNN` | 见 domain_model §1.7-1.8 |
 | ActivityRecord | `AR-<case_id>-NNNN_Title.md` | `AR-S002-0001_ReadingLogic.md` |
 | FieldPractice | `FP-<case_id>-NNNN_Title/` | `FP-S002-0001_TradingDiscipline/` |
 | FieldPractice 证据索引 | `evidence/README.md`（实例内 POSIX 相对路径） | `FP-S002-0001_*/evidence/README.md` |
@@ -38,6 +38,8 @@
 | R binding | `RNNN_PascalCaseTitle.md` | `R001_ReadingLogic.md` |
 
 课程码、`r` 后缀和实体 ID 保留既有大小写语义；描述部分不使用空格。
+
+> **FP/AR 目录名后缀说明**：CourseRun 目录用裸 ID（`CR-S002-MATH1607H/`），因为课程码自带语义；FP/AR 的序号无语义，因此目录名追加 `_Title` 后缀助记（如 `FP-S002-0001_TradingDiscipline/`）。AR 为单文件，后缀直接在文件名上（`AR-S002-0001_InvestingNotes.md`）。
 
 稳定 ID 不因路径迁移而变化。现有课程代码继续作为当前 CourseDefinition ID，不创建第二套 ID。
 

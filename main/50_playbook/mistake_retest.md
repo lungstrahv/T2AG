@@ -61,7 +61,7 @@
 
 - `praxis` 课程的事实性、技术性知识可以进入本状态机。
 - 判断力、纪律和人格养成不能用答对三题认证，必须由真实行动、事前记录和长期复盘提供证据。
-- IV1001 的行为证据进入 `40_practices/trading/trade_journal.md`，不得用知识测验替代。
+- IV1001 的行为证据进入 `40_field_practices/S002/FP-S002-0001_TradingDiscipline/trade_journal.md`，不得用知识测验替代。
 
 ## 六、陈年复习卷与可选日历
 

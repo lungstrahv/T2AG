@@ -18,7 +18,8 @@
 - 当前培养方案引用（baseline + references）
 - 当前 G/R 执行选择
 - 课程运行状态摘要（缓存，真相源在各 CourseRun）
-- ActivityRecord
+- ActivityRecord（`12_activity_records/<case>/`，见 §1.7）
+- FieldPractice（`40_field_practices/<case>/`，见 §1.8）
 - 跨会话记忆和下一步（`00_core/t2ag_memory.md`）
 
 Case **不拥有**完整培养方案正文，**不复制**课程定义和课程进度真相源。
@@ -130,7 +131,7 @@ Case 可以引用：
 
 当前物理位置：`20_groups/Gxx.md`。
 
-目标路径：`20_execution/groups/`
+目标路径：`20_groups/`
 
 ### 1.6 R（弹性执行绑定 / Elastic Binding）
 
@@ -154,7 +155,7 @@ CourseRun lifecycle：planned / ongoing / completed / dropped
 
 当前物理位置：`25_general/[码]r_*.md`（兼容期旧路径，"通识轨"是 legacy 名称）。
 
-目标路径：`20_execution/bindings/`
+目标路径：`20_groups/bindings/`
 
 ### 1.7 ActivityRecord（活动记录）
 
@@ -339,14 +340,14 @@ ActivityRecord → 正式课程的升级必须满足：
 
 - `20_groups/`：G 执行组当前实例
 - `25_general/`：R 绑定文件容器（"通识轨"是 legacy 名称）
-- `30_courses/`：兼容期混装路径；S002 课程目录已迁出后可仅保留 `_shared/` 等
-- `40_practices/`：兼容期混装目录（包含 Project、FieldPractice 和旧格式实践文件）
+- `30_courses/`：兼容期混装路径，已于 2026-07-23 完全清空（C1 迁走 `_shared/`，phase-1 迁走课程目录）；空目录待 C2 删除
+- `40_practices/`：已于 2026-07-23 退场（EV-0005 步骤 1b），实例迁入 `40_field_practices/` 与 `12_activity_records/`，历史见 changelog
 
 ### 新路径（目标容器；S002 课程实例已 live）
 
 - `12_activity_records/`：ActivityRecord 目标容器（仍可为空骨架）
-- `20_execution/groups/`：G 目标容器
-- `20_execution/bindings/`：R 目标容器
+- `20_groups/`：G 目标容器（课程组主体）
+- `20_groups/bindings/`：R 目标容器（执行绑定从属于组）
 - `30_course_definitions/`：CourseDefinition **live** 容器
 - `35_course_runs/`：CourseRun **live** 容器（进度真相源 `course_status.md`）
 - `40_field_practices/`：FieldPractice 目标容器（仍可为空骨架）
