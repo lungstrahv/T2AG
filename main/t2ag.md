@@ -109,6 +109,7 @@
 | 复利回路模式 | `00_core/pattern_retire_loop.md` | 根因-状态维护模板 | 自身 | 实例声明 |
 | 课程组规则 | `00_core/course_group_rules.md` | 课程识别+组管理 | 自身 | doctor 四检 |
 | 领域模型 | `00_core/domain_model.md` | 对象定义、引用关系、类型与边界 | 自身 | doctor 语义检查 |
+| 功能流程图 | `00_core/t2ag_flow.md` | 系统运行的形状（视图，非真相源） | 自身 | — |
 
 ### 10_case —— 师生与课程配置
 | 部件 | 路径 | 职能 | 定义 | 检查 |
