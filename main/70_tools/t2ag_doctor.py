@@ -457,6 +457,9 @@ def check_pattern_declarations() -> None:
         rel_path = str(md.relative_to(MAIN)).replace("\\", "/")
         if rel_path in known_set or rel_path in pattern_doc_files:
             continue
+        # 与 known 段一致：S001 默认学生模板豁免，不当野生实例
+        if rel_path.startswith("10_case/students/S001/"):
+            continue
         content = md.read_text(encoding="utf-8")
         if PATTERN_RE.search(content):
             rep("WARN", f"未登记的复利回路声明：{rel_path}")
