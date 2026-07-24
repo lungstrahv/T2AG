@@ -80,6 +80,18 @@ def rel(p: Path) -> str:
             return str(p)
 
 
+def _guide_html_shell_hash(path: Path) -> str:
+    """Hash of directory guide with GENERATED blocks blanked (edition maps may differ)."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    blanked = re.sub(
+        r"<!-- T2AG_GENERATED:([a-z0-9_]+) -->.*?<!-- /T2AG_GENERATED:\1 -->",
+        r"<!-- T2AG_GENERATED:\1 -->\n<!-- /T2AG_GENERATED:\1 -->",
+        text,
+        flags=re.DOTALL,
+    )
+    return hashlib.sha256(blanked.encode("utf-8")).hexdigest()
+
+
 def git_status_porcelain(
     root: Path,
     pathspecs: list[str] | None = None,
@@ -373,12 +385,25 @@ def check_naming_conventions() -> None:
 
     sibling_roots = [ROOT.parent / name for name in ("t2ag", "t2ag-skeleton", "t2ag-lite")]
     if all(root.exists() for root in sibling_roots):
-        for rel_path in ("t2ag_directory_guide.html", "assets/fable_snail.png"):
-            files = [root / rel_path for root in sibling_roots]
-            if not all(path.exists() for path in files):
-                rep("FAIL", f"目录册未同步三发行版：{rel_path}")
-            elif len({_sha256(path) for path in files}) != 1:
-                rep("FAIL", f"目录册三发行版正文分叉：{rel_path}")
+        # snail: full byte-identity across editions
+        snail_files = [root / "assets" / "fable_snail.png" for root in sibling_roots]
+        if not all(path.exists() for path in snail_files):
+            rep("FAIL", "目录册未同步三发行版：assets/fable_snail.png")
+        elif len({_sha256(path) for path in snail_files}) != 1:
+            rep("FAIL", "目录册三发行版正文分叉：assets/fable_snail.png")
+        # guide HTML: static shell must match; GENERATED blocks may diverge by edition
+        # (directory_map reflects each edition's tree — H4 expected diverge, not drift)
+        guide_files = [root / "t2ag_directory_guide.html" for root in sibling_roots]
+        if not all(path.exists() for path in guide_files):
+            rep("FAIL", "目录册未同步三发行版：t2ag_directory_guide.html")
+        else:
+            shells = {_guide_html_shell_hash(path) for path in guide_files}
+            if len(shells) != 1:
+                rep(
+                    "FAIL",
+                    "目录册三发行版静态正文分叉：t2ag_directory_guide.html"
+                    "（GENERATED 块以外的叙述应一致；目录地图可按发行版分叉）",
+                )
 
 
 
@@ -1191,6 +1216,48 @@ def check_release_snapshot() -> None:
         return
     if dirty:
         rep("WARN", "core-playbook、doctor、宪法或云端协议存在未快照改动；教学可继续，但不得宣称可发布")
+
+
+def check_guide_generated() -> None:
+    """WARN if t2ag_directory_guide.html GENERATED blocks drift from md/README sources."""
+    guide = ROOT / "t2ag_directory_guide.html"
+    if not guide.is_file():
+        return
+    tools_dir = Path(__file__).resolve().parent
+    if str(tools_dir) not in sys.path:
+        sys.path.insert(0, str(tools_dir))
+    try:
+        import build_guide as bg  # type: ignore
+    except ImportError:
+        rep("WARN", "build_guide.py 不可导入，跳过 guide 注入一致性检查")
+        return
+    try:
+        expected = bg.expected_blocks(ROOT)
+    except SystemExit as exc:
+        rep("WARN", f"guide 源无法生成：{exc}")
+        return
+    except Exception as exc:  # noqa: BLE001 — surface any generator failure as WARN
+        rep("WARN", f"guide 源生成异常：{exc}")
+        return
+    html = guide.read_text(encoding="utf-8", errors="replace")
+    for name, want in expected.items():
+        m = re.search(
+            rf"<!-- T2AG_GENERATED:{re.escape(name)} -->(.*?)<!-- /T2AG_GENERATED:{re.escape(name)} -->",
+            html,
+            re.DOTALL,
+        )
+        if not m:
+            rep(
+                "WARN",
+                f"guide 缺 T2AG_GENERATED:{name} 锚点（请检查 HTML 或运行 build_guide.py）",
+            )
+            continue
+        got = m.group(1).strip()
+        if got != want.strip():
+            rep(
+                "WARN",
+                f"guide GENERATED 块与源不一致：{name}（请运行 python main/70_tools/build_guide.py）",
+            )
 
 
 # ---------- 考试题库检查 ----------
@@ -2846,6 +2913,7 @@ def main() -> int:
     check_object_layer_migration()
     check_evolution_ids()
     check_release_snapshot()
+    check_guide_generated()
     emit_legacy_path_hits_total()
     fails = sum(1 for lv, _ in RESULTS if lv == "FAIL")
     warns = sum(1 for lv, _ in RESULTS if lv == "WARN")
