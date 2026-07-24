@@ -35,6 +35,7 @@
 6. 「移动 + 全部引用更新」构成一个提交单元，不留中间态；
 7. **commit 协议**：agent 不执行 commit / push / reset / 改写历史；全部变更留在工作区，学生复核后亲手 commit；**上一批未落盘，下一批不开工**（审计批豁免——只读无需落盘前置）；
 8. 内容裁决归学生（agent 出差异报告 → 学生批准 → 执行）；结构裁决按单执行。
+9. **云端 CH 块 status 不变量**（M4 判例，2026-07-24）：`cloud/inbox/CH-*.md` 的 `T2AG_CLOUD_HANDOFF` 块内 `status` 必须恒为云端产出值 `proposed_for_local_review`（见 `cloud_learning_sync.md` §7.2 + doctor）。**本地终态**（accepted / partial_accept / rejected + sync_completed）只写 `cloud_sync_state.md` 交接表与 CH 文件**块外**本地裁决节。施工单若要求改块内 status = **工单错误**，执行方应拒改并声明偏离，不得静默改写或静默跳过闭环。
 
 ## 四、施工报告模板（执行方义务，字段不可省略）
 

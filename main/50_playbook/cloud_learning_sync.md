@@ -263,6 +263,12 @@ END_T2AG_CLOUD_HANDOFF
 云端无权把交接状态写成 accepted、merged 或 synced。聊天总结不能替代交接文件；若没有生成文件，
 至少输出完整纯文本块供本地保存。
 
+**协议不变量（本地同样遵守）**：块内 `status` 字段**永久**保持云端产出值 `proposed_for_local_review`。
+doctor 校验此不变量。本地裁决结果**不得**改写块内 `status`；应写入：
+（a）`cloud_sync_state.md`「云端交接」表的 `local_decision` 列；
+（b）可选：同一 CH 文件在 `END_T2AG_CLOUD_HANDOFF` **之后**的「本地裁决」节（`sync_completed` 等）。
+任何施工单要求修改块内 status 视为工单错误（见 `batch_workorder_spec.md` §三第 9 条）。
+
 ### 7.3 本地接收、讨论与裁决
 
 1. 将云端交接原样保存到 `cloud/inbox/CH-YYYYMMDD-NNNN.md`，先校验 `handoff_id`、
@@ -270,7 +276,8 @@ END_T2AG_CLOUD_HANDOFF
 2. 交接是提案与执行证据，不是本地规则源；不得自动覆盖 `main/`、`cloud/` 或课程文件。
 3. 向用户展示“已做修改 / 偏离指令 / 建议本地修改 / 未决问题 / 隐私影响”，逐项讨论。
 4. 用户裁决为接受、部分接受或拒绝后，才在本地实施被接受部分；部分接受必须记录未接受项。
-5. 本地修改后运行 doctor，并在 `cloud_sync_state.md` 登记裁决、文件和验证结果。
+5. 本地修改后运行 doctor，并在 `cloud_sync_state.md` 登记裁决、文件和验证结果；
+   **不**把 CH 块内 `status` 改为 accepted/synced。
 6. 若本地裁决又改变云端应有状态，生成下一份新 `directive_id`；不得改写旧指令伪装闭环。
 
 未被本地接受的云端修改可以继续留在 Project 内供试验，但不得被描述为 T2AG 正式规则。云端

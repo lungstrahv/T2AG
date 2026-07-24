@@ -27,11 +27,43 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]   # 项目根
 MAIN = ROOT / "main"
 RESULTS: list[tuple[str, str]] = []
+# C2 检疫：旧路径扫描「实际触发」计数（非代码中含旧路径字符串）
+LEGACY_PATH_HITS: list[tuple[str, str]] = []
 
 
 def rep(level: str, msg: str) -> None:
     RESULTS.append((level, msg))
     print(f"[{level}] {msg}")
+
+
+def legacy_path_hit(check_name: str, obj: str) -> None:
+    """Record one real legacy-path fallback/scan match (C2 quarantine metric).
+
+    Call only when a live object under an old path was matched and the
+    compatibility branch ran — not merely because source code mentions
+    30_courses or the empty shell directory exists.
+    """
+    LEGACY_PATH_HITS.append((check_name, obj))
+    rep("INFO", f"legacy_path_hit: {check_name} {obj}")
+
+
+def emit_legacy_path_hits_total() -> None:
+    """Always emit total (including 0) so silence ≠ 'counter off'."""
+    rep("INFO", f"legacy_path_hits_total: {len(LEGACY_PATH_HITS)}")
+
+
+def _iter_legacy_course_status() -> list[Path]:
+    """Live course_status.md under 30_courses (excludes _shared / underscore dirs)."""
+    root = MAIN / "30_courses"
+    if not root.is_dir():
+        return []
+    out: list[Path] = []
+    for status in sorted(root.glob("*/course_status.md")):
+        name = status.parent.name
+        if name.startswith("_"):
+            continue
+        out.append(status)
+    return out
 
 
 def rel(p: Path) -> str:
@@ -681,7 +713,8 @@ def check_course_group_rules() -> None:
 
     # 1. 旧路径课程状态
     old_codes: dict[str, str] = {}  # code -> lifecycle
-    for status in sorted(courses_dir.glob("*/course_status.md")) if courses_dir.exists() else []:
+    for status in _iter_legacy_course_status():
+        legacy_path_hit("course_group_old_status", rel(status))
         data = _frontmatter(status)
         code = data.get("course", status.parent.name.split("_", 1)[0])
         lifecycle = data.get("lifecycle_status", "")
@@ -704,6 +737,7 @@ def check_course_group_rules() -> None:
             continue
         # 新旧碰撞：只有旧课程码与新 Definition 同码时才报告
         if def_id in old_codes:
+            legacy_path_hit("course_group_dual_path_collision", def_id)
             rep("FAIL", f"课程同时存在于新旧路径，不得静默选择：{def_id}")
         new_runs_by_case.setdefault(case_id, {})
         new_runs_by_case[case_id][def_id] = lifecycle
@@ -807,10 +841,9 @@ def check_progress_nodes() -> None:
             if len(live) > 12:
                 rep("FAIL", f"教材当前 checkpoint 超过 12 个：{rel(nodes)} = {len(live)}")
 
-    courses_dir = MAIN / "30_courses"
-    if courses_dir.exists():
-        for status in sorted(courses_dir.glob("*/course_status.md")):
-            _check_one_status(status, _frontmatter(status))
+    for status in _iter_legacy_course_status():
+        legacy_path_hit("progress_nodes_old_status", rel(status))
+        _check_one_status(status, _frontmatter(status))
     # 新路径 CourseRun
     for status, data in _discover_new_course_runs():
         _check_one_status(status, data)
@@ -873,7 +906,8 @@ def check_artifact_registry() -> None:
         MAIN / "00_core" / "t2ag_memory.md",
         MAIN / "10_case" / "course_info.md",
     ) if p.exists())
-    for status in sorted((MAIN / "30_courses").glob("*/course_status.md")) if (MAIN / "30_courses").exists() else []:
+    for status in _iter_legacy_course_status():
+        legacy_path_hit("artifact_scan_old_status", rel(status))
         lifecycle = _frontmatter(status).get("lifecycle_status", "")
         scan_specs.append(("current" if lifecycle == "ongoing" else "future", status))
     # 新路径 CourseRun
@@ -1256,9 +1290,12 @@ def check_exam_pool_isolation() -> None:
                         if any(p and p in content for p in q_patterns):
                             rep("FAIL", f"考核池题号被教学文件引用：{rel(md)} 引用 {exam_id} / {qid}")
 
-    # 旧路径
+    # 旧路径：仅当某课下真有 _exam 容器时计触发
     if courses_dir.exists():
         for exam_dir in courses_dir.glob("*/_exam"):
+            if exam_dir.parent.name.startswith("_"):
+                continue
+            legacy_path_hit("exam_old_exam_dir", rel(exam_dir))
             _check_exam_dir(exam_dir, exam_dir.parent)
     # 新路径 CourseRun
     runs_root = MAIN / "35_course_runs"
@@ -1520,10 +1557,9 @@ def check_course_drivers() -> None:
         if driver == "praxis" and "本课程的完善需要学生自己生命力的参与" not in content:
             rep("FAIL", f"praxis 课程缺生命力参与声明：{rel(status)}")
 
-    courses = MAIN / "30_courses"
-    if courses.exists():
-        for status in sorted(courses.glob("*/course_status.md")):
-            _check_one_driver(status)
+    for status in _iter_legacy_course_status():
+        legacy_path_hit("course_drivers_old_status", rel(status))
+        _check_one_driver(status)
     # 新路径 CourseRun
     for status, _data in _discover_new_course_runs():
         _check_one_driver(status)
@@ -1594,10 +1630,13 @@ def check_working_page_windows() -> None:
             if len(cells) < 5 or cells[1:5] != ["✓", "✓", "✓", "✓"]:
                 rep("FAIL", f"教材第 {number} 页未完成扫描/OCR/校对/加载四门：{rel(source)}")
 
-    # 旧路径
+    # 旧路径：仅当 source_excerpt 真实存在时计触发
     courses = MAIN / "30_courses"
     if courses.exists():
         for source in sorted(courses.glob("*/lesson*/working_pages/source_excerpt.md")):
+            if source.parents[2].name.startswith("_"):
+                continue
+            legacy_path_hit("working_pages_old_source", rel(source))
             _check_one_source(source)
     # 新路径 CourseRun
     runs_root = MAIN / "35_course_runs"
@@ -1673,10 +1712,13 @@ def check_mistake_bank_schema() -> None:
         elif int(next_match.group(1)) <= max_id:
             rep("FAIL", f"知识点错题库 next_id 未超过现有最大 ID：{rel(path)}")
 
-    # 旧路径
+    # 旧路径：仅当 mistake_bank 真实存在时计触发
     courses = MAIN / "30_courses"
     if courses.exists():
         for path in sorted(courses.glob("*/mistake_bank.md")):
+            if path.parent.name.startswith("_"):
+                continue
+            legacy_path_hit("mistake_bank_old_path", rel(path))
             _check_one_bank(path)
     # 新路径 CourseRun
     runs_root = MAIN / "35_course_runs"
@@ -2561,13 +2603,12 @@ def check_object_layer_migration() -> None:
 
     # CourseDefinition.prerequisites 验证
     _old_course_codes: set[str] = set()
-    _old_courses_dir = MAIN / "30_courses"
-    if _old_courses_dir.is_dir():
-        for _cs in _old_courses_dir.glob("*/course_status.md"):
-            _fm = _frontmatter_fields(_cs)
-            _code = _fm.get("course", "")
-            if _code:
-                _old_course_codes.add(_code)
+    for _cs in _iter_legacy_course_status():
+        _fm = _frontmatter_fields(_cs)
+        _code = _fm.get("course", "") or _cs.parent.name.split("_", 1)[0]
+        if _code:
+            legacy_path_hit("object_layer_old_course_code", _code)
+            _old_course_codes.add(_code)
     _prereq_graph: dict[str, list[str]] = {}  # def_id -> [new-path prereq ids]
     for def_id, f in idx_definitions.items():
         prereqs = _parse_inline_list(f.get("prerequisites", "[]"), MAIN / f["_path"], "prerequisites")
@@ -2582,7 +2623,8 @@ def check_object_layer_migration() -> None:
             if p in idx_definitions:
                 new_path_refs.append(p)
             elif p in _old_course_codes:
-                pass  # 旧路径兼容引用，视为叶节点
+                # 旧路径兼容引用，视为叶节点（真触发回退）
+                legacy_path_hit("object_layer_prereq_old_leaf", f"{def_id}->{p}")
             else:
                 rep("FAIL", f"CourseDefinition prerequisite 不存在：{def_id} -> {p}")
         _prereq_graph[def_id] = new_path_refs
@@ -2726,38 +2768,53 @@ def check_object_layer_migration() -> None:
 
     # 6. 新旧路径碰撞（按稳定 ID 比较）
     old_codes: set[str] = set()
-    old_courses_dir = MAIN / "30_courses"
-    if old_courses_dir.is_dir():
-        for cs in old_courses_dir.glob("*/course_status.md"):
-            fm = _frontmatter_fields(cs)
-            code = fm.get("course", "")
-            if code:
-                old_codes.add(code)
+    for cs in _iter_legacy_course_status():
+        fm = _frontmatter_fields(cs)
+        code = fm.get("course", "") or cs.parent.name.split("_", 1)[0]
+        if code:
+            # 与 object_layer_old_course_code 可能重复计数：此处专指碰撞扫描段触发
+            legacy_path_hit("object_layer_collision_scan_code", code)
+            old_codes.add(code)
     # 6a. 旧课程 code 与新 CourseDefinition ID 碰撞
     new_def_ids = set(idx_definitions.keys()) - {""}
     def_id_collision = old_codes & new_def_ids
     if def_id_collision:
+        for code in sorted(def_id_collision):
+            legacy_path_hit("object_layer_collision_def", code)
         rep("FAIL", f"旧课程 code 与新 CourseDefinition ID 碰撞：{sorted(def_id_collision)}")
     # 6b. 旧课程 code 与新 CourseRun 的 definition_id 碰撞
     new_run_defs = {f.get("course_definition_id", "") for f in idx_runs.values()} - {""}
     run_collision = old_codes & new_run_defs
     if run_collision:
+        for code in sorted(run_collision):
+            legacy_path_hit("object_layer_collision_run", code)
         rep("FAIL", f"旧课程 code 与新 CourseRun definition_id 碰撞：{sorted(run_collision)}")
     # 6c. 旧课程目录名与新 CourseDefinition 目录名碰撞
+    old_courses_dir = MAIN / "30_courses"
     old_dir_names: set[str] = set()
     if old_courses_dir.is_dir():
-        old_dir_names = {p.name for p in old_courses_dir.iterdir() if p.is_dir() and not p.name.startswith("_")}
+        old_dir_names = {
+            p.name for p in old_courses_dir.iterdir()
+            if p.is_dir() and not p.name.startswith("_")
+        }
+        for name in sorted(old_dir_names):
+            # 仅有空壳目录、无 course_status 时也计一次「旧课目录仍在」
+            if not (old_courses_dir / name / "course_status.md").exists():
+                legacy_path_hit("object_layer_old_course_dir_shell", name)
     new_def_names: set[str] = set()
     new_defs_dir = MAIN / "30_course_definitions"
     if new_defs_dir.is_dir():
         new_def_names = {p.name for p in new_defs_dir.iterdir() if p.is_dir() and not p.name.startswith("_")}
     dir_collision = old_dir_names & new_def_names
     if dir_collision:
+        for name in sorted(dir_collision):
+            legacy_path_hit("object_layer_collision_dir", name)
         rep("FAIL", f"同一课程目录新旧碰撞：{sorted(dir_collision)}")
     # 6d. G 碰撞检查已移除（20_execution 删除后 G 只在 20_groups/ 一处，无新旧碰撞可能）
 
 
 def main() -> int:
+    LEGACY_PATH_HITS.clear()
     check_startup_files()
     check_student_archive_files()
     check_reflection_indexes()
@@ -2789,6 +2846,7 @@ def main() -> int:
     check_object_layer_migration()
     check_evolution_ids()
     check_release_snapshot()
+    emit_legacy_path_hits_total()
     fails = sum(1 for lv, _ in RESULTS if lv == "FAIL")
     warns = sum(1 for lv, _ in RESULTS if lv == "WARN")
     print(f"\nresult: {fails} FAIL, {warns} WARN")
