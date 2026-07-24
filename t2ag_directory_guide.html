@@ -348,24 +348,29 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
       <div><h2>目录地图</h2><p>以各目录 <code>_README.md</code> 为准——本表是视图，不是第二真相源。</p></div>
     </div>
     <div class="matrix">
-      <table>
-        <thead><tr><th>目录</th><th>这里放什么</th><th>权威文件</th></tr></thead>
-        <tbody>
-          <tr><td><code>main/00_core/</code></td><td>宪法、领域模型、变更历史、记忆索引</td><td><code>main/t2ag.md</code></td></tr>
-          <tr><td><code>main/10_case/</code></td><td>学生和老师的基本档案</td><td><code>10_case/_README.md</code></td></tr>
-          <tr><td><code>main/12_activity_records/</code></td><td>不占正式学习时间的日常活动记录</td><td><code>12_activity_records/_README.md</code></td></tr>
-          <tr><td><code>main/15_curricula/</code></td><td>课程大纲与参考基线</td><td><code>15_curricula/_README.md</code></td></tr>
-          <tr><td><code>main/20_groups/</code></td><td>课程组定义、覆盖层、预案</td><td><code>20_groups/_README.md</code></td></tr>
-          <tr><td><code>main/25_general/</code></td><td>弹性学习绑定（通识轨，已冻结）</td><td><code>25_general/_README.md</code></td></tr>
-          <tr><td><code>main/30_course_definitions/</code></td><td>课程定义、教材、知识树（不含学生进度）</td><td><code>30_course_definitions/_README.md</code></td></tr>
-          <tr><td><code>main/35_course_runs/</code></td><td>每门课的个人进度、错题、疑问、lesson</td><td><code>35_course_runs/_README.md</code></td></tr>
-          <tr><td><code>main/40_field_practices/</code></td><td>真实实践的纪律记录和证据</td><td><code>40_field_practices/_README.md</code></td></tr>
-          <tr><td><code>main/50_playbook/</code></td><td>教学 agent 的操作手册</td><td><code>50_playbook/_README.md</code></td></tr>
-          <tr><td><code>main/60_journal/</code></td><td>跨课程的重要事件、决策和复盘</td><td><code>60_journal/INDEX.md</code></td></tr>
-          <tr><td><code>main/70_tools/</code></td><td>确定性检查脚本（doctor、state_refresh）</td><td><code>70_tools/_README.md</code></td></tr>
-          <tr><td><code>cloud/</code></td><td>本地与云端的桥接文件</td><td><code>cloud/README.md</code></td></tr>
-        </tbody>
-      </table>
+      <!-- T2AG_GENERATED:directory_map -->
+<table>
+<thead><tr><th>目录</th><th>这里放什么</th><th>权威文件</th></tr></thead>
+<tbody>
+<tr><td><code>main/00_core/</code></td><td>协议与全局索引</td><td><code>main/t2ag.md</code></td></tr>
+<tr><td><code>main/10_case/</code></td><td>一个学生（Case）的整体状态与全部对象指针——档案、教师配置、培养方案引用、课程状态缓存。</td><td><code>10_case/_README.md</code></td></tr>
+<tr><td><code>main/12_activity_records/</code></td><td>Case 拥有的低治理活动记录（阅读、习惯、零散实践、兴趣探索）</td><td><code>12_activity_records/_README.md</code></td></tr>
+<tr><td><code>main/15_curricula/</code></td><td>存放培养方案（CurriculumPlan）的独立区域。</td><td><code>15_curricula/_README.md</code></td></tr>
+<tr><td><code>main/20_groups/</code></td><td>活跃课程组只由 `00_core/t2ag_memory.md` 的“活跃课程组”字段指向。</td><td><code>20_groups/_README.md</code></td></tr>
+<tr><td><code>main/25_general/</code></td><td>与 `20_groups/`（G 系统）同级的第二种执行约束容器。</td><td><code>25_general/_README.md</code></td></tr>
+<tr><td><code>main/30_course_definitions/</code></td><td>可跨 Case 复用的课程定义（不含学生进度）</td><td><code>30_course_definitions/_README.md</code></td></tr>
+<tr><td><code>main/30_courses/</code></td><td>30_courses</td><td><code>30_courses/</code></td></tr>
+<tr><td><code>main/35_course_runs/</code></td><td>某 Case 对某 CourseDefinition 的一次学习运行（进度与课堂状态）</td><td><code>35_course_runs/_README.md</code></td></tr>
+<tr><td><code>main/40_field_practices/</code></td><td>Case 拥有的现实实践与外部证据（不是课程）</td><td><code>40_field_practices/_README.md</code></td></tr>
+<tr><td><code>main/50_playbook/</code></td><td>教学 agent 的操作手册——结课怎么做、开课怎么做、教材怎么导入、考试怎么出。</td><td><code>50_playbook/_README.md</code></td></tr>
+<tr><td><code>main/60_journal/</code></td><td>60_journal</td><td><code>60_journal/INDEX.md</code></td></tr>
+<tr><td><code>main/70_tools/</code></td><td>确定性检查脚本——doctor 体检、state_refresh 缓存刷新、artifact_registry 迁移登记。</td><td><code>70_tools/_README.md</code></td></tr>
+<tr><td><code>main/bin/</code></td><td>bin</td><td><code>bin/</code></td></tr>
+<tr><td><code>main/skin/</code></td><td>skin</td><td><code>skin/</code></td></tr>
+<tr><td><code>cloud/</code></td><td>本地和云端（手机/网页版）之间的桥接文件——提示词、同步状态、交接件。</td><td><code>cloud/README.md</code></td></tr>
+</tbody>
+</table>
+<!-- /T2AG_GENERATED:directory_map -->
     </div>
   </div>
 </section>
@@ -397,6 +402,40 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
     </div>
     <div class="materialize">
       <h3>第一次打开时，你会经历什么</h3>
+      <!-- T2AG_GENERATED:flow_first_run -->
+<div class="mermaid">
+flowchart TD
+    A[T2AG-skeleton 解压到目标目录] --> B[👤 人类前置<br/>不在 skeleton 源目录写学生数据<br/>用 AI 环境打开目标目录]
+    B --> C{首次判定<br/>memory 摘要日期为空<br/>且 SN01 仍指向 S001?}
+    C -->|否| D[非首次<br/>走 t2ag.md 4.2 + lesson_recover]
+    C -->|是| E[步骤1 读宪法 t2ag.md 五章]
+
+    E --> F[步骤2 检测 AI 环境<br/>只生成当前入口，不全生成]
+    F --> G[步骤3 doctor 基线<br/>0 FAIL]
+    G --> H[🔒 步骤4 询问用户 5 问<br/>一问一答 · 复述确认再建档]
+    H --> I[步骤5 创建实际档案]
+
+    I --> I1[5a 学生<br/>S001→S002 四文件<br/>SN01 改指向 · 索引加行]
+    I1 --> I2[5b 课程<br/>每门课完整跑 new_course_init]
+    I2 --> I2A[CourseDefinition<br/>30_course_definitions/&lt;id&gt;_&lt;Name&gt;/]
+    I2 --> I2B[CourseRun<br/>35_course_runs/&lt;case&gt;/CR-&lt;case&gt;-&lt;id&gt;/<br/>含 course_status 真相源]
+    I2A --> I3
+    I2B --> I3[state_refresh --write<br/>生成 course_info 缓存]
+    I3 --> I4[5c 配置<br/>overlay · t2ag_case · memory 指针]
+    I4 --> I5[5d 实例化判据<br/>SN01≠S001 且摘要非空<br/>→ 已是基础实例]
+
+    I5 --> J[步骤6 再跑 doctor<br/>0 FAIL · WARN 逐条评估]
+    J --> K[步骤7 展示欢迎<br/>见图 5 皮肤数据流]
+    K --> L([进入日常：见图 1])
+
+    M[⛔ 禁止：新建混装 30_courses/]
+
+    style B fill:#3d2a4a,color:#fff
+    style H fill:#4a3d1a,color:#fff
+    style I2B fill:#4a2d2d,color:#fff
+    style M fill:#5a2a2a,color:#fff
+</div>
+<!-- /T2AG_GENERATED:flow_first_run -->
       <p>你拿到的是一个极简的基础安装包。把它复制为自己的 <code>t2ag</code> 文件夹，在 AI 环境中打开并发送“T2AG”，然后回答昵称、课程、教材、当前进度和学习偏好。确认信息后，你会看到自己的档案与课程生成、欢迎信息出现，并得到一条可以直接开始的下一步。此后文件会随着使用和反馈继续变化，最终成为更贴近你习惯的个人学习系统。</p>
       <div class="chain"><span class="node">拿到基础安装包</span><span class="arrow">→</span><span class="node">复制为自己的 t2ag</span><span class="arrow">→</span><span class="node">回答 5 个问题</span><span class="arrow">→</span><span class="node">看到档案与课程生成</span><span class="arrow">→</span><span class="node">获得可直接执行的下一步</span><span class="arrow">→</span><span class="node">以后直接继续学</span></div>
     </div>
@@ -413,6 +452,66 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
       <span class="section-index">04 / Session</span>
       <div><h2>一节课的完整循环</h2><p>读取很容易，真正决定系统是否可靠的是结课写回。</p></div>
     </div>
+    <!-- T2AG_GENERATED:flow_panorama -->
+<div class="mermaid">
+flowchart TD
+    START([学生：继续学 XXX]) --> R1[步骤1 读 memory<br/>获取当前状态指针]
+    R1 --> R15{有 active<br/>课堂交接?}
+    R15 -->|是| R15A[步骤1.5 条件读取交接]
+    R15 -->|否| R2
+    R15A --> R2[步骤2 读 course_status<br/>当前进度 ← 真相源]
+
+    R2 --> R25[步骤2.5 读 question_bank]
+    R25 --> R3[步骤3 读 lessonXX 最后记录]
+    R3 --> R4[步骤4 读学生四文件档案<br/>据此调整语气与节奏]
+    R4 --> R5[步骤5 读 working_pages<br/>恢复教材上下文]
+
+    R5 --> R55{上次是<br/>micro close?}
+    R55 -->|是| R55A[步骤5.5 静默补齐<br/>错题收割 · 缓存刷新]
+    R55 -->|否| R6
+    R55A --> R6[步骤6 跑 doctor]
+
+    R6 --> R6A{◆ 抽查预算<br/>按上次推进量分档}
+    R6A -->|少/中/多| Q[1 / 2 / 3 题]
+    R6A -->|学生跳过| QS[无惩罚跳过<br/>连续3次→嵌入式确认]
+    Q --> R7
+    QS --> R7[步骤7 确认<br/>上次讲到 XXX，继续?]
+
+    R7 --> TEACH[[正课循环<br/>详见图 1b]]
+    TEACH --> CLOSE{结课方式?}
+
+    CLOSE -->|完整| C1[步骤1 更新 course_status ← 真相源]
+    CLOSE -->|◆ 状态不佳/短课| MICRO[Micro close<br/>①精确停点 + close_type: micro<br/>②memory 一行]
+    CLOSE -->|云端会话| CLOUD[云端只读分支<br/>不写本地真相源]
+
+    MICRO --> MEND([整理顺延至下次开课])
+    CLOUD --> CEND([生成回写指令<br/>待本地裁决])
+
+    C1 --> C15[步骤1.5 核对 question_bank]
+    C15 --> C2[步骤2 收割错误 → mistake_bank]
+    C2 --> C3[步骤3 学生状态写回]
+    C3 --> C4[步骤4 刷新 memory 缓存]
+    C4 --> C5[步骤5 刷新 course_info 缓存]
+    C5 --> C6[步骤6 working_pages 窗口处理]
+    C6 --> C7[步骤7 课后提炼检查]
+    C7 --> C75[步骤7.5 关闭匹配的课堂交接]
+    C75 --> C8[🔒 步骤8 输出写入确认<br/>必须展示给学生]
+    C8 --> C9[步骤9 Git 存档<br/>详见图 6]
+    C9 --> END([下次开课从 memory 指针接续])
+
+    MEND -.下次开课.-> START
+    END -.下次开课.-> START
+    CEND -.本地裁决后.-> START
+
+    style R55A fill:#3a3a3a,color:#fff
+    style QS fill:#4a3d1a,color:#fff
+    style MICRO fill:#2d4a3d,color:#fff
+    style CLOUD fill:#2d3d4a,color:#fff
+    style C8 fill:#4a3d1a,color:#fff
+    style C1 fill:#4a2d2d,color:#fff
+    style R2 fill:#4a2d2d,color:#fff
+</div>
+<!-- /T2AG_GENERATED:flow_panorama -->
     <div class="timeline">
       <article class="step"><div class="step-mark"></div><div class="step-body"><h3>运行 doctor</h3><p>FAIL 先修；skeleton 的首次启动提示和 lite 的无 Git 提示可以保留。</p><div class="step-files"><code>python main/70_tools/t2ag_doctor.py</code></div></div></article>
       <article class="step"><div class="step-mark"></div><div class="step-body"><h3>恢复热上下文</h3><p>读 memory、当前课程组、课程状态和学生四文件。课程状态是进度唯一真相源。</p><div class="step-files"><code>00_core/t2ag_memory.md · course_status.md · 10_case/students/Sxxx/</code></div></div></article>
@@ -497,5 +596,8 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
 <footer>
   <div class="wrap footer-inner"><span>T2AG 0.1.2 · 从基础形态开始，在使用中生长</span><span>skeleton 是安装包与模板源，实例化后即为 t2ag</span></div>
 </footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'neutral'});</script>
 </body>
 </html>
