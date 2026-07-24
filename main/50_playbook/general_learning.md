@@ -67,7 +67,7 @@ binding_status: planned
 
 R 不拥有课程计划、进度、验收记录、lesson 或 mistake_bank；这些属于绑定的 CourseRun。
 
-> **当前状态**：仍保持第一阶段冻结。当前无正式 R；legacy R frozen 在 `25_general/`。
+> **当前状态**：仍保持第一阶段冻结。当前无正式 R；legacy R（PHIL1101r/DS1001r）frozen 在 `25_general/`。
 > 本批次不得新建或激活 R。不得重新打开第一阶段已经否决的 legacy Reading R 语义。
 
 ---
