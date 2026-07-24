@@ -35,18 +35,17 @@ def rep(level: str, msg: str) -> None:
 
 
 def rel(p: Path) -> str:
-    try:
-        return str(p.relative_to(ROOT))
-    except ValueError:
-        return str(p)
+    """Display path relative to MAIN (no `main/` prefix). Fallback: ROOT-relative, then str(p).
 
-
-def rel_main(p: Path) -> str:
-    """Path relative to MAIN, posix slashes (preferred for pattern / object WARNs)."""
+    Display only — callers must not parse this string for filesystem logic.
+    """
     try:
         return str(p.relative_to(MAIN)).replace("\\", "/")
     except ValueError:
-        return rel(p)
+        try:
+            return str(p.relative_to(ROOT)).replace("\\", "/")
+        except ValueError:
+            return str(p)
 
 
 def git_status_porcelain(
@@ -371,10 +370,10 @@ def _param_keys(line: str) -> list:
 def check_pattern_declarations() -> None:
     """检查复利回路模式实例的头部声明（v2：三类别验键名）
 
-    两段各司其职，禁止对同一文件双报：
-    1. known_instances —— 登记实例：缺声明 / 缺子型 / 键名校验
-    2. 全树扫描 —— 排除已登记与模式定义/模板载体，只捕「未登记但有声明」的野生文件
-    路径一律相对 MAIN（posix），不与 ROOT 相对路径混用。
+    两段各司其职（替换旧「全树缺子型」双报段，禁止只加不删）：
+    1. known_instances —— 已登记实例：缺声明 / 缺子型 / 键名校验（逻辑保持 v2）
+    2. 全树扫描 —— 排除已登记与模式定义/模板载体，只捕未登记但含声明的野生文件
+    显示路径一律相对 MAIN（经 rel()）。
     """
     # Known instances (relative to MAIN)
     known_instances = [
@@ -385,16 +384,16 @@ def check_pattern_declarations() -> None:
     runs_dir = MAIN / "35_course_runs"
     if runs_dir.is_dir():
         for mb in runs_dir.rglob("mistake_bank.md"):
-            known_instances.append(rel_main(mb))
+            known_instances.append(str(mb.relative_to(MAIN)).replace("\\", "/"))
         for qb in runs_dir.rglob("question_bank.md"):
-            known_instances.append(rel_main(qb))
+            known_instances.append(str(qb.relative_to(MAIN)).replace("\\", "/"))
     # reasoning_patterns (S001 default template exempt)
     students_dir = MAIN / "10_case" / "students"
     if students_dir.is_dir():
         for rp in students_dir.glob("S*/reasoning_patterns.md"):
             if "S001" in rp.name or "S001" in str(rp.parent):
                 continue
-            known_instances.append(rel_main(rp))
+            known_instances.append(str(rp.relative_to(MAIN)).replace("\\", "/"))
 
     known_set = set(known_instances)
 
@@ -445,8 +444,8 @@ def check_pattern_declarations() -> None:
             if missing:
                 rep("FAIL", f"复利回路·部件缺键 {missing}：{rel_path}")
 
-    # Wild scan: unregistered carriers of a pattern declaration (not dual-report).
-    # Mode definition + new_course_init templates are not instances.
+    # 全树扫描（替换旧段）：跳过 known_instances，只捕未登记但含声明的野生文件。
+    # 模式定义正文与 new_course_init 模板不是实例，排除。
     pattern_doc_files = {
         "00_core/pattern_retire_loop.md",
         "50_playbook/new_course_init.md",
@@ -455,12 +454,12 @@ def check_pattern_declarations() -> None:
     for md in MAIN.rglob("*.md"):
         if any(sd in md.parts for sd in skip_dirs):
             continue
-        rel_path = rel_main(md)
+        rel_path = str(md.relative_to(MAIN)).replace("\\", "/")
         if rel_path in known_set or rel_path in pattern_doc_files:
             continue
         content = md.read_text(encoding="utf-8")
         if PATTERN_RE.search(content):
-            rep("WARN", f"复利回路野生声明（未登记实例）：{rel_path}")
+            rep("WARN", f"未登记的复利回路声明：{rel_path}")
 
 
 # ---------- 宪法分章预算（同 memory 分节预算制） ----------
@@ -513,7 +512,7 @@ def check_manifest_registration() -> None:
         if is_numbered or name.endswith((".md", ".py")):
             token = name.split("_", 1)[0] if is_numbered else name
             if token not in manifest and name not in manifest:
-                rep("WARN", f"部件未在结构清单登记：main/{name}（先登记后创建）")
+                rep("WARN", f"部件未在结构清单登记：{name}（先登记后创建）")
 
 
 # ---------- 外部学习资料索引检查 ----------
@@ -1929,7 +1928,7 @@ def _sha256(path: Path) -> str:
 def check_core_playbook_distribution() -> None:
     local = _tagged_core_playbooks(ROOT)
     for name in sorted(REQUIRED_CORE_PLAYBOOKS - set(local)):
-        rep("FAIL", f"缺少必需 core-playbook 或保护标记：main/50_playbook/{name}")
+        rep("FAIL", f"缺少必需 core-playbook 或保护标记：50_playbook/{name}")
 
     sibling_roots = [ROOT.parent / name for name in ("t2ag", "t2ag-skeleton", "t2ag-lite")]
     if not all((root / "main" / "50_playbook").exists() for root in sibling_roots):
@@ -2200,7 +2199,7 @@ def check_object_layer_migration() -> None:
     # 1. 新目录存在性
     for d in NEW_OBJECT_DIRS:
         if not (MAIN / d).is_dir():
-            rep("FAIL", f"缺少新目标目录：main/{d}")
+            rep("FAIL", f"缺少新目标目录：{d}")
 
     # 2. skeleton 新目录只允许 _README.md（及系统级共享索引模板），不得含实例名
     # external_resources.md 是跨课共享索引模板，允许出现在 30_course_definitions/_shared/
@@ -2226,12 +2225,12 @@ def check_object_layer_migration() -> None:
                         if hits:
                             rep(
                                 "FAIL",
-                                f"skeleton README 正文含实例标识：main/{d}/_README.md -> {sorted(set(hits))}",
+                                f"skeleton README 正文含实例标识：{d}/_README.md -> {sorted(set(hits))}",
                             )
                     continue
                 rep(
                     "FAIL",
-                    f"skeleton 新目录只允许 _README.md（及登记白名单）：main/{rel_main}",
+                    f"skeleton 新目录只允许 _README.md（及登记白名单）：{rel_main}",
                 )
             hits = _instance_files(target)
             if hits:
