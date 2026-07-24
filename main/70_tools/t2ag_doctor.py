@@ -408,7 +408,8 @@ def check_pattern_declarations() -> None:
         # Check subtype marker
         m = SUBTYPE_RE.search(content)
         if not m:
-            rep("WARN", f"复利回路声明缺子型标记（兼容期）：{rel_path}")
+            # 兼容期已关闭（2026-07-24 M2-tail / 批次 I）：无子型 = FAIL
+            rep("FAIL", f"复利回路声明缺子型：{rel_path}")
             continue
         subtype = m.group(1)
         lines = content.split("\n")
