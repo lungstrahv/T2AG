@@ -41,6 +41,43 @@ def rel(p: Path) -> str:
         return str(p)
 
 
+def rel_main(p: Path) -> str:
+    """Path relative to MAIN, posix slashes (preferred for pattern / object WARNs)."""
+    try:
+        return str(p.relative_to(MAIN)).replace("\\", "/")
+    except ValueError:
+        return rel(p)
+
+
+def git_status_porcelain(
+    root: Path,
+    pathspecs: list[str] | None = None,
+) -> str:
+    """Return stripped `git status --porcelain` output for root.
+
+    Empty string means clean (or no .git — caller decides). Raises RuntimeError
+    if git fails. Shared by check_release_snapshot and sync_lite.require_main_clean.
+    """
+    if not (root / ".git").exists():
+        return ""
+    cmd = ["git", "status", "--porcelain"]
+    if pathspecs:
+        cmd.extend(["--"] + list(pathspecs))
+    run = subprocess.run(
+        cmd,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if run.returncode != 0:
+        raise RuntimeError(
+            f"git status failed in {root}: {(run.stderr or '').strip()}"
+        )
+    return run.stdout.strip()
+
+
 # ---------- 1. 启动文件存在性 ----------
 def check_startup_files() -> None:
     expect = {
@@ -332,7 +369,13 @@ def _param_keys(line: str) -> list:
 
 
 def check_pattern_declarations() -> None:
-    """检查复利回路模式实例的头部声明（v2：三类别验键名）"""
+    """检查复利回路模式实例的头部声明（v2：三类别验键名）
+
+    两段各司其职，禁止对同一文件双报：
+    1. known_instances —— 登记实例：缺声明 / 缺子型 / 键名校验
+    2. 全树扫描 —— 排除已登记与模式定义/模板载体，只捕「未登记但有声明」的野生文件
+    路径一律相对 MAIN（posix），不与 ROOT 相对路径混用。
+    """
     # Known instances (relative to MAIN)
     known_instances = [
         "00_core/t2ag_problemlog.md",
@@ -342,16 +385,18 @@ def check_pattern_declarations() -> None:
     runs_dir = MAIN / "35_course_runs"
     if runs_dir.is_dir():
         for mb in runs_dir.rglob("mistake_bank.md"):
-            known_instances.append(str(mb.relative_to(MAIN)).replace("\\", "/"))
+            known_instances.append(rel_main(mb))
         for qb in runs_dir.rglob("question_bank.md"):
-            known_instances.append(str(qb.relative_to(MAIN)).replace("\\", "/"))
+            known_instances.append(rel_main(qb))
     # reasoning_patterns (S001 default template exempt)
     students_dir = MAIN / "10_case" / "students"
     if students_dir.is_dir():
         for rp in students_dir.glob("S*/reasoning_patterns.md"):
             if "S001" in rp.name or "S001" in str(rp.parent):
                 continue
-            known_instances.append(str(rp.relative_to(MAIN)).replace("\\", "/"))
+            known_instances.append(rel_main(rp))
+
+    known_set = set(known_instances)
 
     for rel_path in known_instances:
         path = MAIN / rel_path
@@ -400,14 +445,22 @@ def check_pattern_declarations() -> None:
             if missing:
                 rep("FAIL", f"复利回路·部件缺键 {missing}：{rel_path}")
 
-    # Scan for any file with pattern declaration but no subtype (compatibility)
+    # Wild scan: unregistered carriers of a pattern declaration (not dual-report).
+    # Mode definition + new_course_init templates are not instances.
+    pattern_doc_files = {
+        "00_core/pattern_retire_loop.md",
+        "50_playbook/new_course_init.md",
+    }
     skip_dirs = {".venv", ".recovery", ".staging", "node_modules", "__pycache__"}
     for md in MAIN.rglob("*.md"):
         if any(sd in md.parts for sd in skip_dirs):
             continue
+        rel_path = rel_main(md)
+        if rel_path in known_set or rel_path in pattern_doc_files:
+            continue
         content = md.read_text(encoding="utf-8")
-        if PATTERN_RE.search(content) and not SUBTYPE_RE.search(content):
-            rep("WARN", f"复利回路声明缺子型（兼容期）：{rel(md)}")
+        if PATTERN_RE.search(content):
+            rep("WARN", f"复利回路野生声明（未登记实例）：{rel_path}")
 
 
 # ---------- 宪法分章预算（同 memory 分节预算制） ----------
@@ -1091,15 +1144,15 @@ def check_evolution_ids() -> None:
 def check_release_snapshot() -> None:
     if not (ROOT / ".git").exists():
         return
-    run = subprocess.run(
-        ["git", "status", "--short", "--", "main/50_playbook", "main/70_tools", "main/t2ag.md", "cloud"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    if run.returncode == 0 and run.stdout.strip():
+    try:
+        dirty = git_status_porcelain(
+            ROOT,
+            ["main/50_playbook", "main/70_tools", "main/t2ag.md", "cloud"],
+        )
+    except RuntimeError as exc:
+        rep("WARN", f"无法检查发布快照状态：{exc}")
+        return
+    if dirty:
         rep("WARN", "core-playbook、doctor、宪法或云端协议存在未快照改动；教学可继续，但不得宣称可发布")
 
 
