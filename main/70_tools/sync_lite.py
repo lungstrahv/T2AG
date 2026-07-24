@@ -148,6 +148,8 @@ ALLOWED_BINARY_REL: dict[str, str] = {
 
 # 再生后由本脚本重写、与 main 有意不同的路径（不参与「应一致」哈希）。
 LITE_IDENTITY_REL = frozenset({"README.md", "AGENTS.md"})
+# Guide GENERATED:directory_map is rebuilt for lite tree → may differ from main (H4)
+LITE_GUIDE_DIVERGE_REL = frozenset({"t2ag_directory_guide.html"})
 
 LITE_README = """# T2AG 线上模型审查快照（t2ag-lite）
 
@@ -391,6 +393,10 @@ def verify_projection(
         hs, hd = sha256_file(s), sha256_file(d)
         if hs == hd:
             match += 1
+        elif label in LITE_GUIDE_DIVERGE_REL:
+            # counted separately as intentional (map rebuilt for lite)
+            match += 1
+            print(f"GUIDE {label}: diverge_ok (edition-local GENERATED)")
         else:
             differ += 1
             print(f"DIFFER {label}")
@@ -413,7 +419,7 @@ def verify_projection(
     if differ or missing:
         print("FAIL: projection hash verify failed", file=sys.stderr)
         return differ + missing
-    print("hash_verify: ALL projected files byte-identical to main")
+    print("hash_verify: projected files byte-identical to main (guide map may diverge_ok)")
     return 0
 
 
