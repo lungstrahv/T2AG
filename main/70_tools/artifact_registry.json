@@ -1,43 +1,66 @@
 {
-  "schema_version": 1,
-  "updated": "2026-07-24",
+  "schema_version": 2,
+  "updated": "2026-07-26",
   "artifacts": [
     {
       "artifact_id": "DIR_ACTIVITY_RECORDS",
-      "canonical_path": "main/12_activity_records/",
-      "redirects": [],
+      "canonical_path": "main/10_student/activities/",
+      "redirects": [
+        "main/12_activity_records/"
+      ],
       "status": "active",
-      "migration_reason": "skeleton template: ActivityRecord container"
+      "migration_reason": "0.2.0 structural migration"
     },
     {
       "artifact_id": "DIR_EXECUTION",
-      "canonical_path": "main/20_groups/",
+      "canonical_path": "main/30_group/",
       "redirects": [
-        "main/20_execution/"
+        "main/20_execution/",
+        "main/20_groups/"
       ],
       "status": "active",
-      "migration_reason": "execution merge into 20_groups"
+      "migration_reason": "0.2.0 structural migration"
     },
     {
       "artifact_id": "DIR_COURSE_DEFINITIONS",
-      "canonical_path": "main/30_course_definitions/",
-      "redirects": [],
+      "canonical_path": "main/40_course/",
+      "redirects": [
+        "main/30_course_definitions/"
+      ],
       "status": "active",
-      "migration_reason": "CourseDefinition container"
+      "migration_reason": "0.2.0 structural migration"
     },
     {
       "artifact_id": "DIR_COURSE_RUNS",
       "canonical_path": "main/35_course_runs/",
       "redirects": [],
-      "status": "active",
-      "migration_reason": "CourseRun container"
+      "status": "tombstone",
+      "migration_reason": "0.2.0 progress nodes merged into survivor",
+      "alias_to": "DIR_COURSE_DEFINITIONS",
+      "successors": [
+        "main/40_course/"
+      ]
     },
     {
       "artifact_id": "DIR_FIELD_PRACTICES",
-      "canonical_path": "main/40_field_practices/",
-      "redirects": [],
+      "canonical_path": "main/10_student/engagements/",
+      "redirects": [
+        "main/40_field_practices/"
+      ],
       "status": "active",
-      "migration_reason": "FieldPractice container"
+      "migration_reason": "0.2.0 structural migration"
+    },
+    {
+      "artifact_id": "G01_CYCLE_OVERLAY",
+      "canonical_path": "main/20_groups/overlays/overlay_cycle.md",
+      "redirects": [],
+      "status": "tombstone",
+      "successors": [
+        "main/10_student/profile.md",
+        "main/20_teacher/overlay.md",
+        "main/30_group/"
+      ],
+      "migration_reason": "0.2.0 composite overlay dissolved by generic owner"
     }
   ]
 }

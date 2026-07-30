@@ -23,7 +23,7 @@
 
 ### 输入
 
-- 课程、lesson、题目或问答位置。
+- 课程、当前 Lesson/Exercise、题目或问答位置。
 - 学生原始答案、追问或事后归因。
 - 旧路径造成失效的可观察证据。
 - 反例、纠正过程及后续变式表现。
@@ -38,7 +38,9 @@
 
 | 内容 | 写入位置 |
 |---|---|
-| 错误现场、学生原话、当堂修正 | 对应 `lessonXX.md` |
+| Lesson 中的错误现场、学生原话、当堂修正 | 当前 Lesson 主载体 |
+| Exercise 中的学生原话与原始作答 | 对应 Attempt；非提交型课堂观察写当前 `exercise.md` |
+| Exercise 中的教师判断与修正 | 对应 Review；尚未形成 Review 时写当前 `exercise.md` |
 | 具体课程知识错误与掌握状态 | 对应课程 `mistake_bank.md` |
 | 跨课程思维模式及替代方法状态 | 当前学生 `reasoning_patterns.md` |
 | 流程设计争议或重大裁决过程 | `60_journal/` |

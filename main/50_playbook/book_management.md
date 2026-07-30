@@ -1,21 +1,20 @@
 # 教材管理流程（book_management.md）
 
-> 位置：`50_playbook/`。管理各课程 `[课程代码]_book/` 目录的结构与内容组织。
+> 位置：`50_playbook/`。管理各课程 `book/` 目录的结构与内容组织。
 >
 > **触发条件**：新建课程初始化教材目录、整理现有教材结构、添加新教材。
 >
-> **路径解析约定**：课程教材目录位置按 `naming_conventions.md` §5 解析。
-> 兼容期在 `30_courses/[代码]_*/[代码]_book/`；迁移后教材属于 CourseDefinition，
-> 位于 `30_course_definitions/[代码]_*/[代码]_book/`（见 §5.4）。
+> **路径解析约定**：课程教材目录固定为
+> `main/40_course/<COURSE_ID>/book/`。
 
 ---
 
 ## 一、统一目录结构
 
-每个课程的 `_book/` 目录遵循以下结构（子目录按需创建，空目录不建）：
+每个课程的 `book/` 目录遵循以下结构（子目录按需创建，空目录不建）：
 
 ```
-[课程代码]_book/
+book/
   README.md                      ← 教材清单（必须有）
   primary/                       ← 主教材（每课必读的书）
   reference/                     ← 辅助参考书（换讲法、补概念）
@@ -34,7 +33,7 @@
 ### primary/ — 主教材
 
 - **判据**：教学流程中每课必读、agent 按原文讲解的书
-- **特征**：在 course_status.md「教学方案」节指定的教材
+- **特征**：在 progress.md「教学方案」节指定的教材
 - **格式**：PDF / EPUB / 纯文本（如有 OCR 文本层，放同名 `_text.pdf` 或 `.txt`）
 - **一课可有多本主教材**：如中文版 + 英文版对照，都放 primary/
 
@@ -63,11 +62,11 @@
 
 ## 三、课程驱动与来源使用
 
-每门课在 `course_status.md` 声明 `course_driver`；它表示什么决定下一课，而不是课程行政分类。
+每门课在 `progress.md` 声明 `course_driver`；它表示什么决定下一课，而不是课程行政分类。
 
 | course_driver | 推进依据 | 来源规则 |
 |---|---|---|
-| `textbook` | 教材章节和页码 | `course_status.md` 指定主教材；lesson 只记精确页码，不重复登记 ER |
+| `textbook` | 教材章节和页码 | `progress.md` 指定主教材；lesson 只记精确页码，不重复登记 ER |
 | `goal` | 明确能力目标 | 每个 lesson 指定一个主要可信来源；跨课程来源可引用 ER |
 | `project` | 可运行产物和里程碑 | 仓库、测试、数据和官方文档是主要证据，教材按需查询 |
 | `praxis` | 真实行动、反馈和长期修炼 | 书籍、数据、官方资料和行为记录组成证据束，不要求单一教材主导 |
@@ -84,22 +83,25 @@ Praxis 课程必须声明真实行动入口和行为证据；仅在对话中理�
 
 ### 1. 在线资源
 
-- **跨课程在线资源**：同时服务两门及以上课程、尚未建立目标课程但未来可能复用、或属于系统通用资料库/公开课/公共工具的，登记到 `main/30_course_definitions/_shared/external_resources.md`。原则上只登记 URL 和使用信息，不下载全文。
-- **单门课程在线资源**：登记到对应课程的 `[课程代码]_book/README.md`，不得再登记到共享索引。
+- **跨课程在线资源**：同时服务两门及以上课程、尚未建立目标课程但未来可能复用、或属于系统通用资料库/公开课/公共工具的，登记到 `main/40_course/_shared/external_resources.md`。原则上只登记 URL 和使用信息，不下载全文。
+- **单门课程在线资源**：登记到对应课程的 `book/README.md`，不得再登记到共享索引。
 
 ### 2. 下载文件
 
-- **单门课程文件**：按本文件第一节存入对应课程的 `[课程代码]_book/`：
+- **单门课程文件**：按本文件第一节存入对应课程的 `book/`：
 
 ```text
-[课程代码]_book/
+book/
   primary/ reference/
   course_materials/{slides,syllabus,code_samples,supplements,exercises,ocr}/
   archives/
 ```
 
-- **跨课程文件**：只有确需离线保存且被两门以上课程共同使用时，才存入 `main/30_course_definitions/_shared/library/[资源ID]/`。不得复制到多个课程的 `_book/`；其他课程通过共享索引中的本地相对路径引用。
-- **临时资料**：当堂页面、截图、OCR 缓存仍放 `lessonXX/working_pages/`，结课按原规则删除；确认长期使用后再转入课程 `_book/` 或 `_shared/library/`。
+- **跨课程文件**：只有确需离线保存且被两门以上课程共同使用时，才存入 `main/40_course/_shared/library/[资源ID]/`。不得复制到多个课程的 `_book/`；其他课程通过共享索引中的本地相对路径引用。
+- **临时资料**：只有当前活动为教材型 Lesson 时，当堂页面与 OCR 缓存才放
+  `lessons/lessonXX/working_pages/`；Exercise 作答图片放对应 Attempt 的 `assets/`，
+  可复用教学资料放课程 `book/course_materials/supplements/`。结课按各载体规则清理；
+  确认长期跨课使用后再转入 `_shared/library/`。
 - **lite 审查快照**：不打包 PDF、教材、压缩包、环境、缓存、生成资产或
   `_shared/library/` 二进制内容；被排除的文件在索引中标记“主项目持有”。
 
@@ -115,7 +117,7 @@ Praxis 课程必须声明真实行动入口和行为证据；仅在对话中理�
 
 ## 五、README.md 必须内容
 
-每个 `_book/README.md` 必须包含：
+每个 `book/README.md` 必须包含：
 
 1. **教材清单表**：文件名 / 资料 / 来源 / 用途
 2. **主教材用法说明**：如何按页推进、OCR 文本层怎么用
@@ -124,7 +126,7 @@ Praxis 课程必须声明真实行动入口和行为证据；仅在对话中理�
 
 ## 六、新建课程时的初始化
 
-1. 创建 `[课程代码]_book/` 目录
+1. 创建 `book/` 目录
 2. 写 `README.md`（即使暂无教材，也写"当前无教材，待添加"）
 3. 不预建 primary/ reference/ 等子目录——有文件时才建
 4. 下载/放入教材时按分类规则归入对应子目录
@@ -144,7 +146,7 @@ Praxis 课程必须声明真实行动入口和行为证据；仅在对话中理�
 
 ## 九、关联文件
 
-- 课程教材目录：按 §5 解析（兼容期 `30_courses/[代码]_*/[代码]_book/`；迁移后 `30_course_definitions/[代码]_*/[代码]_book/`）
-- 课程教学方案：按 §5 解析出的 `course_status.md`
+- 课程教材目录：`main/40_course/<COURSE_ID>/book/`
+- 课程教学方案：按 §5 解析出的 `progress.md`
 - `main/50_playbook/first_run.md` — 步骤 5b 创建课程文件夹
 - `main/50_playbook/new_course_init.md` — 新课程初始化流程

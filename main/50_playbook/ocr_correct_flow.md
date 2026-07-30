@@ -7,9 +7,9 @@
 >
 > **关联文件**：
 > - 规则定义：`main/t2ag.md` →「OCR 文本提取与校验规则」
-> - 通用要求：`main/10_case/course_info.md` →「OCR 工具选择与结果校对」
+> - 通用要求：`main/10_student/learning_path.md` →「OCR 工具选择与结果校对」
 > - 问题日志：`main/00_core/t2ag_problemlog.md`
-> - 课程命令：对应课程 `course_status.md` →「常用命令」
+> - 课程命令：对应课程 `progress.md` →「常用命令」
 
 ---
 
@@ -69,23 +69,19 @@
 
 使用 PyMuPDF（`fitz`）将目标 PDF 页面渲染为 PNG 图片。DPI 推荐 200–300，保证文字与公式清晰可辨。
 
-```python
-import fitz  # PyMuPDF
+```powershell
+# 默认只检查输入、依赖、工具和输出位置，不写文件
+python -B lessons/lesson01/working_pages/scripts/ocr_page.py --page 21
 
-# 打开教材 PDF
-doc = fitz.open('MATH1607H_book/数学分析_陈纪修_第三版_上.pdf')
-
-# 渲染第 21 页（页码从 0 开始，第 21 页 = index 20）
-page = doc.load_page(20)
-pixmap = page.get_pixmap(dpi=300)
-pixmap.save('working_pages/pages/page21.png')
-
-doc.close()
+# 只有明确需要生成 raw OCR 时才写入
+python -B lessons/lesson01/working_pages/scripts/ocr_page.py --page 21 --write
 ```
 
 > **命名规范**：渲染后的 PNG 命名为 `pageXX.png`（如 `page21.png`），存入对应 lesson 的 `working_pages/pages/` 目录。
 >
-> **批量渲染**：若需渲染多页，可循环 `load_page` 并依次保存。
+> **路径与环境**：教材默认从课程根的 `book/primary/` 读取。Tesseract
+> 通过 PATH、`TESSERACT_CMD` 或 `--tesseract` 定位；不得在脚本中保存用户名绝对路径，
+> 也不得自动安装依赖或改造 `.venv`。
 
 ### 步骤 2：优先用模型视觉识读原图逐符号转录
 
@@ -173,7 +169,7 @@ tesseract working_pages/pages/page21.png working_pages/raw_ocr/page_21_raw -l ch
 （校对后的文本内容）
 ```
 
-同时在教材驱动课程的 `course_status.md` YAML 文件头写入机器可检字段：
+同时在教材驱动课程的 `progress.md` YAML 文件头写入机器可检字段：
 
 ```yaml
 textbook_page: 23
@@ -235,7 +231,7 @@ OCR 对数学符号识别错误率极高，校对时务必对照下表逐项排�
 ## 六、记录与沉淀
 
 - **问题日志**：OCR 踩坑与成功经验记入 `main/00_core/t2ag_problemlog.md`
-- **环境配置**：稳定的 OCR 环境配置（PATH、`TESSDATA_PREFIX` 等）写入对应课程 `course_status.md`「常用命令」和 `~/.bashrc`
+- **环境配置**：稳定的 OCR 环境配置（PATH、`TESSDATA_PREFIX` 等）写入对应课程 `progress.md`「常用命令」和 `~/.bashrc`
 - **错误模式**：新发现的 OCR 错误模式补充到本文件「常见错误对照表」
 
 ---

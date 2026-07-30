@@ -1,4 +1,4 @@
-﻿# journal 管理流程
+# journal 管理流程
 
 **保护级别**：meta-playbook
 
@@ -26,9 +26,12 @@
 |---|---|
 | 规则、结构、模板、工具变更 | `main/00_core/t2ag_changelog.md` |
 | 系统/流程问题与解决 | `main/00_core/t2ag_problemlog.md` |
-| 课程进度、停顿点、教学记录 | `[课程]/course_status.md` / `lessonXX.md` |
+| 课程进度、停顿点、教学记录 | `[课程]/progress.md` / 当前 Lesson 或 Exercise 主载体 |
 | 学生知识错误 | `[课程]/mistake_bank.md` |
-| 学生情绪、性格、课程感受 | `student_info.md` / 学生档案 |
+| 学生情绪、性格、课程感受 | `main/10_student/profile.md` / `course_reflections.md` |
+| Lesson 局部想法 | `lessons/lessonNN/lesson_thoughts.md`（真实出现时创建） |
+| Exercise 学生原话与跨题索引 | 对应 Attempt / `exercises/exercise_thoughts.md` |
+| 跨 lesson / exercise 的课程核心内容思考 | `main/10_student/course_reflections.md` 当前课程段，并回链局部来源 |
 | 跨课程、跨实践、非故障类的重要事件/决策/待办 | `main/60_journal/` |
 
 journal 是回看层，不覆盖任何真相源。
@@ -48,7 +51,16 @@ main/60_journal/
 - `YYYY-MM.md`：月度索引/报告。
 - `YYYY-MM-DD-<主题关键词>.md`：单篇 journal。
 
-新增单篇 journal 时，必须同步更新当月 `YYYY-MM.md`；新增月度索引时，同步更新 `INDEX.md`。
+索引表由 `main/70_tools/build_journal_index.py` 维护。新增或修改 journal 后：
+
+```powershell
+python -B main/70_tools/build_journal_index.py --write
+python -B main/70_tools/build_journal_index.py --check
+```
+
+- 无参数与显式 `--check` 都只读检查；只有 `--write` 会改写生成块。
+- `INDEX.md` 与当前 `YYYY-MM.md` 的 `T2AG_GENERATED` 块不得手工编辑；块外正文仍由人维护。
+- 新月份先创建对应 `YYYY-MM.md` 并安装一个月度列表生成块，再运行生成器。
 
 ---
 
@@ -56,6 +68,9 @@ main/60_journal/
 
 ```markdown
 # YYYY-MM-DD 主题
+
+> **日期**：YYYY-MM-DD
+> **状态**：进行中 / 待验证 / 已完成 / 已归档
 
 ## 主题
 
@@ -82,7 +97,12 @@ main/60_journal/
 - ...
 ```
 
-可选状态：进行中 / 待验证 / 已完成 / 已归档。
+### 最小索引 metadata schema
+
+- 第一条一级标题（`# ...`）是索引标题。
+- `日期` 和 `状态` 使用模板中的引用行；日期格式为 `YYYY-MM-DD`。
+- 为兼容现有 journal，缺少 `日期` 时依次回退到文件名前缀、一级标题日期、标题前导区出现的首个 ISO 日期；缺少 `状态` 时显示 `—`。
+- 这是兼容旧文件的最小 schema。生成器不反向改写 journal 正文；新文件应显式填写日期和状态，避免依赖回退。
 
 ---
 
@@ -93,6 +113,7 @@ main/60_journal/
 - **把规则变更只写 journal**：错。规则变更必须进入 `changelog`。
 - **默认把新对话并入旧 journal**：错。只有直接延续或更正才合并；否则新建。
 - **漏掉使用到的 Skill 表**：不合格。即使没有加载 skill，也要写明“本次对话未加载 skill”。
+- **手改索引生成块**：错。修改 journal 的标题或 metadata，再运行生成器。
 
 ---
 

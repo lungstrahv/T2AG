@@ -1,71 +1,34 @@
-﻿# T2AG 基础安装包
+# T2AG 0.2.0 Skeleton
 
-> 一个因懒惰而生的 AI 教学辅导系统。源码发行时本目录名为 `t2ag-skeleton`，
-> 不含真实师生数据；复制到目标位置并完成首次启动后，目标目录就是一个基础 T2AG 实例。
+> 空实例原件。它可复制为新的 T2AG 实例，但自身不得承载真实学生数据。
+> 复制到任意新目录后，未初始化 profile 仍按 Skeleton 空模板验收；完成
+> `first_run.md` 并把 profile 改为 initialized 后，该副本自动按个人实例验收，
+> 不依赖目录名。原始 `t2ag-skeleton/` 仓本身永远保持空模板身份。
 
-## 这是什么
+## 快速开始
 
-T2AG（by T2AG）通过持久化的 Markdown 文件（案例、师生信息、课程状态、问题日志）
-让 AI agent 在长期辅导中记住学生、记住进度、记住踩过的坑。
-**没有运行时**，所有状态靠文件约定管理。
+1. 复制整个目录到新的目标目录。
+2. 在目标目录运行：
 
-初装形态刻意保持极简：提供记忆、路由、反馈和写回的基础结构，不预装学生尚未需要的课程、技能与工具。学生在真实使用中提出需求，agent 再生成或改造相应文件，并根据反馈决定保留、修订或撤回。
+   ```powershell
+   python -B main/70_tools/t2ag_doctor.py
+   python -B main/70_tools/t2ag_state_refresh.py --check
+   python -B main/70_tools/t2ag_context.py --format markdown
+   python -B main/70_tools/t2ag_context.py --include-l1 --format markdown
+   ```
 
-- 版本：`0.1.2`（执行基线、两级进度与漂移治理）
-- **再生用种子**：`t2ag-skeleton` 骨架整体（解压即可再生系统）
-- **宪法与结构清单**：`main/t2ag.md`（不再是种子，只在接管/仲裁时完整阅读）
-- 设计理念：不绑定特定 AI 工具（Kimi / Claude Code / Cursor / Hermes / TRAE 均可）
-- 可视操作入口：[`t2ag_directory_guide.html`](t2ag_directory_guide.html)
-- 完整命名规则：`main/50_playbook/naming_conventions.md`
+3. 空模板的上下文命令必须返回 `first_run_required`；随后读取 `main/t2ag.md` 和
+   `main/50_playbook/first_run.md`。
+4. 与用户确认 profile、首门课程和首个 group 后再显式写入。
 
-## 快速开始（三步）
+初始化后的来源库存比例只说明选择范围；软预算以完整序列化 Markdown（L0 及
+L0+首个 L1）为准，不把该比例称为端到端 Token 降幅。
 
-### 第一步：解压 skeleton
-把 `t2ag-skeleton` 整个文件夹复制或解压到你的工作目录，目标目录默认命名为 `t2ag`。模板源与目标实例同时存在时，不要直接在 `t2ag-skeleton` 中建立学生数据。
+## 发行角色
 
-### 第二步：在 AI 环境中打开
-用 TRAE / Cursor / Claude Code / Kimi 打开这个文件夹。
+- Main：规则与真实实例原件。
+- Skeleton：通用规则与空实例原件。
+- Lite：只能从 Main 单向生成的审查快照。
 
-- TRAE：直接打开文件夹，TRAE 会自动读取 `AGENTS.md` 识别 T2AG 系统
-- Cursor：打开文件夹后，`.cursorrules` 若缺则 agent 会自动生成
-- Claude Code：打开文件夹后，`CLAUDE.md` 若缺则 agent 会自动生成
-- 其他环境：发送 `T2AG` 或「读取 t2ag.md」手动触发
-
-### 第三步：发送启动指令
-在对话中发送 `T2AG` 或「读取 t2ag.md」。
-
-agent 会依次问你：
-1. 你的名字或昵称
-2. 你要学什么课程（可多门）
-3. 每门课的教材是什么
-4. 你现在学到哪了
-5. 有什么学习偏好
-
-确认后 agent 会自动创建你的档案和课程文件夹，然后展示欢迎信息。
-
-此时 SN01 已指向真实学生，memory 已写入初始化日期，目标目录完成从安装包到基础 T2AG 实例的转换；不需要额外的身份配置文件。
-
-> **之后每次上课**：发送「继续学 [课程代码]」即可恢复进度开始上课。
-> **首次启动后**：日常开课不再需要发 `T2AG`，直接说课程名就行。
-
-> **注意**：本骨架中 `S001/`、`T001.md` 是占位模板。实际学生从 `S002` 起编号。
-> 首次启动不得携带任何其他实例的数据，一切从询问用户开始。
-
-## 目录顺序（数字前缀方案）
-
-`main/` 下系统目录用**两位数字前缀**编码阅读顺序与依赖方向：
-
-| 前缀 | 目录 | 作用 |
-|---|---|---|
-| 00 | `00_core/` | 宪法、记忆、变更/问题日志（最先读） |
-| 10 | `10_case/` | 师生信息、课程配置 |
-| 20 | `20_groups/` | 课程组执行窗口 |
-| 25 | `25_general/` | 通识轨（R 系统，与 G 平级） |
-| 30 | `30_courses/` | 各课程文件夹（`代码_名称`） |
-| 40 | `40_practices/` | 实践项目 |
-| 50 | `50_playbook/` | 可复用流程 |
-| 60 | `60_journal/` | 可选回看层 |
-| 70 | `70_tools/` | 脚本工具 |
-
-规则：**下层可引用上层，反向引用由 doctor 警告**。数字段一眼可见依赖方向；文件、
-实体 ID、课程和迁移的完整命名要求以 `naming_conventions.md` 为准。
+普通启动、doctor 和首次启动不得创建、删除、重建或升级 `.venv`，也不得自动
+安装依赖、下载教材或生成真实 Engagement。

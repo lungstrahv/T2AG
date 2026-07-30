@@ -3,31 +3,32 @@
 **保护级别**：normal playbook
 
 > R 的正式名称是"弹性执行绑定（Elastic Binding）"。
-> "通识轨""Reading track""25_general"是兼容期旧名称/旧路径，不是 R 的领域定义。
+> 旧“通识轨 / Reading track”只作为归档术语存在，不是 R 的领域定义。
 
 ---
 
 ## 背景
 
 R（弹性执行绑定）是与 G（Group，刚性课程组）平级的第二种执行约束。
-G/R 的差别是执行约束的刚性不同；成功标准属于 CourseRun，不属于 G/R 容器本身。
+G/R 的差别是执行约束的刚性不同；成功标准属于 课程进度，不属于 G/R 容器本身。
 
-> **领域模型（v0.1.2）**：培养方案、Case、G/R、CourseDefinition、CourseRun 之间是引用图，
+> **领域模型（v0.2.0）**：培养方案、Student、G/R、Course 之间是引用图，
 > 不是严格父子树。完整定义见 `00_core/domain_model.md`。
 
 R 共享 t2ag 的教学纪律（教材分类、教师红线、memory 指针），
 不共享 G 的执行约束（周期、频率红线、4h 预算、overlay 四层、组内冻结、换组仪式、卷面考核）。
 
-目录位置：`25_general/`（兼容期旧路径），与 `20_groups/` 平级。
+目录位置：`main/30_group/<GID>/bindings/`。binding 属于具体 group，
+但只引用 Course，不拥有课程内容或进度。
 
 ---
 
 ## R 的定义与边界
 
-- R 只允许绑定 Project 或 Praxis CourseRun
+- R 只允许绑定 Project 或 Praxis 课程进度
 - Mastery 只能进入 G
 - 随手读书、习惯记录和无明确验收的探索先进入 ActivityRecord；不能因为"不考试""非学位要求"自动成为 R
-- R 本身没有课程成功标准；验收方式由绑定的 CourseRun 类型决定
+- R 本身没有课程成功标准；验收方式由绑定的 课程进度 类型决定
 
 ---
 
@@ -42,33 +43,34 @@ R 共享 t2ag 的教学纪律（教材分类、教师红线、memory 指针）�
 
 ---
 
-## 第一阶段冻结声明
+## 生命周期
 
-第一阶段不得新建或激活 R。现有兼容文件全部冻结。
-
-- 不得新建任何 R 文件
-- 不得将现有 R 文件从 idle/paused 转为 active/reading
-- 不得作为模板使用
-- 若用户希望继续其内容，应先转为 ActivityRecord，或建立具有明确类型和验收证据的正式课程
+R 可为 `idle / active / paused / closed`。激活前必须确认课程存在、课程类型为
+Project 或 Praxis、对应 group 存在，并获得学生确认。迁移保留的
+`R002_PHIL1101r` 是唯一 legacy Reading 证据：必须同时保持
+`binding_status: idle` 与 `legacy_frozen: true`，不得激活、复制或作为新建先例。
+它不是合法可激活 R。除这个 exact 冻结证据外，Mastery binding 一律非法；
+其他 binding 也不得声明 `legacy_frozen` 或冒用 registry 的 legacy category。
 
 ---
 
-## 未来 R 只保存 binding 字段（结构契约，待迁移批次切换）
+## R 只保存 binding 字段
 
 完整对象分层迁移完成后，R 将只保存 binding 字段：
 
 ```yaml
-type: elastic_binding
+type: binding
 binding_id: RNNN
-case_id: <case_id>
-course_run_id: <course_run_id>
-binding_status: planned
+course_id: <COURSE_ID>
+group_id: <GID>
+binding_status: idle
+execution_mode: flexible
 ```
 
-R 不拥有课程计划、进度、验收记录、lesson 或 mistake_bank；这些属于绑定的 CourseRun。
+R 不拥有课程计划、进度、验收记录、lesson 或 mistake bank；这些属于绑定的 Course。
 
-> **当前状态**：仍保持第一阶段冻结。当前无正式 R；legacy R（PHIL1101r/DS1001r）frozen 在 `25_general/`。
-> 本批次不得新建或激活 R。不得重新打开第一阶段已经否决的 legacy Reading R 语义。
+实际 binding 只存在于所属 group 的 `bindings/`；本通用 playbook 不枚举当前实例
+的 R 编号、课程或 group。不得重新打开已经否决的 legacy Reading R 语义。
 
 ---
 
@@ -76,12 +78,13 @@ R 不拥有课程计划、进度、验收记录、lesson 或 mistake_bank；这�
 
 ### 第一条：不占 G 预算
 
-R 的时间从 G 的 4h 之外挤。R 不进入 `overlay_daily.md` 的时间分配表。
+R 默认不占 active group 的预算；若用户要分配组内时间，必须显式写入该 group 的
+`plan.md` 与 `calendar.md`。
 
 ### 第二条：D4 兼容但无 KPI
 
-R 可以在 D4 做，但不设进度 KPI。D4 原则禁止的是"带 KPI 的活动"，
-不是"翻书"本身。
+R 可以使用 group calendar 明确标出的无 KPI 弹性时段，但不自动继承任何旧
+overlay 的 D4 或 3-1-3 节奏。
 
 ### 第三条：多 R 并行
 
@@ -105,13 +108,14 @@ R 永远不得作为 G 未达标周的解释、补偿或替代。
 
 ---
 
-## Doctor 对接（第一阶段）
+## Doctor 对接
 
 | 检查项 | 级别 | 说明 |
 |---|---|---|
-| 25_general/ 出现未登记的新 R 文件 | **FAIL** | 第一阶段冻结 |
-| 已登记 legacy 文件状态为 active/reading | **FAIL** | 不得激活 |
-| memory 把 frozen 文件列为 active | **FAIL** | 指针必须反映冻结 |
+| binding 引用不存在的 course/group | **FAIL** | 引用必须闭合 |
+| Mastery 课程绑定到 R（exact frozen R002 证据除外） | **FAIL** | Mastery 只能进入 G |
+| binding 状态不在枚举内 | **FAIL** | 状态必须可判定 |
+| legacy Reading binding 不是既有冻结 R002 | **FAIL** | 只保留迁移证据，不恢复旧模型 |
 
 ---
 
@@ -120,7 +124,7 @@ R 永远不得作为 G 未达标周的解释、补偿或替代。
 memory 指针与 G 指针分离：
 
 ```
-| R 活跃绑定 | 无 | 25_general/_README.md |
+| active binding | 无或 `<RID>` | main/30_group/<GID>/bindings/ |
 ```
 
-第一阶段无活跃 R，始终写"无"。
+没有活跃 R 时缓存写“无”；激活后由 state refresh 生成真实指针。

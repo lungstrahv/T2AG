@@ -1,0 +1,24 @@
+---
+type: exercise_problem_set
+course_id: COURSE_ID
+exercise_id: Udddd
+content_group_id: CONTENT_GROUP_ID
+source_artifact_id: SOURCE_ARTIFACT_ID
+source_path: main/40_course/COURSE_ID/book/primary/verified_excerpts/SOURCE_ID.md
+source_locator: "SOURCE_LOCATOR"
+source_sha256: SOURCE_SHA256
+source_order: [Udddd-Q001]
+teaching_sequence: [Udddd-Q001]
+status: active
+---
+# Udddd 题目
+
+## Udddd-Q001
+
+- 题号：1
+- 来源页：SOURCE_PAGE
+- 难度：未评估
+- 依赖 completion node：`CONTENT_GROUP_ID-N01`
+- 状态：open
+- 错误级别：—
+- 题面：PROBLEM_TEXT

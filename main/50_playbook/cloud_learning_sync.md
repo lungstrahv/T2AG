@@ -16,7 +16,7 @@ T2AG 云端同步分成两条通道，二者不得混写：
 
 | 层 | 作用 | 权威边界 |
 |---|---|---|
-| 本地 `course_status.md` | 课程进度唯一真相源 | 永远最高；云端记录不得直接覆盖 |
+| 本地 `progress.md` | 课程进度唯一真相源 | 永远最高；云端记录不得直接覆盖 |
 | 云端同步基线 | 某次本地状态的只读投影 | 由 `base_state_id` 标识，只证明导出时状态 |
 | `T2AG_SESSION_CLOSE` | 基线之后发生的待回写教学事件 | `sync_status` 在云端只能是 `pending` |
 | `t2ag_mobile_entry.md` | 手机端快速恢复缓存 | 不是独立真相源，不得压过本地状态或有效事件块 |
@@ -30,8 +30,8 @@ T2AG 云端同步分成两条通道，二者不得混写：
 
 | 模式 | 用途 | 身份来源 |
 |---|---|---|
-| `personal_instance` | 已实例化学生的个人云端课堂 | 本地主实例 SN01 与课程 `teacher_overlay.md` 的已同步只读投影 |
-| `generic_skeleton` | 新安装、模板演示或公开骨架 | S001 模板；教师未配置或默认 T001；不得加载实例课程进度 |
+| `personal_instance` | 已实例化学生的个人云端课堂 | `main/10_student/profile.md` 与 `main/20_teacher/overlay.md` 的已同步只读投影 |
+| `generic_skeleton` | 新安装、模板演示或公开骨架 | 空 profile 模板；教师未配置或默认 T001；不得加载实例课程进度 |
 
 - `personal_instance` 中，学生编号、教师角色与模板映射必须来自带 `base_state_id` 的移动端入口；
   完整文本镜像、skeleton 示例和历史 lesson 只能补上下文，不得反向改写身份。
@@ -79,7 +79,10 @@ T2AG_PROGRESS_RECEIPT
 - produced_at: <ISO-8601 with timezone>
 - base_state_id: <id or UNKNOWN>
 - course: <course code>
-- lesson: <lesson id>
+- current_activity: <lesson | exercise>
+- current_activity_id: <lessonNN | Udddd>
+- resume_path: <canonical current activity path>
+- lesson_context: <lesson id | NONE>
 - receipt_kind: <completion_node | manual_save>
 - completion_node_id: <stable id or NONE>
 - checkpoint_id: <stable id>
@@ -103,7 +106,10 @@ T2AG_SESSION_CLOSE
 - t2ag_version: <version or UNKNOWN>
 - base_state_id: <id from t2ag_mobile_entry.md or UNKNOWN>
 - course: <course code>
-- lesson: <lesson id>
+- current_activity: <lesson | exercise>
+- current_activity_id: <lessonNN | Udddd>
+- resume_path: <canonical current activity path>
+- lesson_context: <lesson id | NONE>
 - duration_minutes: <non-negative integer or UNKNOWN>
 - source_evidence: <file / page / section actually used, or NONE>
 - covered: <explained or attempted content>
@@ -141,14 +147,16 @@ END_T2AG_SESSION_CLOSE
 2. 校验协议、必填字段、枚举值、时间和 `duration_minutes`；不合格时停止写回并列出缺项。
 3. 在 `main/` 与 `cloud/cloud_sync_state.md` 检索 `session_id` 或 `receipt_id`。已存在即判为重复导入，
    不再次累计课时、疑问或错误记录。
-4. 将 `base_state_id` 与 `cloud/cloud_sync_state.md` 的已知基线核对，再读取本地
-   `course_status.md`、lesson 和相关 question/mistake 记录。
+4. 将 `base_state_id` 与 `cloud/cloud_sync_state.md` 的已知基线核对，再校验事件中的
+   显式活动三元组，并读取本地 `progress.md`、当前活动主载体和相关 question/mistake
+   记录。旧事件若只有 `lesson`，必须进入人工兼容迁移，不能静默推断当前活动。
 5. 若基线未知、落后且本地已前进，或精确停点互相矛盾，标记 `conflict`；先向学生核对，
    未确认前不改课程进度。
-6. 无冲突时先更新 `course_status.md` 真相源，并在教学记录中保留 `session_id`；再依事件证据
-   更新 lesson、`question_bank.md`、`mistake_bank.md` 和学生档案。候选错误仍须按现有门槛归因，
+6. 无冲突时先更新 `progress.md` 真相源，并在教学记录中保留 `session_id`；再依统一
+   活动路由更新当前 Lesson/Exercise 主载体、`question_bank.md`、`mistake_bank.md` 和
+   学生档案。候选错误仍须按现有门槛归因，
    不能因为云端列出就自动成为正式错题。
-7. 从真相源刷新 `t2ag_memory.md` 与 `course_info.md`；不得从移动端入口反向覆盖真相源。
+7. 从真相源刷新 `t2ag_memory.md` 与 `learning_path.md`；不得从移动端入口反向覆盖真相源。
 8. 运行 `main/70_tools/t2ag_doctor.py`。只有写回完成且 doctor 为 `0 FAIL`，才能记为 `synced`。
 9. 在 `cloud/cloud_sync_state.md` 追加同步结果，并向用户输出 `T2AG_SYNC_RECEIPT`；若发生冲突，
    状态写 `conflict`，保留原因与待确认项。

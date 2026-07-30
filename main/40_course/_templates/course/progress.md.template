@@ -1,0 +1,21 @@
+---
+type: course_progress
+course_id: COURSE_ID
+lifecycle_status: ongoing
+course_driver: textbook
+truth_source: true
+current_activity: lesson
+current_activity_id: lesson01
+current_lesson: lesson01
+resume_path: main/40_course/COURSE_ID/lessons/lesson01/lesson01.md
+activity_position: START_POSITION
+updated: YYYY-MM-DD
+current_completion_node: COMPLETION_NODE
+current_checkpoint: CHECKPOINT
+checkpoint_state: queued
+---
+# COURSE_ID 进度真相源
+
+## 当前进度
+
+- **下一步计划**：NEXT_ACTION

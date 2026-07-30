@@ -1,0 +1,18 @@
+---
+type: lesson
+course_id: COURSE_ID
+lesson_id: lessonNN
+content_group_ids: [CONTENT_GROUP_ID]
+status: ongoing
+created: YYYY-MM-DD
+---
+# lessonNN
+
+## 学习范围
+
+- 来源：SOURCE_SCOPE
+- 精确停点：START_POSITION
+
+## 教学记录
+
+- 真实教学开始后追加；不得预造学生确认。

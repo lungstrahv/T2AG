@@ -3,13 +3,37 @@
 **保护级别**：core-playbook
 
 > 本流程定义课程生命周期、容量组合、细粒度恢复点与粗粒度完成节点。
-> `course_status.md` 仍是正式进度唯一真相源；课程组只决定当前保留容量，不决定课程是否仍在进行。
+> `progress.md` 仍是正式进度唯一真相源；课程组只决定当前保留容量，不决定课程是否仍在进行。
 
 ## 一、两组彼此独立的状态
 
+### 1.0 当前学习活动
+
+`progress.md` 必须把课程生命周期与当前学习活动分开：
+
+```yaml
+current_activity: lesson       # lesson / exercise
+current_activity_id: lesson01  # lessonNN / Udddd
+current_lesson: lesson01       # 兼容上下文；Exercise 首启写 none
+resume_path: main/40_course/COURSE_ID/lessons/lesson01/lesson01.md
+activity_position: 精确停点
+```
+
+- 切换到 Exercise 时，`resume_path` 改指 `exercises/Udddd/exercise.md`。
+- 三个显式活动字段不得由 `current_lesson`、memory 或目录扫描补值。Exercise 下的
+  `current_lesson` 只能是 `none` / `—`，或真实存在且 frontmatter 匹配的历史 Lesson；
+  它不改变当前活动，也不能触发 Lesson/working-pages 的默认恢复。
+- Lesson 与 Exercise 是同级活动；切换只改变当前恢复入口，不改变 ContentGroup 关系或
+  擅自关闭另一活动的未决问题。
+- `activity_position` 是两类活动共用的精确停点字段；不得继续用
+  `lesson_position` 保存 Exercise 或新 Lesson 状态。
+- planned 课程只写 `current_lesson: none` 与 `progress_nodes_status: lazy_on_activation`，
+  不携带 `current_activity / current_activity_id / resume_path / activity_position`。
+  激活时先创建真实载体，再原子写入完整活动字段。
+
 ### 1.1 课程生命周期
 
-每门课程在 `course_status.md` 文件头使用：
+每门课程在 `progress.md` 文件头使用：
 
 ```yaml
 lifecycle_status: planned  # planned / ongoing / completed / dropped
@@ -61,7 +85,7 @@ completion node 是粗粒度、永久稳定的正式进度单元，通常跨若�
 
 ### 4.1 自动 checkpoint
 
-进入 checkpoint 时立即更新 `course_status.md` 的当前 checkpoint、精确停点和确认状态，并刷新机器生成缓存。
+进入 checkpoint 时立即更新 `progress.md` 的当前 checkpoint、精确停点和确认状态，并刷新机器生成缓存。
 这只保存位置，不得把父 completion node 写成 completed。
 
 ### 4.2 自动完成节点
@@ -81,8 +105,8 @@ completion node 的既有完成证据满足后，自动把该节点标为 comple
 
 ### 4.4 结课与恢复确认
 
-正常结课按 `session_close.md` 完成正式写回。异常中断后恢复时，若 lesson、云端事件或学生陈述比真相源更新，
-先暂停新内容并核对；经学生确认后更新 `course_status.md`，再统一刷新缓存。
+正常结课按 `session_close.md` 完成正式写回。异常中断后恢复时，若当前 Lesson/Exercise、云端事件或学生陈述比真相源更新，
+先暂停新内容并核对；经学生确认后更新 `progress.md`，再统一刷新缓存。
 
 ## 五、云端检查点
 
@@ -90,17 +114,24 @@ completion node 的既有完成证据满足后，自动把该节点标为 comple
 - 每完成一个 completion node，云端自动生成紧凑的 `T2AG_PROGRESS_RECEIPT`。
 - 学生说“保存进度”时立即生成回执；正常结课仍生成完整 `T2AG_SESSION_CLOSE`。
 - 本地按事件 ID 去重；已被后续结课块包含的回执不重复计入。
-- 云端不能直接把本地 `course_status.md` 写成已同步；回执在本地核对前保持 pending。
+- 云端不能直接把本地 `progress.md` 写成已同步；回执在本地核对前保持 pending。
 
 ## 六、机器生成缓存
 
-memory 当前进度区、lesson 头部进度区、`course_info.md` 课程/容量索引和移动端入口的机器字段
-由 `70_tools/t2ag_state_refresh.py` 从正式来源统一生成。生成区块不得手写修改。
+`70_tools/t2ag_state_refresh.py` 只拥有以下本地 GENERATED 区块：
+
+- memory 的 `ACTIVE_PROGRESS` 与 `STATE_POINTERS`；
+- `learning_path.md` 的 `COURSE_INDEX` 与 `GROUP_INDEX`；
+- active group plan 的 `GROUP_VIEW`。
+
+Lesson/Exercise 的局部停点由 `session_close.md` 写成活动证据，不是 GENERATED 缓存，
+也不能覆盖 progress。移动端入口由 Cloud 同步协议单独拥有；bridge 为 `paused` 时不写。
+任何没有明确生成器负责的 GENERATED anchor 都属于契约错误。
 
 执行顺序固定为：
 
 ```text
-course_status / active G 文件
+progress.md / active group 文件
   → t2ag_state_refresh.py --write
   → t2ag_state_refresh.py --check
   → t2ag_doctor.py

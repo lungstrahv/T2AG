@@ -1,107 +1,38 @@
-﻿# 首次启动流程（agent 操作手册）
+# 首次启动
 
-**保护级别**：core-playbook
+首次启动只初始化一个学生实例，不创建学生编号层。
 
-> **触发条件**（满足任一即为首次）：
-> - `00_core/t2ag_memory.md`「上次课摘要」为空（日期为 `—`）
-> - `10_case/student_info.md` 中 SN01 仍指向 S001（默认模板）
->
-> **非首次**则走 `t2ag.md` 4.2 日常接管，详见 `lesson_recover.md`。
+## 判据
 
----
+- `10_student/profile.md` 的 `initialization_status` 不是 `initialized`；或
+- profile 仍含必填占位符；或
+- memory 上次课摘要日期为 `—`。
 
-## 一、人类已完成的前置步骤（agent 不执行，仅确认）
+## 步骤
 
-1. 复制或解压 `T2AG-skeleton` 到新的目标目录，默认把目标目录命名为 `t2ag`；若开发环境同时保留模板源，不在 `t2ag-skeleton` 原目录内写入学生数据
-2. 在 AI 环境（TRAE / Cursor / Claude Code / Kimi）中打开目标 `t2ag` 目录
+1. 按 `main/t2ag.md`「3.0 启动欢迎信息」展示当前发行版的 `welcome_msg`、
+   active `art_file` 字符画与版本号。
+2. 运行 doctor，确认 Skeleton 结构有效且没有真实实例。
+3. 询问并确认学校、年级、方向、目标、可投入时间、已有基础和辅导偏好。
+   当前困难与特殊要求是可选信息；未提供时明确写“未提供”，不得保留“待填写”。
+4. 将 profile 从模板改为 `initialization_status: initialized`。
+5. 与用户确认首门课程及真实入口（先进入 Lesson 还是 Exercise）；从
+   `40_course/_templates/course/` 按 `new_course_init.md` 创建 Course 和首个学习活动。
+6. 与用户确认第一个 group 的成员、预算和日历，建立 plan/calendar/review，
+   并用 `bindings/_README.md` 持久化空 binding 域。
+7. 在 `20_teacher/overlay.md` 唯一的“课程—教师映射”表中建课程到教师模板的
+   显式行；模板单元使用精确 `` `main/20_teacher/Tddd.md` `` 路径。
+8. 完成发行身份切换，但不启动云同步：
+   - 把 active skin 的 `art_file` 改为用户确认的个人实例字符画；未另选时使用
+     `03_inori_2.txt`，不再保留 Skeleton 专用 `01_welcome.txt`；
+   - 将 Cloud project mode 从 `generic_skeleton` 切为 `personal_instance`，在状态中
+     明确 `new_cloud_sessions_allowed: false` 与
+     `new_component_directives_allowed: false`，并让个人实例提示词携带
+     `T2AG_SESSION_CLOSE / T2AG_CLOUD_CHANGE_DIRECTIVE / T2AG_CLOUD_HANDOFF`；
+   - `cloud_bridge_status` 继续保持 `paused`，本步骤不授权任何云写回。
+9. 更新课程 `progress.md` 的起点与下一动作。
+10. 运行 state refresh `--write`，让 memory 的当前 group、课程、LearningActivity、教师与
+   `learning_path.md` 同步生成；确认这些指针不再为 `—`。
+11. 运行 state refresh `--check` 和 doctor，只有两者都通过才算首次启动完成。
 
-> agent 确认：根目录存在 `AGENTS.md`（或 CLAUDE.md / .cursorrules）且 `main/t2ag.md` 存在 → 前置步骤已完成。
-> 目录结构已就位——agent 的职责是**填充内容**（学生档案、课程文件夹、课程组），不是创建目录。
-> `t2ag-skeleton` 只是安装包名。目标目录完成步骤 5 后即成为基础 T2AG 实例，不需要新增 `instance.yaml` 或另一套身份文件。
-
----
-
-## 二、agent 首次启动流程
-
-### 步骤 1：读取宪法
-读取 `main/t2ag.md`（宪法与结构清单），理解五章内容。
-
-### 步骤 2：检测 AI 环境
-检查根目录存在哪个入口文件：
-
-| 入口文件 | AI 环境 | 需要操作 |
-|---|---|---|
-| `AGENTS.md` | TRAE | 已自带，无需操作 |
-| `CLAUDE.md` | Claude Code | 若缺则生成，内容同 AGENTS.md |
-| `.cursorrules` | Cursor | 若缺则生成，内容同 AGENTS.md |
-| `SOUL.md` | 其他 | 若缺则生成，内容同 AGENTS.md |
-
-> **只生成当前环境需要的入口文件**，不全部生成。TRAE 读 AGENTS.md，不会读 CLAUDE.md。
-
-### 步骤 3：跑 doctor 基线
-运行 `70_tools/t2ag_doctor.py`，确认骨架完整性（0 FAIL）。
-若 FAIL，先修骨架问题再继续。
-
-### 步骤 4：询问用户
-**依次询问，等用户回答后再问下一个**：
-
-1. **你的名字或昵称？**
-2. **你要学什么课程？**（可多门，每门报课程代码和名称，如 PY1001 Python、MATH1607H 数学分析）
-3. **每门课的教材是什么？**（书名、作者、版次；有电子版则提供文件路径）
-4. **你现在学到哪了？**（哪一章/哪一页/刚开始/学了一半）
-5. **有什么学习偏好或特殊要求？**（节奏快慢、重点方向、时间限制等）
-
-> 询问完成后，**向用户复述确认**：名字、课程列表、教材、当前进度，得到确认再建档案。
-
-### 步骤 5：创建实际档案
-根据用户确认的信息，按顺序创建：
-
-**5a. 学生档案**
-- 复制 `10_case/students/S001/` 四文件到 `S002/`
-- 填写 `S002/basic_info.md`：姓名、学校、年级、学习目标
-- `S002/personality_baseline.md`、`course_reflections.md` 和 `reasoning_patterns.md` 保持模板空，随教学填充
-- 更新 `10_case/student_info.md`：SN01 指向 S002，学生库索引表加一行
-
-**5b. 课程文件夹**
-- 每门课完整执行 `50_playbook/new_course_init.md`
-- 使用其中的 `MISTAKE_BANK_TEMPLATE_V1` 生成知识错题库，不在首次启动流程另写一份格式
-- 若用户提供教材或外部资料，按 `50_playbook/book_management.md` 登记和落位
-
-**5c. 更新配置文件**
-- `10_case/teacher_overlay.md`：课程-教师映射表加行（默认指向 T001）
-- `10_case/course_info.md`：课程列表加行，填写课程代码/名称/路径/初始进度
-- `10_case/t2ag_case.md`：填写教学总体描述、培养方案指针、当前师生配置
-- `00_core/t2ag_memory.md`：状态指针更新（活跃课程、当前 lesson、当前学生 SN01→S002）；把「上次课摘要」日期写为初始化日期，并把「下次第一件事」写成可直接开始第一课的动作
-
-**5d. 完成实例化**
-- 确认 SN01 已不再指向 S001，且 memory「上次课摘要」日期不再为空
-- 两项同时成立后，当前目标目录的身份就是**基础 T2AG 实例**；后续对话不得重复执行首次启动
-- 基础实例不要求预先填满课程、技能或工具，缺少尚未被学生需要的内容是正常状态，之后按真实使用逐步填充
-
-### 步骤 6：验证
-运行 `70_tools/t2ag_doctor.py`，确认 0 FAIL。
-若 WARN，逐条评估是否需要修复。
-
-### 步骤 7：展示欢迎信息
-1. 读取 `main/skin/skin.yaml` → 获取 `active` 皮肤 ID
-2. 查注册表获取皮肤文件夹名 → 读 `main/skin/SKxxx_名称/skin.yaml` 获取 `welcome_msg` 和 `art_file`
-3. 展示欢迎语 + 读取并展示 `art_file` 指向的 ASCII 艺术
-4. 说明：
-   - 已创建哪些档案和课程
-   - 当前教师是谁（默认 T001）
-   - 下一步怎么做
-
-5. 示例话术：
-   > 档案建好了。你现在学 [课程1] 和 [课程2]。
-   > 教师是 [T001 名称]，风格是 [一句话]。
-   > 发送「继续学 [课程代码]」开始第一课。
-   > 发送 `T2AG` 随时回到主界面。
-
----
-
-## 三、边界与限制
-
-- **不伪造数据**：用户没说的不编，不知道的留空标注「待填写」
-- **不跳步骤**：步骤 1-7 顺序执行，不跳过验证
-- **不携带其他实例数据**：首次启动隔离原则，不复制其他 T2AG 实例的师生/课程数据
-- **询问优先于假设**：拿不准的问用户，不自行决定
+不得自动创建 `.venv`、安装依赖、下载教材、生成真实 Engagement 或替用户选择课程。

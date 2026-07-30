@@ -126,7 +126,96 @@ git commit -m "恢复 <文件> 到 <提交> 的已确认版本"
 | 中文路径显示转义 | 可设置 `git config core.quotepath false` |
 | 工作区已有不明改动 | 不暂存、不还原；只处理本次明确拥有的文件 |
 
-## 九、教学与发布声明
+## 九、发布候选的只读重放
+
+候选 tree 不是日常教学步骤。只有用户明确进入发布复审、Main 与 Skeleton 已进入安静窗口，
+且工作树连续采样没有变化时，才允许生成候选 tree 证据。
+
+### 9.1 0.2.0 冻结验收边界
+
+本边界由用户于 2026-07-27 冻结；冻结的是 0.2.0 验收范围，不是 Git 快照，也不暂停
+日常学习。0.2.0 的候选工具只支持当前 Windows/NTFS、普通非 sparse Git 仓和显式教学
+安静窗口。最终独立复审只允许把以下六项及既有三发行闸门作为本代阻断：
+
+1. 候选工具拒绝 `core.sparseCheckout`、`core.sparseCheckoutCone`、`index.sparse` 和
+   `.git/info/sparse-checkout` 所表达的有效 sparse 状态，并有“工作树已改、候选静默漏改”
+   负例；
+2. Main 与 Skeleton 在当前安全本地配置下都能运行 `--preflight`；显式
+   `core.fsmonitor=false` 是安全关闭态，只有启用值或外部 monitor 路径才拒绝；
+3. 候选末次源指纹必须发生在全部 A/B 重放与复核之后；该末次指纹通过并成功返回即结束
+   本轮安静窗口，之后发生的新学习写回不追溯否定已经形成的时点候选；
+4. Doctor 一次运行对每门课程只读取并使用一个 `ProgressSnapshot`；
+5. 所有声明为“精确替换”的测试辅助同时拒绝零命中和重复命中；
+6. Lite 省略原始教材文档时，必须验证报告状态、正式 manifest 路径与 SHA、schema、
+   target kind、operation count/sequence，以及每项 source/target/disposition/outcome/
+   post-target 完整字段。
+
+以下只进入后续加固 backlog，不再阻断 0.2.0：mode/File ID 的额外元数据证明、Lite
+目录占位、最终检查结束后不可消除的纳秒级并发窗、非 Windows/NTFS 或 SHA-256 Git 等
+跨平台威胁、特殊挂载，以及清单外新提出的理论攻击面。已有防御实现可以保留；复审者不能
+因要求更强的证明而移动本代终点。清单外事实只有证明其直接违反上述六项或既有三发行闸门
+时，才能重新归入 0.2.0 阻断。
+
+对真实仓库的“只读”必须同时覆盖工作树、index、refs 和对象库元数据。仅设置临时 index
+并把真实 `.git/objects` 配成 alternate 仍可能 freshen 真实对象的 mtime，不属于严格隔离；
+禁止使用这种算法，也禁止 hardlink、`git clone --shared`、`--reference` 或其他会共享对象库
+的复制方式。
+
+规范重放必须满足：
+
+1. 对源仓工作树内容、`HEAD`、refs、真实 index 和 `.git/objects` 元数据建立前置指纹；
+2. 将整个仓库（工作树与 `.git`）物理复制到新的临时目录；复制不得使用 hardlink 或
+   alternate，候选目录不得反向引用源仓；
+3. 在物理副本中屏蔽用户级和系统级 Git 配置，并使用副本内的新临时 index 执行
+   `read-tree HEAD → add -A -- . → write-tree → diff --cached --check`；
+4. 删除副本前在第二个全新物理副本中独立重放；文件数、tree SHA 和 whitespace 结果
+   必须一致；
+5. 完成全部 A/B 复核后再重取源仓完整指纹；任一工作树内容、`HEAD`、refs、index、
+   对象数量或对象元数据变化，立即废弃本轮全部候选值并报告事实，不得把相近值写成
+   发布证据；
+6. 临时副本清理只作用于已解析并确认位于临时根下的精确目录。候选操作绝不进入真实仓
+   的 `.git`，也不以“没有新增对象”代替元数据不变证明。
+
+上述条件由 `main/70_tools/t2ag_candidate_replay.py` 强制执行，不允许用手写复制命令或
+报告声明替代。独立复审通过但尚未获候选授权时，只可运行不调用 Git、不生成副本的源仓
+预检：
+
+```powershell
+python -B main/70_tools/t2ag_candidate_replay.py --preflight
+```
+
+工具在任何 Git 调用前必须 FAIL：
+
+- 继承环境含任意大小写形式的 `GIT_*` 时，先全部清除，只注入工具控制目录中的 config、
+  attributes、exclude、hooks 与 index；不得设置 object directory 或 alternate；
+- `.git` 是 gitfile/链接，或存在 `commondir`、`gitdir`、`worktrees`、alternates、
+  `config.worktree`、外部 `core.worktree`、include/includeIf、promisor/partial clone、
+  worktree filter、已启用的 fsmonitor、有效 sparse checkout/sparse index、Git lock；
+- 源根、临时根、两个副本或其祖先/后代含 symlink、junction、mount/reparse point；
+- 任一普通文件链接数不是 1、File ID 在同树重复，或源/A/B 三树之间复用 File ID；
+- 路径发生大小写/Unicode 规范化碰撞，或源与 A/B 的逐文件相对路径、大小、SHA-256
+  字节清单不完全相等；
+- 复制期间或重放期间源仓任一文件内容、mode、mtime，包含 HEAD、refs、index 和对象库
+  元数据，发生变化。
+
+只有用户针对本轮候选明确授权后，才可在源仓之外的全新空目录执行生成入口；文字 token
+只是防误触门，不能替代用户授权：
+
+```powershell
+python -B main/70_tools/t2ag_candidate_replay.py `
+  --generate `
+  --workspace <源仓外的全新空目录> `
+  --authorization-token CANDIDATE_REPLAY_AUTHORIZED
+```
+
+工具从同一个已核验源分别逐字节复制 A/B，Git 以预先解析并哈希的可执行文件、显式
+`--git-dir`/`--work-tree` 和位于副本外控制目录的 index 运行。只有 A/B 的 tree SHA、
+文件数、whitespace 结果一致，副本工作树字节不变，且源仓前后完整状态一致时才输出候选。
+
+真实学习仍在写回、Lite 尚未同步、独立复审未通过或用户尚未授权发布复审时，只能把候选
+状态记为 `revoked / not generated`；不得为了刷新报告而追逐一个持续变化的 tree SHA。
+
+## 十、教学与发布声明
 
 - 未提交、无 Git、无网络都不阻断开课、教学写回或结课。
 - core-playbook、doctor、目录结构或云端协议变化后，维护结束必须生成“待快照清单”并提示 `WARN`。

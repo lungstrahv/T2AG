@@ -1,5 +1,7 @@
 # 开课知识点抽查（mistake_retest）
 
+**保护级别**：core-playbook
+
 > 每次正式课程开头触发。抽查单位是“知识点”，不是固定题目；题目只是知识点的变式探针。
 > 当堂理解不等于延迟提取成功，结果在结课仪式中统一写回课程 `mistake_bank.md`。
 
@@ -9,7 +11,7 @@
 
 | 来源 | 数量 | 选择范围 |
 |---|---:|---|
-| 课程覆盖抽查 | 2 | 已完成 lesson 中 1 个近期知识点 + 1 个远期知识点 |
+| 课程覆盖抽查 | 2 | 已完成 LearningActivity 中 1 个近期知识点 + 1 个远期知识点 |
 | 活跃错误知识点 | 0-8 | 当前强化周期到期的 `active` 条目 |
 | 陈年反刍 | 0-1 | `aged` 条目；占独立第 11 槽，不挤占课程覆盖 |
 
@@ -61,11 +63,11 @@
 
 - `praxis` 课程的事实性、技术性知识可以进入本状态机。
 - 判断力、纪律和人格养成不能用答对三题认证，必须由真实行动、事前记录和长期复盘提供证据。
-- IV1001 的行为证据进入 `40_field_practices/S002/FP-S002-0001_TradingDiscipline/trade_journal.md`，不得用知识测验替代。
+- IV1001 的行为证据进入 `10_student/engagements/EG-0001_TradingDiscipline/trade_journal.md`，不得用知识测验替代。
 
 ## 六、陈年复习卷与可选日历
 
-学生始终可要求“根据本课程陈年知识点生成复习卷”。此外可在学生 `basic_info.md` 配置日历模式：
+学生始终可要求“根据本课程陈年知识点生成复习卷”。此外可在 `main/10_student/profile.md` 配置日历模式：
 
 | 模式 | 行为 |
 |---|---|
@@ -77,7 +79,8 @@
 - 首选触发窗口不是机械到期日，而是刚学完与陈年知识点关联紧密的一章、模块或知识簇之后。关联闭合优先于日历数字。
 - 每经过一个完整学习周期仍没有合适的关联闭合点，`suggest/auto` 只发一次待复习提醒；不为了赶日历生成脱离课程上下文的卷。
 - 来源只能是本课程 `aged` 知识点，按知识点生成新变式，不复刻原题；每题保留知识点键、探针、判定依据和写回目标。
-- 建议保存到当前 lesson 的 `practice/a/aged_review_YYYY-MM-DD.md`。
+- 复习卷保存到课程 `book/course_materials/exercises/aged_review_YYYY-MM-DD.md`，并由当前
+  Lesson 或 Exercise 主载体回链；不得为 Exercise-first 预造 Lesson。
 - 一张卷对同一知识点最多提供 1 次正式成功证据；须在两个不同学习日期连续正确 2 次才转回 `maintenance`。一次卷内堆多道同类题不能提前过关。
 
 ### 6.1 候选窗口
@@ -99,7 +102,8 @@
 ## 七、写回与节奏
 
 - 结果先暂记，结课按 `session_close.md` 重算当前周期摘要和状态。
-- 课程覆盖题答错时，新建或合并对应知识点为 `active`；答对只写入本次 lesson 的抽查记录。
+- 课程覆盖题答错时，新建或合并对应知识点为 `active`；答对只写入本次当前活动主载体
+  的抽查记录。
 - 抽查允许分组、口头化和交互化，但不得因情绪状态篡改对错标准。
 - 如果 11 个槽位明显挤压正课，学生可要求分两段完成；未完成槽位保留，不伪造结果。
 
@@ -108,5 +112,5 @@
 - `[课程]/mistake_bank.md`
 - `main/50_playbook/lesson_recover.md`
 - `main/50_playbook/session_close.md`
-- `main/10_case/teacher_overlay.md`
+- `main/20_teacher/overlay.md`
 - `main/70_tools/t2ag_doctor.py`

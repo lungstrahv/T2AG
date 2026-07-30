@@ -3,7 +3,7 @@
 **保护级别**：core-playbook
 
 > **触发条件**：期末评估完成时，且仅此时。
-> **定义来源**：`00_core/course_group_rules.md` 第五节（宪法附件）。
+> **定义来源**：`main/50_playbook/course_group_rules.md` 第五节。
 
 ---
 
@@ -11,10 +11,10 @@
 
 1. 旧组状态 archived，期末评估表为结组档案
 2. 新组**此刻才建档**（预划表禁止提前建档案——防僵尸文件）：成员表、线别、预算、本期目标
-3. 改 memory 指针（换组的唯一写入点）
+3. 在新 group `plan.md` 写明状态、成员与当前课程；它是容量唯一真相源
 4. 课程生命周期与容量组合分开处理：延续课保持 ongoing；完成课改 completed；
    用户明确终止的课程改 dropped；未入新组的 ongoing 课程只失去保留容量，不自动 paused
-5. 跑 doctor 验证 → changelog 记录
+5. 运行 state refresh 生成 memory/learning_path 缓存，再跑 doctor → changelog 记录
 
 ---
 
@@ -35,10 +35,8 @@
 
 ---
 
-## 未来 G 引用 CourseRun ID（结构契约，待迁移批次切换）
+## G 的课程引用契约
 
-完整对象分层迁移完成后，G 将只引用 CourseRun ID（`CR-<case_id>-<definition_id>`），
-不再直接引用课程代码。
-
-> **当前状态**：G01/G02 仍使用原字段（`course_members: [课程代码]`）。
-> 本批次不改成员。后续迁移批次才切换。
+G 的 `course_members` 直接引用稳定 `COURSE_ID`；每个 ID 唯一对应
+`main/40_course/<COURSE_ID>/course.md` 与 `progress.md`。不得恢复 Case、
+CourseDefinition/CourseRun 或 `CR-<case_id>-*` 包装。

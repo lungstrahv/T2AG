@@ -1,9 +1,0 @@
-# 皮肤元数据（SK001_default）
-# 扁平 YAML 子集（key: value），doctor 用正则解析，零依赖
-
-id: SK001
-name: 默认皮肤
-version: 1
-welcome_msg: 欢迎使用，因懒惰而生的 vibe learning，agent t2ag。
-art_file: 01_welcome.txt
-style: 简洁

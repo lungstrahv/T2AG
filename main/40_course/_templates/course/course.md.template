@@ -1,0 +1,15 @@
+---
+type: course
+course_id: COURSE_ID
+school_course_code: COURSE_ID
+name: "COURSE_NAME"
+course_type: mastery
+default_driver: textbook
+prerequisites: []
+status: active
+---
+# COURSE_ID Course
+
+## 教材与稳定教学约束
+
+- 待与学生确认后填写。

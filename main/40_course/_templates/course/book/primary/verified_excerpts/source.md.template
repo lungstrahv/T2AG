@@ -1,0 +1,22 @@
+---
+type: verified_source_excerpt
+artifact_id: SOURCE_ARTIFACT_ID
+course_id: COURSE_ID
+content_group_id: CONTENT_GROUP_ID
+source_document: SOURCE_DOCUMENT_PATH
+source_document_sha256: SOURCE_DOCUMENT_SHA256
+source_locator: "SOURCE_LOCATOR"
+verification_status: human_verified
+verified: YYYY-MM-DD
+lifecycle: persistent
+---
+# CONTENT_GROUP_ID 持久题源
+
+> 本文件由 Course/ContentGroup 持有，不属于 Lesson，也不得放入可清理的
+> `working_pages/`。题面校对完成后再由 Exercise `problems.md` 引用。
+
+## Udddd-Q001
+
+- 教材题号：1
+- 来源页：SOURCE_PAGE
+- 题面：PROBLEM_TEXT

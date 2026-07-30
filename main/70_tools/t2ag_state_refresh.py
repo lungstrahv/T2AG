@@ -1,551 +1,458 @@
 #!/usr/bin/env python3
-"""从 course_status 与容量组生成 T2AG 运行缓存。
+"""Refresh T2AG 0.2.0 derived state.
 
-默认只检查；--write 才写入。零第三方依赖，不读取或修改 .venv。
+Default and ``--check`` are read-only.  Only ``--write`` changes GENERATED
+blocks.  Cloud projections are always skipped while the bridge is paused.
 """
 from __future__ import annotations
 
 import argparse
 import os
 import re
-import tempfile
+from dataclasses import dataclass
 from pathlib import Path
+
+from t2ag_activity import (
+    ActivityContractError,
+    ProgressSnapshot,
+    TeacherContractError,
+    resolve_activity,
+    resolve_teacher_mapping,
+    validate_progress_identity,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 MAIN = ROOT / "main"
+START = "<!-- T2AG_GENERATED:{name}:START -->"
+END = "<!-- T2AG_GENERATED:{name}:END -->"
 
 
-def scalar(value: str) -> str:
-    value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-        return value[1:-1]
-    return value
+@dataclass
+class Course:
+    course_id: str
+    name: str
+    lifecycle: str
+    current_activity: str
+    activity_id: str
+    resume_path: str
+    lesson_context: str
+    lesson_context_path: str
+    position: str
+    updated: str
+    node: str
+    checkpoint: str
+    checkpoint_state: str
+    next_action: str
+    path: Path
 
 
-def list_value(value: str) -> list[str]:
-    value = scalar(value).strip()
-    if not (value.startswith("[") and value.endswith("]")):
-        return []
-    return [item.strip().strip('"\'') for item in value[1:-1].split(",") if item.strip()]
+@dataclass
+class Group:
+    group_id: str
+    status: str
+    courses: list[str]
+    engagements: list[str]
+    current_course: str
+    path: Path
 
 
-def parse_key_values(text: str) -> dict[str, str]:
+def read(path: Path) -> str:
+    return path.read_text(encoding="utf-8-sig")
+
+
+def write_atomic(path: Path, content: str) -> None:
+    tmp = path.with_name(path.name + ".tmp-state")
+    tmp.write_text(content, encoding="utf-8", newline="\n")
+    os.replace(tmp, path)
+
+
+def frontmatter(content: str) -> dict[str, str]:
+    if not content.startswith("---"):
+        return {}
+    match = re.match(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", content, re.DOTALL)
+    if not match:
+        return {}
     result: dict[str, str] = {}
-    for line in text.splitlines():
-        match = re.match(r"^([a-z][a-z0-9_]*):\s*(.*?)\s*$", line)
+    for line in match.group(1).splitlines():
+        if ":" not in line or line.lstrip().startswith("#"):
+            continue
+        key, value = line.split(":", 1)
+        result[key.strip()] = value.strip().strip('"')
+    return result
+
+
+def list_value(raw: str) -> list[str]:
+    value = raw.strip()
+    if value.startswith("[") and value.endswith("]"):
+        return [part.strip().strip("'\"") for part in value[1:-1].split(",") if part.strip()]
+    return [part for part in re.split(r"[\s,+]+", value) if part]
+
+
+def course_name(course_md: Path, course_id: str) -> str:
+    if not course_md.exists():
+        return course_id
+    content = read(course_md)
+    meta = frontmatter(content)
+    if meta.get("name"):
+        return meta["name"]
+    h1 = re.search(r"^#\s+(?:\S+\s+)?(.+?)(?:\s+Course)?\s*$", content, re.MULTILINE)
+    return h1.group(1).strip() if h1 else course_id
+
+
+def next_action(content: str) -> str:
+    for pattern in (
+        r"^\s*-\s*\*\*下一步计划\*\*[：:]\s*(.+)$",
+        r"^\s*-\s*\*\*下次第一件事\*\*[：:]\s*(.+)$",
+        r"^next_action:\s*(.+)$",
+    ):
+        match = re.search(pattern, content, re.MULTILINE)
         if match:
-            result[match.group(1)] = scalar(match.group(2))
+            return match.group(1).strip()
+    return "—"
+
+
+def explicit_or_dash(value: str | None) -> str:
+    normalized = (value or "").strip()
+    return normalized if normalized else "—"
+
+
+def activity_label(course: Course | None, separator: str = ": ") -> str:
+    if course is None:
+        return f"—{separator}—"
+    return f"{course.current_activity}{separator}{course.activity_id}"
+
+
+def discover_courses() -> dict[str, Course]:
+    result: dict[str, Course] = {}
+    root = MAIN / "40_course"
+    if not root.exists():
+        return result
+    for folder in sorted(path for path in root.iterdir() if path.is_dir() and not path.name.startswith("_")):
+        progress = folder / "progress.md"
+        if not progress.exists():
+            continue
+        content = read(progress)
+        meta = frontmatter(content)
+        snapshot = ProgressSnapshot(progress, content, meta)
+        course_id = folder.name
+        try:
+            validate_progress_identity(meta, course_id)
+        except ActivityContractError as exc:
+            raise ValueError(
+                f"{course_id} progress identity contract: {'; '.join(exc.errors)}"
+            ) from exc
+        lifecycle = meta.get("lifecycle_status", "unknown")
+        if lifecycle == "ongoing":
+            try:
+                route = resolve_activity(ROOT, folder.name, snapshot)
+            except ActivityContractError as exc:
+                raise ValueError(
+                    f"{folder.name} explicit activity contract: {'; '.join(exc.errors)}"
+                ) from exc
+            current_activity = route.activity_type
+            activity_id = route.activity_id
+            resume_path = route.resume_path
+            lesson_context = route.lesson_context_label
+            lesson_context_path = route.lesson_context_path
+        else:
+            current_activity = explicit_or_dash(meta.get("current_activity"))
+            activity_id = explicit_or_dash(meta.get("current_activity_id"))
+            resume_path = meta.get("resume_path", "")
+            lesson_context = "无"
+            lesson_context_path = ""
+        result[course_id] = Course(
+            course_id=course_id,
+            name=course_name(folder / "course.md", course_id),
+            lifecycle=lifecycle,
+            current_activity=current_activity,
+            activity_id=activity_id,
+            resume_path=resume_path,
+            lesson_context=lesson_context,
+            lesson_context_path=lesson_context_path,
+            position=(
+                route.activity_position
+                if lifecycle == "ongoing"
+                else meta.get("activity_position", "—")
+            ),
+            updated=meta.get("updated", "—"),
+            node=meta.get("current_completion_node", "—"),
+            checkpoint=meta.get("current_checkpoint", "—"),
+            checkpoint_state=meta.get("checkpoint_state", "—"),
+            next_action=next_action(content),
+            path=progress,
+        )
     return result
 
 
-def metadata(path: Path) -> dict[str, str]:
-    text = path.read_text(encoding="utf-8", errors="ignore").lstrip("\ufeff")
-    if text.startswith("---\n"):
-        end = text.find("\n---", 4)
-        if end != -1:
-            return parse_key_values(text[4:end])
-    block = re.search(r"<!-- T2AG_CAPACITY_GROUP\s*(.*?)-->", text, re.DOTALL)
-    return parse_key_values(block.group(1)) if block else {}
-
-
-def generated_block(name: str, body: str) -> str:
-    return (
-        f"<!-- T2AG_GENERATED:{name}:START -->\n"
-        f"{body.rstrip()}\n"
-        f"<!-- T2AG_GENERATED:{name}:END -->"
-    )
-
-
-def replace_block(text: str, name: str, body: str) -> str:
-    pattern = re.compile(
-        rf"<!-- T2AG_GENERATED:{re.escape(name)}:START -->.*?"
-        rf"<!-- T2AG_GENERATED:{re.escape(name)}:END -->",
-        re.DOTALL,
-    )
-    replacement = generated_block(name, body)
-    if not pattern.search(text):
-        raise ValueError(f"missing generated block: {name}")
-    return pattern.sub(lambda _: replacement, text, count=1)
-
-
-def atomic_write(path: Path, text: str) -> None:
-    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-        os.replace(tmp_name, path)
-    finally:
-        if os.path.exists(tmp_name):
-            os.unlink(tmp_name)
-
-
-def old_course_records() -> list[dict[str, str]]:
-    """扫描旧路径 30_courses/*/course_status.md。"""
-    records: list[dict[str, str]] = []
-    courses = MAIN / "30_courses"
-    if not courses.exists():
-        return records
-    for path in sorted(courses.glob("*/course_status.md")):
-        meta = metadata(path)
-        code = meta.get("course", "")
-        if not code:
+def discover_groups() -> dict[str, Group]:
+    result: dict[str, Group] = {}
+    root = MAIN / "30_group"
+    if not root.exists():
+        return result
+    for folder in sorted(path for path in root.iterdir() if path.is_dir() and re.fullmatch(r"G\d+", path.name)):
+        plan = folder / "plan.md"
+        if not plan.exists():
             continue
-        meta["_path"] = str(path.relative_to(MAIN)).replace("\\", "/")
-        meta["_folder"] = path.parent.name
-        meta["_run_dir"] = str(path.parent.relative_to(MAIN)).replace("\\", "/")
-        meta["_source"] = "old"
-        meta.setdefault("course_definition_id", code)
-        meta.setdefault("course_run_id", f"legacy-{code}")
-        meta.setdefault("case_id", "")
-        records.append(meta)
-    return records
-
-
-def new_course_records() -> list[dict[str, str]]:
-    """扫描新路径 35_course_runs/<case_id>/CR-<case_id>-<definition_id>/course_status.md。
-
-    保留载体原始字段，同时记录物理路径值供身份一致性验证。
-    """
-    records: list[dict[str, str]] = []
-    runs_root = MAIN / "35_course_runs"
-    if not runs_root.exists():
-        return records
-    for status_path in sorted(runs_root.glob("*/CR-*/course_status.md")):
-        meta = metadata(status_path)
-        run_dir = status_path.parent
-        phys_case = run_dir.parent.name
-        cr_name = run_dir.name  # CR-<case_id>-<definition_id>
-        parts = cr_name.split("-", 2)
-        phys_def_id = parts[2] if len(parts) >= 3 else ""
-        # 物理路径值（不使用 setdefault 或回退值掩盖载体缺失）
-        meta["_phys_case"] = phys_case
-        meta["_phys_run_id"] = cr_name
-        meta["_phys_def_id"] = phys_def_id
-        meta["_path"] = str(status_path.relative_to(MAIN)).replace("\\", "/")
-        meta["_folder"] = cr_name
-        meta["_run_dir"] = str(run_dir.relative_to(MAIN)).replace("\\", "/")
-        meta["_source"] = "new"
-        # 保存原始兼容字段供身份验证，然后强制 course = canonical Definition ID
-        meta["_raw_course"] = meta.get("course", "")
-        meta["course"] = phys_def_id
-        # 尝试从 CourseDefinition 获取 course_name
-        def_id = meta.get("course_definition_id", phys_def_id)
-        if def_id:
-            defs_root = MAIN / "30_course_definitions"
-            if defs_root.exists():
-                valid, _, def_meta = validate_definition(def_id, defs_root)
-                if valid and def_meta:
-                    meta.setdefault("course_name", def_meta.get("name", ""))
-        records.append(meta)
-    return records
-
-
-def validate_definition(def_id: str, defs_root: Path) -> tuple[bool, str, dict[str, str] | None]:
-    """验证 CourseDefinition 正式载体存在性。
-
-    返回 (valid, error_message, parsed_frontmatter_or_None)。
-    """
-    if not def_id or not defs_root.exists():
-        return False, f"CourseDefinition 目录不存在：30_course_definitions/", None
-    prefix = f"{def_id}_"
-    matches = [dd for dd in defs_root.iterdir() if dd.is_dir() and dd.name.startswith(prefix)]
-    if not matches:
-        return False, f"CourseDefinition 不存在：{def_id}", None
-    if len(matches) > 1:
-        return False, f"CourseDefinition 匹配目录重复：{def_id}（{len(matches)} 个目录）", None
-    carrier = matches[0] / "course_definition.md"
-    if not carrier.exists():
-        return False, f"CourseDefinition 缺少正式载体 course_definition.md：{matches[0].name}", None
-    try:
-        def_meta = metadata(carrier)
-    except Exception:
-        return False, f"CourseDefinition 载体无法解析：{matches[0].name}/course_definition.md", None
-    if not def_meta:
-        return False, f"CourseDefinition 载体无法解析：{matches[0].name}/course_definition.md", None
-    actual_id = def_meta.get("course_definition_id", "")
-    if actual_id != def_id:
-        return False, f"CourseDefinition 载体 ID 不匹配：期望 {def_id}，实际 {actual_id or 'MISSING'}", None
-    return True, "", def_meta
-
-
-def validate_identity_consistency(new_recs: list[dict[str, str]]) -> list[str]:
-    """验证载体身份字段与物理路径一致。缺失或不一致均 FAIL。
-
-    同时验证兼容字段 course 不得与正式 course_definition_id 冲突。
-    """
-    errors: list[str] = []
-    for rec in new_recs:
-        phys_case = rec["_phys_case"]
-        phys_run_id = rec["_phys_run_id"]
-        phys_def_id = rec["_phys_def_id"]
-        carrier_case = rec.get("case_id", "")
-        carrier_run_id = rec.get("course_run_id", "")
-        carrier_def_id = rec.get("course_definition_id", "")
-        # case_id
-        if not carrier_case:
-            errors.append(f"CourseRun {phys_run_id}：载体缺少 case_id")
-        elif carrier_case != phys_case:
-            errors.append(f"CourseRun {phys_run_id}：载体 case_id={carrier_case} ≠ 物理路径 {phys_case}")
-        # course_run_id
-        if not carrier_run_id:
-            errors.append(f"CourseRun {phys_run_id}：载体缺少 course_run_id")
-        elif carrier_run_id != phys_run_id:
-            errors.append(f"CourseRun {phys_run_id}：载体 course_run_id={carrier_run_id} ≠ 物理路径 {phys_run_id}")
-        # course_definition_id
-        if not carrier_def_id:
-            errors.append(f"CourseRun {phys_run_id}：载体缺少 course_definition_id")
-        elif carrier_def_id != phys_def_id:
-            errors.append(f"CourseRun {phys_run_id}：载体 course_definition_id={carrier_def_id} ≠ 路径 Definition {phys_def_id}")
-        # 组合：course_run_id == CR-<case_id>-<course_definition_id>
-        if carrier_case and carrier_def_id and carrier_run_id:
-            expected_id = f"CR-{carrier_case}-{carrier_def_id}"
-            if carrier_run_id != expected_id:
-                errors.append(
-                    f"CourseRun {phys_run_id}：course_run_id 与 CR-<case_id>-<definition_id> 不一致"
-                    f"（期望 {expected_id}）")
-        # 兼容字段 course：缺失合法；存在则必须等于 canonical Definition ID
-        compat_course = rec.get("_raw_course", "")
-        canonical_def = carrier_def_id or phys_def_id
-        if compat_course and canonical_def and compat_course != canonical_def:
-            errors.append(
-                f"CourseRun {phys_run_id}：兼容字段 course={compat_course} "
-                f"与正式 course_definition_id={canonical_def} 不一致")
-    return errors
-
-
-def validate_new_records(new_recs: list[dict[str, str]]) -> list[str]:
-    """验证新 CourseRun 引用完整性。返回错误列表。"""
-    errors: list[str] = []
-    defs_root = MAIN / "30_course_definitions"
-    students_root = MAIN / "10_case" / "students"
-    for rec in new_recs:
-        def_id = rec.get("course_definition_id", rec.get("_phys_def_id", ""))
-        case_id = rec.get("case_id", rec.get("_phys_case", ""))
-        run_id = rec.get("course_run_id", rec.get("_phys_run_id", ""))
-        # Definition 正式载体存在性
-        if def_id:
-            valid, err, _ = validate_definition(def_id, defs_root)
-            if not valid:
-                errors.append(f"CourseRun {run_id}：{err}")
-        # Case 存在性
-        if case_id and students_root.exists():
-            if not (students_root / case_id).is_dir():
-                errors.append(f"CourseRun {run_id} 引用的 Case 不存在：{case_id}")
-        elif case_id and not students_root.exists():
-            errors.append(f"CourseRun {run_id} 引用的 Case 目录不存在：10_case/students/")
-    return errors
-
-
-def resolve_current_case() -> tuple[str, str]:
-    """从 student_info.md 解析 SN01 指向的当前 Case。
-
-    返回 (case_id, error)。error 非空表示必须 FAIL。
-    """
-    si_path = MAIN / "10_case" / "student_info.md"
-    students_root = MAIN / "10_case" / "students"
-    if si_path.exists():
-        content = si_path.read_text(encoding="utf-8-sig", errors="ignore")
-        m = re.search(r"指向学生库编号[*\s]*[：:]\s*(S\d+)", content)
-        if m:
-            sn01 = m.group(1)
-            # SN01 必须指向正式 Case 目录
-            if not (students_root / sn01).is_dir():
-                return "", f"SN01 指向的 Case 不存在：{sn01}"
-            return sn01, ""
-    # 无 SN01：检查是否存在多个 Case
-    runs_root = MAIN / "35_course_runs"
-    cases: set[str] = set()
-    if runs_root.exists():
-        for d in runs_root.iterdir():
-            if d.is_dir() and not d.name.startswith("_"):
-                cases.add(d.name)
-    if len(cases) > 1:
-        return "", f"无 SN01 且存在多个 Case（{', '.join(sorted(cases))}），无法确定当前 Case"
-    if len(cases) == 1:
-        return next(iter(cases)), ""
-    return "", ""
-
-
-def filter_records_for_case(
-    records: list[dict[str, str]], current_case: str
-) -> list[dict[str, str]]:
-    """过滤记录：旧课程（无 case_id 或 student 匹配）+ 当前 Case 的新 Run。"""
-    result: list[dict[str, str]] = []
-    for rec in records:
-        source = rec.get("_source", "")
-        if source == "old":
-            # 旧课程使用 frontmatter student 字段识别 Case
-            student = rec.get("student", "")
-            if not student or student == current_case:
-                result.append(rec)
-        elif source == "new":
-            if rec.get("case_id", "") == current_case:
-                result.append(rec)
+        meta = frontmatter(read(plan))
+        group_id = meta.get("group_id", folder.name)
+        result[group_id] = Group(
+            group_id=group_id,
+            status=meta.get("status", "unknown"),
+            courses=list_value(meta.get("course_members", "[]")),
+            engagements=list_value(meta.get("engagement_members", "[]")),
+            current_course=meta.get("current_course", ""),
+            path=plan,
+        )
     return result
 
 
-def course_records() -> list[dict[str, str]]:
-    """统一返回旧+新课程记录（全库，用于验证）。"""
-    return old_course_records() + new_course_records()
+def active_group(groups: dict[str, Group]) -> Group | None:
+    active = [group for group in groups.values() if group.status == "active"]
+    return active[0] if len(active) == 1 else None
 
 
-def group_records() -> list[dict[str, str]]:
-    records: list[dict[str, str]] = []
-    folder = MAIN / "20_groups"
-    if not folder.exists():
-        return records
-    for path in sorted(folder.glob("G*.md")):
-        meta = metadata(path)
-        if not meta:
-            continue
-        meta["_path"] = str(path.relative_to(MAIN)).replace("\\", "/")
-        records.append(meta)
-    return records
+def render_active(course: Course | None) -> str:
+    if course is None:
+        return (
+            "- **日期**：—\n- **学到哪**：—\n- **当前完成节点**：`—`\n"
+            "- **当前 checkpoint**：`—`（—）\n- **来源**：local\n"
+            "- **下次第一件事**：—"
+        )
+    activity = activity_label(course, " ")
+    return "\n".join([
+        f"- **日期**：{course.updated}",
+        f"- **学到哪**：{course.course_id} {activity}，{course.position}",
+        f"- **当前完成节点**：`{course.node}`",
+        f"- **当前 checkpoint**：`{course.checkpoint}`（{course.checkpoint_state}）",
+        "- **来源**：local",
+        f"- **下次第一件事**：{course.next_action}",
+    ])
 
 
-def capacity_state(code: str, groups: list[dict[str, str]]) -> str:
-    active = [
-        group.get("group", "")
-        for group in groups
-        if group.get("status") == "active" and code in list_value(group.get("course_members", "[]"))
+def teacher_template(
+    course: Course | None,
+    mapping: dict[str, tuple[str, str]],
+) -> str:
+    if course is None:
+        return "—"
+    resolved = mapping.get(course.course_id)
+    return f"TR01 → {resolved[0]}" if resolved else "—"
+
+
+def render_state_pointers(
+    group: Group | None,
+    course: Course | None,
+    teacher_mapping: dict[str, tuple[str, str]],
+) -> str:
+    profile = MAIN / "10_student/profile.md"
+    profile_status = (
+        frontmatter(read(profile)).get("initialization_status", "—")
+        if profile.exists() else "—"
+    )
+    group_id = group.group_id if group else "—"
+    group_path = (
+        f"`main/30_group/{group_id}/plan.md`"
+        if group else "首次启动后创建"
+    )
+    course_id = course.course_id if course else "—"
+    course_path = (
+        f"`main/40_course/{course_id}/progress.md`"
+        if course else "首次启动后创建"
+    )
+    activity = course.current_activity if course else "—"
+    activity_value = course.activity_id if course else "—"
+    activity_path = f"`{course.resume_path}`" if course and course.resume_path else "—"
+    lesson_context = course.lesson_context if course else "无"
+    lesson_context_path = (
+        f"`{course.lesson_context_path}`"
+        if course and course.lesson_context_path else "—"
+    )
+    bindings: list[str] = []
+    if group:
+        binding_root = MAIN / f"30_group/{group.group_id}/bindings"
+        for path in sorted(binding_root.glob("*.md")) if binding_root.exists() else []:
+            if path.name.startswith("_"):
+                continue
+            if frontmatter(read(path)).get("binding_status") == "active":
+                bindings.append(path.stem)
+    binding_value = ", ".join(bindings) or "无"
+    binding_path = (
+        f"`main/30_group/{group.group_id}/bindings/`"
+        if group else "首次启动后创建"
+    )
+    cloud = "paused" if cloud_paused() else "not-paused"
+    return "\n".join((
+        "| 项目 | 当前值 | 详情位置 |",
+        "|---|---|---|",
+        f"| 活跃课程组 | {group_id} | {group_path} |",
+        f"| 当前课程 | {course_id} | {course_path} |",
+        f"| Lesson 上下文 | {lesson_context} | {lesson_context_path} |",
+        f"| 当前教学活动 | {activity}: {activity_value} | {activity_path} |",
+        f"| 当前教师 | {teacher_template(course, teacher_mapping)} | `main/20_teacher/overlay.md` |",
+        f"| 学生档案 | {profile_status} | `main/10_student/profile.md` |",
+        f"| active binding | {binding_value} | {binding_path} |",
+        "| T2AG 版本 | 0.2.0 | `main/t2ag.md` |",
+        f"| Cloud bridge | {cloud} | `cloud/cloud_sync_state.md` |",
+    ))
+
+
+def capacity(course_id: str, groups: dict[str, Group]) -> str:
+    memberships = [
+        (group.group_id, group.status)
+        for group in groups.values() if course_id in group.courses
     ]
+    active = [gid for gid, status in memberships if status == "active"]
+    planned = [gid for gid, status in memberships if status == "planned"]
     if active:
         return f"focused_in_{active[0]}"
-    queued = [
-        group.get("group", "")
-        for group in groups
-        if group.get("status") == "planned" and code in list_value(group.get("course_members", "[]"))
-    ]
-    return f"queued_for_{'+'.join(queued)}" if queued else "unallocated"
+    if planned:
+        return f"queued_for_{planned[0]}"
+    return "unallocated"
 
 
-def active_context(
-    courses: list[dict[str, str]], groups: list[dict[str, str]]
-) -> tuple[dict[str, str], dict[str, str]] | None:
-    active_groups = [group for group in groups if group.get("status") == "active"]
-    if not active_groups:
-        return None
-    group = active_groups[0]
-    code = group.get("current_course", "")
-    if not code:
-        members = list_value(group.get("course_members", "[]"))
-        code = members[0] if members else ""
-    course = next((item for item in courses if item.get("course") == code), None)
-    return (group, course) if course else None
-
-
-def render_course_index(courses: list[dict[str, str]], groups: list[dict[str, str]]) -> str:
-    lines = [
-        "| 课程代码 | 课程名称 | 路径 | 生命周期 | 容量状态 | 当前进度 | 恢复关键词 |",
+def render_course_index(courses: dict[str, Course], groups: dict[str, Group]) -> str:
+    rows = [
+        "| 课程代码 | 课程名称 | 路径 | 生命周期 | 容量状态 | 当前进度 | 恢复入口 |",
         "|---|---|---|---|---|---|---|",
     ]
-    for item in courses:
-        code = item.get("course", item.get("course_definition_id", ""))
-        run_dir = item.get("_run_dir", f"30_courses/{item['_folder']}")
-        lines.append(
-            f"| {code} | {item.get('course_name', '—')} | "
-            f"`main/{run_dir}/` | {item.get('lifecycle_status', 'UNKNOWN')} | "
-            f"{capacity_state(code, groups)} | {item.get('lesson_position', '—')} | "
-            f"读取 main/{run_dir}/course_status.md |"
+    for course in courses.values():
+        rows.append(
+            f"| {course.course_id} | {course.name} | `main/40_course/{course.course_id}/` "
+            f"| {course.lifecycle} | {capacity(course.course_id, groups)} "
+            f"| {course.position.replace('|', '｜')} "
+            f"| `main/40_course/{course.course_id}/progress.md` |"
         )
-    return "\n".join(lines)
+    return "\n".join(rows)
 
 
-def render_group_index(groups: list[dict[str, str]]) -> str:
-    lines = [
-        "| 课程组 | 路径 | 课程成员 | 实践成员 | 状态 |",
+def render_group_index(groups: dict[str, Group]) -> str:
+    rows = [
+        "| 课程组 | 路径 | 课程成员 | Engagement 成员 | 状态 |",
         "|---|---|---|---|---|",
     ]
-    for group in groups:
-        courses = " + ".join(list_value(group.get("course_members", "[]"))) or "—"
-        practices = " + ".join(list_value(group.get("practice_members", "[]"))) or "—"
-        lines.append(
-            f"| {group.get('group', '—')} | `main/{group['_path']}` | "
-            f"{courses} | {practices} | {group.get('status', 'UNKNOWN')} |"
+    for group in groups.values():
+        rows.append(
+            f"| {group.group_id} | `main/30_group/{group.group_id}/plan.md` "
+            f"| {' + '.join(group.courses) or '—'} "
+            f"| {' + '.join(group.engagements) or '—'} | {group.status} |"
         )
-    return "\n".join(lines)
+    return "\n".join(rows)
 
 
-def render_memory_progress(course: dict[str, str]) -> str:
-    return "\n".join(
-        [
-            f"- **日期**：{course.get('updated', '—')}",
-            f"- **学到哪**：{course.get('course', '—')} {course.get('current_lesson', '—')}，"
-            f"{course.get('lesson_position', '—')}",
-            f"- **当前完成节点**：`{course.get('current_completion_node', '—')}`",
-            f"- **当前 checkpoint**：`{course.get('current_checkpoint', '—')}`"
-            f"（{course.get('checkpoint_state', '—')}）",
-            f"- **来源**：{course.get('progress_provenance', 'local')}",
-            f"- **下次第一件事**：{course.get('next_action', '—')}",
-        ]
-    )
+def render_group_view(group: Group, courses: dict[str, Course]) -> str:
+    rows = [
+        "### 组视图（GENERATED）", "",
+        "| 课程 | 当前活动 | 停点 |", "|---|---|---|",
+    ]
+    for course_id in group.courses:
+        course = courses.get(course_id)
+        if course:
+            rows.append(
+                f"| {course_id} | {activity_label(course)} "
+                f"| {course.position.replace('|', '｜')} |"
+            )
+        else:
+            rows.append(f"| {course_id} | — | progress.md 不存在 |")
+    return "\n".join(rows)
 
 
-def render_lesson_progress(course: dict[str, str]) -> str:
-    return (
-        f"> **当前教学进度（机器生成）**：{course.get('lesson_position', '—')}"
-        f"\n> completion node：`{course.get('current_completion_node', '—')}`；"
-        f"checkpoint：`{course.get('current_checkpoint', '—')}`"
-        f"（{course.get('checkpoint_state', '—')}）。"
-    )
+def replace_block(content: str, name: str, body: str) -> str:
+    start = START.format(name=name)
+    end = END.format(name=name)
+    block = f"{start}\n{body.rstrip()}\n{end}"
+    pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
+    matches = pattern.findall(content)
+    if len(matches) != 1:
+        raise ValueError(f"{name} generated block count must be 1, got {len(matches)}")
+    return pattern.sub(lambda _: block, content)
 
 
-def render_mobile_state(course: dict[str, str], group: dict[str, str]) -> str:
-    run_dir = course.get("_run_dir", f"30_courses/{course['_folder']}")
-    lesson = course.get("current_lesson", "—")
-    return "\n".join(
-        [
-            f"- base_state_id: {course.get('state_id', 'UNINITIALIZED')}",
-            f"- exported_at: {course.get('updated', '—')}",
-            f"- course: {course.get('course', '—')}",
-            f"- lesson: {lesson}",
-            f"- active_capacity_group: {group.get('group', '—')}",
-            f"- lifecycle_status: {course.get('lifecycle_status', 'UNKNOWN')}",
-            f"- current_completion_node: {course.get('current_completion_node', '—')}",
-            f"- current_checkpoint: {course.get('current_checkpoint', '—')}",
-            f"- confirmation_state: {course.get('checkpoint_state', '—')}",
-            f"- exact_stop: {course.get('lesson_position', '—')}",
-            f"- next_first_action: {course.get('next_action', '—')}",
-            f"- progress_provenance: {course.get('progress_provenance', 'local')}",
-            f"- truth_source: `main/{run_dir}/course_status.md`",
-            f"- lesson_source: `main/{run_dir}/{lesson}/{lesson}.md`",
-        ]
-    )
+def cloud_paused() -> bool:
+    state = ROOT / "cloud/cloud_sync_state.md"
+    if not state.exists():
+        return False
+    content = read(state)
+    return bool(re.search(
+        r"^(?:-\s*)?(?:cloud_bridge_status|bridge_status|status):\s*paused\s*$",
+        content,
+        re.MULTILINE,
+    ))
 
 
-def expected_updates(current_case: str = "") -> tuple[list[tuple[Path, str, str]], str]:
-    """返回 (updates, error)。error 非空表示必须 FAIL。"""
-    all_courses = course_records()
-    groups = group_records()
-    # 缓存生成只使用当前 Case 的记录
-    if current_case:
-        courses = filter_records_for_case(all_courses, current_case)
-    else:
-        courses = all_courses
-    # 区分「无 active G」和「active G 但当前课程不在当前 Case」
-    active_groups = [g for g in groups if g.get("status") == "active"]
-    if not active_groups:
-        return [], ""  # 无 active G → 安全跳过
-    group = active_groups[0]
-    code = group.get("current_course", "")
-    if not code:
-        members = list_value(group.get("course_members", "[]"))
-        code = members[0] if members else ""
-    course = next((item for item in courses if item.get("course") == code), None)
-    if not course:
-        return [], (
-            f"active G（{group.get('group', '?')}）当前课程 {code} "
-            f"在当前 Case（{current_case or '未确定'}）中不存在")
-    lesson = course.get("current_lesson", "")
-    run_dir = course.get("_run_dir", f"30_courses/{course['_folder']}")
-    return [
-        (
-            MAIN / "10_case" / "course_info.md",
-            "COURSE_INDEX",
-            render_course_index(courses, groups),
-        ),
-        (
-            MAIN / "10_case" / "course_info.md",
-            "GROUP_INDEX",
-            render_group_index(groups),
-        ),
-        (
-            MAIN / "00_core" / "t2ag_memory.md",
-            "ACTIVE_PROGRESS",
-            render_memory_progress(course),
-        ),
-        (
-            MAIN / run_dir / lesson / f"{lesson}.md",
-            "LESSON_PROGRESS",
-            render_lesson_progress(course),
-        ),
-        (
-            ROOT / "cloud" / "t2ag_mobile_entry.md",
-            "MOBILE_STATE",
-            render_mobile_state(course, group),
-        ),
-    ], ""
+def planned_updates() -> list[tuple[Path, str]]:
+    courses = discover_courses()
+    try:
+        teacher_mapping = resolve_teacher_mapping(ROOT, set(courses))
+    except TeacherContractError as exc:
+        raise ValueError(
+            f"teacher mapping contract: {'; '.join(exc.errors)}"
+        ) from exc
+    groups = discover_groups()
+    group = active_group(groups)
+    current = None
+    if group:
+        current_id = group.current_course or (group.courses[0] if group.courses else "")
+        current = courses.get(current_id)
 
-
-def run(write: bool) -> int:
-    old_recs = old_course_records()
-    new_recs = new_course_records()
-    # 1. 载体身份与物理路径一致性验证（全库，先于碰撞检查）
-    identity_errors = validate_identity_consistency(new_recs)
-    if identity_errors:
-        for err in identity_errors:
-            print(f"[FAIL] {err}")
-        return 1
-    # 2. 身份验证通过后，强制规范化字段（canonical Definition ID）
-    for rec in new_recs:
-        rec["case_id"] = rec["_phys_case"]
-        rec["course_run_id"] = rec["_phys_run_id"]
-        rec["course_definition_id"] = rec["_phys_def_id"]
-        # course 字段强制为已验证的 canonical ID，不信任原始载体值
-        rec["course"] = rec["_phys_def_id"]
-    # 3. 碰撞检测：使用已验证的 canonical Definition ID
-    old_defs = {rec.get("course_definition_id", rec.get("course", "")) for rec in old_recs}
-    new_defs = {rec["_phys_def_id"] for rec in new_recs}
-    collision = sorted(old_defs & new_defs - {""})
-    if collision:
-        for code in collision:
-            print(f"[FAIL] 同一课程新旧 CourseRun 同时存在：{code}（30_courses/ 与 35_course_runs/）")
-        return 1
-    # 新 CourseRun 引用验证（全库，不按 Case 过滤）
-    validation_errors = validate_new_records(new_recs)
-    if validation_errors:
-        for err in validation_errors:
-            print(f"[FAIL] {err}")
-        return 1
-    # 解析当前 Case
-    current_case, case_err = resolve_current_case()
-    if case_err:
-        print(f"[FAIL] {case_err}")
-        return 1
-    updates, cache_err = expected_updates(current_case)
-    if cache_err:
-        print(f"[FAIL] {cache_err}")
-        return 1
-    if not updates:
-        print("state refresh: no active capacity group; skipped")
-        return 0
-    errors: list[str] = []
-    staged: dict[Path, str] = {}
-    for path, name, body in updates:
-        if not path.exists():
-            errors.append(f"missing target: {path}")
-            continue
-        current = staged.get(path, path.read_text(encoding="utf-8", errors="ignore"))
-        try:
-            expected = replace_block(current, name, body)
-        except ValueError as exc:
-            errors.append(f"{path}: {exc}")
-            continue
-        staged[path] = expected
-    if errors:
-        for error in errors:
-            print(f"[FAIL] {error}")
-        return 1
-    changed = [path for path, expected in staged.items() if path.read_text(encoding="utf-8") != expected]
-    if changed and not write:
-        for path in changed:
-            print(f"[FAIL] generated cache drift: {path.relative_to(ROOT)}")
-        return 1
-    if write:
-        for path in changed:
-            atomic_write(path, staged[path])
-            print(f"[WRITE] {path.relative_to(ROOT)}")
-    print(f"state refresh: {len(changed)} changed, {len(staged)} checked")
-    return 0
+    memory = MAIN / "00_core/t2ag_memory.md"
+    learning = MAIN / "10_student/learning_path.md"
+    updates: list[tuple[Path, str]] = []
+    if memory.exists():
+        content = replace_block(read(memory), "ACTIVE_PROGRESS", render_active(current))
+        if START.format(name="STATE_POINTERS") in content:
+            content = replace_block(
+                content,
+                "STATE_POINTERS",
+                render_state_pointers(group, current, teacher_mapping),
+            )
+        updates.append((
+            memory,
+            content,
+        ))
+    if learning.exists():
+        content = read(learning)
+        content = replace_block(content, "COURSE_INDEX", render_course_index(courses, groups))
+        content = replace_block(content, "GROUP_INDEX", render_group_index(groups))
+        updates.append((learning, content))
+    if group and group.path.exists():
+        content = read(group.path)
+        if START.format(name="GROUP_VIEW") in content:
+            updates.append((
+                group.path,
+                replace_block(content, "GROUP_VIEW", render_group_view(group, courses)),
+            ))
+    return updates
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--write", action="store_true", help="refresh generated blocks")
-    parser.add_argument("--check", action="store_true", help="explicit read-only check (default)")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--write", action="store_true")
     args = parser.parse_args()
-    return run(write=args.write)
+
+    try:
+        updates = planned_updates()
+    except ValueError as exc:
+        print(f"[FAIL] generated cache structure: {exc}")
+        return 1
+    drift = [(path, content) for path, content in updates if read(path) != content]
+    if cloud_paused():
+        print("state refresh: cloud bridge paused; mobile cache skipped")
+    else:
+        print("state refresh: cloud bridge not paused; this tool still updates local caches only")
+    if args.write:
+        for path, content in drift:
+            write_atomic(path, content)
+        print(f"state refresh: {len(drift)} changed, {len(updates)} checked")
+        return 0
+    if drift:
+        for path, _ in drift:
+            print(f"[FAIL] generated cache drift: {path.relative_to(ROOT)}")
+        return 1
+    print(f"state refresh: 0 changed, {len(updates)} checked")
+    return 0
 
 
 if __name__ == "__main__":

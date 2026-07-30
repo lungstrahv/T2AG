@@ -2,7 +2,7 @@
 
 **保护级别**：core-playbook
 
-> 适用：语言线课程的期末卷面考核与循环级小测。规则入口见 `main/00_core/course_group_rules.md`；题库存储见 `main/50_playbook/exam_bank_spec.md`；学生参数写入对应 `students/Sxxx/basic_info.md`。
+> 适用：语言线课程的期末卷面考核与循环级小测。规则入口见 `main/50_playbook/course_group_rules.md`；题库存储见 `main/50_playbook/exam_bank_spec.md`；学生参数写入 `main/10_student/profile.md`。
 
 ## 一、核心原则：选编，不生成
 
@@ -10,7 +10,7 @@ AI 不生成数学试题，只做下载、登记、按规则抽取。真题已�
 
 ## 二、题库建设
 
-- 位置：按 `naming_conventions.md` §5 解析出的课程根 + `_exam/`（兼容期：`30_courses/[课程]/_exam/`；迁移后属 CourseRun：`35_course_runs/<case>/CR-<case>-<id>/_exam/`）。working_pages 缓存规则照常适用。
+- 位置：`main/40_course/<COURSE_ID>/_exam/`。working_pages 缓存规则照常适用。
 - 默认卷源范围：US News 相关学科大类排名前 30 高校；限中、日、新加坡、英、法、瑞士、美。学生执行参数可覆盖。
 - 语言规则：中英文卷直接入库；法/日/德语卷仅当附官方英文版或学校提供双语时收录，禁止让模型翻译数学题。
 - 登记表：卷级表为 `_exam/index.md`，题级表为 `_exam/papers/[卷ID]/meta.md`，字段见 `exam_bank_spec.md`。
@@ -104,13 +104,13 @@ AI 不生成数学试题，只做下载、登记、按规则抽取。真题已�
 
 ## 十、未通过处理
 
-- 该课 `course_status.md` 状态改为 `archived（未通过）`，写明卷面轨迹（三次分数）、提醒账、依赖链诊断结论。
+- 该课 `progress.md` 状态改为 `archived（未通过）`，写明卷面轨迹（三次分数）、提醒账、依赖链诊断结论。
 - 未通过不等于放弃：课程可在后续任意组重修立项；状态回 active，进入新循环排期，使用新的考核池卷。
 - mistake_bank 延续不清零，错题资产跨立项继承。
 
 ## 十一、参数层级
 
-本条款为协议层默认值（S001 模板与 S002 一致生效）。放宽系数（2.0/1.2/1.5）与及格线（60/50）如需按学生调整，属建组仪式的参数讨论范围，改动落学生档案。
+本条款为协议层默认值。放宽系数（2.0/1.2/1.5）与及格线（60/50）如需按学生调整，属建组仪式的参数讨论范围，改动落 `main/10_student/profile.md`。
 
 ## 十二、循环级小测
 

@@ -1,7 +1,0 @@
-# T2AG 皮肤系统全局配置
-# 扁平 YAML，零依赖，doctor 直接正则解析
-
-active: SK001
-
-# 注册表：皮肤 ID → 文件夹名
-SK001: SK001_default

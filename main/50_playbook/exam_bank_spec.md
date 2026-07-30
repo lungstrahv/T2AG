@@ -2,12 +2,14 @@
 
 **保护级别**：core-playbook
 
+> **0.2.0 状态：延期设计，未激活。** 跨课程考试系统明确不属于 0.2.0；本文件保留既有设计供后续另案裁决，不在当前目录/schema/doctor 契约中生效，也不得据此创建 `_exam/`。
+>
 > 配套 `main/50_playbook/exam_protocol.md`。本文件只规定题库存储、登记表、题级元数据和考前机械检查。
 
 ## 一、目录结构
 
-> 题库位置按 `naming_conventions.md` §5 解析。兼容期在 `30_courses/[课程]/_exam/`；
-> 迁移后属 CourseRun，在 `35_course_runs/<case>/CR-<case>-<id>/_exam/`。
+> 题库位置固定为 `main/40_course/<COURSE_ID>/_exam/`，与该课
+> `course.md`、`progress.md` 同属一个课程聚合根。
 
 ```text
 [课程根]/_exam/
@@ -68,7 +70,7 @@
 
 期末组卷：考核池未用题 → 逐题检查 → 满足 `exam_protocol` 第七节配比约束后随机抽取。
 
-## 五、doctor 检查
+## 五、后续版本拟议 doctor 检查（0.2.0 不执行）
 
 | 检查 | 级别 |
 |---|---|

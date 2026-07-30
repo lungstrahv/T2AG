@@ -3,7 +3,8 @@
 
 设计（对应 2026-07-24 阶段 0 机制裁决 A）：
 - 每次运行 = 整树再生，不是白名单增量补丁。
-- 先清空 lite 工作树（保留路径本身），再从 main 按排除清单复制。
+- 先清空 lite 投影内容（保留 `.git`、`.venv`、`.recovery`、`.staging`），
+  再从 main 按排除清单复制。
 - 半同步态在机制上不可能：lite 中不存在「main 已删而 lite 仍留」的孤儿文件。
 - lite 不得反向写 main；本脚本只读 main、只写 lite。
 - **前置闸门**：main 工作区必须干净（与 doctor check_release_snapshot 同义扩展到整仓
@@ -22,15 +23,15 @@
 
 保留：
 - 规则、playbook、doctor、实例 Markdown 状态、lesson 文本、cloud 文本
-- assets/fable_snail.png（见 ALLOWED_BINARY_REL）
+- main/80_interface/fable_snail.png（见 ALLOWED_BINARY_REL）
 - t2ag_directory_guide.html
 - lite 身份 README.md / AGENTS.md（再生后写回审查快照说明，与 main 有意不同）
 
 用法：
-  python main/70_tools/sync_lite.py
-  python main/70_tools/sync_lite.py --dry-run
-  python main/70_tools/sync_lite.py --force          # 脏树仍再生（警告）
-  python main/70_tools/sync_lite.py --root C:/Users/MikeChen/T2AC
+  python main/70_tools/sync_lite.py                  # check-only 预演
+  python main/70_tools/sync_lite.py --write          # 显式全量再生
+  python main/70_tools/sync_lite.py --write --force  # 经批准从脏树再生
+  python main/70_tools/sync_lite.py --write --root C:/Users/MikeChen/T2AC
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ import hashlib
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 FORBIDDEN_EXT = {
@@ -141,7 +143,7 @@ TEXT_EXT = {
 ALLOWED_BINARY_REL: dict[str, str] = {
     # fable_snail.png：目录册 t2ag_directory_guide.html 的唯一插图资产（产品蜗牛）。
     # lite 审查界面/HTML 预览依赖它；其它 png 仍排除（教材截图/OCR 页图体积大且非规则审查所需）。
-    "assets/fable_snail.png": (
+    "main/80_interface/fable_snail.png": (
         "directory-guide mascot; sole image asset for t2ag_directory_guide.html preview"
     ),
 }
@@ -150,8 +152,9 @@ ALLOWED_BINARY_REL: dict[str, str] = {
 LITE_IDENTITY_REL = frozenset({"README.md", "AGENTS.md"})
 # Guide GENERATED:directory_map is rebuilt for lite tree → may differ from main (H4)
 LITE_GUIDE_DIVERGE_REL = frozenset({"t2ag_directory_guide.html"})
+PRESERVE_DST_TOP = frozenset({".git", ".venv", ".recovery", ".staging"})
 
-LITE_README = """# T2AG 线上模型审查快照（t2ag-lite）
+LITE_README = """# T2AG 0.2.0 线上模型审查快照（t2ag-lite）
 
 > **身份**：由主实例 `t2ag/` **全量再生**得到的文本优先审查快照。
 > 不是空白 skeleton，不用于初始化新学生，也不得作为教学写回源。
@@ -161,8 +164,8 @@ LITE_README = """# T2AG 线上模型审查快照（t2ag-lite）
 - 唯一模板源：`../t2ag-skeleton/`
 - 包含：系统规则、实例 Markdown 状态、课程与 lesson 文本、工具脚本、
   `t2ag_directory_guide.html` 与其单一蜗牛图
-- 排除：教材/PDF/压缩包、`.venv`、`.tools`、`.git`、`.recovery`、缓存、
-  二进制生成资产、DB/WAL 等
+- 排除：教材二进制（PDF/压缩包等）、`.venv`、`.tools`、`.git`、`.recovery`、
+  缓存、二进制生成资产、DB/WAL 等；审查所需的纯文本课程材料可以保留
 
 ## 给线上模型的使用边界
 
@@ -170,7 +173,8 @@ LITE_README = """# T2AG 线上模型审查快照（t2ag-lite）
 
 1. `main/t2ag.md`
 2. `main/00_core/t2ag_memory.md`
-3. `main/10_case/course_info.md`、`student_info.md`、`teacher_overlay.md`
+3. `main/10_student/learning_path.md`、`main/10_student/profile.md`、
+   `main/20_teacher/overlay.md`
 4. 当前课程、课程组与 playbook
 5. 按需展开 changelog 与 problemlog
 
@@ -198,7 +202,7 @@ lite 只能由 main 再生，不是规则源。顺序固定为：
 不要手改 lite 后期望回写 main。半同步靠全量再生灭绝，不靠白名单补丁。
 """
 
-LITE_AGENTS = """# t2ag-lite 启动说明
+LITE_AGENTS = """# t2ag-lite 0.2.0 启动说明
 
 本目录是 **t2ag 主实例的线上审查快照**（由 `main/70_tools/sync_lite.py` 全量再生）。
 
@@ -210,7 +214,7 @@ LITE_AGENTS = """# t2ag-lite 启动说明
 
 ## 版本
 
-- 与源 main 对齐；版本号见 `main/t2ag.md` / `AGENTS.md`（main）。
+- 与源 main 对齐；当前版本为 `0.2.0`，权威版本号见 `main/t2ag.md`。
 - 本文件在每次 `sync_lite.py` 运行时重写为审查身份说明。
 """
 
@@ -297,7 +301,14 @@ def require_main_clean(src: Path, force: bool) -> None:
         f"{dirty}"
     )
     if force:
-        print("WARN: --force: regenerating from dirty main\n" + dirty, file=sys.stderr)
+        rows = dirty.splitlines()
+        preview = "\n".join(rows[:25])
+        suffix = f"\n... ({len(rows) - 25} more)" if len(rows) > 25 else ""
+        print(
+            "WARN: --force: operating from dirty main\n"
+            + preview + suffix,
+            file=sys.stderr,
+        )
         return
     print(msg, file=sys.stderr)
     raise SystemExit(2)
@@ -312,6 +323,9 @@ def clear_lite_tree(dst: Path, dry_run: bool) -> int:
             dst.mkdir(parents=True)
         return 0
     for child in list(dst.iterdir()):
+        if child.name in PRESERVE_DST_TOP:
+            print(f"preserve destination-local: {child.name}")
+            continue
         if dry_run:
             removed += 1
             continue
@@ -430,6 +444,160 @@ def write_identity(dst: Path, dry_run: bool) -> None:
     (dst / "AGENTS.md").write_text(LITE_AGENTS, encoding="utf-8", newline="\n")
 
 
+def projection_manifest(src: Path, dst: Path) -> list[tuple[str, Path, Path]]:
+    projected: list[tuple[str, Path, Path]] = []
+    for name in ("main", "cloud", "assets"):
+        for source, rel in iter_projected_files(src / name, tree_prefix=name):
+            label = f"{name}/{rel.as_posix()}"
+            projected.append((label, source, dst / name / rel))
+    for name in ("t2ag_directory_guide.html", ".gitignore"):
+        source = src / name
+        if source.is_file() and not should_skip_file(source, Path(name)):
+            projected.append((name, source, dst / name))
+    return projected
+
+
+def check_current_projection(src: Path, dst: Path) -> int:
+    projected = projection_manifest(src, dst)
+    expected = {label for label, _, _ in projected} | set(LITE_IDENTITY_REL)
+    current: set[str] = set()
+    if dst.exists():
+        for path in dst.rglob("*"):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(dst)
+            if rel.parts and rel.parts[0] in PRESERVE_DST_TOP:
+                continue
+            current.add(rel.as_posix())
+
+    missing = sorted(expected - current)
+    orphan = sorted(current - expected)
+    differ: list[str] = []
+    for label, source, target in projected:
+        if label not in current or label in LITE_GUIDE_DIVERGE_REL:
+            continue
+        if sha256_file(source) != sha256_file(target):
+            differ.append(label)
+
+    identity_expected = {"README.md": LITE_README, "AGENTS.md": LITE_AGENTS}
+    for label, content in identity_expected.items():
+        target = dst / label
+        if target.is_file() and target.read_text(encoding="utf-8") != content:
+            differ.append(label)
+
+    guide_bad = False
+    guide = dst / "t2ag_directory_guide.html"
+    if guide.is_file():
+        tools_dir = Path(__file__).resolve().parent
+        if str(tools_dir) not in sys.path:
+            sys.path.insert(0, str(tools_dir))
+        try:
+            import build_guide as bg  # type: ignore
+
+            guide_bad = bg.run(dst, write=False) != 0
+        except (Exception, SystemExit) as exc:  # noqa: BLE001
+            print(f"ERROR: Lite guide check failed: {exc}", file=sys.stderr)
+            guide_bad = True
+
+    print(
+        f"projection_check: expected={len(expected)} current={len(current)} "
+        f"missing={len(missing)} differ={len(differ)} orphan={len(orphan)} "
+        f"guide_drift={int(guide_bad)}"
+    )
+    for label, values in (
+        ("MISSING", missing),
+        ("DIFFER", sorted(set(differ))),
+        ("ORPHAN", orphan),
+    ):
+        for value in values[:20]:
+            print(f"{label} {value}")
+        if len(values) > 20:
+            print(f"{label} ... ({len(values) - 20} more)")
+    if missing or differ or orphan or guide_bad:
+        print("FAIL: Lite projection drift; rerun with --write", file=sys.stderr)
+        return 1
+    print("OK: Lite matches the current Main projection")
+    return 0
+
+
+def build_candidate(
+    src: Path, candidate: Path
+) -> tuple[int, int, list[tuple[str, Path, Path]]]:
+    total_copied = total_skipped = 0
+    for name in ("main", "cloud", "assets"):
+        copied, skipped = copy_filtered(
+            src / name, candidate / name, False, tree_prefix=name
+        )
+        total_copied += copied
+        total_skipped += skipped
+        print(f"tree {name}: copied={copied} skipped={skipped}")
+    for name in ("t2ag_directory_guide.html", ".gitignore"):
+        source = src / name
+        if source.is_file() and not should_skip_file(source, Path(name)):
+            shutil.copy2(source, candidate / name)
+            total_copied += 1
+            print(f"root file: {name}")
+        elif source.is_file():
+            total_skipped += 1
+
+    write_identity(candidate, False)
+    tools_dir = Path(__file__).resolve().parent
+    if str(tools_dir) not in sys.path:
+        sys.path.insert(0, str(tools_dir))
+    import build_guide as bg  # type: ignore
+
+    if bg.run(candidate, write=True):
+        raise RuntimeError("build_guide returned non-zero")
+    projected = projection_manifest(src, candidate)
+    return total_copied, total_skipped, projected
+
+
+def install_candidate(candidate: Path, dst: Path) -> int:
+    if dst.name != "t2ag-lite":
+        raise RuntimeError(f"destination must be named t2ag-lite, got {dst}")
+    rollback = candidate / ".rollback"
+    rollback.mkdir()
+    moved_old: list[Path] = []
+    installed: list[Path] = []
+    dst.mkdir(parents=True, exist_ok=True)
+    try:
+        for child in list(dst.iterdir()):
+            if child.name in PRESERVE_DST_TOP:
+                print(f"preserve destination-local: {child.name}")
+                continue
+            shutil.move(str(child), str(rollback / child.name))
+            moved_old.append(rollback / child.name)
+        for child in list(candidate.iterdir()):
+            if child == rollback:
+                continue
+            target = dst / child.name
+            shutil.move(str(child), str(target))
+            installed.append(target)
+    except Exception as install_error:
+        rollback_errors: list[str] = []
+        for target in reversed(installed):
+            try:
+                if target.is_dir():
+                    shutil.rmtree(target)
+                elif target.exists():
+                    target.unlink()
+            except Exception as exc:  # noqa: BLE001
+                rollback_errors.append(f"remove {target.name}: {exc}")
+        for old in moved_old:
+            try:
+                if old.exists():
+                    shutil.move(str(old), str(dst / old.name))
+            except Exception as exc:  # noqa: BLE001
+                rollback_errors.append(f"restore {old.name}: {exc}")
+        detail = (
+            f"; rollback errors: {'; '.join(rollback_errors)}"
+            if rollback_errors else "; previous Lite restored"
+        )
+        raise RuntimeError(f"Lite install failed: {install_error}{detail}") from install_error
+    shutil.rmtree(rollback)
+    return len(moved_old)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Full-regenerate t2ag-lite from t2ag (plan A)")
     ap.add_argument(
@@ -438,18 +606,25 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="T2AC workspace root containing t2ag/ and t2ag-lite/",
     )
-    ap.add_argument("--dry-run", action="store_true", help="Count only, do not write")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Deprecated alias for the default check-only projection preview",
+    )
+    ap.add_argument(
+        "--write",
+        action="store_true",
+        help="Explicitly regenerate Lite (default: check-only preview)",
+    )
     ap.add_argument(
         "--force",
         action="store_true",
         help="Allow regenerate from dirty main (prints warning; not recommended)",
     )
-    ap.add_argument(
-        "--skip-verify",
-        action="store_true",
-        help="Skip post-copy full hash verify (not recommended)",
-    )
     args = ap.parse_args(argv)
+    if args.dry_run and args.write:
+        ap.error("--dry-run and --write are mutually exclusive")
+    dry_run = not args.write
 
     script_path = Path(__file__).resolve()
     t2ag_root = script_path.parents[2]
@@ -464,7 +639,7 @@ def main(argv: list[str] | None = None) -> int:
     print("plan=A full-regenerate")
     print(f"src={src}")
     print(f"dst={dst}")
-    print(f"dry_run={args.dry_run} force={args.force}")
+    print(f"mode={'write' if args.write else 'check-only'} force={args.force}")
     print("binary_allowlist:")
     for rel, reason in sorted(ALLOWED_BINARY_REL.items()):
         print(f"  {rel}: {reason}")
@@ -472,75 +647,61 @@ def main(argv: list[str] | None = None) -> int:
     # Gate: main clean (even for dry-run — dry-run should still teach the discipline)
     require_main_clean(src, force=args.force)
 
-    removed = clear_lite_tree(dst, args.dry_run)
-    print(f"cleared_top_level_entries={removed}")
+    if dry_run:
+        return check_current_projection(src, dst)
 
-    total_copied = total_skipped = 0
-    projected: list[tuple[str, Path, Path]] = []
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix=".t2ag-lite-build-", dir=workspace
+        ) as temporary:
+            candidate = Path(temporary)
+            total_copied, total_skipped, projected = build_candidate(
+                src, candidate
+            )
+            print(f"candidate={candidate}")
+            print(f"TOTAL copied={total_copied} skipped={total_skipped}")
+            bad = verify_projection(src, candidate, projected)
+            if bad:
+                print("FAIL: candidate rejected; existing Lite untouched", file=sys.stderr)
+                return 3
+            removed = install_candidate(candidate, dst)
+            print(f"installed_after_removing_top_level_entries={removed}")
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"FAIL: candidate build/install failed; candidate verification "
+            f"preceded installation and install rollback was attempted: {exc}",
+            file=sys.stderr,
+        )
+        return 4
 
-    for name in ("main", "cloud", "assets"):
-        c, s = copy_filtered(src / name, dst / name, args.dry_run, tree_prefix=name)
-        total_copied += c
-        total_skipped += s
-        print(f"tree {name}: copied={c} skipped={s}")
-        for sfile, rel in iter_projected_files(src / name, tree_prefix=name):
-            projected.append((f"{name}/{rel.as_posix()}", sfile, dst / name / rel))
+    final_projected = projection_manifest(src, dst)
+    bad = verify_projection(src, dst, final_projected)
+    if bad:
+        return 3
+    if check_current_projection(src, dst):
+        return 3
 
-    for name in ("t2ag_directory_guide.html", ".gitignore"):
-        p = src / name
-        if p.is_file() and not should_skip_file(p, Path(name)):
-            if not args.dry_run:
-                shutil.copy2(p, dst / name)
-            total_copied += 1
-            projected.append((name, p, dst / name))
-            print(f"root file: {name}")
-        elif p.is_file():
-            total_skipped += 1
-
-    # snail: confirm allowlist hit (copied via assets/ tree when prefix resolves)
-    snail_label = "assets/fable_snail.png"
-    if any(t[0] == snail_label for t in projected):
+    # snail: confirm allowlist hit (copied via main/ tree)
+    snail_label = "main/80_interface/fable_snail.png"
+    if any(label == snail_label for label, _, _ in final_projected):
         print(f"{snail_label}: kept ({ALLOWED_BINARY_REL[snail_label]})")
-    elif (src / "assets" / "fable_snail.png").is_file():
-        print(f"WARN: {snail_label} exists on main but was not projected", file=sys.stderr)
-    write_identity(dst, args.dry_run)
-    print("identity: README.md + AGENTS.md rewritten for lite")
+    elif (src / "main" / "80_interface" / "fable_snail.png").is_file():
+        print(
+            f"WARN: {snail_label} exists on main but was not projected",
+            file=sys.stderr,
+        )
 
-    # Rebuild guide GENERATED blocks for *lite* tree (map must match lite dirs, not main paste)
-    if not args.dry_run and (dst / "t2ag_directory_guide.html").is_file():
-        tools = Path(__file__).resolve().parent
-        if str(tools) not in sys.path:
-            sys.path.insert(0, str(tools))
-        try:
-            import build_guide as bg  # type: ignore
-
-            rc = bg.run(dst)
-            print(f"build_guide(lite): exit={rc}")
-        except Exception as exc:  # noqa: BLE001
-            print(f"WARN: build_guide on lite failed: {exc}", file=sys.stderr)
-
-    print(f"TOTAL copied={total_copied} skipped={total_skipped}")
-
-    if args.dry_run:
-        print("dry-run: skip write verify")
-        return 0
-
-    if not args.skip_verify:
-        bad = verify_projection(src, dst, projected)
-        if bad:
-            return 3
-
-    defs = (
-        list((dst / "main" / "30_course_definitions").glob("*"))
-        if (dst / "main" / "30_course_definitions").exists()
+    courses = (
+        list((dst / "main" / "40_course").glob("*/course.md"))
+        if (dst / "main" / "40_course").exists()
         else []
     )
-    runs = (
-        list((dst / "main" / "35_course_runs").rglob("course_status.md"))
-        if (dst / "main" / "35_course_runs").exists()
+    progress = (
+        list((dst / "main" / "40_course").glob("*/progress.md"))
+        if (dst / "main" / "40_course").exists()
         else []
     )
-    print(f"lite defs entries={len(defs)} course_status={len(runs)}")
+    print(f"lite courses={len(courses)} progress={len(progress)}")
     print("OK: regenerate complete. Next: python main/70_tools/t2ag_doctor.py (cwd=t2ag-lite)")
     return 0
 
