@@ -59,3 +59,55 @@ doctor 不得把 waiver 显示为 PASS；应显示 `WARN/WAIVED`。独立复审�
 - `REVIEW` 未决时不得写“独立复审无阻断”。
 - 发布结论必须列出仍有效的 WARN、WAIVED 和人工复审边界。
 - 重试次数、模型信心或问题描述的语气不能替代证据。
+
+## 五、版本候选与 delta re-review
+
+### 5.1 首次候选
+
+每个版本的首次 release candidate 必须接受完整独立复审。当前 0.2.1 没有可继承的完整
+独立通过基线，不得用 finding delta 或既有实施方自检代替整版复审。
+
+### 5.2 Delta manifest 与影响闭包
+
+每个整改使用稳定 `D-n`，至少记录：
+
+```text
+pre/post 指纹
+修改文件与允许路径
+直接/间接消费者
+生成物
+Main/Skeleton/Lite 影响闭包
+复用证据 ID、输入 manifest SHA 与新增 delta
+```
+
+同一版本内多个已列明 RT1/RT2 优化可以累计为一个 candidate delta pack，一次审查其完整
+影响闭包，不按需求条数机械重复全文读仓。已经通过且指纹未变的历史范围不得因为新增普通
+优化而反复全文复审。
+
+### 5.3 不可分割全局门
+
+delta re-review 可以只重审 finding delta，但每次都必须重新运行以下全局门：
+
+- Doctor 与 state refresh；
+- migration、journal/index 与未完成 transaction；
+- Main/Skeleton 同源文件；
+- Main → Lite 投影；
+- 最终源、候选 tree 和输入 docs manifest 指纹。
+
+既有报告、引用归因和测试证据只有在其输入 manifest SHA 未变时才可复用。复用时记录旧证据
+ID 与新 delta，不复制全文；范围外文件指纹变化必须拒绝复用。
+
+### 5.4 必须退回完整复审的边界
+
+以下任一变化不能只做 delta re-review：权威链、schema、registry 生命周期、migration apply
+语义、事务引擎、候选生成、安全/隐私边界，或无法证明影响闭包。此时旧 candidate 失效，
+必须重新形成候选并做完整独立复审。
+
+### 5.5 reviewer 独立性与 finalization
+
+- delta reviewer 不得是该 delta 的 operator；可以复用上一轮独立 reviewer，但必须记录模型/
+  会话、pre/post 输出、`expected tree`、staged diff SHA 和最终 attestation SHA；
+- finalization 在 commit 前审查 expected tree，commit 后核对 parent/tree/diff；tree 不等、范围外
+  路径、operator 自审、报告回写或提前 PASS 均拒绝；
+- reviewer output 是稳定性检查完成后最后生成的不可变外部报告。PASS 不回写目标仓、施工报告
+  或索引，避免“写入通过结论又制造新的未审 delta”。

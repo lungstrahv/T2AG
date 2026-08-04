@@ -13,7 +13,7 @@
 |---|---|---|
 | `disabled` | 当前目录不在 Git 仓库中 | 跳过并如实报告 |
 | `local` | 已有 Git，无远端或本次不联网 | 可在授权后本地 commit |
-| `remote` | 已有 Git 与远端 | 可在逐次授权后本地 commit；远端上传由用户手动执行 |
+| `remote` | 已有 Git 与远端 | 默认逐次授权；已批准的有界 campaign Git 计划可覆盖列明的本地 checkpoint；远端上传由用户手动执行 |
 
 Git 是保护层，不是教学真相源。Git 不可用时课程仍可结课，doctor 与文件写回仍必须完成。
 
@@ -22,10 +22,30 @@ Git 是保护层，不是教学真相源。Git 不可用时课程仍可结课，
 1. 先看状态和差异，再暂存；禁止把 `git add .` 当作日常默认动作。
 2. 只暂存本次写入确认中列出的 T2AG 文件，使用显式路径；工作区中的其他改动视为用户或并行任务所有。
 3. 不提交 `.env`、密钥、token、虚拟环境、缓存和未确认的个人材料。含学生档案的远端默认设为 Private。
-4. agent 每次执行 `git add` 或 `git commit` 前都必须获得当前操作的明确授权；不接受“持续授权”替代本次确认。
+4. 默认模式下，agent 每次执行 `git add` 或 `git commit` 前都必须获得当前操作的明确授权。
+   `version_campaign` 只在用户批准了列举仓库、显式路径、commit 数量/用途、subject、停止条件
+   和失效条件的有限 Git 计划后，才可覆盖其中列明的本地 checkpoint；无限期、跨版本或未列
+   路径的“持续授权”无效。
 5. 禁止自行使用 `git reset --hard`、`git clean -fd`、`git push --force`。冲突和历史改写先停下说明。
 6. agent 不执行 `git push` 或其他远端仓库上传；只生成用户可核对的手动上传说明。
 7. commit 成功与用户报告的远端上传结果分开记录；无网络或无快照不能阻塞教学文件写回。
+8. `clean ≠ reviewed ≠ released`：干净工作树只说明没有未提交差异；普通 commit 或 recovery
+   checkpoint 只提供恢复点，不自动取得独立复审或发布资格。
+
+### 2.1 Campaign Git 计划
+
+有界 campaign Git 计划必须绑定 `campaign_id`、目标版本、冻结 baseline、仓库、显式 pathspec、
+允许的本地 checkpoint 数量与用途、commit subject、RT3 保留项和授权失效条件。每次 checkpoint
+前仍须：
+
+1. 重取实际 HEAD、工作树和 index 状态；
+2. 展示本次拥有的显式路径及工作区 diff；
+3. 只暂存列明路径；不得使用 `git add .`；
+4. 展示 `git diff --cached --check`、cached diff、index tree 与 parent；
+5. 发现未列路径、未知仓、基线变化、风险升级或未知 FAIL/WARN 时停止，不能消费剩余额度。
+
+该计划不包含 push、tag、reset、checkout、stash、历史改写、删除 recovery 或未列明的 release
+能力。release snapshot 与 push 始终是独立能力门。
 
 ## 三、首次启用
 
@@ -64,6 +84,29 @@ git commit -m "MATH1607H lesson01: 更新进度与知识点复测"
 - 暂存后发现混入无关内容，停止 commit，先用 `git restore --staged -- <path>` 撤销该路径的暂存；不改工作区内容。
 - commit 留言写“课程/系统对象 + 实际变化”，不使用 `update`、`misc` 等无信息词。
 - 没有实际差异时不制造空 commit。
+
+checkpoint 分三类，名称不得混用：
+
+| 类型 | 作用 | 是否可称发布 |
+|---|---|---|
+| evidence checkpoint | 保存文件清单、指纹、测试、WARN 与恢复来源；不要求 Git | 否 |
+| recovery checkpoint | 有授权的本地中间 commit，用于恢复缺陷树或施工边界 | 否 |
+| release snapshot | 绑定已通过完整候选复审和 finalization delta 独立复审的最终 HEAD/tree | 是；仅限报告指明的本地快照，不自动含 push/tag |
+
+### 4.1 有界 finalization 协议
+
+finalization 只允许候选完整复审通过后的精确状态/报告指针 delta，并使用以下固定顺序：
+
+1. release operator 形成精确工作树，按 allowlist stage，冻结 parent、staged diff SHA 与 index tree；
+2. 与 operator 不同模型或不同会话的 reviewer 在 commit 前审查语义、路径和全局门，记录
+   `expected tree`；operator 不得自审；
+3. reviewer 明确 `proposed_delta_passed` 后，operator 才可 commit **同一个** index tree；
+4. reviewer 在 commit 后核对 parent、commit tree、实际 diff SHA、工作树和所有不可分割全局门；
+5. tree 不等、额外路径、commit 后补字、报告回写或提前 PASS 均使本轮 finalization 失败。
+
+reviewer output 最后生成、立即冻结且不可变。最终 PASS 只写外部 reviewer report；不得再回写
+目标仓、施工报告或索引去制造新的未审 delta。报告写入后目标仓任一字节变化都会使对应
+release snapshot 结论失效。
 
 远端已配置且本次需要同步时，agent 只展示用户手动执行的命令：
 
@@ -109,7 +152,7 @@ git commit -m "恢复 <文件> 到 <提交> 的已确认版本"
 
 | 场景 | Git 行为 |
 |---|---|
-| 结课仪式 | 检查状态与差异；按逐次授权决定待提交 / 本地 commit；远端由用户手动上传 |
+| 结课仪式 | 检查状态与差异；默认逐次授权，或按已批准 campaign Git 计划建立列明的本地 checkpoint；远端由用户手动上传 |
 | 里程碑完成 | 建议 commit；tag 只在版本或课程规则明确要求时创建 |
 | doctor | 检查 `.venv/.env` 追踪、版本一致性和跨发行版 core-playbook |
 | 版本发布 | changelog、版本号和发行版同步完成后再提交 |

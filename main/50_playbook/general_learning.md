@@ -27,7 +27,8 @@ R 共享 t2ag 的教学纪律（教材分类、教师红线、memory 指针）�
 
 - R 只允许绑定 Project 或 Praxis 课程进度
 - Mastery 只能进入 G
-- 随手读书、习惯记录和无明确验收的探索先进入 ActivityRecord；不能因为"不考试""非学位要求"自动成为 R
+- 随手读书、习惯记录和无明确验收的探索先进入分类后的 ActivityRecord；普通阅读不得自动升级为
+  Course、Engagement 或 R binding，也不能因为"不考试""非学位要求"自动成为 R
 - R 本身没有课程成功标准；验收方式由绑定的 课程进度 类型决定
 
 ---

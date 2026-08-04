@@ -72,3 +72,25 @@
 0.2.0 最终复审的新增阻断范围只认 `git_workflow.md` 9.1 的六项；此外只复核本表已经存在的
 三发行闸门。清单外新发现进入 backlog，不能仅因提高威胁模型而把它升级成本代 FAIL。
 日常学习链已经单独验收，可以继续；候选生成和 Git 快照仍分别需要后续明确授权。
+
+## 七、Version campaign 与 delta review 全局门
+
+authorization envelope、reviewer 独立性与 release 资格属于人工治理，不由 Doctor 单独裁决。
+Doctor 只验证已登记且可机械复现的载体；通过 Doctor 不等于 `reviewed` 或 `released`。
+
+无论是完整候选复审还是 delta re-review，以下现行门不可拆分，也不可用 campaign envelope、
+报告声明或 waiver 跳过：
+
+1. 数据完整性、稳定 ID、schema 与引用闭合；
+2. 活动入口、恢复路径与权威链唯一性；
+3. migration evidence、journal/index 和未完成 transaction；
+4. Main/Skeleton 批准同源面逐文件一致；
+5. Main → Lite 投影无 missing/differ/orphan/guide drift；
+6. 最终源、候选 tree、index 与输入 docs manifest 指纹稳定。
+
+delta review 只有在旧证据的输入 manifest SHA 未变、范围外文件指纹未变且影响闭包可证明时
+才可复用旧结果；否则拒绝复用。权威链、schema、registry 生命周期、migration apply 语义、
+事务引擎、候选生成、安全/隐私边界变化，或无法证明影响闭包时，必须退回完整独立复审。
+
+recovery checkpoint 只证明存在恢复点，不进入 release 资格判断。release snapshot 必须由外部
+独立报告绑定完整 candidate review 和有界 finalization delta review；`clean ≠ reviewed ≠ released`。

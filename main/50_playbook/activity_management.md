@@ -4,15 +4,16 @@ ActivityRecord 用于低治理、可暂停、尚未成为正式课程的活动�
 
 ## 创建
 
-路径：
+路径（0.2.1 初始合法 kind 只有 `reading`）：
 
-`main/10_student/activities/AR-NNNN_Title.md`
+`main/10_student/activities/<activity_kind>/AR-NNNN_Title.md`
 
 最小 frontmatter：
 
 ```yaml
 ---
 type: activity_record
+activity_kind: reading
 activity_record_id: AR-NNNN
 title: 标题
 record_status: recording
@@ -21,8 +22,12 @@ created_at: YYYY-MM-DD
 ---
 ```
 
-ID 在 `10_student/activities/` 中单调递增，不重排、不复用。文件保存事实、短笔记
+ID 在 `10_student/activities/` 的所有 kind 中共享全局编号域，单调递增、不重排、不复用。
+新增 kind 必须先修改 schema/registry/Doctor，不能任意创建目录。文件保存事实、短笔记
 和升级判断，不保存正式课程停点。
+
+一项稳定阅读意图只使用一条 ActivityRecord；不是每本书创建一条 AR。同一意图可以引用多本书，
+普通阅读不得因为出现书名或课程联想就自动升级为 Course、Engagement 或 R binding。
 
 ## 状态
 

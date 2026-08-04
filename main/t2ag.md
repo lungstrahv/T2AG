@@ -173,7 +173,14 @@ doctor 无 FAIL 且 state refresh 无漂移后，按 `50_playbook/context_packet
   composite 拆分使用 tombstone + successors。
 - Main 与 Skeleton 是原件；Lite 只能从 Main 再生，禁止反向覆盖 Main。
 - Skeleton 不含真实学生、课程进度、活动或 Engagement。
-- 未获用户授权不得 commit、push、删除 recovery 或恢复用户脏树。
+- 未获用户授权不得 commit、push、删除 recovery 或恢复用户脏树。用户批准的、冻结且列举的
+  `version_campaign` authorization envelope 属于有效明确授权，但只覆盖其中列明的 RT1/RT2
+  仓库、路径、操作和有限本地 checkpoint；范围扩张、基线变化、风险升级、未知 FAIL/WARN、
+  跨仓边界变化或无法证明影响闭包时立即失效。真实迁移、terminal lifecycle、严格学生确认、
+  跨边界外部写入及其他 RT3 仍须在正文与精确对象可见后单独授权。
+- evidence checkpoint 只保存证据，recovery checkpoint 只提供恢复点；二者都不是 release
+  snapshot。`clean ≠ reviewed ≠ released`，正式本地版本边界必须绑定完整候选独立复审和
+  有界 finalization delta 独立复审。
 - 发布前必须满足：三发行 doctor `0 FAIL`、迁移二次检查零待办、
   journal index 零漂移、Skeleton 空实例再生通过、Lite 投影一致、独立审查通过。
 
@@ -182,5 +189,7 @@ doctor 无 FAIL 且 state refresh 无漂移后，按 `50_playbook/context_packet
 - 当前版本：`0.2.1`
 - 0.2.0 基线结构权威：`60_journal/T2AG_0.2.0_修改方案.md`
 - 0.2.1 增量施工权威：`T2AG-STUDENT-PROFILE-READING-BRIDGE-20260730`
+- 0.2.1 完整收口与审查治理权威：
+  `docs/handoffs/T2AG_021_FULL_CLOSEOUT_AND_REVIEW_GOVERNANCE_WORKORDER_2026-08-04.md`
 - 迁移器：`70_tools/migrate_020.py`
 - 版本更新必须同步本文件、memory、changelog、README、Skeleton 与 Lite 身份入口。

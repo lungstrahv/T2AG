@@ -239,6 +239,22 @@ K -- "是" --> L
 
 禁止自行使用 `reset --hard`、`clean -fd` 或强推。Git 是保护层，不是课程真相源。
 
+Git 证据边界分三层：
+
+```text
+evidence checkpoint ── 文件清单 / 指纹 / 测试 / WARN；不要求 Git
+recovery checkpoint ── 有界授权的本地中间 commit；只提供恢复能力
+release snapshot ───── 完整候选复审 + finalization delta 独立复审绑定的最终 HEAD/tree
+```
+
+三者不可互换，`clean ≠ reviewed ≠ released`。默认仍逐次授权；冻结且列举的
+`version_campaign` envelope 只能连续覆盖其中的有限 RT1/RT2 checkpoint。push、tag、真实
+migration apply、terminal lifecycle 和其他 RT3 不由普通 campaign Git 计划推出。
+
+有界 finalization 使用固定序列：operator stage 精确 allowlist → 独立 reviewer 预审
+`expected tree` → operator commit 同一 tree → reviewer 核对 parent/tree/diff → 最后生成不可变
+外部报告。PASS 不回写目标仓或施工报告。
+
 ## 图 7 · 批次整改治理
 
 <!-- FLOW:batch -->
@@ -277,6 +293,16 @@ L -- "是" --> N
 <!-- /FLOW:batch -->
 
 硬发布门不能 waiver；只有不影响仓内正确性的外部环境问题可记录正式 waiver。
+
+批次调度先选择 `execution_mode`：`independent_batch` 是默认；`version_campaign` 只有在用户
+批准包含 campaign ID、版本、基线、included/deferred scope、仓/路径/操作、risk tier、Git
+计划、RT3 保留项和失效条件的 envelope 后生效。普通单元跑定向测试；RT2 风险边界、跨发行
+同步和最终候选跑完整 Doctor。范围扩张、未知仓/路径、风险升级、未知 FAIL/WARN 或无法证明
+影响闭包时立即停手。
+
+首次版本候选必须完整独立复审。后续 finding 只有在输入 manifest 未变且影响闭包可证明时，
+才可进入 delta re-review；仍须重跑 Doctor、state、migration、journal、Main/Skeleton 同源、
+Lite 投影与最终源指纹等不可分割全局门。
 
 ## 图 8 · 习题证据闭环
 

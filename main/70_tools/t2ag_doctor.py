@@ -2,6 +2,7 @@
 """Deterministic doctor for the T2AG 0.2.1 object model."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 import hashlib
 import re
@@ -19,6 +20,13 @@ from t2ag_activity import (
     resolve_course_book_path,
     resolve_teacher_mapping,
     validate_progress_identity,
+)
+from contracts.reading_bridge_v1.validator import (
+    ContractError,
+    canonical_json_bytes,
+    load_json_strict,
+    semantic_sha256,
+    validate_document,
 )
 
 
@@ -81,7 +89,8 @@ ALLOWED_ATTEMPT_MODES = {"text", "image", "mixed"}
 ALLOWED_ATTEMPT_STATES = {"submitted", "withdrawn"}
 ALLOWED_HINT_GATE_MODES = {"enabled", "disabled"}
 ALLOWED_ASSISTANCE_LEVELS = {"none", "direction", "reference", "solution"}
-HINT_GATE_SCHEMA_DATE = "2026-08-01"
+HINT_GATE_SCHEMA_DATE = dt.date(2026, 8, 1)
+ALLOWED_ACTIVITY_KINDS = {"reading"}
 ALLOWED_REVIEWERS = {"teacher", "student", "joint"}
 ALLOWED_REVIEW_STATES = {"recorded", "amended"}
 ALLOWED_REVIEW_RESULTS = {"correct", "partial", "incorrect", "unresolved"}
@@ -632,10 +641,7 @@ def check_groups(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
 def check_engagements_and_activities() -> None:
     engagements = MAIN / "10_student/engagements"
     if FLAVOR == "skeleton":
-        for root in (
-            MAIN / "10_student/activities",
-            MAIN / "10_student/engagements",
-        ):
+        for root in (MAIN / "10_student/engagements",):
             if not root.is_dir():
                 report("FAIL", f"Skeleton 缺空模板域：{rel(root)}")
                 continue
@@ -662,14 +668,191 @@ def check_engagements_and_activities() -> None:
             if (folder / "field_practice.md").exists():
                 report("FAIL", f"旧 field_practice.md 仍存在：{rel(folder)}")
     activities = MAIN / "10_student/activities"
-    if activities.exists():
-        for path in activities.glob("AR-*.md"):
-            meta = frontmatter(path)
-            if meta.get("type") != "activity_record":
-                report("FAIL", f"ActivityRecord type 非法：{rel(path)}")
-            artifact_id = meta.get("activity_record_id", "")
-            if not re.fullmatch(r"AR-\d{4}", artifact_id):
-                report("FAIL", f"ActivityRecord ID 非法：{rel(path)} -> {artifact_id}")
+    if not activities.is_dir():
+        report("FAIL", f"缺 ActivityRecord 域：{rel(activities)}")
+        return
+    records: dict[str, Path] = {}
+    sidecars: list[tuple[Path, str, str]] = []
+    for entry in sorted(activities.iterdir()):
+        if entry.is_symlink():
+            report("FAIL", f"ActivityRecord 域禁止 symlink/reparse：{rel(entry)}")
+            continue
+        if entry.is_file():
+            if re.fullmatch(r"AR-.*\.md", entry.name):
+                report("FAIL", f"ActivityRecord 仍在根目录：{rel(entry)}")
+            elif not entry.name.startswith("_"):
+                report("FAIL", f"ActivityRecord 根目录非法旁路文件：{rel(entry)}")
+            continue
+        if not entry.is_dir():
+            report("FAIL", f"ActivityRecord 根目录非法对象：{rel(entry)}")
+            continue
+        kind = entry.name
+        if kind not in ALLOWED_ACTIVITY_KINDS:
+            report("FAIL", f"ActivityRecord kind 未登记：{rel(entry)}")
+            continue
+        for path in sorted(entry.iterdir()):
+            if path.is_symlink():
+                report("FAIL", f"ActivityRecord kind 禁止 symlink/reparse：{rel(path)}")
+                continue
+            if path.is_dir():
+                report("FAIL", f"ActivityRecord 嵌套过深：{rel(path)}")
+                continue
+            record_match = re.fullmatch(r"(AR-\d{4})_[^/\\]+\.md", path.name)
+            sidecar_match = re.fullmatch(
+                r"(AR-\d{4})\.(context|contributions)\.json",
+                path.name,
+            )
+            if record_match:
+                artifact_id = record_match.group(1)
+                meta = frontmatter(path)
+                if meta.get("type") != "activity_record":
+                    report("FAIL", f"ActivityRecord type 非法：{rel(path)}")
+                if meta.get("activity_record_id") != artifact_id:
+                    report("FAIL", f"ActivityRecord 文件名/frontmatter ID 不一致：{rel(path)}")
+                if meta.get("activity_kind") != kind:
+                    report("FAIL", f"ActivityRecord 父目录/kind 不一致：{rel(path)}")
+                if artifact_id in records:
+                    report(
+                        "FAIL",
+                        f"ActivityRecord ID 跨 kind 重复：{artifact_id} -> "
+                        f"{rel(records[artifact_id])}, {rel(path)}",
+                    )
+                else:
+                    records[artifact_id] = path
+                if FLAVOR == "skeleton":
+                    report("FAIL", f"Skeleton ActivityRecord 空容器含真实实例：{rel(path)}")
+            elif sidecar_match:
+                sidecars.append((path, sidecar_match.group(1), sidecar_match.group(2)))
+                if FLAVOR == "skeleton":
+                    report("FAIL", f"Skeleton ActivityRecord 空容器含真实 sidecar：{rel(path)}")
+            elif not path.name.startswith("_"):
+                report("FAIL", f"ActivityRecord kind 非法旁路文件：{rel(path)}")
+    for path, artifact_id, _sidecar_kind in sidecars:
+        if artifact_id not in records:
+            report("FAIL", f"ActivityRecord orphan sidecar：{rel(path)}")
+    schema_dir = MAIN / "70_tools/contracts/reading_bridge_v1"
+    schema_names = {
+        "context": "t2ag.reading_context_source.v1",
+        "contributions": "t2ag.reading_contribution_ledger.v1",
+    }
+    schemas: dict[str, dict[str, object]] = {}
+    for sidecar_kind, schema_name in schema_names.items():
+        schema_path = schema_dir / f"{schema_name}.schema.json"
+        try:
+            schema = load_json_strict(schema_path)
+            if not isinstance(schema, dict):
+                raise ContractError("schema must be an object")
+            schemas[sidecar_kind] = schema
+        except (ContractError, OSError) as exc:
+            report("FAIL", f"reading bridge storage schema 无法读取：{rel(schema_path)} -> {exc}")
+    global_contribution_ids: dict[str, Path] = {}
+    global_receipt_ids: dict[str, Path] = {}
+    for path, artifact_id, sidecar_kind in sidecars:
+        if artifact_id not in records or sidecar_kind not in schemas:
+            continue
+        try:
+            value = load_json_strict(path)
+            validate_document(value, schemas[sidecar_kind])
+            if not isinstance(value, dict):
+                raise ContractError("storage carrier must be an object")
+        except (ContractError, OSError) as exc:
+            report("FAIL", f"ActivityRecord sidecar 合同非法：{rel(path)} -> {exc}")
+            continue
+        if value.get("activity_record_id") != artifact_id:
+            report("FAIL", f"ActivityRecord sidecar 内部 ID 不一致：{rel(path)}")
+        if sidecar_kind == "context":
+            if value.get("confirmed_by") != "student":
+                report("FAIL", f"reading context source 缺人工确认：{rel(path)}")
+            if value.get("target_reading_uri") is None and (
+                value.get("course_id") is not None
+                or value.get("reading_intents")
+                or value.get("questions_or_observation_cues")
+            ):
+                report("FAIL", f"无 reading URI 的 context 必须为空：{rel(path)}")
+            continue
+        processed = value.get("processed_events", [])
+        contributions = value.get("contributions", [])
+        outbox = value.get("receipt_outbox", [])
+        event_ids: set[str] = set()
+        local_contributions: set[str] = set()
+        for row in contributions:
+            contribution_id = row.get("contribution_id", "")
+            payload = row.get("payload", {})
+            if contribution_id in local_contributions:
+                report("FAIL", f"reading contribution ledger 重复对象：{rel(path)} -> {contribution_id}")
+            local_contributions.add(contribution_id)
+            if contribution_id in global_contribution_ids:
+                report(
+                    "FAIL",
+                    f"reading contribution ID 跨 AR 重复：{contribution_id} -> "
+                    f"{rel(global_contribution_ids[contribution_id])}, {rel(path)}",
+                )
+            else:
+                global_contribution_ids[contribution_id] = path
+            if (
+                not isinstance(payload, dict)
+                or payload.get("contribution_id") != contribution_id
+                or payload.get("target_activity_record_id") != artifact_id
+                or payload.get("semantic_sha256") != semantic_sha256(payload)
+                or contribution_id != "CON-" + semantic_sha256(payload)
+                or payload.get("source_reading_uri") != payload.get("evidence_locator", {}).get("source_uri")
+            ):
+                report("FAIL", f"reading contribution payload/digest/target 非法：{rel(path)} -> {contribution_id}")
+        for row in processed:
+            event_id = row.get("event_id", "")
+            if event_id in event_ids:
+                report("FAIL", f"reading contribution processed event 重复：{rel(path)} -> {event_id}")
+            event_ids.add(event_id)
+            matching = [
+                item.get("payload", {})
+                for item in contributions
+                if item.get("contribution_id") == row.get("contribution_id")
+            ]
+            if (
+                len(matching) != 1
+                or row.get("semantic_sha256") != matching[0].get("semantic_sha256")
+            ):
+                report("FAIL", f"reading contribution processed event 悬空：{rel(path)} -> {event_id}")
+        local_receipts: set[str] = set()
+        for row in outbox:
+            receipt_id = row.get("receipt_id", "")
+            payload = row.get("payload", {})
+            ack = row.get("ack_result")
+            if receipt_id in local_receipts:
+                report("FAIL", f"reading receipt outbox 重复 ID：{rel(path)} -> {receipt_id}")
+            local_receipts.add(receipt_id)
+            if receipt_id in global_receipt_ids:
+                report(
+                    "FAIL",
+                    f"reading receipt ID 跨 AR 重复：{receipt_id} -> "
+                    f"{rel(global_receipt_ids[receipt_id])}, {rel(path)}",
+                )
+            else:
+                global_receipt_ids[receipt_id] = path
+            if (
+                not isinstance(payload, dict)
+                or payload.get("receipt_id") != receipt_id
+                or payload.get("event_id") != receipt_id
+                or payload.get("target_activity_record_id") != artifact_id
+                or payload.get("semantic_sha256") != semantic_sha256(payload)
+                or payload.get("contribution_id") not in local_contributions
+                or not str(payload.get("receipt_target_uri", "")).startswith("reading://note/")
+            ):
+                report("FAIL", f"reading receipt outbox payload/digest/target 非法：{rel(path)} -> {receipt_id}")
+            if (row.get("status") == "pending") != (ack is None):
+                report("FAIL", f"reading receipt outbox status/ack 不一致：{rel(path)} -> {receipt_id}")
+            if isinstance(ack, dict):
+                response = {
+                    key: ack.get(key)
+                    for key in ("receipt_id", "semantic_sha256", "result")
+                }
+                if (
+                    response["receipt_id"] != receipt_id
+                    or response["semantic_sha256"] != payload.get("semantic_sha256")
+                    or ack.get("response_sha256")
+                    != hashlib.sha256(canonical_json_bytes(response)).hexdigest()
+                ):
+                    report("FAIL", f"reading receipt ack 绑定非法：{rel(path)} -> {receipt_id}")
 
 
 def check_question_banks(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
@@ -1495,14 +1678,19 @@ def check_exercises(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
                         report("FAIL", f"Attempt mode 非法：{rel(carrier)} -> {mode}")
                     if ameta.get("status") not in ALLOWED_ATTEMPT_STATES:
                         report("FAIL", f"Attempt status 非法：{rel(carrier)}")
-                    if not ameta.get("created") or ameta.get("created") == "—":
-                        report("FAIL", f"Attempt 缺 created：{rel(carrier)}")
                     created = ameta.get("created", "")
+                    created_date: dt.date | None = None
+                    try:
+                        created_date = dt.date.fromisoformat(created)
+                    except (TypeError, ValueError):
+                        pass
+                    if created_date is None or created_date.isoformat() != created:
+                        report("FAIL", f"Attempt created 非法 ISO 日期：{rel(carrier)} -> {created or '—'}")
                     gate_snapshot = ameta.get("hint_gate", "")
                     assistance_level = ameta.get("assistance_level", "")
                     requires_gate_snapshot = bool(
-                        re.fullmatch(r"\d{4}-\d{2}-\d{2}", created)
-                        and created >= HINT_GATE_SCHEMA_DATE
+                        created_date is not None
+                        and created_date >= HINT_GATE_SCHEMA_DATE
                     )
                     if requires_gate_snapshot and (
                         not gate_snapshot or not assistance_level
@@ -2114,6 +2302,11 @@ def check_derived_tools() -> None:
         args = ["--check"] if FLAVOR == "main" else ["--check", "--target", "skeleton"]
         run_check("migrate_020.py", args, "migration idempotence")
         run_check("migrate_021.py", ["--check"], "0.2.1 profile migration idempotence")
+        run_check(
+            "migrate_021_activity_records.py",
+            ["--check"],
+            "0.2.1 ActivityRecord migration idempotence",
+        )
 
 
 def check_migration_evidence() -> None:
@@ -2134,32 +2327,48 @@ def check_migration_evidence() -> None:
 def check_migration_021_evidence() -> None:
     if FLAVOR == "lite":
         return
-    manifest_path = MAIN / "60_journal/migration_021_profile_operations.json"
-    report_path = MAIN / "60_journal/migration_021_profile_report.json"
-    if not manifest_path.is_file() or not report_path.is_file():
-        report("FAIL", "缺少 0.2.1 profile 迁移操作清单或报告")
+    def strict_json(path: Path) -> object:
+        def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
+            result: dict[str, object] = {}
+            for key, value in items:
+                if key in result:
+                    raise ValueError(f"duplicate key: {key}")
+                result[key] = value
+            return result
+
+        def constant(value: str) -> object:
+            raise ValueError(f"non-finite number: {value}")
+
+        raw = path.read_bytes()
+        if b"\x00" in raw:
+            raise ValueError("NUL")
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=pairs,
+            parse_constant=constant,
+        )
+
+    def exact_keys(value: object, expected: set[str], where: str) -> bool:
+        if not isinstance(value, dict) or set(value) != expected:
+            report("FAIL", f"0.2.1 profile V2 证据字段非法：{where}")
+            return False
+        return True
+
+    v1_manifest_path = MAIN / "60_journal/migration_021_profile_operations.json"
+    v1_report_path = MAIN / "60_journal/migration_021_profile_report.json"
+    manifest_path = MAIN / "60_journal/migration_021_profile_operations_v2.json"
+    report_path = MAIN / "60_journal/migration_021_profile_report_v2.json"
+    required_paths = (v1_manifest_path, v1_report_path, manifest_path, report_path)
+    if any(not path.is_file() for path in required_paths):
+        report("FAIL", "缺少 0.2.1 profile V1/V2 迁移操作清单或报告")
         return
     try:
-        manifest = json.loads(read(manifest_path))
-        migration_report = json.loads(read(report_path))
-    except json.JSONDecodeError as exc:
-        report("FAIL", f"0.2.1 profile 迁移证据 JSON 非法：{exc}")
-        return
-    summary = migration_report.get("operation_manifest", {})
-    if summary.get("path") != "main/60_journal/migration_021_profile_operations.json":
-        report("FAIL", "0.2.1 profile 迁移报告未绑定 canonical manifest")
-    if summary.get("sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest():
-        report("FAIL", "0.2.1 profile 迁移 manifest SHA 漂移")
-    operations = manifest.get("operations", [])
-    if (
-        manifest.get("schema_version") != "T2AG-MIGRATION-OPERATIONS-1"
-        or manifest.get("operation_count") != 4
-        or len(operations) != 4
-        or summary.get("operation_count") != 4
-        or migration_report.get("applied_count") != 4
-        or migration_report.get("status") != "applied"
-    ):
-        report("FAIL", "0.2.1 profile 迁移计数或状态非法")
+        v1_manifest = strict_json(v1_manifest_path)
+        v1_report = strict_json(v1_report_path)
+        manifest = strict_json(manifest_path)
+        migration_report = strict_json(report_path)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        report("FAIL", f"0.2.1 profile 迁移证据严格 JSON 非法：{exc}")
         return
     readme_content = read(ROOT / "README.md") if (ROOT / "README.md").is_file() else ""
     expected_kind = (
@@ -2168,8 +2377,90 @@ def check_migration_021_evidence() -> None:
         or re.search(r"^# T2AG .* Skeleton\s*$", readme_content, re.MULTILINE)
         else "main"
     )
-    if manifest.get("target_kind") != expected_kind:
-        report("FAIL", f"0.2.1 profile 迁移 target_kind 非法：{manifest.get('target_kind')}")
+    baseline_oracle = {
+        "main": (
+            "4e72556f789fcb5943951657ee17247c0dd4eb12",
+            "7270b5fa7954fec12d2e5ff3f76ee388036dff1b",
+        ),
+        "skeleton": (
+            "3f1a42e0edc305f3253843337a9ec7a107cd79a8",
+            "bab94ab06046b55577dc88908069dfbe1e160419",
+        ),
+    }
+    expected_commit, expected_tree = baseline_oracle[expected_kind]
+    if not exact_keys(
+        manifest,
+        {
+            "schema_version", "migration_id", "supersedes", "target_kind",
+            "baseline_commit", "baseline_tree", "transform_version",
+            "operation_count", "operations",
+        },
+        "manifest",
+    ) or not exact_keys(
+        migration_report,
+        {
+            "schema_version", "migration_id", "supersedes", "status",
+            "target_kind", "baseline_commit", "baseline_tree", "transform_version",
+            "operation_manifest", "current_verification", "content_policy",
+        },
+        "report",
+    ):
+        return
+    summary = migration_report["operation_manifest"]
+    verification = migration_report["current_verification"]
+    if not exact_keys(summary, {"path", "operation_count", "sha256"}, "report.operation_manifest"):
+        return
+    if not exact_keys(verification, {"targets_present"}, "report.current_verification"):
+        return
+    common_expected = (
+        "T2AG-021-PROFILE-V2",
+        expected_kind,
+        expected_commit,
+        expected_tree,
+        "t2ag.profile-path-repairs.v2",
+    )
+    if (
+        manifest.get("schema_version") != "T2AG-MIGRATION-OPERATIONS-2"
+        or migration_report.get("schema_version") != "T2AG-MIGRATION-REPORT-2"
+        or (
+            manifest.get("migration_id"), manifest.get("target_kind"),
+            manifest.get("baseline_commit"), manifest.get("baseline_tree"),
+            manifest.get("transform_version"),
+        ) != common_expected
+        or (
+            migration_report.get("migration_id"), migration_report.get("target_kind"),
+            migration_report.get("baseline_commit"), migration_report.get("baseline_tree"),
+            migration_report.get("transform_version"),
+        ) != common_expected
+        or manifest.get("supersedes") != "main/60_journal/migration_021_profile_operations.json"
+        or migration_report.get("supersedes") != "main/60_journal/migration_021_profile_report.json"
+        or migration_report.get("status") != "applied"
+        or verification.get("targets_present") is not True
+    ):
+        report("FAIL", "0.2.1 profile V2 baseline/target/schema 绑定非法")
+    try:
+        resolved_tree = subprocess.run(
+            ["git", "show", "-s", "--format=%T", expected_commit],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError as exc:
+        report("FAIL", f"0.2.1 profile baseline 无法现场解析：{exc}")
+        return
+    if resolved_tree != expected_tree:
+        report("FAIL", "0.2.1 profile baseline tree 与 Git 现场解析不一致")
+    if (
+        summary.get("path") != "main/60_journal/migration_021_profile_operations_v2.json"
+        or summary.get("sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        or summary.get("operation_count") != 4
+    ):
+        report("FAIL", "0.2.1 profile V2 report 未绑定 canonical manifest")
+    operations = manifest.get("operations")
+    if not isinstance(operations, list) or manifest.get("operation_count") != 4 or len(operations) != 4:
+        report("FAIL", "0.2.1 profile V2 迁移计数非法")
+        return
     expected_moves = (
         ("main/10_student/profile.md", "main/10_student/profile/profile.md"),
         ("main/10_student/learning_path.md", "main/10_student/profile/learning_path.md"),
@@ -2182,46 +2473,367 @@ def check_migration_021_evidence() -> None:
             "main/10_student/profile/reasoning_patterns.md",
         ),
     )
+    v1_operations = v1_manifest.get("operations", []) if isinstance(v1_manifest, dict) else []
+    if (
+        not isinstance(v1_manifest, dict)
+        or not isinstance(v1_report, dict)
+        or v1_manifest.get("schema_version") != "T2AG-MIGRATION-OPERATIONS-1"
+        or v1_manifest.get("baseline_commit") != expected_commit
+        or v1_manifest.get("target_kind") != expected_kind
+        or not isinstance(v1_operations, list)
+        or len(v1_operations) != 4
+        or v1_report.get("schema_version") != "T2AG-MIGRATION-REPORT-1"
+        or v1_report.get("baseline_commit") != expected_commit
+        or v1_report.get("target_kind") != expected_kind
+        or v1_report.get("operation_manifest", {}).get("sha256")
+        != hashlib.sha256(v1_manifest_path.read_bytes()).hexdigest()
+    ):
+        report("FAIL", "被 supersede 的 0.2.1 profile V1 证据缺失或已改写")
+
+    def baseline_bytes(path: str) -> bytes:
+        result = subprocess.run(
+            ["git", "show", f"{expected_commit}:{path}"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode:
+            raise ValueError(path)
+        return result.stdout
+
+    def oracle(source_path: str, content: bytes) -> tuple[bytes, dict[str, int], str]:
+        if expected_kind == "skeleton":
+            return content, {}, f"profile-{Path(source_path).stem}-identity-v2"
+        rules: tuple[tuple[bytes, bytes, int, str], ...]
+        if source_path == "main/10_student/profile.md":
+            rules = (
+                (b"main/10_student/profile.md", b"main/10_student/profile/profile.md", 2, "self_profile"),
+                (b"main/10_student/course_reflections.md", b"main/10_student/profile/course_reflections.md", 1, "course_reflections"),
+                (b"main/10_student/reasoning_patterns.md", b"main/10_student/profile/reasoning_patterns.md", 1, "reasoning_patterns"),
+            )
+        elif source_path == "main/10_student/learning_path.md":
+            rules = ((b"10_student/profile.md", b"10_student/profile/profile.md", 1, "profile_pointer"),)
+        elif source_path == "main/10_student/course_reflections.md":
+            rules = ((b"../40_course/", b"../../40_course/", 3, "relative_course_links"),)
+        else:
+            rules = ()
+        counts: dict[str, int] = {}
+        transformed = content
+        for old, new, expected_count, name in rules:
+            actual_count = transformed.count(old)
+            if actual_count != expected_count:
+                raise ValueError(f"count:{source_path}:{name}")
+            transformed = transformed.replace(old, new)
+            counts[name] = actual_count
+        return transformed, counts, f"profile-{Path(source_path).stem}-path-repairs-v2"
+
     for sequence, (source_path, target_path) in enumerate(expected_moves, start=1):
         row = operations[sequence - 1]
-        sources = row.get("sources", [])
-        post_target = row.get("post_target", {})
+        if not exact_keys(
+            row,
+            {
+                "sequence", "transform_id", "source", "target", "replacement_counts",
+                "content_policy", "outcome", "post_target",
+            },
+            f"operations[{sequence - 1}]",
+        ):
+            continue
+        source = row.get("source")
+        post_target = row.get("post_target")
+        if not exact_keys(source, {"path", "blob", "bytes", "sha256"}, f"operations[{sequence - 1}].source"):
+            continue
+        if not exact_keys(post_target, {"path", "bytes", "sha256"}, f"operations[{sequence - 1}].post_target"):
+            continue
+        try:
+            source_content = baseline_bytes(source_path)
+            expected_post, expected_counts, expected_transform = oracle(source_path, source_content)
+            expected_blob = subprocess.run(
+                ["git", "rev-parse", f"{expected_commit}:{source_path}"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        except (ValueError, subprocess.CalledProcessError) as exc:
+            report("FAIL", f"0.2.1 profile independent oracle 失败：{exc}")
+            continue
         if (
             row.get("sequence") != sequence
-            or row.get("kind") != "move"
-            or len(sources) != 1
-            or sources[0].get("path") != source_path
+            or source.get("path") != source_path
+            or source.get("blob") != expected_blob
+            or source.get("bytes") != len(source_content)
+            or source.get("sha256") != hashlib.sha256(source_content).hexdigest()
             or row.get("target") != target_path
+            or row.get("transform_id") != expected_transform
+            or row.get("replacement_counts") != expected_counts
             or row.get("outcome") != "applied"
-            or row.get("content_check") not in {"byte_identical", "path_repairs_only"}
+            or row.get("content_policy") != ("byte_identical" if not expected_counts else "path_repairs_only")
             or post_target.get("path") != target_path
+            or post_target.get("bytes") != len(expected_post)
+            or post_target.get("sha256") != hashlib.sha256(expected_post).hexdigest()
         ):
-            report("FAIL", f"0.2.1 profile 迁移操作非法：sequence={sequence}")
+            report("FAIL", f"0.2.1 profile V2 迁移操作与独立 oracle 不一致：sequence={sequence}")
             continue
+        if sequence <= len(v1_operations):
+            v1_source = v1_operations[sequence - 1].get("sources", [{}])[0]
+            if (
+                v1_source.get("path") != source_path
+                or v1_source.get("bytes") != len(source_content)
+                or v1_source.get("sha256") != hashlib.sha256(source_content).hexdigest()
+            ):
+                report("FAIL", f"0.2.1 profile V1/V2 source 绑定分叉：sequence={sequence}")
         target = ROOT / target_path
         if not target.is_file():
             report("FAIL", f"0.2.1 profile 迁移目标不存在：{target_path}")
             continue
         if (ROOT / source_path).exists():
             report("FAIL", f"0.2.1 profile 旧路径仍存在：{source_path}")
-        evidence_bytes = post_target.get("bytes")
-        evidence_sha = post_target.get("sha256")
-        if (
-            not isinstance(evidence_bytes, int)
-            or evidence_bytes < 0
-            or not isinstance(evidence_sha, str)
-            or re.fullmatch(r"[0-9a-f]{64}", evidence_sha) is None
-        ):
-            report("FAIL", f"0.2.1 profile 迁移目标证据非法：{target_path}")
         # These four targets are live student records.  Their migration-time
         # hashes remain report-bound evidence, not permanent content locks.
-    verification = migration_report.get("current_verification", {})
+
+
+def check_activity_migration_021_evidence() -> None:
+    if FLAVOR == "lite":
+        return
+    manifest_path = MAIN / "60_journal/migration_021_activity_record_operations.json"
+    report_path = MAIN / "60_journal/migration_021_activity_record_report.json"
+    source_path = "main/10_student/activities/AR-0001_InvestingNotes.md"
+    target_path = "main/10_student/activities/reading/AR-0001_InvestingNotes.md"
+    if FLAVOR == "skeleton":
+        if manifest_path.exists() or report_path.exists():
+            report("FAIL", "Skeleton 不得复制 Main ActivityRecord 真实迁移证据")
+        if (ROOT / source_path).exists() or (ROOT / target_path).exists():
+            report("FAIL", "Skeleton 不得包含 AR-0001 真实实例")
+        return
     if (
-        verification.get("pending_count") != 0
-        or verification.get("missing") != []
-        or verification.get("collisions") != []
+        not manifest_path.exists()
+        and not report_path.exists()
+        and not (ROOT / source_path).exists()
+        and not (ROOT / target_path).exists()
     ):
-        report("FAIL", "0.2.1 profile 迁移报告仍有待办或冲突")
+        # A fresh instance initialized from Skeleton has no historical AR-0001
+        # migration.  Real Main remains bound by its registry entry and evidence.
+        return
+    if not manifest_path.is_file() or not report_path.is_file():
+        report("FAIL", "缺少 0.2.1 ActivityRecord 迁移证据")
+        return
+
+    def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError(f"duplicate key: {key}")
+            result[key] = value
+        return result
+
+    def constant(value: str) -> object:
+        raise ValueError(f"non-finite number: {value}")
+
+    try:
+        manifest = json.loads(
+            manifest_path.read_text(encoding="utf-8"),
+            object_pairs_hook=pairs,
+            parse_constant=constant,
+        )
+        activity_report = json.loads(
+            report_path.read_text(encoding="utf-8"),
+            object_pairs_hook=pairs,
+            parse_constant=constant,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        report("FAIL", f"0.2.1 ActivityRecord 迁移严格 JSON 非法：{exc}")
+        return
+    manifest_keys = {
+        "schema_version", "migration_id", "target_kind", "baseline_commit",
+        "baseline_tree", "transform_version", "operation_count", "operations",
+    }
+    report_keys = {
+        "schema_version", "migration_id", "status", "target_kind", "baseline_commit",
+        "baseline_tree", "transform_version", "operation_manifest",
+        "current_verification", "content_policy",
+    }
+    if not isinstance(manifest, dict) or set(manifest) != manifest_keys:
+        report("FAIL", "0.2.1 ActivityRecord manifest 字段非法")
+        return
+    if not isinstance(activity_report, dict) or set(activity_report) != report_keys:
+        report("FAIL", "0.2.1 ActivityRecord report 字段非法")
+        return
+    expected_common = (
+        "T2AG-021-ACTIVITY-RECORDS-V1",
+        "main",
+        "4e72556f789fcb5943951657ee17247c0dd4eb12",
+        "7270b5fa7954fec12d2e5ff3f76ee388036dff1b",
+        "t2ag.activity-record-kind.v1",
+    )
+    if (
+        manifest.get("schema_version") != "T2AG-ACTIVITY-MIGRATION-OPERATIONS-1"
+        or activity_report.get("schema_version") != "T2AG-ACTIVITY-MIGRATION-REPORT-1"
+        or (
+            manifest.get("migration_id"), manifest.get("target_kind"),
+            manifest.get("baseline_commit"), manifest.get("baseline_tree"),
+            manifest.get("transform_version"),
+        ) != expected_common
+        or (
+            activity_report.get("migration_id"), activity_report.get("target_kind"),
+            activity_report.get("baseline_commit"), activity_report.get("baseline_tree"),
+            activity_report.get("transform_version"),
+        ) != expected_common
+        or activity_report.get("status") != "applied"
+    ):
+        report("FAIL", "0.2.1 ActivityRecord baseline/target/schema 绑定非法")
+    try:
+        tree = subprocess.run(
+            ["git", "show", "-s", "--format=%T", expected_common[2]],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        source = subprocess.run(
+            ["git", "show", f"{expected_common[2]}:{source_path}"],
+            cwd=ROOT,
+            capture_output=True,
+            check=True,
+        ).stdout
+        blob = subprocess.run(
+            ["git", "rev-parse", f"{expected_common[2]}:{source_path}"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError as exc:
+        report("FAIL", f"0.2.1 ActivityRecord baseline 无法现场解析：{exc}")
+        return
+    marker = b"type: activity_record\n"
+    old_path = source_path.encode("utf-8")
+    if source.count(marker) != 1 or source.count(old_path) != 1:
+        report("FAIL", "0.2.1 ActivityRecord baseline 不满足独立 transform oracle")
+        return
+    expected_post = source.replace(marker, marker + b"activity_kind: reading\n", 1).replace(
+        old_path,
+        target_path.encode("utf-8"),
+        1,
+    )
+    operations = manifest.get("operations")
+    if not isinstance(operations, list) or len(operations) != 1 or manifest.get("operation_count") != 1:
+        report("FAIL", "0.2.1 ActivityRecord 迁移操作数非法")
+        return
+    row = operations[0]
+    expected_row_keys = {
+        "sequence", "transform_id", "source", "target", "replacement_counts",
+        "outcome", "post_target",
+    }
+    if not isinstance(row, dict) or set(row) != expected_row_keys:
+        report("FAIL", "0.2.1 ActivityRecord 操作字段非法")
+        return
+    source_evidence = row.get("source")
+    target_evidence = row.get("post_target")
+    if not isinstance(source_evidence, dict) or set(source_evidence) != {"path", "blob", "bytes", "sha256"}:
+        report("FAIL", "0.2.1 ActivityRecord source 证据字段非法")
+        return
+    if not isinstance(target_evidence, dict) or set(target_evidence) != {"path", "bytes", "sha256"}:
+        report("FAIL", "0.2.1 ActivityRecord target 证据字段非法")
+        return
+    if (
+        tree != expected_common[3]
+        or blob != "79eeee83bc28be3e3f315e4458b8b9e23b0163eb"
+        or len(source) != 951
+        or hashlib.sha256(source).hexdigest() != "86cda835dac82d8ad235e01205e25aef5bcaea4e701b62f7db06f6e4842ec9b0"
+        or len(expected_post) != 982
+        or hashlib.sha256(expected_post).hexdigest() != "75c6b766df611312d84e8fa6f56d1f47237e5fcafaf08e01e045f273c4687ddb"
+        or row.get("sequence") != 1
+        or row.get("transform_id") != "activity-record-reading-kind-v1"
+        or source_evidence != {"path": source_path, "blob": blob, "bytes": len(source), "sha256": hashlib.sha256(source).hexdigest()}
+        or row.get("target") != target_path
+        or row.get("replacement_counts") != {"activity_kind_insert": 1, "self_path": 1}
+        or row.get("outcome") != "applied"
+        or target_evidence != {"path": target_path, "bytes": len(expected_post), "sha256": hashlib.sha256(expected_post).hexdigest()}
+    ):
+        report("FAIL", "0.2.1 ActivityRecord 证据与独立 oracle 不一致")
+    summary = activity_report.get("operation_manifest")
+    verification = activity_report.get("current_verification")
+    if (
+        not isinstance(summary, dict)
+        or set(summary) != {"path", "operation_count", "sha256"}
+        or summary.get("path") != "main/60_journal/migration_021_activity_record_operations.json"
+        or summary.get("operation_count") != 1
+        or summary.get("sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        or verification != {"source_absent": True, "target_present": True}
+    ):
+        report("FAIL", "0.2.1 ActivityRecord report 未绑定 manifest/live 结构")
+    if (ROOT / source_path).exists() or not (ROOT / target_path).is_file():
+        report("FAIL", "0.2.1 ActivityRecord canonical/legacy 路径状态非法")
+
+
+def check_reading_bridge_contract() -> None:
+    contract_relative = Path("main/70_tools/contracts/reading_bridge_v1")
+    expected = {
+        "__init__.py",
+        "validator.py",
+        "t2ag.reading_context.v1.schema.json",
+        "reading.t2ag_contribution.v1.schema.json",
+        "reading.t2ag_receipt.v1.schema.json",
+        "reading.t2ag_context_store.v1.schema.json",
+        "t2ag.reading_context_source.v1.schema.json",
+        "t2ag.reading_contribution_ledger.v1.schema.json",
+    }
+    local = ROOT / contract_relative
+    present = {path.name for path in local.iterdir() if path.is_file()} if local.is_dir() else set()
+    if present != expected:
+        report("FAIL", f"reading bridge V1 合同文件集合非法：missing={sorted(expected - present)} extra={sorted(present - expected)}")
+        return
+    for schema_path in sorted(local.glob("*.schema.json")):
+        try:
+            schema = load_json_strict(schema_path)
+            if not isinstance(schema, dict):
+                raise ContractError("schema must be an object")
+            validate_document({}, schema)
+        except ContractError as exc:
+            # A valid contract rejects the empty object for missing required
+            # fields; unsupported keywords and malformed schema are distinct.
+            if "missing fields" not in str(exc):
+                report("FAIL", f"reading bridge schema/validator 非法：{rel(schema_path)} -> {exc}")
+        except OSError as exc:
+            report("FAIL", f"reading bridge schema 无法读取：{rel(schema_path)} -> {exc}")
+    tool = MAIN / "70_tools/t2ag_reading_bridge.py"
+    test = MAIN / "70_tools/test_021_closeout.py"
+    saga_test = MAIN / "70_tools/test_021_saga.py"
+    migration = MAIN / "70_tools/migrate_021_activity_records.py"
+    if not tool.is_file() or not test.is_file() or not saga_test.is_file() or not migration.is_file():
+        report("FAIL", "reading bridge 工具/测试/saga/ActivityRecord migrator 不完整")
+    elif "subprocess" in read(tool) or "辅助阅读系统" in read(tool):
+        report("FAIL", "T2AG reading bridge 工具不得 spawn 或绑定辅助阅读系统")
+    release_roots = {
+        name: ROOT.parent / name
+        for name in ("t2ag", "t2ag-skeleton", "t2ag-lite")
+        if (ROOT.parent / name).is_dir()
+    }
+    if len(release_roots) != 3:
+        return
+    names = sorted(expected) + [
+        "../../t2ag_reading_bridge.py",
+        "../../test_021_closeout.py",
+        "../../test_021_saga.py",
+        "../../migrate_021_activity_records.py",
+        "../../migration_txn_021.py",
+    ]
+    manifests: dict[str, tuple[str, ...]] = {}
+    for release_name, release_root in release_roots.items():
+        values: list[str] = []
+        missing: list[str] = []
+        for name in names:
+            path = release_root / contract_relative / name
+            if not path.is_file():
+                missing.append((contract_relative / name).as_posix())
+            else:
+                values.append(hashlib.sha256(path.read_bytes()).hexdigest())
+        if missing:
+            report("FAIL", f"reading bridge 发行能力不完整：{release_name} -> {missing}")
+        else:
+            manifests[release_name] = tuple(values)
+    if len(manifests) == 3 and len(set(manifests.values())) != 1:
+        report("FAIL", "reading bridge schema/validator/tool/test 在三发行分叉")
 
 
 def check_core_playbooks() -> None:
@@ -2639,6 +3251,8 @@ def main() -> int:
     check_derived_tools()
     check_migration_evidence()
     check_migration_021_evidence()
+    check_activity_migration_021_evidence()
+    check_reading_bridge_contract()
     check_course_activity_templates()
     check_core_playbooks()
     check_context_packet_contract()

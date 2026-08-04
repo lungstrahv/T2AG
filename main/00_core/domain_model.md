@@ -101,7 +101,8 @@ Group 是容量组合，不是课程生命周期：
 ActivityRecord 保存低治理、可暂停、尚未升级为正式课程的活动：
 
 - ID：`AR-NNNN`
-- 路径：`10_student/activities/AR-NNNN_Title.md`
+- 路径：`10_student/activities/<activity_kind>/AR-NNNN_Title.md`
+- `activity_kind` 由受控 registry 决定；0.2.1 初始只登记 `reading`
 - 不拥有课程进度；升级后只保存指向 Course 的链接和历史记录。
 
 ## 6. Engagement

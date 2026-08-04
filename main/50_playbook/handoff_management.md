@@ -328,6 +328,21 @@ doctor 只负责行数、字符数、字段和索引等机械检查；四问答�
 - Git 状态、测试结果和文件内容以实际检查为准，不以交接中的“已完成”措辞为准。
 - 交接引用的版本、路径或接口失效时，标记风险并重新核对，不静默沿用。
 
+### 9.4 Version campaign 场景
+
+campaign handoff 只记录本次执行的恢复事实与路由，可以保存 `campaign_id`、authorization
+envelope 的正式来源指针、冻结 baseline、当前单元、evidence/recovery checkpoint、保留的
+RT3 门、授权失效事实和下一动作。它不得：
+
+- 复制或扩张永久治理规则；通用规则只写 `batch_workorder_spec.md`、`git_workflow.md` 与
+  `remediation_governance.md`；
+- 把 handoff 中的“已授权”当作新授权，或替代用户原始批准与实际 Git/文件状态；
+- 用新的摘要把 envelope 未列路径、未知仓、风险升级或 RT3 追加进 campaign；
+- 把 recovery checkpoint 写成 release snapshot，或把 clean 写成 reviewed/released。
+
+接管者必须回读正式 workorder、authorization envelope 和实际仓库状态。任一不一致按第九节
+停止并修复；handoff 只能说明“上次执行到哪里”，不能让已失效的连续授权复活。
+
 ---
 
 ## 十、关闭、替代与归档
@@ -378,6 +393,8 @@ doctor 只负责行数、字符数、字段和索引等机械检查；四问答�
 - 项目总交接用于架构、发行、维护和实现状态，不覆盖课程进度。
 - 专题交接保存跨多个长对话的概念演化、决策理由和未决问题，只在相关专题任务中读取。
 - 同一讨论若已经形成正式 playbook，交接保留形成过程和理由，规则正文只引用 playbook。
+- version campaign 交接只记录该 campaign 的基线、checkpoint、保留门和停点；不得成为跨版本
+  的永久授权或审查规则源。
 
 ---
 

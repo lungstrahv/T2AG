@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:t2ag:schema:t2ag.reading_context_source.v1",
+  "title": "T2AG human-confirmed reading context source V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "activity_record_id", "target_reading_uri", "course_id", "confirmed_by", "confirmed_at", "reading_intents", "questions_or_observation_cues"],
+  "properties": {
+    "schema": {"type": "string", "const": "t2ag.reading_context_source.v1"},
+    "activity_record_id": {"type": "string", "pattern": "AR-[0-9]{4}"},
+    "target_reading_uri": {"type": ["string", "null"], "pattern": "reading://book/[A-Z][A-Z0-9_-]{0,31}"},
+    "course_id": {"type": ["string", "null"], "pattern": "[A-Z][A-Z0-9_-]{1,63}"},
+    "confirmed_by": {"type": "string", "enum": ["student"]},
+    "confirmed_at": {"type": "string", "format": "date-time"},
+    "reading_intents": {
+      "type": "array", "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source_id", "source_path", "text"],
+        "properties": {
+          "source_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{1,128}"},
+          "source_path": {"type": "string", "format": "posix-relative-path", "maxLength": 512},
+          "text": {"type": "string", "minLength": 1, "maxLength": 500}
+        }
+      }
+    },
+    "questions_or_observation_cues": {
+      "type": "array", "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source_id", "source_path", "text"],
+        "properties": {
+          "source_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{1,128}"},
+          "source_path": {"type": "string", "format": "posix-relative-path", "maxLength": 512},
+          "text": {"type": "string", "minLength": 1, "maxLength": 500}
+        }
+      }
+    }
+  }
+}

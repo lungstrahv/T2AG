@@ -5,6 +5,45 @@
 
 ---
 
+## [2026-08-04] 0.2.1 ActivityRecord 分类与阅读桥接收口候选
+
+- 将 Main `AR-0001` 实体迁移至 `activities/reading/`，保留旧扁平路径 redirect；Skeleton 只含
+  reading 空容器。Doctor 现在拒绝根目录遗留、未知 kind、过深嵌套、跨 kind 重号和 orphan sidecar。
+- 新增 profile migration V2 correction evidence，以钉死 Git blob/tree 和独立 oracle 纠正 V1
+  可重放与证据绑定缺口；V1 保留并由 `supersedes` 显式指向，不覆盖历史。
+- profile 与 ActivityRecord migrator 共用仓外 durable journal、backup、同目录原子安装、显式
+  recover 和故障回滚协议；重复 apply 为零操作。
+- Attempt `created` 改为真实 ISO 日期解析；2026-08-01 起 gate/assistance 字段必须成对且合法，
+  既有历史 Attempt 不回写、不伪造。
+- 冻结六份 Draft 2020-12 bridge schema 和标准库 fail-closed validator；Main/Skeleton/阅读系统
+  三个原件仓逐字节一致，不引入第三方依赖。
+- T2AG 增加 context export、candidate contribution import 和 durable receipt outbox；阅读端增加
+  owner export、context import 与 note receipt。双方各写各仓，候选不自动晋升为课程或 mastery。
+- Lite 再生保留 rollback 到最终 source/projection/guide 复验完成，末段失败恢复旧 Lite 并核对
+  精确字节清单。`--force` 仍只作诊断，不产生发布资格。
+- 本条登记 implementation candidate；完整独立复审、finalization delta 和最终本地快照通过前，
+  仍不得把收口状态写成 released。
+
+---
+
+## [2026-08-04] 0.2.1 version campaign 与 delta re-review 治理
+
+- 保留 `independent_batch` 为默认模式；新增显式 `version_campaign`。只有用户批准冻结、列举、
+  会失效的 authorization envelope，才可连续覆盖其中列明的 RT1/RT2 单元与有限本地 checkpoint。
+- 施工单新增独立 `risk_tier`、campaign envelope 必填字段、授权停止/失效条件和单版本合并报告
+  的 delta manifest；上一单元完成对应 evidence/recovery checkpoint 后即可继续，不再机械要求
+  每批 commit。
+- Git 规则固定 `clean ≠ reviewed ≠ released`，区分 evidence、recovery 与 release snapshot；
+  有界 finalization 采用 operator stage → 独立 reviewer 预审 expected tree → commit 同一 tree →
+  reviewer 后验核对及不可变外部报告。
+- 首次版本候选仍须完整独立复审；finding delta 只有输入 manifest 未变且影响闭包可证明时才可
+  局部复审，并必须重跑 Doctor/state/migration/journal/同源/Lite/最终源指纹等全局门。
+- 为 0.2.2 Activity Close 新增 campaign amendment：A–D 与条件性 G 不再逐批索权；真实 migration
+  apply 与 `exercise01` terminal close 保留为两个分别展示正文后决定的 RT3 门。本次只换代治理，
+  没有实施 0.2.2，当前运行版本仍为 0.2.1。
+
+---
+
 ## [2026-08-04] 交接体积老化行数门槛调整
 
 - `check_1 / check_2 / old` 的行数门槛由 `400 / 800 / 1,200` 调整为

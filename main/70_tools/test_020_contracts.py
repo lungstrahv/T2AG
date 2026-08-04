@@ -2287,6 +2287,16 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
     fixture_name = "t2ag-lite" if source.name == "t2ag-lite" else "release-under-test"
     fixture = root / fixture_name
     copy_release_without_links(source, fixture)
+    if (source / ".git/objects").is_dir():
+        subprocess.run(
+            ["git", "init", "--quiet", str(fixture)],
+            check=True,
+            capture_output=True,
+        )
+        write(
+            fixture / ".git/objects/info/alternates",
+            str((source / ".git/objects").resolve()) + "\n",
+        )
 
     def detached_write(path: Path, content: str) -> None:
         temporary = path.with_name(path.name + ".e2e-tmp")
@@ -2776,7 +2786,7 @@ def test_profile_migration_manifest_tamper(root: Path) -> None:
         '"operation_count":4,"sha256":"' + "0" * 64 + '"}}\n',
     )
     run_silently(doctor.check_migration_021_evidence)
-    assert_message(doctor.fails, "manifest SHA 漂移")
+    assert_message(doctor.fails, "V1/V2 迁移操作清单或报告")
 
 
 def test_profile_migration_roundtrip(root: Path) -> None:

@@ -37,7 +37,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -387,6 +389,79 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def source_projection_manifest(src: Path) -> dict[str, tuple[int, int, str]]:
+    """Exact stable manifest of files eligible for the Lite projection."""
+    result: dict[str, tuple[int, int, str]] = {}
+    for label, source, _target in projection_manifest(src, src):
+        info = source.stat()
+        result[label] = (
+            stat.S_IMODE(info.st_mode),
+            info.st_size,
+            sha256_file(source),
+        )
+    return result
+
+
+def lite_content_manifest(dst: Path) -> dict[str, tuple[int, int, str]]:
+    result: dict[str, tuple[int, int, str]] = {}
+    if not dst.exists():
+        return result
+    for path in sorted(dst.rglob("*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(dst)
+        if relative.parts and relative.parts[0] in PRESERVE_DST_TOP:
+            continue
+        info = path.stat()
+        result[relative.as_posix()] = (
+            stat.S_IMODE(info.st_mode),
+            info.st_size,
+            sha256_file(path),
+        )
+    return result
+
+
+def is_reparse(path: Path) -> bool:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    return stat.S_ISLNK(info.st_mode) or bool(
+        getattr(info, "st_file_attributes", 0)
+        & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+
+
+def validate_destination(workspace: Path, src: Path, dst: Path) -> None:
+    workspace = workspace.resolve()
+    expected = workspace / "t2ag-lite"
+    if dst.absolute() != expected or dst.name != "t2ag-lite":
+        raise RuntimeError(f"destination must be exact workspace t2ag-lite: {dst}")
+    if is_reparse(workspace) or is_reparse(src) or is_reparse(dst):
+        raise RuntimeError("workspace/Main/Lite symlink or reparse point refused")
+    if dst.exists() and src.resolve() == dst.resolve():
+        raise RuntimeError("Main and Lite resolve to the same directory")
+
+
+def require_distinct_file_ids(*paths: Path) -> None:
+    existing = [path for path in paths if path.exists()]
+    for index, left in enumerate(existing):
+        for right in existing[index + 1:]:
+            try:
+                same = os.path.samefile(left, right)
+            except OSError:
+                same = False
+            if same:
+                raise RuntimeError(
+                    f"temporary/candidate/rollback aliases protected tree: {left} == {right}"
+                )
+
+
+def inject_failure(point: str) -> None:
+    if os.environ.get("T2AG_SYNC_LITE_FAIL_AT") == point:
+        raise RuntimeError(f"injected failure at {point}")
+
+
 def verify_projection(
     src: Path,
     dst: Path,
@@ -555,50 +630,78 @@ def build_candidate(
     return total_copied, total_skipped, projected
 
 
-def install_candidate(candidate: Path, dst: Path) -> int:
+def restore_previous_lite(
+    dst: Path,
+    rollback: Path,
+    installed: list[Path],
+    moved_old: list[Path],
+) -> None:
+    errors: list[str] = []
+    for index, target in enumerate(reversed(installed), start=1):
+        try:
+            if target.is_dir():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
+            inject_failure(f"rollback_remove:{index}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"remove {target.name}: {exc}")
+    for index, old in enumerate(moved_old, start=1):
+        try:
+            if old.exists():
+                shutil.move(str(old), str(dst / old.name))
+            inject_failure(f"rollback_restore:{index}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"restore {old.name}: {exc}")
+    if errors:
+        residue = sorted(
+            path.relative_to(dst.parent).as_posix()
+            for root in (dst, rollback)
+            if root.exists()
+            for path in root.rglob("*")
+            if path.is_file()
+        )
+        raise RuntimeError(
+            f"Lite rollback failed: {'; '.join(errors)}; exact residue={residue}"
+        )
+
+
+def install_candidate(
+    candidate: Path,
+    dst: Path,
+    rollback: Path,
+) -> tuple[list[Path], list[Path]]:
     if dst.name != "t2ag-lite":
         raise RuntimeError(f"destination must be named t2ag-lite, got {dst}")
-    rollback = candidate / ".rollback"
-    rollback.mkdir()
+    rollback.mkdir(parents=False, exist_ok=False)
     moved_old: list[Path] = []
     installed: list[Path] = []
     dst.mkdir(parents=True, exist_ok=True)
     try:
-        for child in list(dst.iterdir()):
+        for index, child in enumerate(list(dst.iterdir()), start=1):
             if child.name in PRESERVE_DST_TOP:
                 print(f"preserve destination-local: {child.name}")
                 continue
-            shutil.move(str(child), str(rollback / child.name))
-            moved_old.append(rollback / child.name)
-        for child in list(candidate.iterdir()):
-            if child == rollback:
-                continue
+            target = rollback / child.name
+            shutil.move(str(child), str(target))
+            moved_old.append(target)
+            inject_failure(f"move_old:{index}")
+        for index, child in enumerate(list(candidate.iterdir()), start=1):
             target = dst / child.name
             shutil.move(str(child), str(target))
             installed.append(target)
+            inject_failure(f"install_new:{index}")
     except Exception as install_error:
-        rollback_errors: list[str] = []
-        for target in reversed(installed):
-            try:
-                if target.is_dir():
-                    shutil.rmtree(target)
-                elif target.exists():
-                    target.unlink()
-            except Exception as exc:  # noqa: BLE001
-                rollback_errors.append(f"remove {target.name}: {exc}")
-        for old in moved_old:
-            try:
-                if old.exists():
-                    shutil.move(str(old), str(dst / old.name))
-            except Exception as exc:  # noqa: BLE001
-                rollback_errors.append(f"restore {old.name}: {exc}")
-        detail = (
-            f"; rollback errors: {'; '.join(rollback_errors)}"
-            if rollback_errors else "; previous Lite restored"
-        )
-        raise RuntimeError(f"Lite install failed: {install_error}{detail}") from install_error
-    shutil.rmtree(rollback)
-    return len(moved_old)
+        try:
+            restore_previous_lite(dst, rollback, installed, moved_old)
+        except Exception as rollback_error:
+            raise RuntimeError(
+                f"Lite install failed: {install_error}; {rollback_error}"
+            ) from install_error
+        raise RuntimeError(
+            f"Lite install failed: {install_error}; previous Lite restored"
+        ) from install_error
+    return moved_old, installed
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -638,6 +741,11 @@ def main(argv: list[str] | None = None) -> int:
     if not src.is_dir():
         print(f"ERROR: main missing: {src}", file=sys.stderr)
         return 1
+    try:
+        validate_destination(workspace, src, dst)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     print("plan=A full-regenerate")
     print(f"src={src}")
@@ -653,11 +761,18 @@ def main(argv: list[str] | None = None) -> int:
     if dry_run:
         return check_current_projection(src, dst)
 
+    source_before_build = source_projection_manifest(src)
+    old_lite_manifest: dict[str, tuple[int, int, str]] | None = None
+    installed_state: tuple[list[Path], list[Path], Path] | None = None
     try:
         with tempfile.TemporaryDirectory(
             prefix=".t2ag-lite-build-", dir=workspace
         ) as temporary:
-            candidate = Path(temporary)
+            temporary_root = Path(temporary)
+            candidate = temporary_root / "candidate"
+            rollback = temporary_root / "rollback"
+            candidate.mkdir()
+            require_distinct_file_ids(temporary_root, candidate, src, dst)
             total_copied, total_skipped, projected = build_candidate(
                 src, candidate
             )
@@ -667,22 +782,49 @@ def main(argv: list[str] | None = None) -> int:
             if bad:
                 print("FAIL: candidate rejected; existing Lite untouched", file=sys.stderr)
                 return 3
-            removed = install_candidate(candidate, dst)
-            print(f"installed_after_removing_top_level_entries={removed}")
+            source_after_candidate = source_projection_manifest(src)
+            if source_after_candidate != source_before_build:
+                raise RuntimeError("Main projection source changed after candidate verification")
+            old_lite_manifest = lite_content_manifest(dst)
+            moved_old, installed = install_candidate(candidate, dst, rollback)
+            installed_state = (moved_old, installed, rollback)
+            require_distinct_file_ids(temporary_root, candidate, rollback, src, dst)
+            print(f"installed_after_removing_top_level_entries={len(moved_old)}")
+            source_after_install = source_projection_manifest(src)
+            if source_after_install != source_before_build:
+                raise RuntimeError("Main projection source changed after Lite installation")
+            inject_failure("final_verify")
+            final_projected = projection_manifest(src, dst)
+            if verify_projection(src, dst, final_projected):
+                raise RuntimeError("final projection hash verification failed")
+            if check_current_projection(src, dst):
+                raise RuntimeError("final Lite projection/guide verification failed")
+            source_before_return = source_projection_manifest(src)
+            if source_before_return != source_before_build:
+                raise RuntimeError("Main projection source changed before final return")
+            inject_failure("final_return")
+            shutil.rmtree(rollback)
+            installed_state = None
     except Exception as exc:  # noqa: BLE001
+        rollback_detail = ""
+        if installed_state is not None:
+            moved_old, installed, rollback = installed_state
+            try:
+                restore_previous_lite(dst, rollback, installed, moved_old)
+                if old_lite_manifest is None or lite_content_manifest(dst) != old_lite_manifest:
+                    raise RuntimeError("restored Lite byte manifest differs from pre-install state")
+                rollback_detail = "; previous Lite restored and byte manifest verified"
+            except Exception as rollback_error:  # noqa: BLE001
+                rollback_detail = f"; ROLLBACK FAIL: {rollback_error}"
+        elif old_lite_manifest is not None and lite_content_manifest(dst) != old_lite_manifest:
+            rollback_detail = "; ROLLBACK FAIL: install-time recovery did not restore exact Lite manifest"
         print(
-            f"FAIL: candidate build/install failed; candidate verification "
-            f"preceded installation and install rollback was attempted: {exc}",
+            f"FAIL: candidate build/install/final verification failed: {exc}{rollback_detail}",
             file=sys.stderr,
         )
         return 4
 
     final_projected = projection_manifest(src, dst)
-    bad = verify_projection(src, dst, final_projected)
-    if bad:
-        return 3
-    if check_current_projection(src, dst):
-        return 3
 
     # snail: confirm allowlist hit (copied via main/ tree)
     snail_label = "main/80_interface/fable_snail.png"

@@ -119,7 +119,8 @@
 
 ### 2.2 Attempt 快照与帮助暴露
 
-2026-08-01 起创建的 Attempt frontmatter 必须增加：
+Attempt 的 `created` 必须是可解析、补零且真实存在的 ISO `YYYY-MM-DD` 日期；时间戳、任意文本、
+非补零日期和不存在日期均非法。2026-08-01 起创建的 Attempt frontmatter 还必须增加：
 
 ```yaml
 hint_gate: enabled | disabled
@@ -133,7 +134,8 @@ assistance_level: none | direction | reference | solution
 - 每次方向/资料/完整讲解记录学生授权原话；没有明确授权不得根据“学生似乎卡住”升级。
 - 未经授权泄露关键步骤、结构或答案时，记录 `teacher_hint_contamination`，相关内容不得
   计作学生独立掌握，也不得写成学生错误。
-- 旧 Attempt 不反向伪造 gate 快照；Doctor 只对 2026-08-01 起的新 Attempt 强制字段。
+- 早于 2026-08-01 的合法历史 Attempt 不反向伪造 gate 快照；两字段若出现必须成对且使用合法
+  枚举。Doctor 只对 2026-08-01 起的新 Attempt 强制字段。
 
 ## 三、Attempt schema
 
@@ -286,7 +288,8 @@ updated: 2026-07-26
 - 拒绝 Lesson/Exercise 互相持有所有权，以及退役 `sessions/ExerciseSession` 结构。
 - image/mixed Attempt 缺原图为 FAIL。
 - Attempt 引用未知题目、Review 引用未知 Attempt 或题目越界均为 FAIL。
-- 2026-08-01 起的新 Attempt 缺 `hint_gate / assistance_level`、枚举非法或模板未携带该
-  schema 均为 FAIL；旧 Attempt 不反向伪造字段。
+- Attempt `created` 不是实际 ISO 日期，以及 2026-08-01 起的新 Attempt 缺
+  `hint_gate / assistance_level`、字段半缺失、枚举非法或模板未携带该 schema 均为 FAIL；
+  合法历史 Attempt 不反向伪造字段。
 - Review 缺逐题结果或结果枚举非法为 FAIL。
 - Skeleton 只携带本 schema，不携带真实 AT/RV 实例。
