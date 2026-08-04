@@ -38,6 +38,22 @@ REPO = TOOLS.parents[1]
 CONTRACTS = TOOLS / "contracts/reading_bridge_v1"
 
 
+def baseline_git_repo(commit: str) -> Path:
+    """Resolve a frozen baseline from the current original or Lite's sibling Main."""
+    candidates = (REPO, REPO.parent / "t2ag", REPO.parent / "t2ag-skeleton")
+    for candidate in candidates:
+        if not (candidate / ".git").exists():
+            continue
+        result = subprocess.run(
+            ["git", "-C", str(candidate), "cat-file", "-e", f"{commit}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return candidate
+    raise AssertionError(f"frozen baseline commit is not locally resolvable: {commit}")
+
+
 def write(path: Path, content: str | bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(content, bytes):
@@ -454,7 +470,9 @@ class MigrationTransactionTests(unittest.TestCase):
         target_kind = "skeleton" if REPO.name == "t2ag-skeleton" else "main"
         commit = migrate_021.BASELINES[target_kind]["commit"]
         for source, target in migrate_021.MOVES:
-            raw = subprocess.check_output(["git", "show", f"{commit}:{source}"], cwd=REPO)
+            raw = subprocess.check_output(
+                ["git", "show", f"{commit}:{source}"], cwd=baseline_git_repo(commit)
+            )
             transformed, counts, transform_id = migrate_021.apply_allowed_path_repairs(source, target, target_kind, raw)
             golden = migrate_021.GOLDEN[target_kind][source]
             self.assertEqual((len(raw), hashlib.sha256(raw).hexdigest(), len(transformed), hashlib.sha256(transformed).hexdigest()), golden)
@@ -473,7 +491,10 @@ class MigrationTransactionTests(unittest.TestCase):
             self.assertEqual(transformed.count(activity_migration.TARGET.encode("utf-8")), 1)
             self.assertNotIn(activity_migration.SOURCE.encode("utf-8"), transformed)
             return
-        raw = subprocess.check_output(["git", "show", f"{activity_migration.BASELINE_COMMIT}:{activity_migration.SOURCE}"], cwd=REPO)
+        raw = subprocess.check_output(
+            ["git", "show", f"{activity_migration.BASELINE_COMMIT}:{activity_migration.SOURCE}"],
+            cwd=baseline_git_repo(activity_migration.BASELINE_COMMIT),
+        )
         transformed = activity_migration.transform_activity_record(raw)
         self.assertEqual((len(raw), hashlib.sha256(raw).hexdigest()), (951, activity_migration.SOURCE_SHA256))
         self.assertEqual((len(transformed), hashlib.sha256(transformed).hexdigest()), (982, activity_migration.TARGET_SHA256))
