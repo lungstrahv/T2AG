@@ -764,47 +764,49 @@ def main(argv: list[str] | None = None) -> int:
     source_before_build = source_projection_manifest(src)
     old_lite_manifest: dict[str, tuple[int, int, str]] | None = None
     installed_state: tuple[list[Path], list[Path], Path] | None = None
+    # Use mkdtemp + finally so post-install recovery still sees rollback.
+    # TemporaryDirectory would delete rollback before the outer except could restore.
+    temporary_root: Path | None = None
     try:
-        with tempfile.TemporaryDirectory(
-            prefix=".t2ag-lite-build-", dir=workspace
-        ) as temporary:
-            temporary_root = Path(temporary)
-            candidate = temporary_root / "candidate"
-            rollback = temporary_root / "rollback"
-            candidate.mkdir()
-            require_distinct_file_ids(temporary_root, candidate, src, dst)
-            total_copied, total_skipped, projected = build_candidate(
-                src, candidate
-            )
-            print(f"candidate={candidate}")
-            print(f"TOTAL copied={total_copied} skipped={total_skipped}")
-            bad = verify_projection(src, candidate, projected)
-            if bad:
-                print("FAIL: candidate rejected; existing Lite untouched", file=sys.stderr)
-                return 3
-            source_after_candidate = source_projection_manifest(src)
-            if source_after_candidate != source_before_build:
-                raise RuntimeError("Main projection source changed after candidate verification")
-            old_lite_manifest = lite_content_manifest(dst)
-            moved_old, installed = install_candidate(candidate, dst, rollback)
-            installed_state = (moved_old, installed, rollback)
-            require_distinct_file_ids(temporary_root, candidate, rollback, src, dst)
-            print(f"installed_after_removing_top_level_entries={len(moved_old)}")
-            source_after_install = source_projection_manifest(src)
-            if source_after_install != source_before_build:
-                raise RuntimeError("Main projection source changed after Lite installation")
-            inject_failure("final_verify")
-            final_projected = projection_manifest(src, dst)
-            if verify_projection(src, dst, final_projected):
-                raise RuntimeError("final projection hash verification failed")
-            if check_current_projection(src, dst):
-                raise RuntimeError("final Lite projection/guide verification failed")
-            source_before_return = source_projection_manifest(src)
-            if source_before_return != source_before_build:
-                raise RuntimeError("Main projection source changed before final return")
-            inject_failure("final_return")
-            shutil.rmtree(rollback)
-            installed_state = None
+        temporary_root = Path(
+            tempfile.mkdtemp(prefix=".t2ag-lite-build-", dir=str(workspace))
+        )
+        candidate = temporary_root / "candidate"
+        rollback = temporary_root / "rollback"
+        candidate.mkdir()
+        require_distinct_file_ids(temporary_root, candidate, src, dst)
+        total_copied, total_skipped, projected = build_candidate(
+            src, candidate
+        )
+        print(f"candidate={candidate}")
+        print(f"TOTAL copied={total_copied} skipped={total_skipped}")
+        bad = verify_projection(src, candidate, projected)
+        if bad:
+            print("FAIL: candidate rejected; existing Lite untouched", file=sys.stderr)
+            return 3
+        source_after_candidate = source_projection_manifest(src)
+        if source_after_candidate != source_before_build:
+            raise RuntimeError("Main projection source changed after candidate verification")
+        old_lite_manifest = lite_content_manifest(dst)
+        moved_old, installed = install_candidate(candidate, dst, rollback)
+        installed_state = (moved_old, installed, rollback)
+        require_distinct_file_ids(temporary_root, candidate, rollback, src, dst)
+        print(f"installed_after_removing_top_level_entries={len(moved_old)}")
+        source_after_install = source_projection_manifest(src)
+        if source_after_install != source_before_build:
+            raise RuntimeError("Main projection source changed after Lite installation")
+        inject_failure("final_verify")
+        final_projected = projection_manifest(src, dst)
+        if verify_projection(src, dst, final_projected):
+            raise RuntimeError("final projection hash verification failed")
+        if check_current_projection(src, dst):
+            raise RuntimeError("final Lite projection/guide verification failed")
+        source_before_return = source_projection_manifest(src)
+        if source_before_return != source_before_build:
+            raise RuntimeError("Main projection source changed before final return")
+        inject_failure("final_return")
+        shutil.rmtree(rollback)
+        installed_state = None
     except Exception as exc:  # noqa: BLE001
         rollback_detail = ""
         if installed_state is not None:
@@ -823,6 +825,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 4
+    finally:
+        if temporary_root is not None and temporary_root.exists():
+            shutil.rmtree(temporary_root, ignore_errors=True)
 
     final_projected = projection_manifest(src, dst)
 

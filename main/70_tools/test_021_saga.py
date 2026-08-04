@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -865,12 +866,50 @@ def run_saga(
     }
 
 
+def emit_text(path: Path | None, text: str, *, stream) -> None:
+    """Print with flush and optionally mirror to a durable report file first."""
+    if path is not None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
+    print(text, file=stream, flush=True)
+    try:
+        stream.flush()
+    except Exception:  # noqa: BLE001
+        pass
+    if hasattr(stream, "reconfigure"):
+        # Best-effort line buffering for reviewers capturing redirected stdio.
+        try:
+            stream.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def safe_rmtree(path: Path) -> None:
+    """Best-effort cleanup; never block report emission on Windows file locks."""
+    try:
+        shutil.rmtree(path, ignore_errors=True)
+    except Exception:  # noqa: BLE001
+        pass
+    if path.exists():
+        # Second pass after brief yield for antivirus / deferred closes.
+        try:
+            time.sleep(0.05)
+        except Exception:  # noqa: BLE001
+            pass
+        shutil.rmtree(path, ignore_errors=True)
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--reading-script", required=True)
     result.add_argument("--temp-root", required=True)
     result.add_argument("--t2ag-script", default=str(DEFAULT_T2AG_SCRIPT))
     result.add_argument("--contracts", default=str(DEFAULT_CONTRACTS))
+    result.add_argument(
+        "--report-file",
+        default=None,
+        help="Write the final JSON (or FAIL text) before fixture cleanup",
+    )
     result.add_argument("--keep", action="store_true")
     return result
 
@@ -881,28 +920,46 @@ def main() -> int:
     t2ag_script = Path(args.t2ag_script).resolve()
     reading_script = Path(args.reading_script).resolve()
     contracts = Path(args.contracts).resolve()
+    report_file = Path(args.report_file).resolve() if args.report_file else None
     if not temp_root.is_dir():
-        print(f"[FAIL] temp root does not exist: {temp_root}", file=sys.stderr)
+        emit_text(
+            report_file,
+            f"[FAIL] temp root does not exist: {temp_root}",
+            stream=sys.stderr,
+        )
         return 2
     if not t2ag_script.is_file() or not reading_script.is_file() or not contracts.is_dir():
-        print("[FAIL] script or contract source is missing", file=sys.stderr)
+        emit_text(
+            report_file,
+            "[FAIL] script or contract source is missing",
+            stream=sys.stderr,
+        )
         return 2
-    fixture = Path(tempfile.mkdtemp(prefix="t2ag-021-loop-", dir=temp_root))
+    fixture = Path(tempfile.mkdtemp(prefix="t2ag-021-loop-", dir=str(temp_root)))
+    exit_code = 1
     try:
         report = run_saga(fixture, t2ag_script, reading_script, contracts)
         report["fixture_root"] = str(fixture)
         report["kept"] = bool(args.keep)
-        print(canonical_bytes(report).decode("utf-8"))
-        return 0
+        payload = canonical_bytes(report).decode("utf-8")
+        # Emit durable JSON before cleanup so hung rmtree cannot hide evidence.
+        emit_text(report_file, payload, stream=sys.stdout)
+        exit_code = 0
     except (SagaError, OSError, ValueError, json.JSONDecodeError) as error:
-        print(f"[FAIL] {error}", file=sys.stderr)
-        return 1
+        emit_text(report_file, f"[FAIL] {error}", stream=sys.stderr)
+        exit_code = 1
     finally:
         if not args.keep:
             resolved = fixture.resolve()
             if resolved.parent != temp_root:
-                raise SagaError(f"refusing to clean unexpected fixture path: {resolved}")
-            shutil.rmtree(resolved)
+                emit_text(
+                    None,
+                    f"[FAIL] refusing to clean unexpected fixture path: {resolved}",
+                    stream=sys.stderr,
+                )
+            else:
+                safe_rmtree(resolved)
+    return exit_code
 
 
 if __name__ == "__main__":

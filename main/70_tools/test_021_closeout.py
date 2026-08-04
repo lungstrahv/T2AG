@@ -539,6 +539,157 @@ class LiteTransactionTests(unittest.TestCase):
         self.assertEqual(sync_lite.lite_content_manifest(self.dst), old)
 
 
+class LiteMainTransactionTests(unittest.TestCase):
+    """main() path regressions for post-install fault recovery (V-021-001)."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory(prefix="t2ag-021-lite-main-")
+        self.workspace = Path(self.temporary.name)
+        self.src = self.workspace / "t2ag"
+        self.dst = self.workspace / "t2ag-lite"
+        write(self.src / "main/a.txt", "source\n")
+        write(self.dst / "old.txt", "old\n")
+        self._stable_source = {
+            "main/a.txt": (0o644, 7, hashlib.sha256(b"source\n").hexdigest()),
+        }
+        self._patches: list[tuple[object, str, object]] = []
+
+        def fake_require_main_clean(src: Path, force: bool) -> None:
+            return None
+
+        def fake_build_candidate(
+            src: Path, candidate: Path
+        ) -> tuple[int, int, list[tuple[str, Path, Path]]]:
+            target = candidate / "main" / "a.txt"
+            write(target, "candidate\n")
+            return 1, 0, [("main/a.txt", src / "main/a.txt", target)]
+
+        def fake_verify_projection(
+            src: Path,
+            dst: Path,
+            projected: list[tuple[str, Path, Path]],
+        ) -> int:
+            return 0
+
+        def fake_check_current_projection(src: Path, dst: Path) -> int:
+            return 0
+
+        def fake_projection_manifest(
+            src: Path, dst: Path
+        ) -> list[tuple[str, Path, Path]]:
+            return [("main/a.txt", src / "main/a.txt", dst / "main" / "a.txt")]
+
+        def fake_source_projection_manifest(src: Path) -> dict[str, tuple[int, int, str]]:
+            return dict(self._stable_source)
+
+        self._install(
+            sync_lite,
+            "require_main_clean",
+            fake_require_main_clean,
+        )
+        self._install(sync_lite, "build_candidate", fake_build_candidate)
+        self._install(sync_lite, "verify_projection", fake_verify_projection)
+        self._install(
+            sync_lite, "check_current_projection", fake_check_current_projection
+        )
+        self._install(sync_lite, "projection_manifest", fake_projection_manifest)
+        self._install(
+            sync_lite, "source_projection_manifest", fake_source_projection_manifest
+        )
+
+    def _install(self, module: object, name: str, value: object) -> None:
+        self._patches.append((module, name, getattr(module, name)))
+        setattr(module, name, value)
+
+    def tearDown(self) -> None:
+        os.environ.pop("T2AG_SYNC_LITE_FAIL_AT", None)
+        for module, name, original in reversed(self._patches):
+            setattr(module, name, original)
+        self.temporary.cleanup()
+
+    def _run_write(self) -> int:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = sync_lite.main(
+                ["--write", "--root", str(self.workspace), "--force"]
+            )
+        self.last_stdout = stdout.getvalue()
+        self.last_stderr = stderr.getvalue()
+        return code
+
+    def test_main_final_verify_restores_exact_old_lite(self) -> None:
+        old = sync_lite.lite_content_manifest(self.dst)
+        os.environ["T2AG_SYNC_LITE_FAIL_AT"] = "final_verify"
+        code = self._run_write()
+        self.assertEqual(code, 4)
+        self.assertIn("injected failure at final_verify", self.last_stderr)
+        self.assertIn("previous Lite restored and byte manifest verified", self.last_stderr)
+        self.assertNotIn("ROLLBACK FAIL", self.last_stderr)
+        self.assertEqual(sync_lite.lite_content_manifest(self.dst), old)
+        self.assertTrue((self.dst / "old.txt").is_file())
+        self.assertFalse((self.dst / "main" / "a.txt").exists())
+
+    def test_main_final_return_restores_exact_old_lite(self) -> None:
+        old = sync_lite.lite_content_manifest(self.dst)
+        os.environ["T2AG_SYNC_LITE_FAIL_AT"] = "final_return"
+        code = self._run_write()
+        self.assertEqual(code, 4)
+        self.assertIn("injected failure at final_return", self.last_stderr)
+        self.assertIn("previous Lite restored and byte manifest verified", self.last_stderr)
+        self.assertNotIn("ROLLBACK FAIL", self.last_stderr)
+        self.assertEqual(sync_lite.lite_content_manifest(self.dst), old)
+
+    def test_main_source_race_after_install_restores_exact_old_lite(self) -> None:
+        old = sync_lite.lite_content_manifest(self.dst)
+        calls = {"n": 0}
+        stable = dict(self._stable_source)
+        raced = {
+            "main/a.txt": (0o644, 8, hashlib.sha256(b"changed\n").hexdigest()),
+        }
+
+        def racing_source_manifest(src: Path) -> dict[str, tuple[int, int, str]]:
+            calls["n"] += 1
+            # Calls: before_build, after_candidate, after_install, before_return
+            if calls["n"] >= 3:
+                return dict(raced)
+            return dict(stable)
+
+        self._install(sync_lite, "source_projection_manifest", racing_source_manifest)
+        code = self._run_write()
+        self.assertEqual(code, 4)
+        self.assertIn(
+            "Main projection source changed after Lite installation",
+            self.last_stderr,
+        )
+        self.assertIn("previous Lite restored and byte manifest verified", self.last_stderr)
+        self.assertNotIn("ROLLBACK FAIL", self.last_stderr)
+        self.assertEqual(sync_lite.lite_content_manifest(self.dst), old)
+
+    def test_main_source_race_after_candidate_leaves_old_lite_untouched(self) -> None:
+        old = sync_lite.lite_content_manifest(self.dst)
+        calls = {"n": 0}
+        stable = dict(self._stable_source)
+        raced = {
+            "main/a.txt": (0o644, 8, hashlib.sha256(b"changed\n").hexdigest()),
+        }
+
+        def racing_source_manifest(src: Path) -> dict[str, tuple[int, int, str]]:
+            calls["n"] += 1
+            if calls["n"] >= 2:
+                return dict(raced)
+            return dict(stable)
+
+        self._install(sync_lite, "source_projection_manifest", racing_source_manifest)
+        code = self._run_write()
+        self.assertEqual(code, 4)
+        self.assertIn(
+            "Main projection source changed after candidate verification",
+            self.last_stderr,
+        )
+        self.assertEqual(sync_lite.lite_content_manifest(self.dst), old)
+
+
 def main() -> int:
     suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
