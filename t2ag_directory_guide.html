@@ -368,7 +368,7 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
 <body>
 <header class="hero">
   <div class="wrap hero-inner">
-    <span class="kicker">T2AG / Directory Guide / 0.2.0</span>
+    <span class="kicker">T2AG / Directory Guide / 0.2.1</span>
     <h1>操作<br>目录册</h1>
     <p class="hero-copy">你只需说清想学什么、哪里卡住、哪里用得不顺。Agent 会读取你的状态，按需改造文件、生成工具和展现形式，再把反馈变成下一次更顺手的起点。</p>
     <div class="hero-rule">
@@ -763,7 +763,7 @@ E --&gt; F
 <!-- /T2AG_GENERATED:flow_panorama -->
     <div class="timeline">
       <article class="step"><div class="step-mark"></div><div class="step-body"><h3>运行 doctor</h3><p>FAIL 先修；skeleton 的首次启动提示和 lite 的无 Git 提示可以保留。</p><div class="step-files"><code>python main/70_tools/t2ag_doctor.py</code></div></div></article>
-      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>恢复热上下文</h3><p>读 memory、学生档案、当前课程组与课程进度。每课的 <code>progress.md</code> 是进度唯一真相源。</p><div class="step-files"><code>00_core/t2ag_memory.md · 10_student/profile.md · 30_group/ · 40_course/*/progress.md</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>恢复热上下文</h3><p>读 memory、学生档案、当前课程组与课程进度。每课的 <code>progress.md</code> 是进度唯一真相源。</p><div class="step-files"><code>00_core/t2ag_memory.md · 10_student/profile/profile.md · 30_group/ · 40_course/*/progress.md</code></div></div></article>
       <article class="step"><div class="step-mark"></div><div class="step-body"><h3>执行知识点抽查</h3><p>课程覆盖题、活跃错题和陈年反刍按 2 + 8 + 1 上限抽取；同一知识点用不同题面验证。</p><div class="step-files"><code>50_playbook/mistake_retest.md · mistake_bank.md</code></div></div></article>
       <article class="step"><div class="step-mark"></div><div class="step-body"><h3>基于来源教学</h3><p>教材课先读当前原文；工作区使用可读路径，不凭模型记忆跳页。学生随时可以要求换一种或增加一种展现形式。</p><div class="step-files"><code>lessonNN/working_pages/source_excerpt.md · lessonNN.md</code></div></div></article>
       <article class="step"><div class="step-mark"></div><div class="step-body"><h3>执行结课仪式</h3><p>更新真相源、收割知识点错误、写学生档案、刷新 memory、处理工作页、输出写入确认。</p><div class="step-files"><code>50_playbook/session_close.md</code></div></div></article>
@@ -841,7 +841,7 @@ E --&gt; F
 </text>
 <rect x="308.0" y="444.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
 <text x="431.0" y="481.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">先给结构，再推进一个可确认步骤</tspan>
+<tspan x="431.0" dy="0">复杂讲解先给目录/树形地图；再推进一个可确认分支</tspan>
 </text>
 <rect x="308.0" y="580.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
 <text x="431.0" y="617.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
@@ -899,7 +899,7 @@ E --&gt; F
   B{&quot;活动类型&quot;}
   C[&quot;Lesson：复用 L0 必要教材窗口；L1 只追加当前证据&quot;]
   D[&quot;Exercise：复用 L0 当前题面；L1 只追加直接证据&quot;]
-  E[&quot;先给结构，再推进一个可确认步骤&quot;]
+  E[&quot;复杂讲解先给目录/树形地图；再推进一个可确认分支&quot;]
   F[&quot;学生复述、举例或作答&quot;]
   G{&quot;出现什么？&quot;}
   H[&quot;疑问：当场回答&quot;]
@@ -1471,7 +1471,7 @@ Q --&gt; R
 </main>
 
 <footer>
-  <div class="wrap footer-inner"><span>T2AG 0.2.0 · 从基础形态开始，在使用中生长</span><span>Skeleton 是空实例原件；Lite 是 Main 的派生审查快照</span></div>
+  <div class="wrap footer-inner"><span>T2AG 0.2.1 · 从基础形态开始，在使用中生长</span><span>Skeleton 是空实例原件；Lite 是 Main 的派生审查快照</span></div>
 </footer>
 </body>
 </html>

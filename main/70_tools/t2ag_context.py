@@ -286,6 +286,8 @@ def initialized(profile: str, memory: str) -> bool:
     meta = frontmatter_text(profile)
     if meta.get("initialization_status") != "initialized":
         return False
+    if meta.get("exercise_hint_gate") not in {"enabled", "disabled"}:
+        return False
     if PLACEHOLDER_RE.search(profile):
         return False
     summary = section(memory, "上次课摘要", level=2, required=False)
@@ -553,7 +555,7 @@ def build_packet(
 ) -> dict[str, object]:
     cache = SourceCache(root)
     main = root / "main"
-    profile_path = main / "10_student/profile.md"
+    profile_path = main / "10_student/profile/profile.md"
     memory_path = main / "00_core/t2ag_memory.md"
     profile = cache.read(profile_path)
     memory = cache.read(memory_path)
@@ -591,7 +593,7 @@ def build_packet(
         else "explicit_same_active_group"
     )
 
-    learning_path_path = main / "10_student/learning_path.md"
+    learning_path_path = main / "10_student/profile/learning_path.md"
     learning_path = cache.read(learning_path_path)
     course_row = markdown_table_row(learning_path, resolved_course)
     group_row = markdown_table_row(learning_path, group_id)
@@ -876,7 +878,7 @@ def build_packet(
         mistake_schedule_snapshot(mistake),
     )
 
-    reflections_path = main / "10_student/course_reflections.md"
+    reflections_path = main / "10_student/profile/course_reflections.md"
     reflections = cache.read(reflections_path)
     add_selection(
         selections,
@@ -886,7 +888,7 @@ def build_packet(
         course_reflection_snapshot(reflections, resolved_course),
     )
 
-    reasoning_path = main / "10_student/reasoning_patterns.md"
+    reasoning_path = main / "10_student/profile/reasoning_patterns.md"
     reasoning = cache.read(reasoning_path)
     if route.activity_type == "exercise":
         add_selection(

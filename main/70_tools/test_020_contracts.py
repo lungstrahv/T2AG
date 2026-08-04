@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zero-dependency contract tests plus a real-disk T2AG 0.2.0 CLI roundtrip."""
+"""Zero-dependency contract tests plus a real-disk T2AG 0.2.1 CLI roundtrip."""
 from __future__ import annotations
 
 import contextlib
@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 
 import t2ag_activity as activity
+import t2ag_hint_gate as hint_gate
 
 
 SCRIPT = Path(__file__).resolve()
@@ -42,6 +43,14 @@ candidate_replay = importlib.util.module_from_spec(candidate_spec)
 assert candidate_spec and candidate_spec.loader
 sys.modules[candidate_spec.name] = candidate_replay
 candidate_spec.loader.exec_module(candidate_replay)
+
+migration_021_spec = importlib.util.spec_from_file_location(
+    "migrate_021_under_test",
+    SCRIPT.with_name("migrate_021.py"),
+)
+migration_021 = importlib.util.module_from_spec(migration_021_spec)
+assert migration_021_spec and migration_021_spec.loader
+migration_021_spec.loader.exec_module(migration_021)
 
 
 def write(path: Path, content: str = "") -> None:
@@ -272,13 +281,13 @@ def assert_message(collection: list[str], token: str) -> None:
 
 def test_profile_placeholder(root: Path) -> None:
     reset(root)
-    write(root / "README.md", "0.2.0\n")
-    write(root / "AGENTS.md", "0.2.0\n")
-    write(root / "main/bin/t2ag", "0.2.0\n")
-    write(root / "main/t2ag.md", "0.2.0\n")
-    write(root / "main/00_core/t2ag_memory.md", "0.2.0\n")
+    write(root / "README.md", "0.2.1\n")
+    write(root / "AGENTS.md", "0.2.1\n")
+    write(root / "main/bin/t2ag", "0.2.1\n")
+    write(root / "main/t2ag.md", "0.2.1\n")
+    write(root / "main/00_core/t2ag_memory.md", "0.2.1\n")
     write(
-        root / "main/10_student/profile.md",
+        root / "main/10_student/profile/profile.md",
         "---\ninitialization_status: initialized\n---\n"
         "## 每周可投入学习时间\n- （待填写）\n"
         "## 学习目标\n- [ ] （待填写）\n"
@@ -288,6 +297,54 @@ def test_profile_placeholder(root: Path) -> None:
     run_silently(doctor.check_version_and_profile)
     assert_message(doctor.fails, "必填占位符")
     assert_message(doctor.fails, "必填信息未确认")
+
+
+def test_profile_container_contract(root: Path) -> None:
+    def build(case_root: Path) -> None:
+        for domain in doctor.EXPECTED_DOMAINS:
+            (case_root / "main" / domain).mkdir(parents=True, exist_ok=True)
+        write(case_root / "main/t2ag.md", "0.2.1\n")
+        write(case_root / "main/80_interface/fable_snail.png", "fixture\n")
+        for name in ("profile.md", "learning_path.md", "course_reflections.md", "reasoning_patterns.md"):
+            write(case_root / "main/10_student/profile" / name, f"# {name}\n")
+        (case_root / "main/10_student/activities").mkdir(parents=True, exist_ok=True)
+        (case_root / "main/10_student/engagements").mkdir(parents=True, exist_ok=True)
+
+    valid = root / "valid"
+    build(valid)
+    reset(valid)
+    run_silently(doctor.check_structure)
+    if doctor.fails:
+        raise AssertionError(f"valid profile container rejected: {doctor.fails}")
+
+    legacy = root / "legacy"
+    build(legacy)
+    write(legacy / "main/10_student/profile.md", "# legacy\n")
+    reset(legacy)
+    run_silently(doctor.check_structure)
+    assert_message(doctor.fails, "旧学生档案顶层文件仍存在")
+    assert_message(doctor.fails, "必须且只能存在一份")
+
+    duplicate = root / "duplicate"
+    build(duplicate)
+    write(duplicate / "main/10_student/activities/profile.md", "# duplicate\n")
+    reset(duplicate)
+    run_silently(doctor.check_structure)
+    assert_message(doctor.fails, "必须且只能存在一份")
+
+    missing = root / "missing"
+    build(missing)
+    (missing / "main/10_student/profile/reasoning_patterns.md").unlink()
+    reset(missing)
+    run_silently(doctor.check_structure)
+    assert_message(doctor.fails, "reasoning_patterns.md")
+
+    extra = root / "extra"
+    build(extra)
+    (extra / "main/10_student/misc").mkdir()
+    reset(extra)
+    run_silently(doctor.check_structure)
+    assert_message(doctor.fails, "10_student 顶层目录不等于")
 
 
 def test_resume_path(root: Path) -> None:
@@ -429,7 +486,7 @@ def test_progress_identity_is_shared(root: Path) -> None:
     valid = root / "valid"
     valid_progress = build(valid)
     write(
-        valid / "main/10_student/profile.md",
+        valid / "main/10_student/profile/profile.md",
         "---\ninitialization_status: initialized\n---\n",
     )
     write(
@@ -616,6 +673,13 @@ def test_teacher_mapping_is_strict(root: Path) -> None:
         raise AssertionError("teacher resolver accepted a self-misidentified template")
 
 
+def test_teacher_presentation_contract(root: Path) -> None:
+    write_teacher_mapping(root, ())
+    reset(root)
+    run_silently(doctor.check_teacher_contract, {})
+    assert_message(doctor.fails, "教师模板缺地图优先讲解协议")
+
+
 def test_fixture_mutations_cannot_silently_noop(root: Path) -> None:
     content = "---\nactivity_position: before\n---\n"
     updated = replace_frontmatter_field(
@@ -706,7 +770,7 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
         "<!-- T2AG_GENERATED:GROUP_VIEW:START -->\nold\n"
         "<!-- T2AG_GENERATED:GROUP_VIEW:END -->\n",
     )
-    write(root / "main/10_student/profile.md", "---\ninitialization_status: initialized\n---\n")
+    write(root / "main/10_student/profile/profile.md", "---\ninitialization_status: initialized\n---\n")
     write(
         root / "main/00_core/t2ag_memory.md",
         "<!-- T2AG_GENERATED:ACTIVE_PROGRESS:START -->\nold\n"
@@ -715,7 +779,7 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
         "<!-- T2AG_GENERATED:STATE_POINTERS:END -->\n",
     )
     write(
-        root / "main/10_student/learning_path.md",
+        root / "main/10_student/profile/learning_path.md",
         "<!-- T2AG_GENERATED:COURSE_INDEX:START -->\nold\n"
         "<!-- T2AG_GENERATED:COURSE_INDEX:END -->\n"
         "<!-- T2AG_GENERATED:GROUP_INDEX:START -->\nold\n"
@@ -1092,6 +1156,8 @@ def test_course_activity_templates(root: Path) -> None:
     run_silently(doctor.check_course_activity_templates)
     assert_message(doctor.fails, "系统模板缺失")
     assert_message(doctor.fails, "缺课程学习活动 Core 契约")
+    assert_message(doctor.fails, "课程学习活动 Core 缺地图优先讲解协议")
+    assert_message(doctor.fails, "首次启动未采集长篇讲解地图与分支确认偏好")
     assert_message(doctor.fails, "课程恢复流程未先按 current_activity 分支")
 
 
@@ -1116,6 +1182,54 @@ def test_flow_and_offline_guide(root: Path) -> None:
     assert_message(doctor.fails, "缺受控滚动视窗")
 
 
+def test_hint_gate_contract(root: Path) -> None:
+    enabled_concept = hint_gate.evaluate_gate("enabled", "concept_answer")
+    if not enabled_concept.allowed:
+        raise AssertionError("enabled concept_answer should be allowed")
+    for marker in (
+        "answer_the_explicitly_requested_concept_only",
+        "do_not_apply_the_concept_to_the_active_problem",
+    ):
+        if marker not in enabled_concept.constraints:
+            raise AssertionError(f"concept scope guard missing: {marker}")
+
+    enabled_feedback = hint_gate.evaluate_gate("enabled", "reasoning_feedback")
+    if not enabled_feedback.allowed or (
+        "do_not_introduce_new_solution_objects_subgoals_or_steps"
+        not in enabled_feedback.constraints
+    ):
+        raise AssertionError("reasoning feedback leaked a new-step capability")
+
+    denied = hint_gate.evaluate_gate("enabled", "direction_hint")
+    if denied.allowed or denied.decision != "deny":
+        raise AssertionError("unrequested direction hint was not denied")
+    wrong_level = hint_gate.evaluate_gate(
+        "enabled", "full_solution", "direction"
+    )
+    if wrong_level.allowed:
+        raise AssertionError("direction authorization escalated to full solution")
+    allowed = hint_gate.evaluate_gate(
+        "enabled", "full_solution", "solution"
+    )
+    if not allowed.allowed:
+        raise AssertionError("explicit full-solution authorization was rejected")
+
+    disabled = hint_gate.evaluate_gate("disabled", "full_solution")
+    if (
+        not disabled.allowed
+        or disabled.decision != "defer_to_base_rules"
+        or not disabled.as_dict()["base_teaching_rules_remain"]
+    ):
+        raise AssertionError("disabled gate erased the base teaching contract")
+
+    try:
+        hint_gate.evaluate_gate("ask", "concept_answer")
+    except hint_gate.HintGateContractError:
+        pass
+    else:
+        raise AssertionError("unresolved first-run hint-gate choice was accepted")
+
+
 def test_exercise_evidence(root: Path) -> None:
     reset(root)
     unit = root / "main/40_course/TEST1001/exercises/U0001"
@@ -1134,7 +1248,7 @@ def test_exercise_evidence(root: Path) -> None:
         unit / "attempts/AT0001/attempt.md",
         "---\ntype: exercise_attempt\ncourse_id: TEST1001\nexercise_id: U0001\n"
         "attempt_id: AT0001\nproblem_ids: [U0001-Q001]\nmode: image\n"
-        "status: submitted\ncreated: 2026-07-26\n---\n"
+        "status: submitted\ncreated: 2026-08-01\n---\n"
         "## 作答上下文\n- test\n## U0001-Q001\n- 作答：见图\n",
     )
     write(
@@ -1149,6 +1263,7 @@ def test_exercise_evidence(root: Path) -> None:
     run_silently(doctor.check_exercises, courses)
     assert_message(doctor.fails, "缺原始图片")
     assert_message(doctor.fails, "未知 Attempt")
+    assert_message(doctor.fails, "缺提示闸门快照")
 
 
 def test_exercise_activity_links(root: Path) -> None:
@@ -1988,9 +2103,10 @@ def materialize_synthetic_exercise_first(fixture: Path) -> str:
     )
     source = fixture / source_relative
     write(
-        fixture / "main/10_student/profile.md",
+        fixture / "main/10_student/profile/profile.md",
         "---\ntype: student_profile\ninitialization_status: initialized\n"
-        "updated: 2026-07-26\n---\n# Synthetic profile\n\n"
+        "exercise_hint_gate: enabled\nupdated: 2026-07-26\n---\n"
+        "# Synthetic profile\n\n"
         "## 每周可投入学习时间\n- 1 小时\n\n"
         "## 学习目标\n- 验证 Exercise-first 往返\n\n"
         "## 辅导与展现偏好\n- 逐步确认\n\n"
@@ -2209,7 +2325,7 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
                 f"Doctor flavor mismatch; expected {expected}:\n{result.stdout}"
             )
 
-    profile = fixture / "main/10_student/profile.md"
+    profile = fixture / "main/10_student/profile/profile.md"
     uninitialized = "initialization_status: uninitialized" in profile.read_text(
         encoding="utf-8-sig"
     )
@@ -2627,14 +2743,84 @@ def test_migration_manifest_missing_reference(root: Path) -> None:
     assert_message(doctor.fails, "缺 operation_manifest 引用块")
 
 
+def test_main_readme_skeleton_reference_does_not_change_migration_kind(root: Path) -> None:
+    reset(root, flavor="main")
+    write(
+        root / "README.md",
+        "# T2AG\n\n通用能力在 ../t2ag-skeleton/ 收敛。\n",
+    )
+    write_formal_lite_migration_evidence(
+        root,
+        "main/example.bin",
+        "a" * 64,
+    )
+    run_silently(doctor.check_migration_evidence)
+    if doctor.fails:
+        raise AssertionError(
+            f"Main README cross-reference changed migration identity: {doctor.fails}"
+        )
+
+
+def test_profile_migration_manifest_tamper(root: Path) -> None:
+    reset(root)
+    write(
+        root / "main/60_journal/migration_021_profile_operations.json",
+        '{"schema_version":"T2AG-MIGRATION-OPERATIONS-1",'
+        '"target_kind":"main","operation_count":4,"operations":[]}\n',
+    )
+    write(
+        root / "main/60_journal/migration_021_profile_report.json",
+        '{"status":"applied","applied_count":4,'
+        '"operation_manifest":{"path":'
+        '"main/60_journal/migration_021_profile_operations.json",'
+        '"operation_count":4,"sha256":"' + "0" * 64 + '"}}\n',
+    )
+    run_silently(doctor.check_migration_021_evidence)
+    assert_message(doctor.fails, "manifest SHA 漂移")
+
+
+def test_profile_migration_roundtrip(root: Path) -> None:
+    for index, (source, target) in enumerate(migration_021.MOVES, start=1):
+        write(root / source, f"profile fixture {index}\n")
+        if (root / target).exists():
+            raise AssertionError("fixture unexpectedly contains migration target")
+    state = migration_021.inspect(root)
+    if state["pending_count"] != 4 or state["missing"] or state["collisions"]:
+        raise AssertionError(f"invalid migration preflight: {state}")
+    if migration_021.apply(root) != 4:
+        raise AssertionError("profile migration did not apply all four moves")
+    for index, (source, target) in enumerate(migration_021.MOVES, start=1):
+        if (root / source).exists():
+            raise AssertionError(f"legacy profile path survived: {source}")
+        if (root / target).read_text(encoding="utf-8") != f"profile fixture {index}\n":
+            raise AssertionError(f"profile content changed: {target}")
+    if migration_021.apply(root) != 0:
+        raise AssertionError("profile migration is not idempotent")
+
+    collision = root / "collision"
+    source, target = migration_021.MOVES[0]
+    write(collision / source, "source\n")
+    write(collision / target, "different\n")
+    if not migration_021.inspect(collision)["collisions"]:
+        raise AssertionError("profile migration missed a target collision")
+    try:
+        migration_021.apply(collision)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("profile migration applied across a collision")
+
+
 def main() -> int:
     tests = (
         test_profile_placeholder,
+        test_profile_container_contract,
         test_resume_path,
         test_explicit_activity_pointer_required,
         test_exercise_first_course_resume,
         test_progress_identity_is_shared,
         test_teacher_mapping_is_strict,
+        test_teacher_presentation_contract,
         test_fixture_mutations_cannot_silently_noop,
         test_state_refresh_activity_roundtrip,
         test_exercise_current_lesson_driver_matrix,
@@ -2643,6 +2829,7 @@ def main() -> int:
         test_skin_art,
         test_course_activity_templates,
         test_flow_and_offline_guide,
+        test_hint_gate_contract,
         test_exercise_evidence,
         test_exercise_activity_links,
         test_project_completion_evidence,
@@ -2658,6 +2845,9 @@ def main() -> int:
         test_candidate_replay_isolation_contract,
         test_migration_manifest_tamper,
         test_migration_manifest_missing_reference,
+        test_main_readme_skeleton_reference_does_not_change_migration_kind,
+        test_profile_migration_manifest_tamper,
+        test_profile_migration_roundtrip,
     )
     with tempfile.TemporaryDirectory(prefix="t2ag_contracts_") as tmp:
         base = Path(tmp)

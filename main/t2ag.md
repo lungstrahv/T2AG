@@ -1,4 +1,4 @@
-# T2AG 0.2.0 宪法
+# T2AG 0.2.1 宪法
 
 > T2AG 是一个以文件为长期记忆、以可审计状态推进学习的个人教学系统。
 > 本文件是启动入口和最高本地规则；实现细节下沉到 domain model 与 playbook。
@@ -97,7 +97,7 @@ python -B main/70_tools/t2ag_state_refresh.py --check
 
 满足任一条件即视为未初始化：
 
-- `10_student/profile.md` 的 `initialization_status` 不是 `initialized`；
+- `10_student/profile/profile.md` 的 `initialization_status` 不是 `initialized`；
 - profile 仍含必填占位符；
 - memory「上次课摘要」日期为 `—`。
 
@@ -138,6 +138,11 @@ doctor 无 FAIL 且 state refresh 无漂移后，按 `50_playbook/context_packet
   扩展窗口必须留痕。Exercise 不从历史 Lesson 继承默认 working-pages 事务。
 - 定义完整呈现。习题首次只给题面并保留学生独立尝试；证明的思维结构以学生实际
   路线为起点，在讨论中逐步形成，不得预先代写标准树；卡住后才按提示梯逐级推进。
+- 多块长篇讲解先给短目录或树形地图，标明目标、对象类型、依赖关系和当前分支，随后
+  一次只展开一支并等待确认；新 Exercise 的未授权总览不得泄露方法、子目标或答案。
+- 学生可在 profile 启用或关闭 Exercise 提示闸门。启用时，概念提问只回答所问概念，
+  不得自动桥接回当前题；方向提示、指定资料和完整讲解分别等待同级显式授权，并在回复前
+  执行 `70_tools/t2ag_hint_gate.py`。本地规则只作可执行审计，不伪称提示词不可绕过。
 - 进入 checkpoint 时立即写入 `progress.md`；未确认使用 `pending`，确认后才变更。
 - mistake bank 与 question bank 的 canonical 状态为
   `open / answered / closed`。
@@ -174,7 +179,8 @@ doctor 无 FAIL 且 state refresh 无漂移后，按 `50_playbook/context_packet
 
 ## 7. 版本
 
-- 当前版本：`0.2.0`
-- 结构权威：`60_journal/T2AG_0.2.0_修改方案.md`
+- 当前版本：`0.2.1`
+- 0.2.0 基线结构权威：`60_journal/T2AG_0.2.0_修改方案.md`
+- 0.2.1 增量施工权威：`T2AG-STUDENT-PROFILE-READING-BRIDGE-20260730`
 - 迁移器：`70_tools/migrate_020.py`
 - 版本更新必须同步本文件、memory、changelog、README、Skeleton 与 Lite 身份入口。

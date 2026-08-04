@@ -28,10 +28,10 @@
 | 系统/流程问题与解决 | `main/00_core/t2ag_problemlog.md` |
 | 课程进度、停顿点、教学记录 | `[课程]/progress.md` / 当前 Lesson 或 Exercise 主载体 |
 | 学生知识错误 | `[课程]/mistake_bank.md` |
-| 学生情绪、性格、课程感受 | `main/10_student/profile.md` / `course_reflections.md` |
+| 学生情绪、性格、课程感受 | `main/10_student/profile/profile.md` / `course_reflections.md` |
 | Lesson 局部想法 | `lessons/lessonNN/lesson_thoughts.md`（真实出现时创建） |
 | Exercise 学生原话与跨题索引 | 对应 Attempt / `exercises/exercise_thoughts.md` |
-| 跨 lesson / exercise 的课程核心内容思考 | `main/10_student/course_reflections.md` 当前课程段，并回链局部来源 |
+| 跨 lesson / exercise 的课程核心内容思考 | `main/10_student/profile/course_reflections.md` 当前课程段，并回链局部来源 |
 | 跨课程、跨实践、非故障类的重要事件/决策/待办 | `main/60_journal/` |
 
 journal 是回看层，不覆盖任何真相源。

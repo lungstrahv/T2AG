@@ -39,6 +39,18 @@ class HeadingSelectionTests(unittest.TestCase):
         with self.assertRaises(context.ContextPacketError):
             context.section("# Root\n", "Missing", level=2)
 
+    def test_initialized_requires_hint_gate_choice(self) -> None:
+        memory = "## 上次课摘要\n\n- **日期**：2026-08-01\n"
+        unresolved = (
+            "---\ninitialization_status: initialized\n"
+            "exercise_hint_gate: ask\n---\n"
+        )
+        resolved = unresolved.replace(
+            "exercise_hint_gate: ask", "exercise_hint_gate: enabled"
+        )
+        self.assertFalse(context.initialized(unresolved, memory))
+        self.assertTrue(context.initialized(resolved, memory))
+
 
 class SourceSnapshotTests(unittest.TestCase):
     def test_digest_uses_original_file_bytes(self) -> None:
@@ -430,7 +442,7 @@ class LiveReleaseTests(unittest.TestCase):
     def test_release_packet_contract(self) -> None:
         packet = context.build_packet(context.ROOT)
         profile = (
-            context.ROOT / "main/10_student/profile.md"
+            context.ROOT / "main/10_student/profile/profile.md"
         ).read_bytes().decode("utf-8-sig", errors="replace")
         profile_meta = context.frontmatter_text(profile)
 

@@ -1,6 +1,7 @@
 ---
 type: student_profile
 initialization_status: uninitialized
+exercise_hint_gate: ask
 updated: —
 ---
 # 学生档案（空模板）
@@ -21,7 +22,9 @@ updated: —
 
 ## 辅导与展现偏好
 
-- <required>
+- 一般辅导偏好：<required>
+- 多块长篇讲解：<map-first | continuous | user-defined>
+- 分支间确认方式：<confirm>
 
 ## 执行参数
 

@@ -2,7 +2,7 @@
 
 **保护级别**：core-playbook
 
-> 适用：语言线课程的期末卷面考核与循环级小测。规则入口见 `main/50_playbook/course_group_rules.md`；题库存储见 `main/50_playbook/exam_bank_spec.md`；学生参数写入 `main/10_student/profile.md`。
+> 适用：语言线课程的期末卷面考核与循环级小测。规则入口见 `main/50_playbook/course_group_rules.md`；题库存储见 `main/50_playbook/exam_bank_spec.md`；学生参数写入 `main/10_student/profile/profile.md`。
 
 ## 一、核心原则：选编，不生成
 
@@ -110,7 +110,7 @@ AI 不生成数学试题，只做下载、登记、按规则抽取。真题已�
 
 ## 十一、参数层级
 
-本条款为协议层默认值。放宽系数（2.0/1.2/1.5）与及格线（60/50）如需按学生调整，属建组仪式的参数讨论范围，改动落 `main/10_student/profile.md`。
+本条款为协议层默认值。放宽系数（2.0/1.2/1.5）与及格线（60/50）如需按学生调整，属建组仪式的参数讨论范围，改动落 `main/10_student/profile/profile.md`。
 
 ## 十二、循环级小测
 

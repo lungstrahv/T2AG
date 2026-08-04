@@ -1,0 +1,89 @@
+{
+  "schema_version": "T2AG-MIGRATION-OPERATIONS-1",
+  "target_kind": "skeleton",
+  "evidence_source": "git baseline 3f1a42e0edc305f3253843337a9ec7a107cd79a8",
+  "baseline_commit": "3f1a42e0edc305f3253843337a9ec7a107cd79a8",
+  "operation_count": 4,
+  "operations": [
+    {
+      "sequence": 1,
+      "kind": "move",
+      "sources": [
+        {
+          "path": "main/10_student/profile.md",
+          "bytes": 1040,
+          "sha256": "88cd1224bb9ad92de8b4e528a74ad80ef71a29555d00ddd40b0e5065336df9cd"
+        }
+      ],
+      "target": "main/10_student/profile/profile.md",
+      "disposition": "move shared student profile file into profile container",
+      "outcome": "applied",
+      "content_check": "byte_identical",
+      "post_target": {
+        "path": "main/10_student/profile/profile.md",
+        "bytes": 1040,
+        "sha256": "88cd1224bb9ad92de8b4e528a74ad80ef71a29555d00ddd40b0e5065336df9cd"
+      }
+    },
+    {
+      "sequence": 2,
+      "kind": "move",
+      "sources": [
+        {
+          "path": "main/10_student/learning_path.md",
+          "bytes": 734,
+          "sha256": "3fec62a3939b487b74a23819a72ee0599e06be39739df7a414bb5c0a00732f22"
+        }
+      ],
+      "target": "main/10_student/profile/learning_path.md",
+      "disposition": "move shared student profile file into profile container",
+      "outcome": "applied",
+      "content_check": "byte_identical",
+      "post_target": {
+        "path": "main/10_student/profile/learning_path.md",
+        "bytes": 734,
+        "sha256": "3fec62a3939b487b74a23819a72ee0599e06be39739df7a414bb5c0a00732f22"
+      }
+    },
+    {
+      "sequence": 3,
+      "kind": "move",
+      "sources": [
+        {
+          "path": "main/10_student/course_reflections.md",
+          "bytes": 978,
+          "sha256": "43c77bc4f232feff1bbd9def071d9bbf70418d863292c467b6f29bdd86b454c6"
+        }
+      ],
+      "target": "main/10_student/profile/course_reflections.md",
+      "disposition": "move shared student profile file into profile container",
+      "outcome": "applied",
+      "content_check": "byte_identical",
+      "post_target": {
+        "path": "main/10_student/profile/course_reflections.md",
+        "bytes": 978,
+        "sha256": "43c77bc4f232feff1bbd9def071d9bbf70418d863292c467b6f29bdd86b454c6"
+      }
+    },
+    {
+      "sequence": 4,
+      "kind": "move",
+      "sources": [
+        {
+          "path": "main/10_student/reasoning_patterns.md",
+          "bytes": 1665,
+          "sha256": "b27fc9f3b9c865c608f12f1779bfadad7ce08ec8312ee967e19922d7f94e9390"
+        }
+      ],
+      "target": "main/10_student/profile/reasoning_patterns.md",
+      "disposition": "move shared student profile file into profile container",
+      "outcome": "applied",
+      "content_check": "byte_identical",
+      "post_target": {
+        "path": "main/10_student/profile/reasoning_patterns.md",
+        "bytes": 1665,
+        "sha256": "b27fc9f3b9c865c608f12f1779bfadad7ce08ec8312ee967e19922d7f94e9390"
+      }
+    }
+  ]
+}

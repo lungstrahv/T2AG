@@ -4,7 +4,7 @@
 
 ## 判据
 
-- `10_student/profile.md` 的 `initialization_status` 不是 `initialized`；或
+- `10_student/profile/profile.md` 的 `initialization_status` 不是 `initialized`；或
 - profile 仍含必填占位符；或
 - memory 上次课摘要日期为 `—`。
 
@@ -13,7 +13,9 @@
 1. 按 `main/t2ag.md`「3.0 启动欢迎信息」展示当前发行版的 `welcome_msg`、
    active `art_file` 字符画与版本号。
 2. 运行 doctor，确认 Skeleton 结构有效且没有真实实例。
-3. 询问并确认学校、年级、方向、目标、可投入时间、已有基础和辅导偏好。
+3. 询问并确认学校、年级、方向、目标、可投入时间、已有基础和辅导偏好；辅导偏好包括
+   多块长篇讲解是否沿用默认的“先地图、后逐支”，以及学生希望怎样确认后再继续。同时让
+   学生选择 `exercise_hint_gate: enabled | disabled`，不得由模型代选。
    当前困难与特殊要求是可选信息；未提供时明确写“未提供”，不得保留“待填写”。
 4. 将 profile 从模板改为 `initialization_status: initialized`。
 5. 与用户确认首门课程及真实入口（先进入 Lesson 还是 Exercise）；从

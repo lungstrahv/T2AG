@@ -30,7 +30,7 @@ T2AG 云端同步分成两条通道，二者不得混写：
 
 | 模式 | 用途 | 身份来源 |
 |---|---|---|
-| `personal_instance` | 已实例化学生的个人云端课堂 | `main/10_student/profile.md` 与 `main/20_teacher/overlay.md` 的已同步只读投影 |
+| `personal_instance` | 已实例化学生的个人云端课堂 | `main/10_student/profile/profile.md` 与 `main/20_teacher/overlay.md` 的已同步只读投影 |
 | `generic_skeleton` | 新安装、模板演示或公开骨架 | 空 profile 模板；教师未配置或默认 T001；不得加载实例课程进度 |
 
 - `personal_instance` 中，学生编号、教师角色与模板映射必须来自带 `base_state_id` 的移动端入口；

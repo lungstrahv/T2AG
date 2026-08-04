@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh T2AG 0.2.0 derived state.
+"""Refresh T2AG 0.2.1 derived state.
 
 Default and ``--check`` are read-only.  Only ``--write`` changes GENERATED
 blocks.  Cloud projections are always skipped while the bridge is paused.
@@ -245,7 +245,7 @@ def render_state_pointers(
     course: Course | None,
     teacher_mapping: dict[str, tuple[str, str]],
 ) -> str:
-    profile = MAIN / "10_student/profile.md"
+    profile = MAIN / "10_student/profile/profile.md"
     profile_status = (
         frontmatter(read(profile)).get("initialization_status", "—")
         if profile.exists() else "—"
@@ -290,9 +290,9 @@ def render_state_pointers(
         f"| Lesson 上下文 | {lesson_context} | {lesson_context_path} |",
         f"| 当前教学活动 | {activity}: {activity_value} | {activity_path} |",
         f"| 当前教师 | {teacher_template(course, teacher_mapping)} | `main/20_teacher/overlay.md` |",
-        f"| 学生档案 | {profile_status} | `main/10_student/profile.md` |",
+        f"| 学生档案 | {profile_status} | `main/10_student/profile/profile.md` |",
         f"| active binding | {binding_value} | {binding_path} |",
-        "| T2AG 版本 | 0.2.0 | `main/t2ag.md` |",
+        "| T2AG 版本 | 0.2.1 | `main/t2ag.md` |",
         f"| Cloud bridge | {cloud} | `cloud/cloud_sync_state.md` |",
     ))
 
@@ -396,7 +396,7 @@ def planned_updates() -> list[tuple[Path, str]]:
         current = courses.get(current_id)
 
     memory = MAIN / "00_core/t2ag_memory.md"
-    learning = MAIN / "10_student/learning_path.md"
+    learning = MAIN / "10_student/profile/learning_path.md"
     updates: list[tuple[Path, str]] = []
     if memory.exists():
         content = replace_block(read(memory), "ACTIVE_PROGRESS", render_active(current))

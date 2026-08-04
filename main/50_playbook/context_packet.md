@@ -37,7 +37,7 @@ python -B main/70_tools/t2ag_context.py --course <COURSE_ID> --format markdown
 失败，先完成课程组切换。L0 包含：
 
 - memory 的上次课摘要与当前指针；
-- profile 的初始化状态、学习目标、辅导偏好、执行参数和个体总纲；
+- profile 的初始化状态、`exercise_hint_gate`、学习目标、辅导偏好、执行参数和个体总纲；
 - learning path 中当前课程与 active Group 的精确表格行；
 - active Group 的当前预算、成员与周期安排；
 - `progress.md` frontmatter 与「当前进度」；
@@ -66,6 +66,10 @@ python -B main/70_tools/t2ag_context.py --course <COURSE_ID> --include-l1
 
 首次呈现习题仍只给题面。上下文包可以让教师读取必要状态，但不得把内部提示、答案、
 历史他人解法或思维树提前展示给学生。
+
+当前活动为 Exercise 且 `exercise_hint_gate: enabled` 时，每次教学回复先以当前题目运行
+`t2ag_hint_gate.py`。`concept_answer` 只回答学生明确问到的概念，不将定义、例子或结论
+继续应用回题目；帮助等级只由学生显式授权提升。
 
 ### L2：触发式完整展开
 

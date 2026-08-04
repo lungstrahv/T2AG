@@ -40,7 +40,7 @@ planned（预划，只存在于课程 `progress.md` 或 planned group 的 `plan.
    - ✅ `当前课程组：见 memory 指针（成员见对应组文件）`
    - ❌ `当前课程组：G01` （组代码副本，换组即腐烂）
    - ✅ `当前课程：IV1001（见组文件）`（单课引用带指针，合法）
-3. `main/10_student/learning_path.md` 的课程生命周期和容量状态是机器生成缓存：
+3. `main/10_student/profile/learning_path.md` 的课程生命周期和容量状态是机器生成缓存：
    - 生命周期取自各课程 `progress.md`。
    - 容量状态取自当前 active G 文件和 planned G 文件。
    - 由 `70_tools/t2ag_state_refresh.py` 统一刷新；生成区块禁止手写。

@@ -93,7 +93,49 @@
 
 没有真实提交时只保留 `_README.md`，不得创建空的 AT/RV 实例来通过检查。
 
-## 二、Attempt schema
+## 二、学生可选提示闸门
+
+### 2.1 设置与意图
+
+学生档案 frontmatter 的 `exercise_hint_gate` 是唯一持久开关：
+
+- `enabled`：Exercise 教学回复必须先运行只读 `t2ag_hint_gate.py`；
+- `disabled`：不执行额外 gate 拒绝，但开题零提示、提示梯和独立证据规则仍然生效；
+- 未初始化 Skeleton 使用 `ask`，首次启动必须由学生选择，模型不得代选。
+
+启用时，回复意图分为：
+
+| intent | 无额外授权是否允许 | 范围 |
+|---|---|---|
+| `reasoning_feedback` | 允许 | 只检查学生已表达的推理，不新增对象、子目标、引理、构造或下一步 |
+| `concept_answer` | 允许 | 只回答学生明确问到的概念，不应用回当前题，随后返回原停点 |
+| `direction_hint` | 否 | 需要显式 `direction` 授权 |
+| `specified_reference` | 否 | 需要显式 `reference` 授权 |
+| `full_solution` | 否 | 需要显式 `solution` 授权 |
+
+`t2ag_hint_gate.py` 的 deny 返回码必须被消费；不能先发送回复、再补跑检查。该工具是
+可审计 preflight，不是模型内不可绕过的安全边界；要硬阻断输出，必须由模型外部响应中介
+执行工具并拦截 deny。
+
+### 2.2 Attempt 快照与帮助暴露
+
+2026-08-01 起创建的 Attempt frontmatter 必须增加：
+
+```yaml
+hint_gate: enabled | disabled
+assistance_level: none | direction | reference | solution
+```
+
+- `hint_gate` 是 Attempt 创建时的 profile 设置快照；学生随后改开关不回写历史快照。
+- `assistance_level` 保存截至该 Attempt 的最高实际帮助暴露，不能因后续关闭 gate 而降低。
+- 合规的 `concept_answer` 不升级帮助等级，但须在“作答上下文”记录概念范围和
+  `scope_only`；如果回答把概念桥接回题目、给出题目专属子目标或步骤，则按实际暴露升级。
+- 每次方向/资料/完整讲解记录学生授权原话；没有明确授权不得根据“学生似乎卡住”升级。
+- 未经授权泄露关键步骤、结构或答案时，记录 `teacher_hint_contamination`，相关内容不得
+  计作学生独立掌握，也不得写成学生错误。
+- 旧 Attempt 不反向伪造 gate 快照；Doctor 只对 2026-08-01 起的新 Attempt 强制字段。
+
+## 三、Attempt schema
 
 `attempts/AT0001/attempt.md`：
 
@@ -107,12 +149,16 @@ problem_ids: [U0001-Q001, U0001-Q002]
 mode: mixed
 status: submitted
 created: 2026-07-26
+hint_gate: enabled
+assistance_level: none
 ---
 # AT0001 作答
 
 ## 作答上下文
 
 - 使用帮助：none
+- 提示闸门：enabled
+- 授权与概念问答：none
 
 ## U0001-Q001
 
@@ -147,7 +193,7 @@ created: 2026-07-26
 - 本版不记录 OCR confidence 或学生转写确认状态；不得用空字段假装该能力已实现。
 - 每个 `problem_id` 必须存在于同单元 `problems.md`，正文须有对应二级标题和作答项。
 
-## 三、Review schema
+## 四、Review schema
 
 `reviews/RV0001.md`：
 
@@ -180,12 +226,13 @@ reviewed: 2026-07-26
 - Review 必须引用真实存在的 Attempt，且题目集合必须来自该 Attempt。
 - Review 只记录本次证据；跨题重复至少两次后才可升级到 `reasoning_patterns.md`。
 
-## 四、session close 写回
+## 五、session close 写回
 
 1. 进入 Exercise 时先创建或恢复 `exercise.md`；它保存当前题目、精确停点和证据指针，
    不复制原始作答。
 2. 学生提交后创建一个批次级 Attempt；同一批次的多张图片放在同一 `assets/`；学生
-   明确表达解题体会时，在对应题目下追加“学生想法”原话。
+   明确表达解题体会时，在对应题目下追加“学生想法”原话；新 Attempt 同时写 gate 快照、
+   最高帮助暴露和真实授权/污染记录。
 3. 批改后创建 Review，逐题记录结果、思路观察和反馈。
 4. 明确知识错误写入或合并 mistake bank，并在 Review 写 `mistake_refs`。
 5. 未闭合疑问写入 question bank，并在 Review 写 `question_refs`。
@@ -196,7 +243,7 @@ reviewed: 2026-07-26
    自己的学习记录，不互相充当正文。
 9. 最后执行 state refresh 与 doctor。
 
-## 五、习题想法汇总
+## 六、习题想法汇总
 
 第一次出现真实学生想法时创建：
 
@@ -223,15 +270,15 @@ updated: 2026-07-26
 - lesson 内由讲授触发的原始灵感仍放 `lessons/lessonXX/lesson_thoughts.md`；习题作答触发的
   想法先放 Attempt，再汇总到本文件。
 - 课程体验、节奏、课程感受以及从 lesson/exercise 提炼出的核心内容思考写
-  `10_student/course_reflections.md`；生活、哲学、情绪与
-  长期元认知写 `10_student/profile.md`；跨题稳定解题模式写 `reasoning_patterns.md`。
+  `10_student/profile/course_reflections.md`；生活、哲学、情绪与
+  长期元认知写 `10_student/profile/profile.md`；跨题稳定解题模式写 `reasoning_patterns.md`。
 - 核心内容思考的提炼门：学生明确标记重要，或内容连接 lesson 与 exercise、连接两个
   以上知识节点、能够指导后续学习中的任一项成立。提炼条目必须回链局部来源；普通局部
   火花继续留在各自文件，不为凑数量上收。
 - 恢复习题时读取与当前 Unit/知识点相关的近期条目；“后续使用”必须落到提示、反例、
   复测或方法迁移之一，不能只收藏不消费。
 
-## 六、doctor 契约
+## 七、doctor 契约
 
 - 校验 U/题目/AT/RV ID、文件名、frontmatter 和引用闭合。
 - 校验 Skeleton 初始化模板，以及 `activity_map.md`、Lesson、Exercise 的同级连接；活动
@@ -239,5 +286,7 @@ updated: 2026-07-26
 - 拒绝 Lesson/Exercise 互相持有所有权，以及退役 `sessions/ExerciseSession` 结构。
 - image/mixed Attempt 缺原图为 FAIL。
 - Attempt 引用未知题目、Review 引用未知 Attempt 或题目越界均为 FAIL。
+- 2026-08-01 起的新 Attempt 缺 `hint_gate / assistance_level`、枚举非法或模板未携带该
+  schema 均为 FAIL；旧 Attempt 不反向伪造字段。
 - Review 缺逐题结果或结果枚举非法为 FAIL。
 - Skeleton 只携带本 schema，不携带真实 AT/RV 实例。

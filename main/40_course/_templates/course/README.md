@@ -7,3 +7,4 @@ Lesson 与 Exercise 是同级学习活动；先创建哪一种取决于学生的
 不得复制 `.template` 后仍保留占位符，也不得预造 Attempt、Review 或想法证据。
 教材 Exercise 还须复制 `book/primary/verified_excerpts/source.md.template`，校对后
 登记 artifact，并让 `problems.md` 以路径、定位和 SHA 引用；不得引用 Lesson cache。
+新 Attempt 的 `HINT_GATE_MODE` 必须取创建时 profile 的 `exercise_hint_gate` 快照。

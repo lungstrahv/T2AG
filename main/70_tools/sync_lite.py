@@ -154,10 +154,13 @@ LITE_IDENTITY_REL = frozenset({"README.md", "AGENTS.md"})
 LITE_GUIDE_DIVERGE_REL = frozenset({"t2ag_directory_guide.html"})
 PRESERVE_DST_TOP = frozenset({".git", ".venv", ".recovery", ".staging"})
 
-LITE_README = """# T2AG 0.2.0 线上模型审查快照（t2ag-lite）
+LITE_README = """# T2AG 0.2.1 线上模型审查快照（t2ag-lite）
 
 > **身份**：由主实例 `t2ag/` **全量再生**得到的文本优先审查快照。
 > 不是空白 skeleton，不用于初始化新学生，也不得作为教学写回源。
+
+> **产品方向**：`t2ag-skeleton/` 按可复用开源基础持续维护；个人实例不因此公开。
+> 仓库根当前尚无明确开源许可证，正式对外分发前仍需单独裁决许可。
 
 - 再生机制：A 案（`main/70_tools/sync_lite.py`）— 每次从 main 整树导出 + 排除清单
 - 源实例：`../t2ag/`
@@ -173,7 +176,7 @@ LITE_README = """# T2AG 0.2.0 线上模型审查快照（t2ag-lite）
 
 1. `main/t2ag.md`
 2. `main/00_core/t2ag_memory.md`
-3. `main/10_student/learning_path.md`、`main/10_student/profile.md`、
+3. `main/10_student/profile/learning_path.md`、`main/10_student/profile/profile.md`、
    `main/20_teacher/overlay.md`
 4. 当前课程、课程组与 playbook
 5. 按需展开 changelog 与 problemlog
@@ -202,7 +205,7 @@ lite 只能由 main 再生，不是规则源。顺序固定为：
 不要手改 lite 后期望回写 main。半同步靠全量再生灭绝，不靠白名单补丁。
 """
 
-LITE_AGENTS = """# t2ag-lite 0.2.0 启动说明
+LITE_AGENTS = """# t2ag-lite 0.2.1 启动说明
 
 本目录是 **t2ag 主实例的线上审查快照**（由 `main/70_tools/sync_lite.py` 全量再生）。
 
@@ -214,7 +217,7 @@ LITE_AGENTS = """# t2ag-lite 0.2.0 启动说明
 
 ## 版本
 
-- 与源 main 对齐；当前版本为 `0.2.0`，权威版本号见 `main/t2ag.md`。
+- 与源 main 对齐；当前版本为 `0.2.1`，权威版本号见 `main/t2ag.md`。
 - 本文件在每次 `sync_lite.py` 运行时重写为审查身份说明。
 """
 

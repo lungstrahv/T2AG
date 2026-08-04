@@ -1,4 +1,4 @@
-# T2AG 0.2.0 跨会话记忆索引
+# T2AG 0.2.1 跨会话记忆索引
 
 > Skeleton 空实例缓存。首次启动前不得填入真实学生、课程或 group。
 
@@ -25,14 +25,14 @@
 | Lesson 上下文 | 无 | — |
 | 当前教学活动 | —: — | — |
 | 当前教师 | — | `main/20_teacher/overlay.md` |
-| 学生档案 | uninitialized | `main/10_student/profile.md` |
+| 学生档案 | uninitialized | `main/10_student/profile/profile.md` |
 | active binding | 无 | 首次启动后创建 |
-| T2AG 版本 | 0.2.0 | `main/t2ag.md` |
+| T2AG 版本 | 0.2.1 | `main/t2ag.md` |
 | Cloud bridge | paused | `cloud/cloud_sync_state.md` |
 <!-- T2AG_GENERATED:STATE_POINTERS:END -->
 
 ## 启动提示
 
-1. 读取 `main/10_student/profile.md`。
+1. 读取 `main/10_student/profile/profile.md`。
 2. profile 未初始化或仍含必填占位符时，执行 `main/50_playbook/first_run.md`。
 3. 不创建、删除、重建或升级 `.venv`。

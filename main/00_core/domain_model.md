@@ -1,4 +1,4 @@
-# T2AG 0.2.0 Domain Model
+# T2AG 0.2.1 Domain Model
 
 ## 1. Student
 
@@ -8,10 +8,10 @@ patterns、reflections、activities 与 engagements；不再存在 Case、SN 路
 
 权威：
 
-- 身份与执行参数：`10_student/profile.md`
-- 课程清单缓存：`10_student/learning_path.md`
-- 解题模式：`10_student/reasoning_patterns.md`
-- 课程感想与课程核心内容思考：`10_student/course_reflections.md`
+- 身份与执行参数：`10_student/profile/profile.md`
+- 课程清单缓存：`10_student/profile/learning_path.md`
+- 解题模式：`10_student/profile/reasoning_patterns.md`
+- 课程感想与课程核心内容思考：`10_student/profile/course_reflections.md`
 
 ## 2. Course
 
@@ -46,7 +46,7 @@ Course 是课程定义和当前实例进度的唯一聚合根：
   顺序，后者保存当前教学执行路线。教学路线可按先修依赖与学生真实证据调整，但不改题号，
   不跨内容组，且必须记录调整理由。
 - lesson/exercise 局部想法保留上下文；具有章节主线、跨活动连接或后续复用价值的核心
-  内容思考，再提炼进 `10_student/course_reflections.md`，并保留局部来源指针。
+  内容思考，再提炼进 `10_student/profile/course_reflections.md`，并保留局部来源指针。
 - 汇总条目必须区分证据归属：学生明确说出的内容写“学生原话/学生自我修正”，教师的
   形式化、扩展和解释写“教师补充/教师提炼”；两者可以相邻，但不得混写成共同原话。
 
@@ -65,6 +65,10 @@ Course 是课程定义和当前实例进度的唯一聚合根：
   真相源。它以 `Unit / Attempt / Problem` 来源元组去重，保存短摘、索引标签与后续用途；
   原话仍以 Attempt 为准。
 - Review 只引用 mistake/question/reasoning 证据，不拥有这些反馈台账。
+- `profile.md` 的 `exercise_hint_gate` 保存学生是否启用提示闸门；启用时，回复意图先由
+  `t2ag_hint_gate.py` 检查。概念问答只答所问概念，不自动应用到当前题；方向、资料与
+  完整讲解分别需要学生显式授权。Attempt 保存 gate 快照和最高帮助暴露，但不把概念
+  问答或教师越级提示冒充学生独立证据。
 - KnowledgePoint、OCR 确认链与 AbilitySummary 尚未成为 0.2.0 活动对象。
 
 ## 3. Group

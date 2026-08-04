@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic doctor for the T2AG 0.2.0 object model."""
+"""Deterministic doctor for the T2AG 0.2.1 object model."""
 from __future__ import annotations
 
 import json
@@ -33,7 +33,7 @@ def detect_flavor() -> str:
         return "lite"
     if ROOT.name == "t2ag-skeleton":
         return "skeleton"
-    profile = MAIN / "10_student/profile.md"
+    profile = MAIN / "10_student/profile/profile.md"
     readme = ROOT / "README.md"
     profile_text = (
         profile.read_text(encoding="utf-8-sig", errors="replace")
@@ -79,6 +79,9 @@ ALLOWED_COURSE_DRIVERS = {"textbook", "goal", "project", "praxis"}
 ALLOWED_BINDING_STATES = {"idle", "active", "paused", "closed"}
 ALLOWED_ATTEMPT_MODES = {"text", "image", "mixed"}
 ALLOWED_ATTEMPT_STATES = {"submitted", "withdrawn"}
+ALLOWED_HINT_GATE_MODES = {"enabled", "disabled"}
+ALLOWED_ASSISTANCE_LEVELS = {"none", "direction", "reference", "solution"}
+HINT_GATE_SCHEMA_DATE = "2026-08-01"
 ALLOWED_REVIEWERS = {"teacher", "student", "joint"}
 ALLOWED_REVIEW_STATES = {"recorded", "amended"}
 ALLOWED_REVIEW_RESULTS = {"correct", "partial", "incorrect", "unresolved"}
@@ -233,17 +236,48 @@ def check_structure() -> None:
         report("FAIL", "缺少界面资产 main/80_interface/fable_snail.png")
     if (ROOT / "assets/fable_snail.png").exists():
         report("FAIL", "旧根 assets/fable_snail.png 仍 active")
+    student = MAIN / "10_student"
+    expected_student_dirs = {"profile", "activities", "engagements"}
+    actual_student_dirs = {
+        path.name for path in student.iterdir() if path.is_dir()
+    } if student.is_dir() else set()
+    if actual_student_dirs != expected_student_dirs:
+        report(
+            "FAIL",
+            "10_student 顶层目录不等于 profile/activities/engagements："
+            f"actual={sorted(actual_student_dirs)}",
+        )
+    profile_root = student / "profile"
+    if not profile_root.is_dir():
+        report("FAIL", "缺少学生共享档案容器：main/10_student/profile/")
+    expected_profile_files = {
+        "profile.md",
+        "learning_path.md",
+        "course_reflections.md",
+        "reasoning_patterns.md",
+    }
+    for filename in sorted(expected_profile_files):
+        canonical = profile_root / filename
+        matches = sorted(student.rglob(filename)) if student.is_dir() else []
+        if matches != [canonical]:
+            report(
+                "FAIL",
+                "学生共享档案必须且只能存在一份："
+                f"{filename} -> {[rel(path) for path in matches]}",
+            )
+        if (student / filename).exists():
+            report("FAIL", f"旧学生档案顶层文件仍存在：main/10_student/{filename}")
 
 
 def check_version_and_profile() -> None:
     constitution = MAIN / "t2ag.md"
     memory = MAIN / "00_core/t2ag_memory.md"
     for path in (constitution, memory):
-        if path.exists() and "0.2.0" not in read(path):
-            report("FAIL", f"版本未更新为 0.2.0：{rel(path)}")
+        if path.exists() and "0.2.1" not in read(path):
+            report("FAIL", f"版本未更新为 0.2.1：{rel(path)}")
     for path in (ROOT / "README.md", ROOT / "AGENTS.md", MAIN / "bin/t2ag"):
-        if not path.exists() or "0.2.0" not in read(path):
-            report("FAIL", f"发行入口版本未更新为 0.2.0：{rel(path)}")
+        if not path.exists() or "0.2.1" not in read(path):
+            report("FAIL", f"发行入口版本未更新为 0.2.1：{rel(path)}")
     launcher = MAIN / "bin/t2ag"
     if launcher.exists():
         content = read(launcher)
@@ -251,14 +285,16 @@ def check_version_and_profile() -> None:
             report("FAIL", "launcher 仍指向退役 main/skin")
         if re.search(r"/[a-zA-Z]/Users/|[A-Za-z]:[\\/]Users[\\/]", content):
             report("FAIL", "launcher 含机器专属用户绝对路径")
-    profile = MAIN / "10_student/profile.md"
+    profile = MAIN / "10_student/profile/profile.md"
     if not profile.exists():
-        report("FAIL", "缺少 10_student/profile.md")
+        report("FAIL", "缺少 10_student/profile/profile.md")
         return
     meta = frontmatter(profile)
     if FLAVOR == "skeleton":
         if meta.get("initialization_status") == "initialized":
             report("FAIL", "Skeleton profile 不得标为 initialized")
+        if meta.get("exercise_hint_gate") != "ask":
+            report("FAIL", "Skeleton profile 提示闸门必须等待学生选择：ask")
         content = read(profile)
         if re.search(r"\bS00[2-9]\b|MikeChen|上海交通大学", content):
             report("FAIL", "Skeleton profile 含真实实例标识")
@@ -267,6 +303,11 @@ def check_version_and_profile() -> None:
         if meta.get("initialization_status") != "initialized":
             report("FAIL", f"{FLAVOR} profile 未初始化")
             return
+        if meta.get("exercise_hint_gate") not in ALLOWED_HINT_GATE_MODES:
+            report(
+                "FAIL",
+                f"{FLAVOR} profile 缺学生确认的 exercise_hint_gate: enabled|disabled",
+            )
         if re.search(
             r"<(?:required|confirm|confirm-or-none|off\s*\|\s*suggest\s*\|\s*auto)>|[（(]待填写[）)]",
             content,
@@ -689,7 +730,7 @@ def check_knowledge_ledgers(courses: dict[str, tuple[Path, dict[str, str]]]) -> 
                 if not re.search(rf"^-\s*{re.escape(field)}[：:]\s*.+$", block, re.MULTILINE):
                     report("FAIL", f"mistake 条目缺{field}：{course_id}/M-{match.group(1)}")
 
-    reasoning = MAIN / "10_student/reasoning_patterns.md"
+    reasoning = MAIN / "10_student/profile/reasoning_patterns.md"
     if reasoning.is_file():
         body = without_fenced_code(read(reasoning))
         ids = re.findall(r"^###\s+(RP-\d{4})(?:\s+.*)?$", body, re.MULTILINE)
@@ -1456,6 +1497,33 @@ def check_exercises(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
                         report("FAIL", f"Attempt status 非法：{rel(carrier)}")
                     if not ameta.get("created") or ameta.get("created") == "—":
                         report("FAIL", f"Attempt 缺 created：{rel(carrier)}")
+                    created = ameta.get("created", "")
+                    gate_snapshot = ameta.get("hint_gate", "")
+                    assistance_level = ameta.get("assistance_level", "")
+                    requires_gate_snapshot = bool(
+                        re.fullmatch(r"\d{4}-\d{2}-\d{2}", created)
+                        and created >= HINT_GATE_SCHEMA_DATE
+                    )
+                    if requires_gate_snapshot and (
+                        not gate_snapshot or not assistance_level
+                    ):
+                        report("FAIL", f"Attempt 缺提示闸门快照：{rel(carrier)}")
+                    if gate_snapshot and gate_snapshot not in ALLOWED_HINT_GATE_MODES:
+                        report(
+                            "FAIL",
+                            f"Attempt hint_gate 非法：{rel(carrier)} -> {gate_snapshot}",
+                        )
+                    if (
+                        assistance_level
+                        and assistance_level not in ALLOWED_ASSISTANCE_LEVELS
+                    ):
+                        report(
+                            "FAIL",
+                            "Attempt assistance_level 非法："
+                            f"{rel(carrier)} -> {assistance_level}",
+                        )
+                    if bool(gate_snapshot) != bool(assistance_level):
+                        report("FAIL", f"Attempt 提示闸门快照字段不成对：{rel(carrier)}")
                     attempt_text = read(carrier)
                     if not markdown_section(attempt_text, "作答上下文"):
                         report("FAIL", f"Attempt 缺作答上下文：{rel(carrier)}")
@@ -1549,6 +1617,8 @@ def check_teacher_contract(
             "统一只读活动路由",
             "当前 Lesson/Exercise 主载体",
             "mistake_bank.md",
+            "t2ag_hint_gate.py",
+            "不把概念桥接回当前题",
         )
         missing = [
             marker for marker in required_route_markers if marker not in content
@@ -1557,6 +1627,20 @@ def check_teacher_contract(
             report(
                 "FAIL",
                 f"教师模板缺统一错误路由契约：{rel(template)} -> {missing}",
+            )
+        required_presentation_markers = (
+            "先给短目录、树形地图",
+            "对象类型表",
+            "新 Exercise 未授权阶段",
+        )
+        missing = [
+            marker for marker in required_presentation_markers
+            if marker not in content
+        ]
+        if missing:
+            report(
+                "FAIL",
+                f"教师模板缺地图优先讲解协议：{rel(template)} -> {missing}",
             )
     try:
         return resolve_teacher_mapping(ROOT, set(courses))
@@ -1570,7 +1654,7 @@ def check_memory_pointers(
     courses: dict[str, tuple[Path, dict[str, str]]],
     teacher_mapping: dict[str, tuple[str, str]],
 ) -> None:
-    profile = frontmatter(MAIN / "10_student/profile.md")
+    profile = frontmatter(MAIN / "10_student/profile/profile.md")
     if profile.get("initialization_status") != "initialized":
         return
     groups = []
@@ -1958,9 +2042,9 @@ def check_handoff_contract() -> None:
         line_count = len(content.splitlines())
         char_count = len(content)
         expected_aging = (
-            "old" if line_count >= 1200 or char_count >= 90000 else
-            "check_2" if line_count >= 800 or char_count >= 60000 else
-            "check_1" if line_count >= 400 or char_count >= 30000 else
+            "old" if line_count >= 1000 or char_count >= 90000 else
+            "check_2" if line_count >= 700 or char_count >= 60000 else
+            "check_1" if line_count >= 350 or char_count >= 30000 else
             "normal"
         )
         if metadata["aging_state"] != expected_aging:
@@ -2029,21 +2113,115 @@ def check_derived_tools() -> None:
     if FLAVOR != "lite":
         args = ["--check"] if FLAVOR == "main" else ["--check", "--target", "skeleton"]
         run_check("migrate_020.py", args, "migration idempotence")
+        run_check("migrate_021.py", ["--check"], "0.2.1 profile migration idempotence")
 
 
 def check_migration_evidence() -> None:
     if FLAVOR == "lite":
         return
-    readme = ROOT / "README.md"
-    readme_content = read(readme).lower() if readme.is_file() else ""
+    readme_content = read(ROOT / "README.md") if (ROOT / "README.md").is_file() else ""
     migration_target_kind = (
         "skeleton"
-        if ROOT.name == "t2ag-skeleton" or "t2ag-skeleton" in readme_content
+        if ROOT.name == "t2ag-skeleton"
+        or re.search(r"^# T2AG .* Skeleton\s*$", readme_content, re.MULTILINE)
         else "main"
     )
     _, _, errors = validated_migration_evidence(migration_target_kind)
     for error in errors:
         report("FAIL", error)
+
+
+def check_migration_021_evidence() -> None:
+    if FLAVOR == "lite":
+        return
+    manifest_path = MAIN / "60_journal/migration_021_profile_operations.json"
+    report_path = MAIN / "60_journal/migration_021_profile_report.json"
+    if not manifest_path.is_file() or not report_path.is_file():
+        report("FAIL", "缺少 0.2.1 profile 迁移操作清单或报告")
+        return
+    try:
+        manifest = json.loads(read(manifest_path))
+        migration_report = json.loads(read(report_path))
+    except json.JSONDecodeError as exc:
+        report("FAIL", f"0.2.1 profile 迁移证据 JSON 非法：{exc}")
+        return
+    summary = migration_report.get("operation_manifest", {})
+    if summary.get("path") != "main/60_journal/migration_021_profile_operations.json":
+        report("FAIL", "0.2.1 profile 迁移报告未绑定 canonical manifest")
+    if summary.get("sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest():
+        report("FAIL", "0.2.1 profile 迁移 manifest SHA 漂移")
+    operations = manifest.get("operations", [])
+    if (
+        manifest.get("schema_version") != "T2AG-MIGRATION-OPERATIONS-1"
+        or manifest.get("operation_count") != 4
+        or len(operations) != 4
+        or summary.get("operation_count") != 4
+        or migration_report.get("applied_count") != 4
+        or migration_report.get("status") != "applied"
+    ):
+        report("FAIL", "0.2.1 profile 迁移计数或状态非法")
+        return
+    readme_content = read(ROOT / "README.md") if (ROOT / "README.md").is_file() else ""
+    expected_kind = (
+        "skeleton"
+        if ROOT.name == "t2ag-skeleton"
+        or re.search(r"^# T2AG .* Skeleton\s*$", readme_content, re.MULTILINE)
+        else "main"
+    )
+    if manifest.get("target_kind") != expected_kind:
+        report("FAIL", f"0.2.1 profile 迁移 target_kind 非法：{manifest.get('target_kind')}")
+    expected_moves = (
+        ("main/10_student/profile.md", "main/10_student/profile/profile.md"),
+        ("main/10_student/learning_path.md", "main/10_student/profile/learning_path.md"),
+        (
+            "main/10_student/course_reflections.md",
+            "main/10_student/profile/course_reflections.md",
+        ),
+        (
+            "main/10_student/reasoning_patterns.md",
+            "main/10_student/profile/reasoning_patterns.md",
+        ),
+    )
+    for sequence, (source_path, target_path) in enumerate(expected_moves, start=1):
+        row = operations[sequence - 1]
+        sources = row.get("sources", [])
+        post_target = row.get("post_target", {})
+        if (
+            row.get("sequence") != sequence
+            or row.get("kind") != "move"
+            or len(sources) != 1
+            or sources[0].get("path") != source_path
+            or row.get("target") != target_path
+            or row.get("outcome") != "applied"
+            or row.get("content_check") not in {"byte_identical", "path_repairs_only"}
+            or post_target.get("path") != target_path
+        ):
+            report("FAIL", f"0.2.1 profile 迁移操作非法：sequence={sequence}")
+            continue
+        target = ROOT / target_path
+        if not target.is_file():
+            report("FAIL", f"0.2.1 profile 迁移目标不存在：{target_path}")
+            continue
+        if (ROOT / source_path).exists():
+            report("FAIL", f"0.2.1 profile 旧路径仍存在：{source_path}")
+        evidence_bytes = post_target.get("bytes")
+        evidence_sha = post_target.get("sha256")
+        if (
+            not isinstance(evidence_bytes, int)
+            or evidence_bytes < 0
+            or not isinstance(evidence_sha, str)
+            or re.fullmatch(r"[0-9a-f]{64}", evidence_sha) is None
+        ):
+            report("FAIL", f"0.2.1 profile 迁移目标证据非法：{target_path}")
+        # These four targets are live student records.  Their migration-time
+        # hashes remain report-bound evidence, not permanent content locks.
+    verification = migration_report.get("current_verification", {})
+    if (
+        verification.get("pending_count") != 0
+        or verification.get("missing") != []
+        or verification.get("collisions") != []
+    ):
+        report("FAIL", "0.2.1 profile 迁移报告仍有待办或冲突")
 
 
 def check_core_playbooks() -> None:
@@ -2143,6 +2321,7 @@ def check_context_packet_contract() -> None:
         "test_lesson_conditional_reads_never_point_to_exercise_tree",
         "test_exercise_first_step_selects_only_current_problem",
         "test_nonempty_l1_is_included_in_serialized_combined_cost",
+        "test_initialized_requires_hint_gate_choice",
         "serialized_l0_plus_l1_markdown_chars",
     )
     absent = [marker for marker in test_markers if marker not in test_content]
@@ -2156,12 +2335,14 @@ def check_context_packet_contract() -> None:
             "同一对话内未变化的 L0 不重复读取",
             "--include-l1",
             "完整序列化 Markdown",
+            "t2ag_hint_gate.py",
         ),
         MAIN / "50_playbook/lesson_recover.md": (
             "t2ag_context.py --course <COURSE_ID> --format markdown",
             "步骤 2：消费 progress.md 当前切片",
             "L2 读取对应「教学记录」",
             "不得返回缺教材的 `ready`",
+            "--intent <INTENT>",
         ),
         MAIN / "50_playbook/session_close.md": (
             "只回读这些实际目标",
@@ -2285,9 +2466,33 @@ def check_course_activity_templates() -> None:
     core_contract = MAIN / "00_core/learning_activity_model.md"
     if not core_contract.is_file():
         report("FAIL", "缺课程学习活动 Core 契约：main/00_core/learning_activity_model.md")
+    core_content = read(core_contract) if core_contract.is_file() else ""
+    map_first_markers = (
+        "### 2.2 多块长篇讲解的地图优先协议",
+        "一次只深入一个分支",
+        "无法在不泄露的前提下制作有用总览时，宁可省略总览",
+    )
+    missing_map_first = [
+        marker for marker in map_first_markers if marker not in core_content
+    ]
+    if missing_map_first:
+        report(
+            "FAIL",
+            f"课程学习活动 Core 缺地图优先讲解协议：{missing_map_first}",
+        )
+    first_run = MAIN / "50_playbook/first_run.md"
+    first_run_content = read(first_run) if first_run.is_file() else ""
+    if (
+        "先地图、后逐支" not in first_run_content
+        or "学生希望怎样确认后再继续" not in first_run_content
+    ):
+        report("FAIL", "首次启动未采集长篇讲解地图与分支确认偏好")
     route_tool = MAIN / "70_tools/t2ag_activity.py"
     if not route_tool.is_file():
         report("FAIL", "缺统一 LearningActivity 路由器：main/70_tools/t2ag_activity.py")
+    hint_gate_tool = MAIN / "70_tools/t2ag_hint_gate.py"
+    if not hint_gate_tool.is_file():
+        report("FAIL", "缺学生可选提示闸门：main/70_tools/t2ag_hint_gate.py")
     recovery = MAIN / "50_playbook/lesson_recover.md"
     recovery_content = read(recovery) if recovery.is_file() else ""
     recovery_markers = (
@@ -2331,10 +2536,12 @@ def check_course_activity_templates() -> None:
         )
         release_contract = release_root / "main/00_core/learning_activity_model.md"
         release_route_tool = release_root / "main/70_tools/t2ag_activity.py"
+        release_hint_gate_tool = release_root / "main/70_tools/t2ag_hint_gate.py"
         if (
             release_missing
             or not release_contract.is_file()
             or not release_route_tool.is_file()
+            or not release_hint_gate_tool.is_file()
         ):
             details = []
             if release_missing:
@@ -2343,6 +2550,8 @@ def check_course_activity_templates() -> None:
                 details.append("contract=missing")
             if not release_route_tool.is_file():
                 details.append("route_tool=missing")
+            if not release_hint_gate_tool.is_file():
+                details.append("hint_gate_tool=missing")
             report(
                 "FAIL",
                 f"Course/Lesson/Exercise 发行能力不完整：{name} -> {'; '.join(details)}",
@@ -2359,6 +2568,9 @@ def check_course_activity_templates() -> None:
         ).hexdigest()
         files["tool/t2ag_activity.py"] = hashlib.sha256(
             release_route_tool.read_bytes()
+        ).hexdigest()
+        files["tool/t2ag_hint_gate.py"] = hashlib.sha256(
+            release_hint_gate_tool.read_bytes()
         ).hexdigest()
         if reference is None:
             reference = files
@@ -2426,6 +2638,7 @@ def main() -> int:
     check_cloud_contract()
     check_derived_tools()
     check_migration_evidence()
+    check_migration_021_evidence()
     check_course_activity_templates()
     check_core_playbooks()
     check_context_packet_contract()

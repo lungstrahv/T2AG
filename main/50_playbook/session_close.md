@@ -45,7 +45,9 @@ Micro close 和完整结课都必须原子完成以下步骤。不能把未完�
 - Lesson：追加本次讲授、问答、确认和错误尝试；“Lesson 最后停点快照”是局部证据，
   不使用 `T2AG_GENERATED`，也不覆盖 progress。
 - Exercise：更新 `exercise.md` 的当前题目、精确停点和证据指针；有真实提交才按
-  `exercise_evidence.md` 创建 Attempt，有真实批改才创建 Review。
+  `exercise_evidence.md` 创建 Attempt，有真实批改才创建 Review；新 Attempt 同时保存
+  创建时的 `hint_gate` 快照、最高 `assistance_level` 和真实授权/污染记录。概念问答若
+  遵守 scope-only 不升级帮助等级；未经授权泄露关键结构时不得计作独立掌握。
 - 两类活动都只写自己的正文。跨活动关系只写 `activity_map.md`；Exercise 结课不得顺手
   改历史 Lesson。
 
@@ -97,7 +99,7 @@ Micro close 不生成欠账、不写 deferred marker。若因信息或权限不�
 在强制事务之外，按真实触发补充：
 
 1. 检查 `lesson_thoughts.md` 与 `exercise_thoughts.md`；满足提炼门时更新
-   `10_student/course_reflections.md` 并保留来源回链。
+   `10_student/profile/course_reflections.md` 并保留来源回链。
 2. 跨题重复模式达到证据门槛后才更新 `reasoning_patterns.md`。
 3. 组合层频率、时间偏差与欠债处置写 group `review.md`，不复制单课掌握度。
 4. Cloud bridge 为 `paused` 时跳过移动端投影；云端 handoff 不能覆盖本地 progress。

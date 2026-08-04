@@ -12,14 +12,14 @@
 >
 > **关联文件**：
 > - 规则定义：`main/t2ag.md` →「日常接管」
-> - 课程列表：`main/10_student/learning_path.md` 的 GENERATED 课程索引
+> - 课程列表：`main/10_student/profile/learning_path.md` 的 GENERATED 课程索引
 > - 课程状态：对应课程 `progress.md` →「当前进度」
 > - 当前活动：由 progress 的 `current_activity / current_activity_id / resume_path` 唯一确定
 > - Lesson 笔记：仅在当前活动为 Lesson 时读取 `lessons/lessonXX/lessonXX.md`
 > - Exercise 证据：仅在当前活动为 Exercise 时读取 `exercises/Udddd/`
 > - 课程疑问：对应课程 `question_bank.md` →「待解决 / 需要回看」
 > - 课程错题库：对应课程 `mistake_bank.md`
-> - 学生状态档案：`main/10_student/profile.md`、`reasoning_patterns.md` 与 `course_reflections.md`
+> - 学生状态档案：`main/10_student/profile/profile.md`、`reasoning_patterns.md` 与 `course_reflections.md`
 > - 教材缓存：当前活动为 Lesson 时，对应 `lessons/lessonXX/working_pages/source_excerpt.md`
 > - 交接管理：`main/50_playbook/handoff_management.md` + 运行时 `<handoff_root>/README.md`
 > - 自检工具：`main/70_tools/t2ag_doctor.py`
@@ -141,6 +141,10 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
    Lesson 的 Session；
 5. `current_lesson` 兼容字段只能写 `none` / `—`，或指向一份真实存在且
    frontmatter 匹配的历史 Lesson。
+6. 从 profile 读取 `exercise_hint_gate`。值为 `enabled` 时，每次回复前运行
+   `python -B main/70_tools/t2ag_hint_gate.py --course <COURSE_ID> --problem <PROBLEM_ID>
+   --intent <INTENT>`；deny 时不得发送。概念问题使用 `concept_answer`，只答对应概念，
+   不把概念自动应用回当前题。
 
 Exercise 首启不得读取或构造 Lesson 路径；标准写法是 `current_lesson: none`，同时
 `resume_path` 直接指向 `exercises/Udddd/exercise.md`。历史 Lesson 的
@@ -150,7 +154,7 @@ Exercise 首启不得读取或构造 Lesson 路径；标准写法是 `current_le
 
 L0 从学生档案做逐段摘录，重点关注：
 
-- **`main/10_student/profile.md`**：frontmatter、基本信息、执行参数、学习目标、辅导偏好、
+- **`main/10_student/profile/profile.md`**：frontmatter、基本信息、执行参数、学习目标、辅导偏好、
   特殊要求与个体性格总纲；带日期的历史原话不默认全量读取
 - **`course_reflections.md`**：读取当前课程知识点树形图和最近 3 条课程感想
 - **`reasoning_patterns.md`**：处理练习、复测或跨课程迁移时，按需读取相关条目
@@ -160,8 +164,8 @@ L0 从学生档案做逐段摘录，重点关注：
 **读取规则**：
 1. 消费 L0 的 profile 教学契约，不再次全文读取
 2. 排期、调参或解释个人历史时才进入 L2 展开对应 profile 原文
-3. 读取 `main/10_student/course_reflections.md` 中当前课程的知识点树形图和最近 3 条感想
-4. 处理练习、复测或跨课程迁移时，按需读取 `main/10_student/reasoning_patterns.md`；涉及替代方法训练或状态更新时，同时执行 `method_distillation.md`
+3. 读取 `main/10_student/profile/course_reflections.md` 中当前课程的知识点树形图和最近 3 条感想
+4. 处理练习、复测或跨课程迁移时，按需读取 `main/10_student/profile/reasoning_patterns.md`；涉及替代方法训练或状态更新时，同时执行 `method_distillation.md`
 5. 当前活动为 Lesson 时按需读取 `lesson_thoughts.md`；当前活动为 Exercise 时按需读取
    `exercises/exercise_thoughts.md` 及当前 Unit 的证据；同时读取
    `course_reflections.md` 中由这些局部来源提炼出的课程核心内容思考。
@@ -335,7 +339,7 @@ python -B main/70_tools/t2ag_doctor.py
 
 ### 1. 确认学生情绪状态再调整节奏
 
-- 恢复上下文时，必须先读取 `main/10_student/profile.md` 和近期课程感想；处理练习或复测时按需读取解题思维档案
+- 恢复上下文时，必须先读取 `main/10_student/profile/profile.md` 和近期课程感想；处理练习或复测时按需读取解题思维档案
 - 若学生近期有焦虑、挫败等负面情绪 → 适当放慢节奏、多鼓励、降低难度
 - 若学生情绪积极 → 可适当增加挑战、加快进度
 - **不能只看进度不看人**：教学节奏由学生掌握程度和情绪状态共同决定
@@ -386,6 +390,6 @@ python -B main/70_tools/t2ag_doctor.py
   - 只读路由返回的当前 Lesson 或 Exercise 主载体；Exercise 不更新历史 Lesson
   - `progress.md` 的 `activity_position`、「当前进度」节和「教学记录」、累计学习时长
   - `[课程]/mistake_bank.md` 的新增知识错误与复测结果
-  - `main/00_core/t2ag_memory.md` 与 `main/10_student/learning_path.md` 的进度缓存
-  - `main/10_student/profile.md` 或 `course_reflections.md`（若有新的状态/感想记录）
+  - `main/00_core/t2ag_memory.md` 与 `main/10_student/profile/learning_path.md` 的进度缓存
+  - `main/10_student/profile/profile.md` 或 `course_reflections.md`（若有新的状态/感想记录）
   - 若本次由 active 课堂交接恢复，按 `handoff_management.md` 在正式写回验证后关闭交接

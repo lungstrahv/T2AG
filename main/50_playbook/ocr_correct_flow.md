@@ -7,7 +7,7 @@
 >
 > **关联文件**：
 > - 规则定义：`main/t2ag.md` →「OCR 文本提取与校验规则」
-> - 通用要求：`main/10_student/learning_path.md` →「OCR 工具选择与结果校对」
+> - 通用要求：`main/10_student/profile/learning_path.md` →「OCR 工具选择与结果校对」
 > - 问题日志：`main/00_core/t2ag_problemlog.md`
 > - 课程命令：对应课程 `progress.md` →「常用命令」
 
