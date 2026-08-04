@@ -9,8 +9,8 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,9 @@ from typing import Any
 TOOLS = Path(__file__).resolve().parent
 DEFAULT_T2AG_SCRIPT = TOOLS / "t2ag_reading_bridge.py"
 DEFAULT_CONTRACTS = TOOLS / "contracts" / "reading_bridge_v1"
+COMMAND_TIMEOUT_SECONDS = 60
+_PROGRESS_FILE: Path | None = None
+_PROGRESS_SEQUENCE = 0
 
 
 class SagaError(RuntimeError):
@@ -32,6 +35,58 @@ def canonical_bytes(value: object) -> bytes:
         separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
+
+
+def write_durable_text(path: Path, text: str) -> None:
+    """Write complete UTF-8 evidence through fsync and same-directory replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp-{uuid.uuid4().hex}")
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(text.encode("utf-8"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def configure_progress(report_file: Path | None) -> None:
+    """Initialize a durable command-progress sidecar when evidence is requested."""
+    global _PROGRESS_FILE, _PROGRESS_SEQUENCE
+    _PROGRESS_SEQUENCE = 0
+    _PROGRESS_FILE = None
+    if report_file is None:
+        return
+    # Invalidate any stale PASS before validation or fixture creation starts.
+    write_durable_text(report_file, "[RUNNING] LOOP evidence pending\n")
+    progress_file = report_file.with_name(report_file.name + ".progress.jsonl")
+    write_durable_text(progress_file, "")
+    _PROGRESS_FILE = progress_file
+
+
+def emit_progress(stage: str, status: str, detail: str = "") -> None:
+    """Append and fsync one bounded progress event for wrapper-hang diagnosis."""
+    global _PROGRESS_SEQUENCE
+    if _PROGRESS_FILE is None:
+        return
+    _PROGRESS_SEQUENCE += 1
+    event = {
+        "sequence": _PROGRESS_SEQUENCE,
+        "stage": stage,
+        "status": status,
+        "detail": detail,
+    }
+    with _PROGRESS_FILE.open("ab") as handle:
+        handle.write(canonical_bytes(event) + b"\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def command_stage(script: Path, arguments: tuple[str, ...]) -> str:
+    operation = arguments[0] if arguments else "<none>"
+    return f"{script.name}:{operation}"
 
 
 def write_text(path: Path, text: str) -> None:
@@ -51,41 +106,61 @@ def load_json(path: Path) -> Any:
 def run_json(script: Path, root: Path, *arguments: str) -> Any:
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    result = subprocess.run(
-        [sys.executable, "-X", "utf8", str(script), "--root", str(root), *arguments],
-        text=True,
-        encoding="utf-8",
-        capture_output=True,
-        check=False,
-        env=environment,
-    )
+    stage = command_stage(script, arguments)
+    emit_progress(stage, "started")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", str(script), "--root", str(root), *arguments],
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            check=False,
+            env=environment,
+            timeout=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        emit_progress(stage, "timeout", f"limit={COMMAND_TIMEOUT_SECONDS}s")
+        raise SagaError(f"command timed out after {COMMAND_TIMEOUT_SECONDS}s: {stage}") from error
     if result.returncode != 0:
+        emit_progress(stage, "failed", f"exit={result.returncode}")
         raise SagaError(
             f"command failed ({result.returncode}): {script.name} {' '.join(arguments)}\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
     try:
-        return json.loads(result.stdout)
+        value = json.loads(result.stdout)
+        emit_progress(stage, "passed", "exit=0 json=valid")
+        return value
     except json.JSONDecodeError as error:
+        emit_progress(stage, "failed", "exit=0 json=invalid")
         raise SagaError(f"command did not return JSON: {result.stdout!r}") from error
 
 
 def run_ok(script: Path, root: Path, *arguments: str) -> str:
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    result = subprocess.run(
-        [sys.executable, "-X", "utf8", str(script), "--root", str(root), *arguments],
-        text=True,
-        encoding="utf-8",
-        capture_output=True,
-        check=False,
-        env=environment,
-    )
+    stage = command_stage(script, arguments)
+    emit_progress(stage, "started")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", str(script), "--root", str(root), *arguments],
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            check=False,
+            env=environment,
+            timeout=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        emit_progress(stage, "timeout", f"limit={COMMAND_TIMEOUT_SECONDS}s")
+        raise SagaError(f"command timed out after {COMMAND_TIMEOUT_SECONDS}s: {stage}") from error
     if result.returncode != 0:
+        emit_progress(stage, "failed", f"exit={result.returncode}")
         raise SagaError(
             f"command failed ({result.returncode}): {script.name} {' '.join(arguments)}\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
+    emit_progress(stage, "passed", "exit=0")
     return result.stdout
 
 
@@ -94,21 +169,38 @@ def run_fail(
     root: Path,
     *arguments: str,
     environment_override: dict[str, str] | None = None,
+    expected_returncode: int = 2,
 ) -> None:
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     if environment_override:
         environment.update(environment_override)
-    result = subprocess.run(
-        [sys.executable, "-X", "utf8", str(script), "--root", str(root), *arguments],
-        text=True,
-        encoding="utf-8",
-        capture_output=True,
-        check=False,
-        env=environment,
-    )
-    if result.returncode == 0:
-        raise SagaError(f"negative command unexpectedly passed: {script.name} {' '.join(arguments)}")
+    stage = command_stage(script, arguments)
+    emit_progress(stage, "started", f"expected={expected_returncode}")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", str(script), "--root", str(root), *arguments],
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            check=False,
+            env=environment,
+            timeout=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        emit_progress(stage, "timeout", f"limit={COMMAND_TIMEOUT_SECONDS}s")
+        raise SagaError(f"negative command timed out after {COMMAND_TIMEOUT_SECONDS}s: {stage}") from error
+    if result.returncode != expected_returncode:
+        emit_progress(
+            stage,
+            "failed",
+            f"expected exit={expected_returncode} actual={result.returncode}",
+        )
+        raise SagaError(
+            f"negative command exit mismatch: expected {expected_returncode}, "
+            f"got {result.returncode}: {script.name} {' '.join(arguments)}"
+        )
+    emit_progress(stage, "passed", f"expected exit={result.returncode}")
 
 
 def manifest(root: Path) -> dict[str, str]:
@@ -869,8 +961,7 @@ def run_saga(
 def emit_text(path: Path | None, text: str, *, stream) -> None:
     """Print with flush and optionally mirror to a durable report file first."""
     if path is not None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
+        write_durable_text(path, text if text.endswith("\n") else text + "\n")
     print(text, file=stream, flush=True)
     try:
         stream.flush()
@@ -899,6 +990,24 @@ def safe_rmtree(path: Path) -> None:
         shutil.rmtree(path, ignore_errors=True)
 
 
+def create_single_temp_directory(parent: Path, prefix: str) -> Path:
+    """Create exactly once so permission errors fail immediately on Windows."""
+    target = parent / f"{prefix}{uuid.uuid4().hex}"
+    target.mkdir(parents=False, exist_ok=False)
+    return target
+
+
+def probe_temp_root(temp_root: Path) -> None:
+    """Prove create/delete access without tempfile.mkdtemp retry behaviour."""
+    probe = create_single_temp_directory(temp_root, ".t2ag-021-write-probe-")
+    try:
+        probe.rmdir()
+    except OSError:
+        safe_rmtree(probe)
+        if probe.exists():
+            raise SagaError(f"temp root write probe could not be removed: {probe}")
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--reading-script", required=True)
@@ -914,17 +1023,31 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
-def main() -> int:
-    args = parser().parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv)
     temp_root = Path(args.temp_root).resolve()
     t2ag_script = Path(args.t2ag_script).resolve()
     reading_script = Path(args.reading_script).resolve()
     contracts = Path(args.contracts).resolve()
     report_file = Path(args.report_file).resolve() if args.report_file else None
+    try:
+        configure_progress(report_file)
+    except OSError as error:
+        print(f"[FAIL] cannot initialize durable progress evidence: {error}", file=sys.stderr, flush=True)
+        return 2
     if not temp_root.is_dir():
         emit_text(
             report_file,
             f"[FAIL] temp root does not exist: {temp_root}",
+            stream=sys.stderr,
+        )
+        return 2
+    try:
+        probe_temp_root(temp_root)
+    except (SagaError, OSError) as error:
+        emit_text(
+            report_file,
+            f"[FAIL] temp root is not writable: {temp_root}: {error}",
             stream=sys.stderr,
         )
         return 2
@@ -935,7 +1058,15 @@ def main() -> int:
             stream=sys.stderr,
         )
         return 2
-    fixture = Path(tempfile.mkdtemp(prefix="t2ag-021-loop-", dir=str(temp_root)))
+    try:
+        fixture = create_single_temp_directory(temp_root, "t2ag-021-loop-")
+    except OSError as error:
+        emit_text(
+            report_file,
+            f"[FAIL] fixture creation failed immediately: {temp_root}: {error}",
+            stream=sys.stderr,
+        )
+        return 2
     exit_code = 1
     try:
         report = run_saga(fixture, t2ag_script, reading_script, contracts)

@@ -17,11 +17,13 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import migrate_021
 import migrate_021_activity_records as activity_migration
 import migration_txn_021 as migration_txn
 import sync_lite
+import test_021_saga as saga
 import t2ag_doctor as doctor
 import t2ag_reading_bridge as bridge
 from contracts.reading_bridge_v1.validator import (
@@ -537,6 +539,186 @@ class LiteTransactionTests(unittest.TestCase):
         self.assertNotEqual(sync_lite.lite_content_manifest(self.dst), old)
         sync_lite.restore_previous_lite(self.dst, self.rollback, installed, moved)
         self.assertEqual(sync_lite.lite_content_manifest(self.dst), old)
+
+    def test_install_normalizes_acl_only_for_new_entries(self) -> None:
+        with mock.patch.object(sync_lite, "inherit_destination_acl") as inherit:
+            moved, installed = sync_lite.install_candidate(
+                self.candidate, self.dst, self.rollback
+            )
+        self.assertEqual([path.name for path in moved], ["old.txt"])
+        self.assertEqual([path.name for path in installed], ["main"])
+        inherit.assert_called_once_with(self.dst, installed)
+
+    def test_acl_normalization_failure_restores_exact_old_lite(self) -> None:
+        old = sync_lite.lite_content_manifest(self.dst)
+        with mock.patch.object(
+            sync_lite,
+            "inherit_destination_acl",
+            side_effect=RuntimeError("ACL normalization failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "previous Lite restored"):
+                sync_lite.install_candidate(self.candidate, self.dst, self.rollback)
+        self.assertEqual(sync_lite.lite_content_manifest(self.dst), old)
+        self.assertTrue((self.dst / "old.txt").is_file())
+        self.assertFalse((self.dst / "main").exists())
+
+    def test_windows_acl_helper_enables_and_resets_inheritance(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, "", "")
+        with (
+            mock.patch.object(sync_lite.os, "name", "nt"),
+            mock.patch.object(sync_lite.subprocess, "run", return_value=completed) as run,
+        ):
+            sync_lite.inherit_destination_acl(
+                self.candidate, [self.candidate / "main"]
+            )
+        self.assertEqual(run.call_count, 2)
+        operations = [call.args[0][2] for call in run.call_args_list]
+        self.assertEqual(operations, ["/inheritance:e", "/reset"])
+        for call in run.call_args_list:
+            self.assertIn("/T", call.args[0])
+            self.assertEqual(call.args[0][1], str(self.candidate / "main"))
+            self.assertEqual(call.kwargs["timeout"], 30)
+
+    def test_acl_helper_refuses_sibling_and_lockedbak_is_untouched(self) -> None:
+        locked = self.workspace / "t2ag-lite.lockedbak" / "sentinel.bin"
+        write(locked, b"lockedbak sentinel\x00")
+        before = (locked.read_bytes(), locked.stat().st_mtime_ns)
+        with self.assertRaisesRegex(RuntimeError, "outside Lite destination"):
+            sync_lite.inherit_destination_acl(self.dst, [locked.parent])
+        with mock.patch.object(sync_lite, "inherit_destination_acl"):
+            sync_lite.install_candidate(self.candidate, self.dst, self.rollback)
+        self.assertEqual((locked.read_bytes(), locked.stat().st_mtime_ns), before)
+
+    @unittest.skipUnless(os.name == "nt", "Windows DACL integration only")
+    def test_protected_candidate_inherits_destination_acl_after_install(self) -> None:
+        system_root = Path(os.environ["SystemRoot"])
+        icacls = system_root / "System32" / "icacls.exe"
+        powershell = (
+            system_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        )
+
+        def protected(path: Path) -> bool:
+            escaped = str(path).replace("'", "''")
+            result = subprocess.run(
+                [
+                    str(powershell),
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    f"(Get-Acl -LiteralPath '{escaped}').AreAccessRulesProtected.ToString()",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
+                timeout=15,
+            )
+            return result.stdout.strip().lower() == "true"
+
+        subprocess.run(
+            [str(icacls), str(self.candidate / "main"), "/inheritance:d", "/T", "/Q"],
+            check=True,
+            capture_output=True,
+            timeout=15,
+        )
+        self.assertTrue(protected(self.candidate / "main"))
+        _, installed = sync_lite.install_candidate(
+            self.candidate, self.dst, self.rollback
+        )
+        self.assertFalse(protected(installed[0]))
+
+
+class SagaEntryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory(prefix="t2ag-021-saga-entry-")
+        self.root = Path(self.temporary.name)
+
+    def tearDown(self) -> None:
+        saga.configure_progress(None)
+        self.temporary.cleanup()
+
+    def test_unwritable_temp_root_fails_fast_with_durable_report(self) -> None:
+        report = self.root / "evidence" / "loop.json"
+        write(report, "OLD PASS MUST NOT SURVIVE\n")
+        started = time.monotonic()
+        with mock.patch.object(
+            saga,
+            "probe_temp_root",
+            side_effect=PermissionError("fixture denied"),
+        ):
+            code = saga.main(
+                [
+                    "--reading-script",
+                    str(self.root / "reading.py"),
+                    "--temp-root",
+                    str(self.root),
+                    "--report-file",
+                    str(report),
+                ]
+            )
+        self.assertEqual(code, 2)
+        self.assertLess(time.monotonic() - started, 1.0)
+        self.assertIn("temp root is not writable", report.read_text(encoding="utf-8"))
+        self.assertNotIn("OLD PASS", report.read_text(encoding="utf-8"))
+        self.assertTrue(report.with_name(report.name + ".progress.jsonl").is_file())
+
+    def test_fixture_creation_permission_error_fails_fast(self) -> None:
+        report = self.root / "fixture-denied.json"
+        t2ag_script = self.root / "t2ag.py"
+        reading_script = self.root / "reading.py"
+        contracts = self.root / "contracts"
+        write(t2ag_script, "# fixture\n")
+        write(reading_script, "# fixture\n")
+        contracts.mkdir()
+        with (
+            mock.patch.object(saga, "probe_temp_root", return_value=None),
+            mock.patch.object(
+                saga,
+                "create_single_temp_directory",
+                side_effect=PermissionError("fixture mkdir denied"),
+            ),
+        ):
+            code = saga.main(
+                [
+                    "--reading-script",
+                    str(reading_script),
+                    "--t2ag-script",
+                    str(t2ag_script),
+                    "--contracts",
+                    str(contracts),
+                    "--temp-root",
+                    str(self.root),
+                    "--report-file",
+                    str(report),
+                ]
+            )
+        self.assertEqual(code, 2)
+        self.assertIn("fixture creation failed immediately", report.read_text(encoding="utf-8"))
+
+    def test_subprocess_timeout_is_bounded_and_durable(self) -> None:
+        report = self.root / "timeout.json"
+        saga.configure_progress(report)
+        with mock.patch.object(
+            saga.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(["python", "fixture.py"], 60),
+        ):
+            with self.assertRaisesRegex(saga.SagaError, "timed out"):
+                saga.run_ok(self.root / "fixture.py", self.root, "status")
+        progress = report.with_name(report.name + ".progress.jsonl").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"status":"started"', progress)
+        self.assertIn('"status":"timeout"', progress)
+
+    def test_negative_command_rejects_infrastructure_exit(self) -> None:
+        report = self.root / "negative.json"
+        saga.configure_progress(report)
+        failed = subprocess.CompletedProcess([], 1, "", "infrastructure failure")
+        with mock.patch.object(saga.subprocess, "run", return_value=failed):
+            with self.assertRaisesRegex(saga.SagaError, "exit mismatch"):
+                saga.run_fail(self.root / "fixture.py", self.root, "negative")
 
 
 class LiteMainTransactionTests(unittest.TestCase):

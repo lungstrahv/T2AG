@@ -666,6 +666,54 @@ def restore_previous_lite(
         )
 
 
+def inherit_destination_acl(dst: Path, installed: list[Path]) -> None:
+    """Make newly installed Windows entries inherit the destination ACL.
+
+    Codex review sessions can create protected DACLs on temporary directories.
+    A same-volume move preserves those DACLs, which would make the generated
+    Lite unreadable to a later independent reviewer.  Reset only the newly
+    installed top-level entries; destination-local preserved entries are never
+    included in ``installed``.
+    """
+    if os.name != "nt":
+        return
+    system_root = os.environ.get("SystemRoot")
+    if not system_root:
+        raise RuntimeError("SystemRoot is missing; cannot locate trusted icacls.exe")
+    icacls = Path(system_root) / "System32" / "icacls.exe"
+    if not icacls.is_file():
+        raise RuntimeError(f"trusted icacls.exe is missing: {icacls}")
+    destination = dst.resolve()
+    for target in installed:
+        if target.parent.resolve() != destination:
+            raise RuntimeError(
+                f"refusing to reset ACL outside Lite destination: {target}"
+            )
+        recursive = ["/T"] if target.is_dir() else []
+        for operation in ("/inheritance:e", "/reset"):
+            command = [str(icacls), str(target), operation, *recursive, "/Q"]
+            try:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=False,
+                    timeout=30,
+                )
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError(
+                    f"timed out resetting installed Lite ACL after 30s: {target} ({operation})"
+                ) from error
+            if result.returncode != 0:
+                detail = result.stderr.strip() or result.stdout.strip()
+                raise RuntimeError(
+                    "failed to make installed Lite entry inherit destination ACL: "
+                    f"{target} ({operation}, exit {result.returncode}): {detail}"
+                )
+
+
 def install_candidate(
     candidate: Path,
     dst: Path,
@@ -691,6 +739,7 @@ def install_candidate(
             shutil.move(str(child), str(target))
             installed.append(target)
             inject_failure(f"install_new:{index}")
+        inherit_destination_acl(dst, installed)
     except Exception as install_error:
         try:
             restore_previous_lite(dst, rollback, installed, moved_old)

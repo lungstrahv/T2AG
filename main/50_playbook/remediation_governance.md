@@ -111,3 +111,23 @@ ID 与新 delta，不复制全文；范围外文件指纹变化必须拒绝复�
   路径、operator 自审、报告回写或提前 PASS 均拒绝；
 - reviewer output 是稳定性检查完成后最后生成的不可变外部报告。PASS 不回写目标仓、施工报告
   或索引，避免“写入通过结论又制造新的未审 delta”。
+
+### 5.6 审查成本与环境预检
+
+- 普通版本内优化只审已证明的影响闭包并重跑 §5.3 全局门；完整 V 只针对一个冻结的 release
+  candidate 执行一次。只有新 P0/P1/P2、范围扩张或无法证明影响闭包导致 candidate 失效时，
+  才冻结新 candidate 并重跑完整 V；finalization 只审 §5.5 的有界 delta；
+- 长测试前先验证 reviewer 可读 Main/Skeleton/Lite、report parent 可原子写入、temp-root 可完成
+  一次 create/delete、脚本和 contracts 可读。权限、timeout、脚本不可读属于基础设施失败，
+  不得冒充产品负例 PASS；
+- LOOP 在建夹具前做单次随机 `mkdir` 写探针，每个子进程有明确 timeout，并在 stdout 之外先
+  落 durable progress；同一环境边界最多一次正常尝试加一次有界诊断，前提未变化时不得重复
+  空跑同一长命令；
+- `.venv` 禁止作为普通审查对象递归哈希。只确认目录仍存在、`pyvenv.cfg` 与已冻结证据一致，
+  且 campaign 未执行创建、删除、安装或升级命令；只有依赖变更在范围内时才检查依赖清单；
+- `.recovery`、`.staging` 普通审查只确认仍存在且没有删除操作；只有 recovery/staging 功能本身
+  在施工范围内时才检查内容；
+- tracked 内容由 clean HEAD/tree 与 `git status` 绑定，不再重复读取大文件。真实课程证据优先
+  复用已冻结 manifest；只有 path/size/mtime 或 Git blob 变化的文件才重算 SHA；
+- 任何预计读取超过 100 MB 或 10,000 文件的检查，执行前必须记录现有 digest 不能复用的具体
+  原因。没有该证明时拒绝自动全扫；已发生的大扫描证据不得升级为后续固定门。
