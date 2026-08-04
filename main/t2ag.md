@@ -191,5 +191,12 @@ doctor 无 FAIL 且 state refresh 无漂移后，按 `50_playbook/context_packet
 - 0.2.1 增量施工权威：`T2AG-STUDENT-PROFILE-READING-BRIDGE-20260730`
 - 0.2.1 完整收口与审查治理权威：
   `docs/handoffs/T2AG_021_FULL_CLOSEOUT_AND_REVIEW_GOVERNANCE_WORKORDER_2026-08-04.md`
+- 0.2.1 `implementation_status`：`complete`
+- 0.2.1 `candidate_review`：`passed`
+- 0.2.1 candidate review：
+  `docs/handoffs/T2AG_021_VERSION_INDEPENDENT_REVIEW_2026-08-04.md`，SHA-256
+  `92194e00259fe7f5d80b1e458196329fbcfe7bd4e1ec1a15dd01f1383e6dd3ea`
+- 0.2.1 release 资格外部权威：
+  `docs/handoffs/T2AG_021_FINALIZATION_DELTA_REVIEW_2026-08-04.md`；该报告出具前不得写 release PASS
 - 迁移器：`70_tools/migrate_020.py`
 - 版本更新必须同步本文件、memory、changelog、README、Skeleton 与 Lite 身份入口。

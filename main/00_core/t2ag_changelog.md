@@ -21,8 +21,12 @@
   owner export、context import 与 note receipt。双方各写各仓，候选不自动晋升为课程或 mastery。
 - Lite 再生保留 rollback 到最终 source/projection/guide 复验完成，末段失败恢复旧 Lite 并核对
   精确字节清单。`--force` 仍只作诊断，不产生发布资格。
-- 本条登记 implementation candidate；完整独立复审、finalization delta 和最终本地快照通过前，
-  仍不得把收口状态写成 released。
+- `implementation_status=complete`，`candidate_review=passed`。不可变独立报告为
+  `docs/handoffs/T2AG_021_VERSION_INDEPENDENT_REVIEW_2026-08-04.md`，SHA-256
+  `92194e00259fe7f5d80b1e458196329fbcfe7bd4e1ec1a15dd01f1383e6dd3ea`。
+- release 资格仍只由外部
+  `docs/handoffs/T2AG_021_FINALIZATION_DELTA_REVIEW_2026-08-04.md` 裁定；该报告通过前不得写
+  release PASS。
 
 ---
 
@@ -41,6 +45,9 @@
 - 为 0.2.2 Activity Close 新增 campaign amendment：A–D 与条件性 G 不再逐批索权；真实 migration
   apply 与 `exercise01` terminal close 保留为两个分别展示正文后决定的 RT3 门。本次只换代治理，
   没有实施 0.2.2，当前运行版本仍为 0.2.1。
+- 治理实现与完整 candidate V 已通过；candidate report SHA-256 为
+  `92194e00259fe7f5d80b1e458196329fbcfe7bd4e1ec1a15dd01f1383e6dd3ea`。最终 release 仍等待
+  有界 finalization delta 外部复审。
 
 ---
 
