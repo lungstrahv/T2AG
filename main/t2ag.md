@@ -1,4 +1,4 @@
-# T2AG 0.2.1 宪法
+# T2AG 0.2.2 宪法
 
 > T2AG 是一个以文件为长期记忆、以可审计状态推进学习的个人教学系统。
 > 本文件是启动入口和最高本地规则；实现细节下沉到 domain model 与 playbook。
@@ -204,7 +204,7 @@ doctor 无 FAIL 且 state refresh 无漂移后，按 `50_playbook/context_packet
 
 ## 7. 版本
 
-- 当前版本：`0.2.1`
+- 当前版本：`0.2.2`
 - 0.2.0 基线结构权威：`60_journal/T2AG_0.2.0_修改方案.md`
 - 0.2.1 增量施工权威：`T2AG-STUDENT-PROFILE-READING-BRIDGE-20260730`
 - 0.2.1 完整收口与审查治理权威：
@@ -216,5 +216,14 @@ doctor 无 FAIL 且 state refresh 无漂移后，按 `50_playbook/context_packet
   `92194e00259fe7f5d80b1e458196329fbcfe7bd4e1ec1a15dd01f1383e6dd3ea`
 - 0.2.1 release 资格外部权威：
   `docs/handoffs/T2AG_021_FINALIZATION_DELTA_REVIEW_2026-08-04.md`；该报告出具前不得写 release PASS
+- 0.2.2 Activity Close 施工权威：
+  `docs/handoffs/T2AG_022_ACTIVITY_CLOSE_LEDGER_WORKORDER_2026-08-04.md`
+- 0.2.2 `implementation_status`：`complete`
+- 0.2.2 `candidate_review`：`passed`
+- 0.2.2 candidate review：
+  `docs/handoffs/T2AG_022_VERSION_INDEPENDENT_REVIEW_2026-08-05.md`，SHA-256
+  `45548a3d66f717df6d92c8c5ae163bc89ca504c55cb9d1e4867e834a615dcffd`
+- 0.2.2 仓内 `release_qualification`：`finalization_pending`；最终资格由
+  `docs/handoffs/T2AG_022_FINALIZATION_DELTA_REVIEW_2026-08-05.md` 的独立结论决定
 - 迁移器：`70_tools/migrate_020.py`
 - 版本更新必须同步本文件、memory、changelog、README、Skeleton 与 Lite 身份入口。

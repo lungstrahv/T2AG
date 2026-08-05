@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic doctor for the T2AG 0.2.1 object model."""
+"""Deterministic doctor for the T2AG 0.2.2 object model."""
 from __future__ import annotations
 
 import datetime as dt
@@ -319,11 +319,11 @@ def check_version_and_profile() -> None:
     constitution = MAIN / "t2ag.md"
     memory = MAIN / "00_core/t2ag_memory.md"
     for path in (constitution, memory):
-        if path.exists() and "0.2.1" not in read(path):
-            report("FAIL", f"版本未更新为 0.2.1：{rel(path)}")
+        if path.exists() and "0.2.2" not in read(path):
+            report("FAIL", f"版本未更新为 0.2.2：{rel(path)}")
     for path in (ROOT / "README.md", ROOT / "AGENTS.md", MAIN / "bin/t2ag"):
-        if not path.exists() or "0.2.1" not in read(path):
-            report("FAIL", f"发行入口版本未更新为 0.2.1：{rel(path)}")
+        if not path.exists() or "0.2.2" not in read(path):
+            report("FAIL", f"发行入口版本未更新为 0.2.2：{rel(path)}")
     launcher = MAIN / "bin/t2ag"
     if launcher.exists():
         content = read(launcher)

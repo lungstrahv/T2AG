@@ -1,4 +1,4 @@
-# T2AG 0.2.1 Skeleton 启动指令
+# T2AG 0.2.2 Skeleton 启动指令
 
 本目录是空实例原件。进入后先读 `main/t2ag.md`，并运行：
 

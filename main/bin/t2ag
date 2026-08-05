@@ -13,7 +13,7 @@ INTERFACE_DIR="$T2AG_DIR/main/80_interface"
 SKIN_YAML="$INTERFACE_DIR/skin.yaml"
 
 # 版本号需与 t2ag.md 顶部「当前版本」保持一致
-T2AG_VERSION="0.2.1"
+T2AG_VERSION="0.2.2"
 
 cd "$T2AG_DIR" || { echo "无法进入 $T2AG_DIR"; exit 1; }
 

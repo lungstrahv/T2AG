@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zero-dependency contract tests plus a real-disk T2AG 0.2.1 CLI roundtrip."""
+"""Zero-dependency contract tests plus a real-disk T2AG 0.2.2 CLI roundtrip."""
 from __future__ import annotations
 
 import contextlib
@@ -281,11 +281,11 @@ def assert_message(collection: list[str], token: str) -> None:
 
 def test_profile_placeholder(root: Path) -> None:
     reset(root)
-    write(root / "README.md", "0.2.1\n")
-    write(root / "AGENTS.md", "0.2.1\n")
-    write(root / "main/bin/t2ag", "0.2.1\n")
-    write(root / "main/t2ag.md", "0.2.1\n")
-    write(root / "main/00_core/t2ag_memory.md", "0.2.1\n")
+    write(root / "README.md", "0.2.2\n")
+    write(root / "AGENTS.md", "0.2.2\n")
+    write(root / "main/bin/t2ag", "0.2.2\n")
+    write(root / "main/t2ag.md", "0.2.2\n")
+    write(root / "main/00_core/t2ag_memory.md", "0.2.2\n")
     write(
         root / "main/10_student/profile/profile.md",
         "---\ninitialization_status: initialized\n---\n"
@@ -303,7 +303,7 @@ def test_profile_container_contract(root: Path) -> None:
     def build(case_root: Path) -> None:
         for domain in doctor.EXPECTED_DOMAINS:
             (case_root / "main" / domain).mkdir(parents=True, exist_ok=True)
-        write(case_root / "main/t2ag.md", "0.2.1\n")
+        write(case_root / "main/t2ag.md", "0.2.2\n")
         write(case_root / "main/80_interface/fable_snail.png", "fixture\n")
         for name in ("profile.md", "learning_path.md", "course_reflections.md", "reasoning_patterns.md"):
             write(case_root / "main/10_student/profile" / name, f"# {name}\n")
@@ -2362,7 +2362,40 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
             ):
                 candidates.append(candidate.parent.name)
         if not candidates:
-            raise AssertionError("initialized release has no ongoing Exercise for disk E2E")
+            between = []
+            for candidate in sorted((fixture / "main/40_course").glob("*/progress.md")):
+                content = candidate.read_text(encoding="utf-8-sig")
+                if (
+                    re.search(r"^lifecycle_status:\s*ongoing\s*$", content, re.MULTILINE)
+                    and re.search(r"^current_activity:\s*none\s*$", content, re.MULTILINE)
+                    and re.search(r"^activity_position:\s*between_activities\s*$", content, re.MULTILINE)
+                ):
+                    between.append(candidate.parent.name)
+            if not between:
+                raise AssertionError(
+                    "initialized release has neither an ongoing Exercise nor a between-activities course"
+                )
+            course_id = between[0]
+            cli("t2ag_state_refresh.py", "--check")
+            doctor = cli("t2ag_doctor.py")
+            assert_doctor_flavor(doctor, expected_runtime_flavor)
+            recover = json.loads(
+                cli(
+                    "t2ag_activity.py", "--course", course_id, "--intent", "recover",
+                ).stdout
+            )
+            expected_progress = f"main/40_course/{course_id}/progress.md"
+            if (
+                recover["current_activity"] != "none"
+                or recover["current_activity_id"] != "none"
+                or recover["primary_read"] != expected_progress
+                or recover["activity_read_targets"]
+                or recover["working_pages"] is not None
+            ):
+                raise AssertionError(
+                    f"between-activities recover invented an active activity: {recover}"
+                )
+            return
         course_id = candidates[0]
 
     progress_path = fixture / f"main/40_course/{course_id}/progress.md"

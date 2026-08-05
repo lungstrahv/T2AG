@@ -156,7 +156,7 @@ LITE_IDENTITY_REL = frozenset({"README.md", "AGENTS.md"})
 LITE_GUIDE_DIVERGE_REL = frozenset({"t2ag_directory_guide.html"})
 PRESERVE_DST_TOP = frozenset({".git", ".venv", ".recovery", ".staging"})
 
-LITE_README = """# T2AG 0.2.1 线上模型审查快照（t2ag-lite）
+LITE_README = """# T2AG 0.2.2 线上模型审查快照（t2ag-lite）
 
 > **身份**：由主实例 `t2ag/` **全量再生**得到的文本优先审查快照。
 > 不是空白 skeleton，不用于初始化新学生，也不得作为教学写回源。
@@ -207,7 +207,7 @@ lite 只能由 main 再生，不是规则源。顺序固定为：
 不要手改 lite 后期望回写 main。半同步靠全量再生灭绝，不靠白名单补丁。
 """
 
-LITE_AGENTS = """# t2ag-lite 0.2.1 启动说明
+LITE_AGENTS = """# t2ag-lite 0.2.2 启动说明
 
 本目录是 **t2ag 主实例的线上审查快照**（由 `main/70_tools/sync_lite.py` 全量再生）。
 
@@ -219,7 +219,7 @@ LITE_AGENTS = """# t2ag-lite 0.2.1 启动说明
 
 ## 版本
 
-- 与源 main 对齐；当前版本为 `0.2.1`，权威版本号见 `main/t2ag.md`。
+- 与源 main 对齐；当前版本为 `0.2.2`，权威版本号见 `main/t2ag.md`。
 - 本文件在每次 `sync_lite.py` 运行时重写为审查身份说明。
 """
 

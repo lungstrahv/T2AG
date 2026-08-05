@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh T2AG 0.2.1 derived state.
+"""Refresh T2AG 0.2.2 derived state.
 
 Default and ``--check`` are read-only.  Only ``--write`` changes GENERATED
 blocks.  Cloud projections are always skipped while the bridge is paused.
@@ -320,7 +320,7 @@ def render_state_pointers(
         f"| 当前教师 | {teacher_template(course, teacher_mapping)} | `main/20_teacher/overlay.md` |",
         f"| 学生档案 | {profile_status} | `main/10_student/profile/profile.md` |",
         f"| active binding | {binding_value} | {binding_path} |",
-        "| T2AG 版本 | 0.2.1 | `main/t2ag.md` |",
+        "| T2AG 版本 | 0.2.2 | `main/t2ag.md` |",
         f"| Cloud bridge | {cloud} | `cloud/cloud_sync_state.md` |",
     ))
 
