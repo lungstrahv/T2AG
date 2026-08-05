@@ -12,7 +12,8 @@
 1. `t2ag_context.py` 每次从当前权威文件生成只读上下文包；
 2. 包内正文必须是源文件的逐字摘录或机械路由字段，不生成事实性改写；
 3. 包只输出到标准输出，不落盘、不拥有状态、不参与写回；
-4. `progress.md` 仍是进度唯一真相源，profile、Group、教师与活动各自权威边界不变；
+4. `progress.md` 只读 Course 生命周期、唯一前台与停点；Activity 生命周期必须从
+   `activity_ledger.md` replay，profile、Group、教师与活动证据各守自身权威边界；
 5. 字符数只作为跨 tokenizer 的成本代理，不用近似 token 数冒充精确账单；
 6. 软预算只能触发审查，不能截断定义、题面、确认门或安全边界。
 

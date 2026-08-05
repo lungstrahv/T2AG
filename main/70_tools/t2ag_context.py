@@ -36,7 +36,7 @@ PLACEHOLDER_RE = re.compile(
     re.IGNORECASE,
 )
 COURSE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
-PROBLEM_ID_RE = re.compile(r"U\d{4}-Q\d{3}")
+PROBLEM_ID_RE = re.compile(r"(?:U\d{4}|exercise\d{2,})-Q\d{3}")
 
 
 class ContextPacketError(ValueError):
@@ -479,6 +479,8 @@ def exercise_first_step_selections(
 
 
 def first_step_empty_reason(route: object) -> str:
+    if route.activity_type == "none":
+        return "当前处于活动间隙；没有前台 Activity 的首步追加证据。"
     if route.activity_type == "exercise":
         return "当前题面已在 L0；当前题没有既有 Attempt/Review 需要追加。"
     if route.course_driver == "textbook":
@@ -499,7 +501,12 @@ def unique_paths(paths: Iterable[Path]) -> list[Path]:
 
 def conditional_reads(course_id: str, route: object, group_id: str) -> list[dict[str, str]]:
     course_root = f"main/40_course/{course_id}"
-    if route.activity_type == "exercise":
+    if route.activity_type == "none":
+        direct_evidence_trigger = "选择或恢复下一 Activity"
+        direct_evidence_read = (
+            f"{course_root}/activity_ledger.md 与 progress.md 的 next_action"
+        )
+    elif route.activity_type == "exercise":
         direct_evidence_trigger = "当前题已有提交、反馈或订正"
         direct_evidence_read = (
             f"{course_root}/exercises/{route.activity_id}/attempts/ "
@@ -723,9 +730,13 @@ def build_packet(
         ),
     )
 
-    carrier_path = root / route.resume_path
+    carrier_path = (
+        progress_path if route.activity_type == "none" else root / route.resume_path
+    )
     carrier = cache.read(carrier_path)
-    baseline_activity_paths: list[Path] = [carrier_path]
+    baseline_activity_paths: list[Path] = (
+        [] if route.activity_type == "none" else [carrier_path]
+    )
     l1_selections: list[Selection] = []
     if route.activity_type == "exercise":
         scope = section(carrier, "学习范围", level=2)
@@ -815,7 +826,7 @@ def build_packet(
         baseline_activity_paths.extend(
             root / item.source for item in l1_selections
         )
-    else:
+    elif route.activity_type == "lesson":
         carrier_h2 = [item for item in headings(carrier) if item.level == 2]
         preferred: Heading | None = None
         for keyword in ("当前状态", "学习范围", "恢复快照", "本课概览"):

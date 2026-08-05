@@ -18,6 +18,7 @@
 
 ## 权威边界
 
-- 每课 `progress.md` 是进度唯一真相源。
+- 每课采用分权真相源：`progress.md` 只拥有 Course 生命周期、唯一前台与精确停点，
+  `activity_ledger.md` 拥有 Lesson/Exercise 生命周期、pending/CLR、alias 与统计。
 - group 只保存容量组合，不拥有课程进度。
 - 本文件的 GENERATED 块只能由 state refresh 更新。

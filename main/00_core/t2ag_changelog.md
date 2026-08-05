@@ -5,6 +5,24 @@
 
 ---
 
+## [2026-08-05] 0.2.2 Activity Close 发布候选
++
++- 新增课程级 activity ledger，分权保存 Lesson/Exercise 生命周期、pending、CLR、alias、
++  学习时长、统计、结课偏好和 next action；progress 继续只拥有 Course 生命周期与唯一前台。
++- 旧 Exercise ID 仅通过课程级 alias 兼容；真实 MATH1607H U1101 已迁移为 exercise01，
++  AT0001–AT0009、RV0001–RV0009 和历史原话均保留。
++- 新增原子 migration、lifecycle、pending/decision/reopen 与 recover 工具；生产 apply 绑定
++  不可变 plan、独立复审和连续授权 receipt，失败自动回滚。
++- 真实 exercise01 已按空 blocker、完整必做证据和运行时 completed 建议完成 delegated close；
++  lesson01 保持后台 ongoing，后续跨题独立迁移继续由 mistake/retest 台账维护。
++- Main/Skeleton 新增 V0–V3 最小充分验证规则：普通优化不得自动升级为完整发布审查；未变化
++  证据可按 SHA 复用，完整矩阵与独立 V 只在正式冻结候选统一执行。
++- 当前条目只表示 0.2.2 候选实现与真实 E/F 已完成；正式本地版本仍须候选 V 和 FIN delta
++  对 exact Git tree 签署后才成立。
++
++---
++
+
 ## [2026-08-04] 0.2.1 ActivityRecord 分类与阅读桥接收口候选
 
 - 将 Main `AR-0001` 实体迁移至 `activities/reading/`，保留旧扁平路径 redirect；Skeleton 只含

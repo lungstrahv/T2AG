@@ -1,4 +1,4 @@
-# T2AG 0.2.1 Domain Model
+# T2AG 0.2.2 Domain Model
 
 ## 1. Student
 
@@ -20,7 +20,9 @@ Course 是课程定义和当前实例进度的唯一聚合根：
 ```text
 40_course/<COURSE_ID>/
   course.md       # 稳定内容、教材、教学约束
-  progress.md     # 当前进度唯一真相源
+  progress.md     # Course 生命周期、唯一前台与精确停点
+  activity_ledger.md # Activity 生命周期、pending/CLR、alias、统计
+  activity_map.md # ContentGroup ↔ Lesson/Exercise 结构
   lessons/
   exercises/
   mistake_bank.md
@@ -28,20 +30,22 @@ Course 是课程定义和当前实例进度的唯一聚合根：
   book/
 ```
 
-`course.md` 不保存当前学生停点；`progress.md` 不复制全册课程方案。进度节点必须
-并入 progress 的“进度节点”节，不建立第二份进度载体。
+`course.md` 不保存当前学生停点；`progress.md` 不复制全册课程方案，也不拥有
+LearningActivity 生命周期。Course 生命周期/前台/停点与 Activity 生命周期分别由
+`progress.md`、`activity_ledger.md` 拥有，不得用“最后写入者”覆盖冲突。
 
 ### 2.1 ContentGroup / Lesson / Exercise
 
 - Lesson 与 Exercise 是 Course 内近乎同级的 LearningActivity：前者以讲授、阅读、示例
   和确认推进，后者以持续做题、提交、反馈、订正和复测推进；任何一方都不拥有另一方。
-- `lessons/lessonNN/lessonNN.md` 是 Lesson 主载体；`exercises/Udddd/exercise.md` 是
+- `lessons/lessonNN/lessonNN.md` 是 Lesson 主载体；`exercises/exerciseNN/exercise.md` 是
   Exercise 主载体，`problems.md`、Attempt 与 Review 是它的题目和证据结构。
 - ContentGroup 按 `Book → 章 → 节/知识组` 连接两类活动。课程级 `activity_map.md` 是
   连接真相源；叶子只声明自身 ContentGroup，不互相持有所有权指针。
 - `progress.md` 的 `current_activity / current_activity_id / resume_path /
-  activity_position` 指向唯一当前 Lesson 或 Exercise；`current_lesson` 只保存 Lesson
-  上下文。完整共同回路与 Skeleton 发行契约见 `learning_activity_model.md`。
+  activity_position` 指向唯一前台 Lesson 或 Exercise；`current_lesson` 已从 active 契约
+  退役，历史 Lesson 上下文由 ledger 事件和 ContentGroup 关系解析。完整共同回路与
+  Skeleton 发行契约见 `learning_activity_model.md`。
 - ExerciseUnit 同时区分 `source_order` 与 `teaching_sequence`：前者忠实保存教材题号
   顺序，后者保存当前教学执行路线。教学路线可按先修依赖与学生真实证据调整，但不改题号，
   不跨内容组，且必须记录调整理由。
@@ -52,7 +56,7 @@ Course 是课程定义和当前实例进度的唯一聚合根：
 
 ### 2.2 ExerciseProblem / Attempt / Review
 
-- ExerciseProblem 是 `exercises/<UNIT_ID>/problems.md` 中的稳定题目条目；教材仍是来源，
+- ExerciseProblem 是 `exercises/<EXERCISE_ID>/problems.md` 中的稳定题目条目；教材仍是来源，
   不复制题目建立第二个题库。
 - Attempt 是一次真实提交批次，可以包含多道题与多张原始图片；载体为
   `attempts/ATdddd/attempt.md`，完整身份由 Course、Unit 与局部 Attempt ID 组成。
@@ -61,8 +65,8 @@ Course 是课程定义和当前实例进度的唯一聚合根：
 - Review 是对一个 Attempt 的逐题批改与当次思路观察；载体为 `reviews/RVdddd.md`。
 - “学生想法”属于 Attempt；“思路观察”属于 Review。前者是学生原话，后者是教师判断，
   两者不得互相覆盖。一次学生想法不自动成为 ReasoningPattern。
-- `exercises/exercise_thoughts.md` 是课程内跨单元的习题想法汇总索引，不是新的原话
-  真相源。它以 `Unit / Attempt / Problem` 来源元组去重，保存短摘、索引标签与后续用途；
+- `exercises/exercise_thoughts.md` 是课程内跨 Exercise 的习题想法汇总索引，不是新的原话
+  真相源。它以 `Exercise / Attempt / Problem` 来源元组去重，保存短摘、索引标签与后续用途；
   原话仍以 Attempt 为准。
 - Review 只引用 mistake/question/reasoning 证据，不拥有这些反馈台账。
 - `profile.md` 的 `exercise_hint_gate` 保存学生是否启用提示闸门；启用时，回复意图先由

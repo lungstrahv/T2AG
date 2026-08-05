@@ -1,0 +1,20 @@
+---
+type: exercise_review
+course_id: COURSE_ID
+exercise_id: exerciseNN
+review_id: RVdddd
+attempt_id: ATdddd
+problem_ids: [exerciseNN-Q001]
+reviewer: teacher
+status: recorded
+reviewed: YYYY-MM-DD
+---
+# RVdddd 批改
+
+## exerciseNN-Q001
+
+- 结果：unresolved
+- 思路观察：TEACHER_OBSERVATION
+- 反馈：FEEDBACK
+- mistake_refs：[]
+- question_refs：[]

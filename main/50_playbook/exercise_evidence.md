@@ -29,7 +29,7 @@
 ```markdown
 | content_group_id | source_scope | lesson_ids | exercise_ids |
 |---|---|---|---|
-| COURSE123-B001-C01-S01 | B001 / 第1章 / §1 | lesson01 | U0001 |
+| COURSE123-B001-C01-S01 | B001 / 第1章 / §1 | lesson01 | exercise01 |
 ```
 
 - ContentGroup 是教材知识连接点，不是课堂或题目。
@@ -61,7 +61,7 @@
     RV0001.md
 ```
 
-- `UNIT_ID`：课程内 `Udddd`。
+- `EXERCISE_ID`：课程内 canonical `exerciseNN`；`Udddd` 仅可作为 course-scoped legacy alias。
 - 教材驱动 Exercise 的 `exercise.md` 必须声明 `exercise_id` 与 `content_group_ids`；
   `problems.md` 必须声明同一 `exercise_id` 与唯一 `content_group_id`，并以
   `source_artifact_id / source_path / source_locator / source_sha256` 指向 Course
@@ -145,9 +145,9 @@ assistance_level: none | direction | reference | solution
 ---
 type: exercise_attempt
 course_id: COURSE123
-exercise_id: U0001
+exercise_id: exercise01
 attempt_id: AT0001
-problem_ids: [U0001-Q001, U0001-Q002]
+problem_ids: [exercise01-Q001, exercise01-Q002]
 mode: mixed
 status: submitted
 created: 2026-07-26
@@ -162,7 +162,7 @@ assistance_level: none
 - 提示闸门：enabled
 - 授权与概念问答：none
 
-## U0001-Q001
+## exercise01-Q001
 
 - 作答：见正文；若答案只存在于原图，写“见原始图片”，不得伪造转写。
 
@@ -170,7 +170,7 @@ assistance_level: none
 
 - 原话：仅记录学生明确说出的解题体会、联想或策略；没有则省略本节。
 
-## U0001-Q002
+## exercise01-Q002
 
 - 作答：...
 
@@ -203,17 +203,17 @@ assistance_level: none
 ---
 type: exercise_review
 course_id: COURSE123
-exercise_id: U0001
+exercise_id: exercise01
 review_id: RV0001
 attempt_id: AT0001
-problem_ids: [U0001-Q001, U0001-Q002]
+problem_ids: [exercise01-Q001, exercise01-Q002]
 reviewer: teacher
 status: recorded
 reviewed: 2026-07-26
 ---
 # RV0001 批改
 
-## U0001-Q001
+## exercise01-Q001
 
 - 结果：correct
 - 思路观察：...
@@ -259,9 +259,9 @@ updated: 2026-07-26
 
 > 本文件是汇总索引；学生原话以所链接 Attempt 为准。
 
-## U0001 / AT0001 / U0001-Q001 / 2026-07-26
+## exercise01 / AT0001 / exercise01-Q001 / 2026-07-26
 
-- 来源：`U0001/attempts/AT0001/attempt.md`
+- 来源：`exercise01/attempts/AT0001/attempt.md`
 - 学生原话短摘：...
 - 教师提炼：...
 - 索引标签：...

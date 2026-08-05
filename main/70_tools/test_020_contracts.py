@@ -992,7 +992,10 @@ def test_exercise_current_lesson_driver_matrix(root: Path) -> None:
         build(missing_root, driver, None, False)
         reset(missing_root)
         run_silently(doctor.discover_courses)
-        assert_message(doctor.fails, "current_lesson")
+        if doctor.fails:
+            raise AssertionError(
+                f"{driver} retired current_lesson omission rejected: {doctor.fails}"
+            )
 
         stale_root = root / f"{driver}_stale"
         build(stale_root, driver, "lesson999", False)
@@ -1053,7 +1056,7 @@ def test_planned_activity_fields_rejected(root: Path) -> None:
     )
     reset(illegal)
     run_silently(doctor.discover_courses)
-    assert_message(doctor.fails, "planned 课程不得携带活动字段")
+    assert_message(doctor.fails, "planned 课程 canonical-none 非法")
 
     legal = root / "legal"
     build(legal, "")
@@ -2022,7 +2025,7 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
         raise AssertionError("lesson_recover does not branch before Lesson/working-pages consumers")
     required = (
         "Exercise 首启不得读取或构造 Lesson 路径",
-        "current_lesson: none",
+        "不写 `current_lesson`",
         "working_pages 仅在 `lesson` 分支",
         "t2ag_activity.py --course <COURSE_ID> --intent recover",
     )
@@ -2042,7 +2045,7 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
         "t2ag_activity.py --course <COURSE_ID> --intent close",
         "Micro close 和完整结课都必须原子完成",
         "Exercise 结课不得顺手",
-        "不使用 `close_type: micro`",
+        "不产生 pending、CLR 或自动 pause",
     )
     missing_close = [token for token in close_required if token not in close]
     if missing_close:

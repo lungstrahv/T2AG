@@ -3,7 +3,6 @@ type: lesson
 course_id: COURSE_ID
 lesson_id: lessonNN
 content_group_ids: [CONTENT_GROUP_ID]
-status: ongoing
 created: YYYY-MM-DD
 ---
 # lessonNN

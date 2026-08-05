@@ -16,9 +16,11 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping
 
+import activity_ledger as ledger_contract
+
 
 ROOT = Path(__file__).resolve().parents[2]
-NO_LESSON = {"none", "—"}
+NO_LESSON = {"", "none", "—"}
 TEACHER_MAPPING_HEADING = "课程—教师映射"
 TEACHER_MAPPING_COLUMNS = ("课程代码", "课程名称", "教师模板", "教师风格")
 
@@ -88,10 +90,25 @@ def validate_progress_identity(
             "progress course_id 必须等于目录课程 ID："
             f"{meta.get('course_id') or '缺失'} != {expected_course_id}"
         )
-    if meta.get("truth_source") != "true":
+    # 0.2.2: truth_scope is preferred; truth_source:true remains accepted for 0.2.1.
+    truth_scope = (meta.get("truth_scope") or "").strip()
+    if truth_scope:
+        required_bits = {
+            "course_lifecycle",
+            "course_frontend",
+            "activity_position",
+        }
+        bits = {part.strip() for part in truth_scope.split(",") if part.strip()}
+        if not required_bits.issubset(bits):
+            errors.append(
+                "progress truth_scope 必须包含 course_lifecycle,course_frontend,"
+                f"activity_position：{truth_scope or '缺失'}"
+            )
+    elif meta.get("truth_source") != "true":
         errors.append(
-            "progress 必须声明 truth_source: true："
-            f"{meta.get('truth_source') or '缺失'}"
+            "progress 必须声明 truth_scope 或 truth_source: true："
+            f"truth_scope={meta.get('truth_scope') or '缺失'} "
+            f"truth_source={meta.get('truth_source') or '缺失'}"
         )
     if errors:
         raise ActivityContractError(errors)
@@ -334,7 +351,7 @@ class ActivityRoute:
         return path.relative_to(ROOT).as_posix()
 
     def recovery_plan(self) -> dict[str, object]:
-        activity_reads = [self.resume_path]
+        activity_reads = [] if self.activity_type == "none" else [self.resume_path]
         if self.activity_type == "exercise":
             activity_reads.append(
                 f"main/40_course/{self.course_id}/exercises/"
@@ -349,7 +366,11 @@ class ActivityRoute:
             "current_activity": self.activity_type,
             "current_activity_id": self.activity_id,
             "activity_position": self.activity_position,
-            "primary_read": self.resume_path,
+            "primary_read": (
+                f"main/40_course/{self.course_id}/progress.md"
+                if self.activity_type == "none"
+                else self.resume_path
+            ),
             "activity_read_targets": activity_reads,
             "working_pages": self.working_pages_path or None,
             "lesson_context": {
@@ -360,6 +381,8 @@ class ActivityRoute:
         }
 
     def close_plan(self) -> dict[str, object]:
+        if self.activity_type == "none":
+            raise ActivityContractError(["当前没有前台 Activity 可结课"])
         course_root = f"main/40_course/{self.course_id}"
         illustration_root = (
             f"{course_root}/lessons/{self.activity_id}/illustration"
@@ -398,6 +421,7 @@ def resolve_activity(
     snapshot: ProgressSnapshot | None = None,
     *,
     reader: TextReader = read,
+    exists: Callable[[Path], bool] | None = None,
 ) -> ActivityRoute:
     """Validate and resolve an ongoing course's explicit activity pointer."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", course_id):
@@ -405,8 +429,9 @@ def resolve_activity(
     course_root = root / "main/40_course" / course_id
     progress = course_root / "progress.md"
     errors: list[str] = []
+    is_file = exists or (lambda path: path.is_file())
 
-    if not progress.is_file():
+    if not is_file(progress):
         raise ActivityContractError([f"progress.md 不存在：{course_id}"])
     if snapshot is None:
         progress_content = reader(progress)
@@ -425,7 +450,7 @@ def resolve_activity(
         raise ActivityContractError([f"课程不是 ongoing：{course_id}"])
 
     required = (
-        "current_lesson", "current_activity", "current_activity_id", "resume_path",
+        "current_activity", "current_activity_id", "resume_path",
         "activity_position",
     )
     missing = [field for field in required if not meta.get(field)]
@@ -436,6 +461,7 @@ def resolve_activity(
     activity_id = meta.get("current_activity_id", "")
     course_driver = meta.get("course_driver", "")
     resume_path = meta.get("resume_path", "")
+    # current_lesson is retired in 0.2.2; if present it is compatibility-only.
     current_lesson = meta.get("current_lesson", "")
     expected_resume = ""
     source_path = ""
@@ -453,13 +479,37 @@ def resolve_activity(
             )
             carrier = root / expected_resume
             carrier_fields = ("lesson", "lesson_id", activity_id)
-        if current_lesson != activity_id:
+        if current_lesson and current_lesson not in NO_LESSON and current_lesson != activity_id:
             errors.append(
-                "current_lesson 与显式活动指针不一致："
-                f"{current_lesson or '缺失'} != {activity_id or '缺失'}"
+                "兼容 current_lesson 与显式活动指针不一致："
+                f"{current_lesson} != {activity_id or '缺失'}"
             )
     elif activity_type == "exercise":
-        if not re.fullmatch(r"U\d{4}", activity_id):
+        # Before E, Udddd remains readable. Once this Course has a ledger,
+        # progress itself must already be canonical; aliases are for explicit
+        # legacy lookup, never a second physical/current namespace.
+        ledger_path = course_root / "activity_ledger.md"
+        post_022 = is_file(ledger_path)
+        if post_022 and re.fullmatch(r"U\d{4}", activity_id):
+            try:
+                doc = ledger_contract.parse_ledger_text(reader(ledger_path))
+                ledger_errors = doc.validate()
+                if ledger_errors:
+                    raise ledger_contract.LedgerError("; ".join(ledger_errors))
+                canonical = ledger_contract.resolve_legacy_id(
+                    course_id, activity_id, doc.aliases
+                )
+            except ledger_contract.LedgerError as exc:
+                errors.append(f"legacy Exercise 无有效 course-scoped alias：{exc}")
+            else:
+                errors.append(
+                    "0.2.2 progress 不得直接路由 legacy Exercise："
+                    f"{activity_id} -> {canonical}"
+                )
+        if not (
+            re.fullmatch(r"exercise\d{2,}", activity_id)
+            or (not post_022 and re.fullmatch(r"U\d{4}", activity_id))
+        ):
             errors.append(f"current_activity_id 非法：exercise -> {activity_id or '缺失'}")
         else:
             expected_resume = (
@@ -468,8 +518,10 @@ def resolve_activity(
             carrier = root / expected_resume
             carrier_fields = ("exercise", "exercise_id", activity_id)
             problems = course_root / "exercises" / activity_id / "problems.md"
-            problems_meta = frontmatter(problems, reader=reader)
-            if not problems.is_file():
+            problems_meta = (
+                frontmatter_text(reader(problems)) if is_file(problems) else {}
+            )
+            if not is_file(problems):
                 errors.append(
                     "当前 Exercise 缺 problems.md："
                     f"main/40_course/{course_id}/exercises/{activity_id}/problems.md"
@@ -483,6 +535,16 @@ def resolve_activity(
                         f"textbook Exercise source_path：{message}"
                         for message in exc.errors
                     )
+    elif activity_type == "none":
+        if activity_id != "none":
+            errors.append("current_activity:none requires current_activity_id:none")
+        if resume_path != "none":
+            errors.append("current_activity:none requires resume_path:none")
+        if meta.get("activity_position") != "between_activities":
+            errors.append(
+                "current_activity:none requires activity_position:between_activities"
+            )
+        carrier = progress
     elif activity_type:
         errors.append(f"current_activity 非法：{activity_type}")
 
@@ -490,19 +552,19 @@ def resolve_activity(
         errors.append(
             f"resume_path 非 canonical：{resume_path or '缺失'} expected={expected_resume}"
         )
-    if resume_path and not (root / resume_path).is_file():
+    if activity_type != "none" and resume_path and not is_file(root / resume_path):
         errors.append(f"resume_path 悬空：{resume_path}")
 
-    if carrier_fields and carrier.is_file():
+    if carrier_fields and is_file(carrier):
         carrier_type, id_field, expected_id = carrier_fields
-        carrier_meta = frontmatter(carrier, reader=reader)
+        carrier_meta = frontmatter_text(reader(carrier))
         if (
             carrier_meta.get("type") != carrier_type
             or carrier_meta.get("course_id") != course_id
             or carrier_meta.get(id_field) != expected_id
         ):
             errors.append(f"当前活动主载体 frontmatter 不匹配：{resume_path}")
-    elif expected_resume and not carrier.is_file():
+    elif expected_resume and not is_file(carrier):
         errors.append(f"当前活动主载体不存在：{expected_resume}")
 
     lesson_kind = "none"

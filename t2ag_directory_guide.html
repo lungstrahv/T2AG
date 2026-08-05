@@ -939,7 +939,8 @@ E --&gt; F
 </article>
 <article class="flow-card"><h3>图 2 · 权威链</h3>
 <pre class="flow-ascii">course.md ─────────────── 课程内容、教材与教学约束
-progress.md ───────────── 当前课程进度唯一真相源
+progress.md ───────────── Course 生命周期、唯一前台、精确停点
+activity_ledger.md ────── Activity 生命周期、pending/CLR、alias、统计
       │
       └─ state_refresh ──→ memory / learning_path / Group view（GENERATED 缓存）
 
@@ -1273,8 +1274,8 @@ L -- &quot;是&quot; --&gt; N
 </text>
 <rect x="308.0" y="306.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
 <text x="431.0" y="335.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">创建/恢复 Udddd/exercise.md；</tspan>
-<tspan x="431.0" dy="18">保存做题停点与证据指针</tspan>
+<tspan x="431.0" dy="0">创建/恢复 exerciseNN/exercis</tspan>
+<tspan x="431.0" dy="18">e.md；保存做题停点与证据指针</tspan>
 </text>
 <rect x="308.0" y="444.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
 <text x="431.0" y="481.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
@@ -1351,7 +1352,7 @@ L -- &quot;是&quot; --&gt; N
 <details class="flow-source"><summary>查看流程源码</summary><pre>flowchart TD
 Z[&quot;activity_map：ContentGroup 连接同级 Lesson / Exercise&quot;]
 A[&quot;problems.md：稳定题目与教材来源&quot;]
-T[&quot;创建/恢复 Udddd/exercise.md；保存做题停点与证据指针&quot;]
+T[&quot;创建/恢复 exerciseNN/exercise.md；保存做题停点与证据指针&quot;]
 B[&quot;学生一次真实提交批次&quot;]
 C{&quot;作答模式&quot;}
 D[&quot;text：attempt.md 逐题正文&quot;]

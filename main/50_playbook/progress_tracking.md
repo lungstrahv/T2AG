@@ -3,7 +3,8 @@
 **保护级别**：core-playbook
 
 > 本流程定义课程生命周期、容量组合、细粒度恢复点与粗粒度完成节点。
-> `progress.md` 仍是正式进度唯一真相源；课程组只决定当前保留容量，不决定课程是否仍在进行。
+> `progress.md` 只拥有 Course 生命周期、唯一前台与精确停点；`activity_ledger.md` 拥有
+> Lesson/Exercise 生命周期。课程组只决定容量，不覆盖任何一类真相源。
 
 ## 一、两组彼此独立的状态
 
@@ -13,21 +14,23 @@
 
 ```yaml
 current_activity: lesson       # lesson / exercise
-current_activity_id: lesson01  # lessonNN / Udddd
-current_lesson: lesson01       # 兼容上下文；Exercise 首启写 none
+current_activity_id: lesson01  # lessonNN / exerciseNN
 resume_path: main/40_course/COURSE_ID/lessons/lesson01/lesson01.md
 activity_position: 精确停点
+next_action_kind: resume
+next_activity_type: lesson
+next_activity_id: lesson01
 ```
 
-- 切换到 Exercise 时，`resume_path` 改指 `exercises/Udddd/exercise.md`。
-- 三个显式活动字段不得由 `current_lesson`、memory 或目录扫描补值。Exercise 下的
-  `current_lesson` 只能是 `none` / `—`，或真实存在且 frontmatter 匹配的历史 Lesson；
-  它不改变当前活动，也不能触发 Lesson/working-pages 的默认恢复。
+- 切换到 Exercise 时，`resume_path` 改指 `exercises/exerciseNN/exercise.md`。
+- 显式前台与 next_action 字段不得由 memory、目录扫描或退役的 `current_lesson` 补值。
+  历史 Lesson 上下文只能从 ledger 事件与 ContentGroup 关系按需解析，不能触发默认
+  Lesson/working-pages 恢复。
 - Lesson 与 Exercise 是同级活动；切换只改变当前恢复入口，不改变 ContentGroup 关系或
   擅自关闭另一活动的未决问题。
 - `activity_position` 是两类活动共用的精确停点字段；不得继续用
   `lesson_position` 保存 Exercise 或新 Lesson 状态。
-- planned 课程只写 `current_lesson: none` 与 `progress_nodes_status: lazy_on_activation`，
+- planned 课程只写 `progress_nodes_status: lazy_on_activation`，
   不携带 `current_activity / current_activity_id / resume_path / activity_position`。
   激活时先创建真实载体，再原子写入完整活动字段。
 

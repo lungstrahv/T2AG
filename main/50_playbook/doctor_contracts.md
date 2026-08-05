@@ -22,13 +22,13 @@
 | 九域与发行身份 | doctor 内建 | 目录、版本、Main/Skeleton/Lite 身份不闭合 |
 | profile 初始化 | doctor 内建 | initialized 仍有占位符或缺时间、目标、基础、偏好 |
 | Course/Group/Binding/AR/EG | doctor 内建 | schema、稳定 ID、引用或生命周期冲突 |
-| progress 身份 | 统一活动路由器 + state + doctor | `type/course_id/truth_source` 缺失、冒名或在任何 GENERATED 写入前未被拒绝 |
+| progress 身份 | 统一活动路由器 + state + doctor | `type/course_id/truth_scope` 缺失、冒名或在任何 GENERATED 写入前未被拒绝；迁移后不接受 truth_source-only |
 | 学习活动发行能力 | doctor 内建 | Core 学习活动契约或 Course/Lesson/Exercise 模板缺失，或 Main/Skeleton/Lite 内容分叉 |
 | 恢复路径 | 统一活动路由器 + doctor | ongoing Course 缺显式 `current_activity`、`current_activity_id`、canonical `resume_path`、`activity_position`，或目标悬空；Exercise 首启不得依赖预造 Lesson |
 | 学习上下文包 | `t2ag_context.py` + `t2ag_activity.py` + `test_context_packet.py` + doctor | 工具、测试或 core playbook 缺失/三发行分叉；活动/教师路由未注入同一原始字节缓存；SHA 不是文件字节摘要；缺完整序列化 L0 与 L0+首步成本；textbook Lesson 缺窗口仍 ready；非当前课程混用 memory/Group；Lesson 条件路由落到 Exercise；缺首次启动降级或 L0/L1/L2 接线 |
 | 状态快照组件边界 | `test_progress_identity_is_shared` + `test_state_refresh_activity_roundtrip` | state 或 Doctor 推断缺失活动、把历史 Lesson 标成活跃、为 sentinel 构造路径、组视图假定当前活动必为 Lesson，或一次运行对同一 ongoing progress 二次读取而混合状态版本 |
 | 活动事务落盘往返 | `test_activity_cli_disk_roundtrip` | 从当前发行自身建立无 hardlink 的临时完整工作树，并断言 Doctor 实际检测到本发行 flavor；真实执行 `--write → 重读 → --check → 完整 Doctor → recover route → close route`，按路由结果落盘 progress 与当前主载体后再次执行 state/Doctor；写入零命中、任一步失败或 Exercise 修改历史 Lesson |
-| Lesson 兼容指针 | `test_exercise_current_lesson_driver_matrix` | 四种 driver 下，Exercise 的 `current_lesson` 缺失、非法或悬空；`none` 与真实历史 Lesson 为合法对照 |
+| Lesson 上下文退役 | `test_exercise_current_lesson_driver_matrix` | 四种 driver 下 active progress 不依赖或回填 `current_lesson`；遗留非法/悬空值不得驱动路由，历史 Lesson 只从 ledger/ContentGroup 解析 |
 | planned/ongoing 边界 | `test_planned_activity_fields_rejected` + doctor | planned 预填活动字段，或 ongoing 缺完整活动事务字段 |
 | working pages 活动边界 | `test_working_pages_activity_matrix` + doctor | Exercise 或非教材 Lesson 继承页缓存路由，或 textbook Lesson 逃过当前窗口完整性检查 |
 | GENERATED owner | doctor + `test_activity_workflows_share_executable_route` | Lesson 保留无主 `LESSON_PROGRESS` anchor，或恢复/结课未共享统一活动路由 |

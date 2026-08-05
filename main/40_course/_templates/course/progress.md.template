@@ -3,18 +3,24 @@ type: course_progress
 course_id: COURSE_ID
 lifecycle_status: ongoing
 course_driver: textbook
-truth_source: true
+truth_scope: course_lifecycle,course_frontend,activity_position
 current_activity: lesson
 current_activity_id: lesson01
-current_lesson: lesson01
 resume_path: main/40_course/COURSE_ID/lessons/lesson01/lesson01.md
 activity_position: START_POSITION
+next_action_kind: resume
+next_activity_type: lesson
+next_activity_id: lesson01
 updated: YYYY-MM-DD
 current_completion_node: COMPLETION_NODE
 current_checkpoint: CHECKPOINT
 checkpoint_state: queued
 ---
 # COURSE_ID 进度真相源
+
+> Activity 生命周期唯一真相源是同目录 `activity_ledger.md`。
+> 本文件只拥有 Course lifecycle、唯一前台指针与结构化 next_action。
+> `current_lesson` 已退役，不得再写入 active 契约。
 
 ## 当前进度
 

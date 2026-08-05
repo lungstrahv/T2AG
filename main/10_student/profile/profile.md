@@ -2,6 +2,17 @@
 type: student_profile
 initialization_status: uninitialized
 exercise_hint_gate: ask
+activity_close_preference_schema: activity_close_preferences.v1
+activity_close_preferences_initialized_at: <set-on-initialization>
+activity_close_first_prompt_status: pending
+activity_close_first_prompt_at: none
+learning_timezone: <confirm-IANA-timezone>
+learning_day_cutoff: <confirm-HH:MM>
+lesson_actual_review: <on|off>
+lesson_student_feedback: <on|off>
+lesson_knowledge_absorption: <on|off>
+exercise_problem_review: <on|off>
+exercise_knowledge_mastery: <on|off>
 updated: —
 ---
 # 学生档案（空模板）

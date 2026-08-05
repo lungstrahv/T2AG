@@ -147,7 +147,8 @@ flowchart TD
 <!-- FLOW:authority_chain -->
 ```text
 course.md ─────────────── 课程内容、教材与教学约束
-progress.md ───────────── 当前课程进度唯一真相源
+progress.md ───────────── Course 生命周期、唯一前台、精确停点
+activity_ledger.md ────── Activity 生命周期、pending/CLR、alias、统计
       │
       └─ state_refresh ──→ memory / learning_path / Group view（GENERATED 缓存）
 
@@ -311,7 +312,7 @@ Lite 投影与最终源指纹等不可分割全局门。
 flowchart TD
 Z["activity_map：ContentGroup 连接同级 Lesson / Exercise"]
 A["problems.md：稳定题目与教材来源"]
-T["创建/恢复 Udddd/exercise.md；保存做题停点与证据指针"]
+T["创建/恢复 exerciseNN/exercise.md；保存做题停点与证据指针"]
 B["学生一次真实提交批次"]
 C{"作答模式"}
 D["text：attempt.md 逐题正文"]

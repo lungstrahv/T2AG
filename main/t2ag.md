@@ -26,9 +26,11 @@
 ## 1. 不可变原则
 
 1. 学生就是当前实例，不再使用 Case 或学生编号包装目录。
-2. 每门课程只有两个核心原件：
+2. 每门课程有三个分权核心原件：
    - `40_course/<COURSE_ID>/course.md`：课程内容、教材和教学约束；
-   - `40_course/<COURSE_ID>/progress.md`：当前进度唯一真相源。
+   - `40_course/<COURSE_ID>/progress.md`：Course 生命周期、唯一前台与精确停点；
+   - `40_course/<COURSE_ID>/activity_ledger.md`：Lesson/Exercise 生命周期、pending/CLR、
+     alias、统计与课程结课偏好覆盖。
    课程内 `lessons/` 与 `exercises/` 是同级学习活动空间；结构契约见
    `00_core/learning_activity_model.md`，不能由临时 Playbook 或单个课程实例代替。
 3. group 只分配容量，不拥有课程进度。`plan.md` 管组合，`calendar.md` 管时间，
@@ -167,6 +169,22 @@ doctor 无 FAIL 且 state refresh 无漂移后，按 `50_playbook/context_packet
 `progress.md → state_refresh --write → GENERATED 缓存`
 
 ## 6. 修改、迁移与发布闸门
+
+### 6.1 最小充分验证
+
+- V0 文档或课程内容：只检查改动文件。
+- V1 局部实现：只跑直接相关测试；最多运行一次 doctor。
+- V2 schema、核心契约或 Main/Skeleton 同源实现：相关测试、contracts 与同源检查。
+- V3 真实迁移或正式发布：完整测试、exact shadow、故障矩阵、独立复审、Lite 与 FIN。
+- 除非用户明确要求正式版本升级、发布或完整审查，默认使用最低足够级别，禁止把普通
+  优化自动升级为 V3。多项优化累计到候选，正式发版时统一执行一次 V3。
+- finding 修复先做完整后续路径静态审查与针对性回归；不得每修一个小点就重跑完整矩阵。
+  SHA 未变且依赖未受影响的证据允许复用。完整独立复审只针对冻结候选执行一次，修复期
+  使用受影响项 delta review，最终候选再统一执行一次完整 V。
+- 普通任务默认预算为一个辅助 agent、三个测试命令和十分钟；超出不得自行扩大验证范围，
+  应登记待发版验证项。普通验收不扫描 .venv、Lite、旧 recovery/staging、教材或图片。
+- 施工期 dirty/Lite 分叉只描述候选状态，不解除真正 FAIL；仅 G/FIN 可据三发行一致性
+  宣称正式发布。
 
 - 结构迁移必须先 `--check`，再复制并校验哈希，最后退役旧 active 路径。
 - registry 的 active canonical 必须唯一；合流使用 survivor + tombstone/alias，

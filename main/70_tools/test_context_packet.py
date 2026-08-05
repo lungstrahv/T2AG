@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import t2ag_context as context
+from t2ag_activity import resolve_activity
 
 
 def write_utf8(path: Path, content: str) -> None:
@@ -302,6 +303,26 @@ class TextbookWindowTests(unittest.TestCase):
 
 
 class ConditionalRoutingTests(unittest.TestCase):
+    def test_between_activities_route_has_no_fake_carrier(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_utf8(
+                root / "main/40_course/TEST100/progress.md",
+                "---\ntype: course_progress\ncourse_id: TEST100\n"
+                "lifecycle_status: ongoing\ncourse_driver: goal\n"
+                "truth_scope: course_lifecycle,course_frontend,activity_position\n"
+                "current_activity: none\ncurrent_activity_id: none\n"
+                "resume_path: none\nactivity_position: between_activities\n"
+                "---\n# progress\n",
+            )
+            route = resolve_activity(root, "TEST100")
+            self.assertEqual(route.activity_type, "none")
+            self.assertEqual(route.recovery_plan()["activity_read_targets"], [])
+            reads = context.conditional_reads("TEST100", route, "G01")
+            rendered = "\n".join(item["read"] for item in reads)
+            self.assertNotIn("lessons/none", rendered)
+            self.assertIn("activity_ledger.md", rendered)
+
     def test_lesson_conditional_reads_never_point_to_exercise_tree(self) -> None:
         route = SimpleNamespace(
             activity_type="lesson",
@@ -318,6 +339,10 @@ class ConditionalRoutingTests(unittest.TestCase):
 
 
 class FirstStepTests(unittest.TestCase):
+    def test_canonical_exercise_problem_id_is_valid(self) -> None:
+        scope = "## 学习范围\n\n- 当前题目：exercise01-Q002\n"
+        self.assertEqual(context.current_problem_id(scope), "exercise01-Q002")
+
     def test_exercise_first_step_selects_only_current_problem(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

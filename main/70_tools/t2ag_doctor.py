@@ -5,10 +5,13 @@ from __future__ import annotations
 import datetime as dt
 import json
 import hashlib
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+import activity_ledger as activity_ledger_contract
 
 from t2ag_activity import (
     ActivityContractError,
@@ -62,6 +65,40 @@ def detect_flavor() -> str:
 
 
 FLAVOR = detect_flavor()
+
+
+def distribution_release_names(
+    root: Path = ROOT,
+    environ: dict[str, str] | None = None,
+) -> tuple[str, ...]:
+    """Select cross-release peers for a transaction-bound Doctor run.
+
+    Lite is derived only after a clean candidate exists.  During the exact
+    migration transaction Main may therefore be ahead of Lite, but never of
+    Skeleton.  The exception is enabled only by the exact transaction ID and
+    a matching on-disk transaction plan in an installed/checked/committed
+    state.  Ordinary Doctor invocations continue to compare all releases.
+    """
+    env = os.environ if environ is None else environ
+    expected = str(env.get("T2AG_022_EXPECT_TRANSACTION_ID") or "")
+    all_releases = ("t2ag", "t2ag-skeleton", "t2ag-lite")
+    if not re.fullmatch(
+        r"(?:MIG022-[0-9a-f]{16}|CLOSE022-[0-9a-f]{32}|LIFECYCLE022-[0-9a-f]{32})",
+        expected,
+    ):
+        return all_releases
+    plan_path = root / ".activity_txn" / expected / "plan.json"
+    try:
+        payload = json.loads(plan_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return all_releases
+    if (
+        payload.get("transaction_id") == expected
+        and payload.get("status")
+        in {"installed_pending_postcheck", "postcheck_passed", "committed"}
+    ):
+        return ("t2ag", "t2ag-skeleton")
+    return all_releases
 EXPECTED_DOMAINS = {
     "00_core", "10_student", "20_teacher", "30_group", "40_course",
     "50_playbook", "60_journal", "70_tools", "80_interface",
@@ -403,6 +440,7 @@ def discover_courses() -> dict[str, tuple[Path, dict[str, str]]]:
     result: dict[str, tuple[Path, dict[str, str]]] = {}
     course_metas: dict[str, dict[str, str]] = {}
     root = MAIN / "40_course"
+    post_022 = any(root.glob("*/activity_ledger.md")) if root.exists() else False
     if not root.exists():
         return result
     for folder in sorted(path for path in root.iterdir() if path.is_dir() and not path.name.startswith("_")):
@@ -439,6 +477,13 @@ def discover_courses() -> dict[str, tuple[Path, dict[str, str]]]:
         except ActivityContractError as exc:
             for error in exc.errors:
                 report("FAIL", f"progress 身份契约：{rel(progress)} -> {error}")
+        if post_022:
+            if pmeta.get("truth_scope") != "course_lifecycle,course_frontend,activity_position":
+                report("FAIL", f"0.2.2 progress truth_scope 非法：{folder.name}")
+            if "truth_source" in pmeta:
+                report("FAIL", f"0.2.2 progress 不得保留 truth_source：{folder.name}")
+            if "current_lesson" in pmeta:
+                report("FAIL", f"0.2.2 progress 不得保留 current_lesson：{folder.name}")
         lifecycle = pmeta.get("lifecycle_status", "")
         if lifecycle not in ALLOWED_COURSE_LIFECYCLES:
             report("FAIL", f"课程生命周期非法：{folder.name} -> {lifecycle}")
@@ -456,26 +501,40 @@ def discover_courses() -> dict[str, tuple[Path, dict[str, str]]]:
         if "mistake_bank（内联）" in progress_content:
             report("FAIL", f"progress 含重复 mistake_bank 内联账本：{folder.name}")
         if lifecycle == "planned":
-            if pmeta.get("current_lesson") != "none":
+            # 0.2.2: current_lesson retired; if present must be none.
+            if "current_lesson" in pmeta and pmeta.get("current_lesson") != "none":
                 report("FAIL", f"planned 课程 current_lesson 必须为 none：{folder.name}")
             if pmeta.get("progress_nodes_status") != "lazy_on_activation":
                 report("FAIL", f"planned 课程缺 lazy_on_activation：{folder.name}")
-            planned_activity_fields = [
-                field for field in (
-                    "current_activity", "current_activity_id", "resume_path",
-                    "activity_position", "lesson_position",
-                )
-                if field in pmeta
-            ]
-            if planned_activity_fields:
+            if post_022:
+                expected_none = {
+                    "current_activity": "none",
+                    "current_activity_id": "none",
+                    "resume_path": "none",
+                    "activity_position": "between_activities",
+                    "next_action_kind": "none",
+                    "next_activity_type": "none",
+                    "next_activity_id": "none",
+                }
+                bad = {key: pmeta.get(key) for key, value in expected_none.items() if pmeta.get(key) != value}
+            else:
+                bad = {
+                    field: pmeta.get(field)
+                    for field in (
+                        "current_activity", "current_activity_id", "resume_path",
+                        "activity_position", "lesson_position",
+                    )
+                    if field in pmeta
+                    and pmeta.get(field) not in {"none", "—", "", "between_activities"}
+                }
+            if bad:
                 report(
                     "FAIL",
-                    f"planned 课程不得携带活动字段：{folder.name} -> "
-                    f"{planned_activity_fields}",
+                    f"planned 课程 canonical-none 非法：{folder.name} -> {bad}",
                 )
         elif lifecycle == "ongoing":
             required_progress = (
-                "current_lesson", "current_activity", "current_activity_id",
+                "current_activity", "current_activity_id",
                 "activity_position", "current_completion_node",
                 "current_checkpoint", "checkpoint_state", "resume_path",
             )
@@ -1221,6 +1280,7 @@ def lite_manifest_sha_for_path(relative: str) -> str:
 def check_exercises(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
     registry = artifact_registry_by_id()
     for course_id, (folder, progress_meta) in courses.items():
+        post_022 = (folder / "activity_ledger.md").is_file()
         exercise_root = folder / "exercises"
         if not exercise_root.is_dir():
             continue
@@ -1228,7 +1288,12 @@ def check_exercises(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
             path for path in exercise_root.iterdir()
             if path.is_dir() and not path.name.startswith("_")
         )
-        unit_names = {unit.name for unit in units if re.fullmatch(r"U\d{4}", unit.name)}
+        unit_names = {
+            unit.name
+            for unit in units
+            if re.fullmatch(r"exercise\d{2,}", unit.name)
+            or (not post_022 and re.fullmatch(r"U\d{4}", unit.name))
+        }
         lesson_root = folder / "lessons"
         lessons = {
             lesson_dir.name: lesson_dir / f"{lesson_dir.name}.md"
@@ -1365,7 +1430,10 @@ def check_exercises(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
             if row.get("node_id", "").strip("` ")
         }
         for unit in units:
-            if not re.fullmatch(r"U\d{4}", unit.name):
+            if not (
+                re.fullmatch(r"exercise\d{2,}", unit.name)
+                or (not post_022 and re.fullmatch(r"U\d{4}", unit.name))
+            ):
                 report("FAIL", f"习题单元 ID 非法：{rel(unit)}")
                 continue
             exercise = unit / "exercise.md"
@@ -1533,8 +1601,15 @@ def check_exercises(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
                             f"{unit.name}",
                         )
             content = read(problems)
-            entries = re.split(r"^##\s+U\d{4}-Q\d{3}\s*$", content, flags=re.MULTILINE)[1:]
-            headings = re.findall(r"^##\s+(U\d{4}-Q\d{3})\s*$", content, re.MULTILINE)
+            problem_heading = (
+                r"(?:U\d{4}-Q\d{3}|exercise\d{2,}-Q\d{3})"
+            )
+            entries = re.split(
+                rf"^##\s+{problem_heading}\s*$", content, flags=re.MULTILINE
+            )[1:]
+            headings = re.findall(
+                rf"^##\s+({problem_heading})\s*$", content, re.MULTILINE
+            )
             if not entries or len(entries) != len(headings):
                 report("FAIL", f"习题条目结构不可解析：{rel(problems)}")
                 continue
@@ -1773,8 +1848,14 @@ def check_exercises(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
                                 report("FAIL", f"Review 缺逐题字段：{review_id}/{problem_id} -> {field}")
 
     if FLAVOR != "skeleton" and "MATH1607H" in courses:
-        if not (courses["MATH1607H"][0] / "exercises/U1101/problems.md").is_file():
-            report("FAIL", "MATH1607H 缺 0.2.0 U1101 习题册")
+        math_root = courses["MATH1607H"][0]
+        has_legacy = (math_root / "exercises/U1101/problems.md").is_file()
+        has_canonical = (math_root / "exercises/exercise01/problems.md").is_file()
+        if not (has_legacy or has_canonical):
+            report(
+                "FAIL",
+                "MATH1607H 缺 Exercise 习题册（U1101 或 exercise01）",
+            )
 
 
 def memory_pointer_values() -> dict[str, str]:
@@ -2806,10 +2887,10 @@ def check_reading_bridge_contract() -> None:
         report("FAIL", "T2AG reading bridge 工具不得 spawn 或绑定辅助阅读系统")
     release_roots = {
         name: ROOT.parent / name
-        for name in ("t2ag", "t2ag-skeleton", "t2ag-lite")
+        for name in distribution_release_names()
         if (ROOT.parent / name).is_dir()
     }
-    if len(release_roots) != 3:
+    if len(release_roots) != len(distribution_release_names()):
         return
     names = sorted(expected) + [
         "../../t2ag_reading_bridge.py",
@@ -2832,17 +2913,17 @@ def check_reading_bridge_contract() -> None:
             report("FAIL", f"reading bridge 发行能力不完整：{release_name} -> {missing}")
         else:
             manifests[release_name] = tuple(values)
-    if len(manifests) == 3 and len(set(manifests.values())) != 1:
+    if len(manifests) == len(distribution_release_names()) and len(set(manifests.values())) != 1:
         report("FAIL", "reading bridge schema/validator/tool/test 在三发行分叉")
 
 
 def check_core_playbooks() -> None:
     roots = {
         name: ROOT.parent / name
-        for name in ("t2ag", "t2ag-skeleton", "t2ag-lite")
+        for name in distribution_release_names()
         if (ROOT.parent / name / "main/50_playbook").is_dir()
     }
-    if len(roots) != 3:
+    if len(roots) != len(distribution_release_names()):
         return
     manifests: dict[str, dict[str, str]] = {}
     for name, root in roots.items():
@@ -2910,9 +2991,10 @@ def check_context_packet_contract() -> None:
     activity_markers = (
         "TextReader",
         "reader: TextReader = read",
+        "exists: Callable[[Path], bool] | None = None",
         "teacher_paths: Iterable[Path] | None = None",
-        "frontmatter(problems, reader=reader)",
-        "frontmatter(carrier, reader=reader)",
+        "frontmatter_text(reader(problems))",
+        "frontmatter_text(reader(carrier))",
         "frontmatter(historical, reader=reader)",
     )
     absent = [
@@ -2972,10 +3054,10 @@ def check_context_packet_contract() -> None:
 
     release_roots = {
         name: ROOT.parent / name
-        for name in ("t2ag", "t2ag-skeleton", "t2ag-lite")
+        for name in distribution_release_names()
         if (ROOT.parent / name).is_dir()
     }
-    if len(release_roots) != 3:
+    if len(release_roots) != len(distribution_release_names()):
         return
     manifests: dict[str, tuple[str, str, str]] = {}
     for name, release_root in release_roots.items():
@@ -2994,7 +3076,7 @@ def check_context_packet_contract() -> None:
             hashlib.sha256(release_activity.read_bytes()).hexdigest(),
             hashlib.sha256(release_test.read_bytes()).hexdigest(),
         )
-    if len(manifests) == 3 and len(set(manifests.values())) != 1:
+    if len(manifests) == len(distribution_release_names()) and len(set(manifests.values())) != 1:
         report("FAIL", "学习上下文包/活动工具或测试在三发行分叉")
 
 
@@ -3041,10 +3123,10 @@ def check_candidate_replay_contract() -> None:
 
     release_roots = {
         name: ROOT.parent / name
-        for name in ("t2ag", "t2ag-skeleton", "t2ag-lite")
+        for name in distribution_release_names()
         if (ROOT.parent / name).is_dir()
     }
-    if len(release_roots) != 3:
+    if len(release_roots) != len(distribution_release_names()):
         return
     manifests: dict[str, tuple[str, str]] = {}
     for name, release_root in release_roots.items():
@@ -3057,19 +3139,20 @@ def check_candidate_replay_contract() -> None:
             hashlib.sha256(release_tool.read_bytes()).hexdigest(),
             hashlib.sha256(release_test.read_bytes()).hexdigest(),
         )
-    if len(manifests) == 3 and len(set(manifests.values())) != 1:
+    if len(manifests) == len(distribution_release_names()) and len(set(manifests.values())) != 1:
         report("FAIL", "发布候选隔离工具或负例测试在三发行分叉")
 
 
 def check_course_activity_templates() -> None:
     required = {
         "README.md", "course.md.template", "progress.md.template",
-        "activity_map.md.template", "lessons/lessonNN/lessonNN.md.template",
-        "exercises/Udddd/exercise.md.template",
-        "exercises/Udddd/problems.md.template",
+        "activity_map.md.template", "activity_ledger.md.template",
+        "lessons/lessonNN/lessonNN.md.template",
+        "exercises/exerciseNN/exercise.md.template",
+        "exercises/exerciseNN/problems.md.template",
         "book/primary/verified_excerpts/source.md.template",
-        "exercises/Udddd/attempts/ATdddd/attempt.md.template",
-        "exercises/Udddd/reviews/RVdddd.md.template",
+        "exercises/exerciseNN/attempts/ATdddd/attempt.md.template",
+        "exercises/exerciseNN/reviews/RVdddd.md.template",
     }
     template_root = MAIN / "40_course/_templates/course"
     missing = sorted(path for path in required if not (template_root / path).is_file())
@@ -3132,13 +3215,13 @@ def check_course_activity_templates() -> None:
         report("FAIL", "结课流程未共享统一活动路由与原子写回")
     release_roots = {
         name: ROOT.parent / name
-        for name in ("t2ag", "t2ag-skeleton", "t2ag-lite")
+        for name in distribution_release_names()
         if (ROOT.parent / name).is_dir()
     }
     # A standalone unpacked Skeleton has no sibling releases, so only validate itself.
     # In the development workspace all three release roots exist and must carry an
     # identical, complete contract/template bundle.
-    if len(release_roots) != 3:
+    if len(release_roots) != len(distribution_release_names()):
         return
     reference: dict[str, str] | None = None
     for name, release_root in release_roots.items():
@@ -3224,6 +3307,161 @@ def check_dirty_tree() -> None:
         report("WARN", "工作树存在未快照改动；可继续施工，但不得宣称可发布")
 
 
+def check_activity_ledgers(
+    courses: dict[str, tuple[Path, dict[str, str]]],
+) -> None:
+    """Validate 0.2.2 lifecycle authority when migration ledgers exist."""
+    ledger_paths = sorted((MAIN / "40_course").glob("*/activity_ledger.md"))
+    if not ledger_paths:
+        return  # pre-E 0.2.1 baseline
+    if len(ledger_paths) != len(courses):
+        report(
+            "FAIL",
+            f"Activity ledger 迁移不完整：{len(ledger_paths)}/{len(courses)}",
+        )
+    profile_meta = frontmatter(MAIN / "10_student/profile/profile.md")
+    required_profile = {
+        "activity_close_preference_schema": "activity_close_preferences.v1",
+        "learning_timezone": "Asia/Singapore",
+        "learning_day_cutoff": "04:00",
+    }
+    for key, expected in required_profile.items():
+        if profile_meta.get(key) != expected:
+            report(
+                "FAIL",
+                f"Activity close 全局偏好契约缺失：{key}="
+                f"{profile_meta.get(key)} expected={expected}",
+            )
+    for key in activity_ledger_contract.PREF_KEYS:
+        if profile_meta.get(key) not in {"on", "off"}:
+            report("FAIL", f"Activity close 全局偏好非法：{key}")
+    prompt_status = profile_meta.get("activity_close_first_prompt_status")
+    prompt_at = profile_meta.get("activity_close_first_prompt_at")
+    if prompt_status not in {"pending", "shown"}:
+        report("FAIL", "Activity close 首次提示 marker 非法")
+    elif prompt_status == "pending" and prompt_at != "none":
+        report("FAIL", "Activity close 首次提示 pending 不得有显示时间")
+    elif prompt_status == "shown" and not activity_ledger_contract.TZ_TIME_RE.match(
+        str(prompt_at or "")
+    ):
+        report("FAIL", "Activity close 首次提示 shown 缺带时区时间")
+    by_course = {path.parent.name: path for path in ledger_paths}
+    for course_id, (folder, pmeta) in courses.items():
+        path = by_course.get(course_id)
+        if path is None:
+            report("FAIL", f"课程缺 activity_ledger.md：{course_id}")
+            continue
+        try:
+            doc = activity_ledger_contract.load_ledger(path)
+        except activity_ledger_contract.LedgerError as exc:
+            report("FAIL", f"Activity ledger 无法读取：{course_id} -> {exc}")
+            continue
+        errors = doc.validate()
+        for error in errors:
+            report("FAIL", f"Activity ledger 非法：{course_id} -> {error}")
+        if errors:
+            continue
+        index = doc.rebuild_index()
+        physical = {
+            *(f"lesson:{path.parent.name}" for path in folder.glob("lessons/lesson*/lesson*.md")),
+            *(f"exercise:{path.parent.name}" for path in folder.glob("exercises/exercise*/exercise.md")),
+        }
+        missing_index = sorted(physical - set(index))
+        if missing_index:
+            report(
+                "FAIL",
+                f"实体 Activity 未登记 ledger index：{course_id} -> {missing_index}",
+            )
+        declared_groups: set[str] = set()
+        activity_map = folder / "activity_map.md"
+        if activity_map.is_file():
+            declared_groups = {
+                row.get("content_group_id", "").strip("` ")
+                for row in table_after_heading(read(activity_map), "内容组连接表")
+                if row.get("content_group_id", "").strip("` ")
+            }
+        for entry in index.values():
+            dangling = sorted(set(entry.content_group_ids) - declared_groups)
+            if dangling:
+                report(
+                    "FAIL",
+                    f"Activity ledger ContentGroup 悬空：{course_id}/"
+                    f"{entry.activity_id} -> {dangling}",
+                )
+        if pmeta.get("lifecycle_status") != "ongoing":
+            continue
+        route = COURSE_ROUTES.get(course_id)
+        if route is None:
+            report("FAIL", f"ongoing 课程缺 Activity route：{course_id}")
+            continue
+        if route.activity_type == "none":
+            current_state = None
+        else:
+            entry = index.get(f"{route.activity_type}:{route.activity_id}")
+            if entry is None:
+                report(
+                    "FAIL",
+                    f"progress 前台未在 ledger index：{course_id} -> "
+                    f"{route.activity_type}:{route.activity_id}",
+                )
+                continue
+            current_state = entry.state
+        expected = activity_ledger_contract.resolve_next_action(
+            current_activity_type=route.activity_type,
+            current_activity_id=route.activity_id,
+            current_state=current_state,
+            index=index,
+        )
+        for key, value in expected.items():
+            if pmeta.get(key) != value:
+                report(
+                    "FAIL",
+                    f"progress next_action 与 ledger 漂移：{course_id}/{key} "
+                    f"actual={pmeta.get(key)} expected={value}",
+                )
+        progress_body = cached_progress_content(course_id, folder)
+        body_next_matches = list(re.finditer(
+            r"(?m)^-\s+\*\*(?:下一步计划|下一步|下次第一件事)\*\*[：:]\s*(.+)$",
+            progress_body,
+        ))
+        kind = expected["next_action_kind"]
+        if kind in {"resume", "confirm_close", "start_activity"}:
+            required_body = (
+                f"{kind} {expected['next_activity_type']}:{expected['next_activity_id']}"
+            )
+        elif kind == "choose_activity":
+            required_body = "从多个可用活动中选择下一项"
+        else:
+            required_body = "当前没有自动选择的下一活动"
+        if (
+            len(body_next_matches) != 1
+            or required_body not in body_next_matches[0].group(1)
+        ):
+            report(
+                "FAIL",
+                f"progress 正文 next action 与结构化字段漂移：{course_id} "
+                f"expected one entry containing {required_body}; "
+                f"actual_count={len(body_next_matches)}",
+            )
+    recovery = ROOT / ".activity_txn"
+    lock = recovery / "scope.lock"
+    if recovery.exists() and lock.is_file():
+        try:
+            lock_payload = json.loads(read(lock))
+            state = lock_payload.get("status")
+        except (OSError, json.JSONDecodeError) as exc:
+            report("FAIL", f"Activity transaction lock 损坏：{exc}")
+        else:
+            expected_txn = os.environ.get("T2AG_022_EXPECT_TRANSACTION_ID")
+            in_bound_postcheck = bool(
+                expected_txn
+                and lock_payload.get("transaction_id") == expected_txn
+                and state in {"installed_pending_postcheck", "postcheck_passed"}
+            )
+            if state not in {"committed", "rolled_back"} and not in_bound_postcheck:
+                report("FAIL", f"Activity transaction 未收口：status={state}")
+
+
 def main() -> int:
     report("INFO", f"release_flavor: {FLAVOR}")
     check_structure()
@@ -3233,6 +3471,7 @@ def main() -> int:
     if FLAVOR == "skeleton" and courses:
         report("FAIL", "Skeleton 不得包含课程实例")
     check_groups(courses)
+    check_activity_ledgers(courses)
     check_engagements_and_activities()
     check_question_banks(courses)
     check_knowledge_ledgers(courses)
@@ -3262,7 +3501,7 @@ def main() -> int:
     print()
     print(f"result: {len(fails)} FAIL, {len(warns)} WARN")
     if fails:
-        print("先修 FAIL；课程 progress.md 是进度唯一真相源。")
+        print("先修 FAIL；按 progress/ledger 分权真相源修复。")
     else:
         print("结构与状态检查通过。")
     return 1 if fails else 0

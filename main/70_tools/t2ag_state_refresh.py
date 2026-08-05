@@ -11,6 +11,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from t2ag_activity import (
     ActivityContractError,
@@ -89,10 +90,15 @@ def list_value(raw: str) -> list[str]:
     return [part for part in re.split(r"[\s,+]+", value) if part]
 
 
-def course_name(course_md: Path, course_id: str) -> str:
+def course_name(
+    course_md: Path,
+    course_id: str,
+    *,
+    reader: Callable[[Path], str] = read,
+) -> str:
     if not course_md.exists():
         return course_id
-    content = read(course_md)
+    content = reader(course_md)
     meta = frontmatter(content)
     if meta.get("name"):
         return meta["name"]
@@ -123,16 +129,22 @@ def activity_label(course: Course | None, separator: str = ": ") -> str:
     return f"{course.current_activity}{separator}{course.activity_id}"
 
 
-def discover_courses() -> dict[str, Course]:
+def discover_courses(
+    root: Path | None = None,
+    *,
+    reader: Callable[[Path], str] = read,
+    exists: Callable[[Path], bool] | None = None,
+) -> dict[str, Course]:
+    root = (root or ROOT).resolve()
     result: dict[str, Course] = {}
-    root = MAIN / "40_course"
-    if not root.exists():
+    course_root = root / "main/40_course"
+    if not course_root.exists():
         return result
-    for folder in sorted(path for path in root.iterdir() if path.is_dir() and not path.name.startswith("_")):
+    for folder in sorted(path for path in course_root.iterdir() if path.is_dir() and not path.name.startswith("_")):
         progress = folder / "progress.md"
         if not progress.exists():
             continue
-        content = read(progress)
+        content = reader(progress)
         meta = frontmatter(content)
         snapshot = ProgressSnapshot(progress, content, meta)
         course_id = folder.name
@@ -145,7 +157,13 @@ def discover_courses() -> dict[str, Course]:
         lifecycle = meta.get("lifecycle_status", "unknown")
         if lifecycle == "ongoing":
             try:
-                route = resolve_activity(ROOT, folder.name, snapshot)
+                route = resolve_activity(
+                    root,
+                    folder.name,
+                    snapshot,
+                    reader=reader,
+                    exists=exists,
+                )
             except ActivityContractError as exc:
                 raise ValueError(
                     f"{folder.name} explicit activity contract: {'; '.join(exc.errors)}"
@@ -163,7 +181,7 @@ def discover_courses() -> dict[str, Course]:
             lesson_context_path = ""
         result[course_id] = Course(
             course_id=course_id,
-            name=course_name(folder / "course.md", course_id),
+            name=course_name(folder / "course.md", course_id, reader=reader),
             lifecycle=lifecycle,
             current_activity=current_activity,
             activity_id=activity_id,
@@ -185,16 +203,21 @@ def discover_courses() -> dict[str, Course]:
     return result
 
 
-def discover_groups() -> dict[str, Group]:
+def discover_groups(
+    root: Path | None = None,
+    *,
+    reader: Callable[[Path], str] = read,
+) -> dict[str, Group]:
+    root = (root or ROOT).resolve()
     result: dict[str, Group] = {}
-    root = MAIN / "30_group"
-    if not root.exists():
+    group_root = root / "main/30_group"
+    if not group_root.exists():
         return result
-    for folder in sorted(path for path in root.iterdir() if path.is_dir() and re.fullmatch(r"G\d+", path.name)):
+    for folder in sorted(path for path in group_root.iterdir() if path.is_dir() and re.fullmatch(r"G\d+", path.name)):
         plan = folder / "plan.md"
         if not plan.exists():
             continue
-        meta = frontmatter(read(plan))
+        meta = frontmatter(reader(plan))
         group_id = meta.get("group_id", folder.name)
         result[group_id] = Group(
             group_id=group_id,
@@ -244,10 +267,15 @@ def render_state_pointers(
     group: Group | None,
     course: Course | None,
     teacher_mapping: dict[str, tuple[str, str]],
+    *,
+    root: Path | None = None,
+    reader: Callable[[Path], str] = read,
 ) -> str:
-    profile = MAIN / "10_student/profile/profile.md"
+    root = (root or ROOT).resolve()
+    main = root / "main"
+    profile = main / "10_student/profile/profile.md"
     profile_status = (
-        frontmatter(read(profile)).get("initialization_status", "—")
+        frontmatter(reader(profile)).get("initialization_status", "—")
         if profile.exists() else "—"
     )
     group_id = group.group_id if group else "—"
@@ -270,18 +298,18 @@ def render_state_pointers(
     )
     bindings: list[str] = []
     if group:
-        binding_root = MAIN / f"30_group/{group.group_id}/bindings"
+        binding_root = main / f"30_group/{group.group_id}/bindings"
         for path in sorted(binding_root.glob("*.md")) if binding_root.exists() else []:
             if path.name.startswith("_"):
                 continue
-            if frontmatter(read(path)).get("binding_status") == "active":
+            if frontmatter(reader(path)).get("binding_status") == "active":
                 bindings.append(path.stem)
     binding_value = ", ".join(bindings) or "无"
     binding_path = (
         f"`main/30_group/{group.group_id}/bindings/`"
         if group else "首次启动后创建"
     )
-    cloud = "paused" if cloud_paused() else "not-paused"
+    cloud = "paused" if cloud_paused(root, reader=reader) else "not-paused"
     return "\n".join((
         "| 项目 | 当前值 | 详情位置 |",
         "|---|---|---|",
@@ -368,11 +396,16 @@ def replace_block(content: str, name: str, body: str) -> str:
     return pattern.sub(lambda _: block, content)
 
 
-def cloud_paused() -> bool:
-    state = ROOT / "cloud/cloud_sync_state.md"
+def cloud_paused(
+    root: Path | None = None,
+    *,
+    reader: Callable[[Path], str] = read,
+) -> bool:
+    root = (root or ROOT).resolve()
+    state = root / "cloud/cloud_sync_state.md"
     if not state.exists():
         return False
-    content = read(state)
+    content = reader(state)
     return bool(re.search(
         r"^(?:-\s*)?(?:cloud_bridge_status|bridge_status|status):\s*paused\s*$",
         content,
@@ -380,43 +413,74 @@ def cloud_paused() -> bool:
     ))
 
 
-def planned_updates() -> list[tuple[Path, str]]:
-    courses = discover_courses()
+def planned_updates(
+    root: Path | None = None,
+    *,
+    overrides: dict[Path, str] | None = None,
+) -> list[tuple[Path, str]]:
+    root = (root or ROOT).resolve()
+    main = root / "main"
+    override_map = {
+        path.resolve(): content for path, content in (overrides or {}).items()
+    }
+
+    def source_read(path: Path) -> str:
+        resolved = path.resolve()
+        if resolved in override_map:
+            return override_map[resolved]
+        return read(path)
+
+    def source_exists(path: Path) -> bool:
+        return path.resolve() in override_map or path.is_file()
+
+    courses = discover_courses(root, reader=source_read, exists=source_exists)
     try:
-        teacher_mapping = resolve_teacher_mapping(ROOT, set(courses))
+        teacher_mapping = resolve_teacher_mapping(
+            root,
+            set(courses),
+            reader=source_read,
+        )
     except TeacherContractError as exc:
         raise ValueError(
             f"teacher mapping contract: {'; '.join(exc.errors)}"
         ) from exc
-    groups = discover_groups()
+    groups = discover_groups(root, reader=source_read)
     group = active_group(groups)
     current = None
     if group:
         current_id = group.current_course or (group.courses[0] if group.courses else "")
         current = courses.get(current_id)
 
-    memory = MAIN / "00_core/t2ag_memory.md"
-    learning = MAIN / "10_student/profile/learning_path.md"
+    memory = main / "00_core/t2ag_memory.md"
+    learning = main / "10_student/profile/learning_path.md"
     updates: list[tuple[Path, str]] = []
     if memory.exists():
-        content = replace_block(read(memory), "ACTIVE_PROGRESS", render_active(current))
+        content = replace_block(
+            source_read(memory), "ACTIVE_PROGRESS", render_active(current)
+        )
         if START.format(name="STATE_POINTERS") in content:
             content = replace_block(
                 content,
                 "STATE_POINTERS",
-                render_state_pointers(group, current, teacher_mapping),
+                render_state_pointers(
+                    group,
+                    current,
+                    teacher_mapping,
+                    root=root,
+                    reader=source_read,
+                ),
             )
         updates.append((
             memory,
             content,
         ))
     if learning.exists():
-        content = read(learning)
+        content = source_read(learning)
         content = replace_block(content, "COURSE_INDEX", render_course_index(courses, groups))
         content = replace_block(content, "GROUP_INDEX", render_group_index(groups))
         updates.append((learning, content))
     if group and group.path.exists():
-        content = read(group.path)
+        content = source_read(group.path)
         if START.format(name="GROUP_VIEW") in content:
             updates.append((
                 group.path,

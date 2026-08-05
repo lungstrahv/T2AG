@@ -17,7 +17,10 @@
    多块长篇讲解是否沿用默认的“先地图、后逐支”，以及学生希望怎样确认后再继续。同时让
    学生选择 `exercise_hint_gate: enabled | disabled`，不得由模型代选。
    当前困难与特殊要求是可选信息；未提供时明确写“未提供”，不得保留“待填写”。
-4. 将 profile 从模板改为 `initialization_status: initialized`。
+4. 将 profile 从模板改为 `initialization_status: initialized`，并写入
+   `activity_close_preferences.v1`、五项全局结课偏好、学习时区/cutoff、
+   `activity_close_preferences_initialized_at`。首次结课提示 marker 初始化为
+   `pending` / `none`；真正展示一次后才原子改为 `shown` / 带时区时间。
 5. 与用户确认首门课程及真实入口（先进入 Lesson 还是 Exercise）；从
    `40_course/_templates/course/` 按 `new_course_init.md` 创建 Course 和首个学习活动。
 6. 与用户确认第一个 group 的成员、预算和日历，建立 plan/calendar/review，

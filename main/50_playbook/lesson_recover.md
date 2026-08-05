@@ -16,7 +16,7 @@
 > - 课程状态：对应课程 `progress.md` →「当前进度」
 > - 当前活动：由 progress 的 `current_activity / current_activity_id / resume_path` 唯一确定
 > - Lesson 笔记：仅在当前活动为 Lesson 时读取 `lessons/lessonXX/lessonXX.md`
-> - Exercise 证据：仅在当前活动为 Exercise 时读取 `exercises/Udddd/`
+> - Exercise 证据：仅在当前活动为 Exercise 时读取 `exercises/exerciseNN/`
 > - 课程疑问：对应课程 `question_bank.md` →「待解决 / 需要回看」
 > - 课程错题库：对应课程 `mistake_bank.md`
 > - 学生状态档案：`main/10_student/profile/profile.md`、`reasoning_patterns.md` 与 `course_reflections.md`
@@ -84,7 +84,7 @@ memory/learning_path，最后继续教学。
 ### 步骤 2：消费 progress.md 当前切片
 
 L0 只摘录对应课程 `progress.md` 的完整 frontmatter 与「当前进度」节。本文件仍是该
-课程进度唯一真相源。文件头应区分 `lifecycle_status` 与容量状态：生命周期来自本文件，
+Course 生命周期、唯一前台与精确停点的真相源。Activity 生命周期只来自 ledger；文件头应区分 `lifecycle_status` 与容量状态：Course 生命周期来自本文件，
 容量状态从 active G 文件派生。
 
 - **正在学**：当前 Lesson/Exercise、来源范围与精确停点
@@ -104,7 +104,7 @@ L0 只摘录当前课程 `question_bank.md` 的「待解决」与「需要回看
 
 先从 `progress.md` 原样读取 `current_activity`、`current_activity_id` 与 `resume_path`。
 ongoing 课程缺任一字段、ID 与类型不匹配、路径非 canonical 或目标不存在时，立即停止
-恢复并修复真相源；不得从 `current_lesson`、memory 或目录扫描默认补值。
+恢复并修复 `progress.md` 前台契约；不得从退役的 `current_lesson`、memory 或目录扫描补值。
 
 执行只读路由并以其结果驱动本流程后续所有活动读写：
 
@@ -119,7 +119,7 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
 
 仅当 `current_activity: lesson`：
 
-1. 要求 `current_activity_id` 为真实 `lessonNN`，`current_lesson` 与其一致；
+1. 要求 `current_activity_id` 为真实 `lessonNN`；active progress 不得回填 `current_lesson`；
 2. L0 读取 canonical `resume_path` 的 frontmatter 与最近恢复胶囊；
 3. textbook Lesson 必须在 L0 拥有与 progress 页码一致、逐页完整的当前教材窗口；缺失时
    命令非零，不得以 `ready` 推进；
@@ -131,7 +131,7 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
 
 仅当 `current_activity: exercise`：
 
-1. 要求 `current_activity_id` 为真实 `Udddd`；
+1. 要求 `current_activity_id` 为真实 `exerciseNN`；旧 `Udddd` 只能通过本课程 ledger alias 解析；
 2. L0 从 canonical `resume_path` 摘录「学习范围」，从 `problems.md` 摘录当前
    ExerciseProblem 元数据；教材驱动 Exercise 同时按 registry 与 SHA 验证的
    `source_path` 只摘录当前题面；
@@ -139,15 +139,14 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
    不预载其他题历史，更不得向学生泄露提示或答案；
 4. 通过 `activity_map.md` 查找同一 ContentGroup 的上下文，不把 Exercise 解释成
    Lesson 的 Session；
-5. `current_lesson` 兼容字段只能写 `none` / `—`，或指向一份真实存在且
-   frontmatter 匹配的历史 Lesson。
+5. 历史 Lesson 上下文只按 ledger 事件与 ContentGroup 关系解析，不写回 progress。
 6. 从 profile 读取 `exercise_hint_gate`。值为 `enabled` 时，每次回复前运行
    `python -B main/70_tools/t2ag_hint_gate.py --course <COURSE_ID> --problem <PROBLEM_ID>
    --intent <INTENT>`；deny 时不得发送。概念问题使用 `concept_answer`，只答对应概念，
    不把概念自动应用回当前题。
 
-Exercise 首启不得读取或构造 Lesson 路径；标准写法是 `current_lesson: none`，同时
-`resume_path` 直接指向 `exercises/Udddd/exercise.md`。历史 Lesson 的
+Exercise 首启不得读取或构造 Lesson 路径；不写 `current_lesson`，并让
+`resume_path` 直接指向 `exercises/exerciseNN/exercise.md`。历史 Lesson 的
 `working_pages/` 可以全部不存在，不能影响 Exercise 恢复。
 
 ### 步骤 4：消费学生教学契约
@@ -178,7 +177,7 @@ L0 从学生档案做逐段摘录，重点关注：
 ### 步骤 5：条件读取 working_pages
 
 默认恢复链路中，working_pages 仅在 `lesson` 分支读取。当前活动为 Exercise 时跳过本步；
-即使兼容 `current_lesson` 指向历史 Lesson，也不得据此无条件打开 working pages。只有后续
+不得依据退役的 `current_lesson` 无条件打开 working pages。只有后续
 通过同一 ContentGroup 明确需要回看某个真实 Lesson，才按一次具体任务读取该 Lesson。
 
 只有 `course_driver: textbook` 的当前 Lesson 强制读取
@@ -377,7 +376,8 @@ python -B main/70_tools/t2ag_doctor.py
 
 ### 5. 状态指针可靠性
 
-- `progress.md` 的「当前进度」节和「教学记录」是恢复进度的唯一真相源
+- `progress.md` 的前台字段和精确停点是恢复入口；Activity lifecycle 必须从
+  `activity_ledger.md` replay
 - 当前活动主载体中的局部停点是细粒度证据，用于帮助修复真相源；Lesson 的“最后停点
   快照”与 Exercise 的精确停点都不是 GENERATED 缓存
 - 若各文件状态不一致，先运行 `main/70_tools/t2ag_doctor.py`，再以 `progress.md` 为准；

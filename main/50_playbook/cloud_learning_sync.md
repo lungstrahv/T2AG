@@ -16,7 +16,8 @@ T2AG 云端同步分成两条通道，二者不得混写：
 
 | 层 | 作用 | 权威边界 |
 |---|---|---|
-| 本地 `progress.md` | 课程进度唯一真相源 | 永远最高；云端记录不得直接覆盖 |
+| 本地 `progress.md` | Course 生命周期、唯一前台与精确停点 | 云端记录不得直接覆盖 |
+| 本地 `activity_ledger.md` | Activity 生命周期、pending/CLR、alias 与统计 | 云端记录不得直接覆盖 |
 | 云端同步基线 | 某次本地状态的只读投影 | 由 `base_state_id` 标识，只证明导出时状态 |
 | `T2AG_SESSION_CLOSE` | 基线之后发生的待回写教学事件 | `sync_status` 在云端只能是 `pending` |
 | `t2ag_mobile_entry.md` | 手机端快速恢复缓存 | 不是独立真相源，不得压过本地状态或有效事件块 |
@@ -80,7 +81,7 @@ T2AG_PROGRESS_RECEIPT
 - base_state_id: <id or UNKNOWN>
 - course: <course code>
 - current_activity: <lesson | exercise>
-- current_activity_id: <lessonNN | Udddd>
+- current_activity_id: <lessonNN | exerciseNN>
 - resume_path: <canonical current activity path>
 - lesson_context: <lesson id | NONE>
 - receipt_kind: <completion_node | manual_save>
@@ -107,7 +108,7 @@ T2AG_SESSION_CLOSE
 - base_state_id: <id from t2ag_mobile_entry.md or UNKNOWN>
 - course: <course code>
 - current_activity: <lesson | exercise>
-- current_activity_id: <lessonNN | Udddd>
+- current_activity_id: <lessonNN | exerciseNN>
 - resume_path: <canonical current activity path>
 - lesson_context: <lesson id | NONE>
 - duration_minutes: <non-negative integer or UNKNOWN>

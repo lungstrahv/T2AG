@@ -1,4 +1,4 @@
-# T2AG 0.2.0 命名规范
+# T2AG 0.2.2 命名规范
 
 ## 目录
 
@@ -23,10 +23,22 @@
 | Question | `Q-NNNN` |
 | ReasoningPattern | `RP-NNNN` |
 | ContentGroup | `<COURSE_ID>-Bddd-Cdd-Sdd`（Course 内） |
-| Exercise | `Udddd`（Course 内） |
-| ExerciseProblem | `<UNIT_ID>-Qddd`（Course 内） |
-| Attempt | `ATdddd`（Exercise 内） |
-| Review | `RVdddd`（Exercise 内） |
+| Lesson | `lessonNN`（Course 内；`NN` 至少两位） |
+| Exercise | `exerciseNN`（Course 内；`NN` 至少两位） |
+| ExerciseProblem | `exerciseNN-Qddd`（Course 内） |
+| Attempt | `ATdddd`（Exercise 内；ID 本身不变） |
+| Review | `RVdddd`（Exercise 内；ID 本身不变） |
+| ActivityLifecycleEvent | `ALE-NNNNNN`（Course 内单调、允许缺号） |
+| CloseRecord | `CLR-NNNN`（Course 内单调、允许缺号） |
+
+### Legacy alias（只解析，不输出为 canonical）
+
+| 旧 ID | 说明 |
+|---|---|
+| `Udddd` | 0.2.1 及更早 Exercise 目录/ID；0.2.2 **禁止新建**；仅通过 `activity_ledger` alias 解析旧输入 |
+| `Udddd-Qddd` | 旧 ExerciseProblem；映射到 `exerciseNN-Qddd` |
+
+MATH1607H 的 `U1101` → `exercise01` 是一次 canonical replacement，不是“稳定 ID 可任意改名”的一般规则。
 
 课程尾标 `r` 表示通识内容属性；弹性执行语义只由 group `bindings/` 的位置和字段
 表达，不能从尾标反推当前 binding 状态。

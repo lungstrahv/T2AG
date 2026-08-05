@@ -15,29 +15,29 @@ Course
 │       └── lesson_thoughts.md（有真实想法时惰性创建）
 └── exercises/               # 学生持续做题、提交、反馈、订正与复测
     ├── exercise_thoughts.md（有真实想法时惰性创建的课程级索引）
-    └── Udddd/
+    └── exerciseNN/
         ├── exercise.md      # Exercise 主载体与精确停点
         ├── problems.md      # 稳定题目及本单元顺序
         ├── attempts/        # 学生原始提交
         └── reviews/         # 逐次反馈
+└── activity_ledger.md       # 0.2.2+ Activity 生命周期唯一真相源
+└── activity_map.md          # ContentGroup ↔ Lesson/Exercise 结构（按需）
 ```
 
 - Lesson 与 Exercise 是 Course 内近乎同级的 LearningActivity；任何一方都不拥有另一方。
-- Exercise 不是 Lesson 的附属 Session；`Udddd` 目录本身就是一个 Exercise 学习单元。
+- Exercise 不是 Lesson 的附属 Session；canonical 目录/ID 为 `exerciseNN`（至少两位）。
+  旧 `Udddd` 仅作 legacy alias，**禁止新建**。
 - ContentGroup 按教材知识内容连接两类活动。课程根 `activity_map.md` 管理连接，但不改变
-  二者的同级关系。
-- `progress.md` 使用 `current_activity: lesson | exercise`、`current_activity_id`、
-  `activity_position` 与 canonical `resume_path` 指向当前活动；ongoing 课程必须显式
-  填写这些字段，不得从
-  `current_lesson` 默认补值。首个活动可以是 Exercise，此时不要求预造 Lesson。
-  `progress.md` 仍是当前停点唯一真相源。
+  二者的同级关系。合法 `binding_status: unbound` 须空 `content_group_ids` + 非空 reason。
+- **分权（0.2.2）**：
+  - `activity_ledger.md`：`truth_scope: activity_lifecycle`（ALE/CLR/alias/stats/课程偏好覆盖）
+  - `progress.md`：`truth_scope: course_lifecycle,course_frontend,activity_position`
+  - 活动主文件删除人工 `status`；不得再把 Activity lifecycle 写回 progress 或主文件。
+- `progress.md` 使用唯一前台 `current_activity` / `current_activity_id` / `resume_path` /
+  `activity_position` 与结构化 `next_action_kind|type|id`。`current_lesson` 在 active 契约中
+  **退役**。全课程只有一个前台；`ongoing+pending_close` 容量为 Lesson≤3、Exercise≤2。
 - 消费者必须从同一次 progress 读取建立不可变 `ProgressSnapshot`；统一活动路由返回
   `activity_position`。不得用第二次读取补齐路由字段，避免并发教学写回产生跨版本状态。
-- `current_lesson` 仅是兼容上下文字段：当前活动为 Lesson 时必须与
-  `current_activity_id` 相同；当前活动为 Exercise 时只能写 `none` / `—`，或指向真实
-  存在且 frontmatter 匹配的历史 Lesson。状态刷新器不得据此推断显式活动；无 Lesson
-  时 GENERATED 的“Lesson 上下文”必须显示“无”且路径为 `—`；历史 Lesson 必须明确
-  标成“历史兼容”，不得与“当前教学活动”并列称为活跃。
 - Exercise 不得声明 `lesson_id(s)` 或 Session 所有权字段，也不得恢复已否决的
   `sessions/ExerciseSession` 对象。
 - 教材驱动 Exercise 的已校对题源属于 Course/ContentGroup，必须放在持久
@@ -158,7 +158,7 @@ LearningActivity。
 | ContentGroup 与活动关系 | `40_course/<COURSE_ID>/activity_map.md` |
 | 当前活动与精确停点 | `40_course/<COURSE_ID>/progress.md` |
 | Lesson 正文 | `lessons/lessonNN/lessonNN.md` |
-| Exercise 正文 | `exercises/Udddd/exercise.md` |
+| Exercise 正文 | `exercises/exerciseNN/exercise.md` |
 | 教材题源 | Course `book/` 内持久 verified excerpt；不得放在 `working_pages/` |
 | 题目、提交与反馈 | `problems.md` / `attempts/` / `reviews/` |
 | 初始化材料 | `40_course/_templates/course/` |

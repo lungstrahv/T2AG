@@ -310,7 +310,8 @@ doctor 只负责行数、字符数、字段和索引等机械检查；四问答�
 
 ### 9.2 课程场景
 
-`progress.md` 始终是课程进度唯一真相源。未执行 `session_close` 的课堂交接只能说明真相源可能落后。
+`progress.md` 始终拥有 Course 生命周期、唯一前台与停点，`activity_ledger.md` 始终拥有
+Activity 生命周期。未执行 `session_close` 的课堂交接只能说明这些分权真相源可能落后。
 
 若当前活动主载体（Lesson 或 Exercise）或交接显示更细进度：
 

@@ -41,28 +41,30 @@ main/40_course/<COURSE_ID>/
    - `course_id`
    - `lifecycle_status: planned | ongoing`
    - `course_driver: textbook | goal | project | praxis`
-   - `truth_source: true`
-   - planned 课程只写 `updated`、`current_lesson: none`、
+   - `truth_scope: course_lifecycle,course_frontend,activity_position`
+   - planned 课程只写 `updated`、
      `progress_nodes_status: lazy_on_activation` 与下一动作；不得预填
      `current_activity / current_activity_id / resume_path / activity_position`。
    - ongoing 课程按真实入口创建首个 Lesson 或 Exercise，再原子写入
      `current_activity: lesson | exercise`、`current_activity_id`、canonical
      `resume_path`、`activity_position`、completion node、checkpoint 与下一动作；
-     目标必须先存在。Exercise 首启继续写 `current_lesson: none`，状态刷新器的
-     “Lesson 上下文”必须显示“无 / 无路径”，不得推断或预造
+     目标必须先存在。Exercise 首启不写 `current_lesson`，状态刷新器的
+     “Lesson 上下文”必须从 ledger/ContentGroup 得到“无 / 无路径”，不得推断或预造
      `lessons/none/none.md`。
-4. 创建 question bank V2，状态仅用 `open / answered / closed`；创建 mistake bank。
-5. 用模板创建 `book/`、`lessons/`、`exercises/`；空活动域用 `_README.md` 持久化。
+4. 创建 `activity_ledger.md`，`truth_scope: activity_lifecycle`；新课程从空 ledger 开始，
+   只有真实创建活动时才追加 genesis ALE，不预造 planned 活动。
+5. 创建 question bank V2，状态仅用 `open / answered / closed`；创建 mistake bank。
+6. 用模板创建 `book/`、`lessons/`、`exercises/`；空活动域用 `_README.md` 持久化。
    - 首次从讲授进入：建立 `lessons/lesson01/lesson01.md`；教材课同时建立 working pages。
-   - 首次从做题进入：建立 `exercises/Udddd/exercise.md`、`problems.md` 与空
+   - 首次从做题进入：建立 `exercises/exercise01/exercise.md`、`problems.md` 与空
      attempts/reviews 说明文件；教材驱动课程还须先在 Course `book/` 内建立持久
      校对题源并登记 artifact，`problems.md` 写入其路径、定位和 SHA。
    - 教材课建立 `activity_map.md`，按 ContentGroup 登记已有 Lesson/Exercise；不存在的
      活动写 `—`，不预造真实活动或证据。
-6. 在 `20_teacher/overlay.md` 唯一的“课程—教师映射”表中增加一行；“教师模板”
+7. 在 `20_teacher/overlay.md` 唯一的“课程—教师映射”表中增加一行；“教师模板”
    单元必须精确写成 `` `main/20_teacher/Tddd.md` ``，不得另建速览或从风格文字推断。
-7. 若用户明确分配容量，再更新目标 group 的 plan/calendar；否则保持 unallocated。
-8. 运行：
+8. 若用户明确分配容量，再更新目标 group 的 plan/calendar；否则保持 unallocated。
+9. 运行：
 
 ```powershell
 python -B main/70_tools/t2ag_state_refresh.py --write

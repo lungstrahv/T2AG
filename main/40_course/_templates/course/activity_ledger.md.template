@@ -1,0 +1,43 @@
+---
+type: activity_ledger
+course_id: COURSE_ID
+schema_version: activity_ledger.v1
+truth_scope: activity_lifecycle
+updated: YYYY-MM-DD
+---
+# COURSE_ID activity ledger
+
+> Lifecycle authority for Lesson / Exercise LearningActivities in this Course.
+> Rebuild the current index only from append-only ALE facts.
+> progress.md owns course lifecycle and the single frontend pointer, not activity state.
+
+## Current index
+
+_empty — no LearningActivities registered_
+
+## Course preferences
+
+lesson_actual_review: inherit
+lesson_student_feedback: inherit
+lesson_knowledge_absorption: inherit
+exercise_problem_review: inherit
+exercise_knowledge_mastery: inherit
+
+## Aliases
+
+_none_
+
+## Stats
+
+completed_lessons: 0
+completed_exercises: 0
+closed_incomplete_lessons: 0
+closed_incomplete_exercises: 0
+
+## Activity lifecycle events
+
+_none_
+
+## Close records
+
+_none_
