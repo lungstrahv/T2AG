@@ -66,7 +66,7 @@ plan-only 聚合门，均属于基础结构 FAIL。
 | 活动事务落盘往返 | `test_activity_cli_disk_roundtrip` | 从当前发行自身建立无 hardlink 的临时完整工作树，并断言 Doctor 实际检测到本发行 flavor；真实执行 `--write → 重读 → --check → 完整 Doctor → recover route → close route`，按路由结果落盘 progress 与当前主载体后再次执行 state/Doctor；写入零命中、任一步失败或 Exercise 修改历史 Lesson |
 | Lesson 上下文退役 | `test_exercise_current_lesson_driver_matrix` | 四种 driver 下 active progress 不依赖或回填 `current_lesson`；遗留非法/悬空值不得驱动路由，历史 Lesson 只从 ledger/ContentGroup 解析 |
 | planned/ongoing 边界 | `test_planned_activity_fields_rejected` + doctor | planned 预填活动字段，或 ongoing 缺完整活动事务字段 |
-| working pages 活动边界 | `test_working_pages_activity_matrix` + doctor | Exercise 或非教材 Lesson 继承页缓存路由，或 textbook Lesson 逃过当前窗口完整性检查 |
+| preparation snapshot 活动边界 | `test_textbook_preparation_activity_matrix` + doctor | textbook Lesson 缺 preparation Snapshot，或非 textbook Lesson 持有残余页缓存引用 |
 | GENERATED owner | doctor + `test_activity_workflows_share_executable_route` | Lesson 保留无主 `LESSON_PROGRESS` anchor，或恢复/结课未共享统一活动路由 |
 | 活动边界 | doctor 内建 | 活动图单元内 ID 重复、任一 Lesson/Exercise 漏登或 ContentGroup 漂移；活动持有另一活动或恢复 ExerciseSession |
 | 非教材活动边界 | `test_lesson_retired_ownership_all_drivers` | goal/project/praxis 的 Lesson 借 driver 绕过基础 schema 或退役所有权字段检查 |
@@ -99,12 +99,10 @@ plan-only 聚合门，均属于基础结构 FAIL。
 - 0.1.x 的 Case、CourseDefinition/CourseRun、Curriculum、FieldPractice、旧 `skin/` 与旧题库路径已经退役；doctor 只检查其不得重新进入 active 树。
 - KnowledgePoint 与 AbilitySummary 仍非正式活动对象。OCR/页核验属于 **SourcePageAsset**
   来源证据（EV-0012 / `source_page_assets.md`），不是独立 LearningActivity 或 mastery。
-- Doctor runtime 在迁移完成前可对 textbook Lesson 验收：
+- Doctor runtime 对 textbook Lesson 验收：
   1. **current** preparation Snapshot 指针（`current_snapshot.json`，禁止字典序猜最新）
      + LessonMap 覆盖/hash + load receipts + 页资产核验 + PDF SHA + Scope 连续性/长度 +
-     P0/quota 告警；或
-  2. 仅当新路径 **完全不存在** 时的 **legacy working_pages**。
-  新路径存在但无效必须 FAIL，不得放行；不得在无证据时放行正式讲授。
+     P0/quota 告警；缺 preparation 时 FAIL（legacy `working_pages` 路径已退役）。
 
 ## 五、Waiver 边界
 

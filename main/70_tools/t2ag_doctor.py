@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic doctor for the T2AG 0.2.2 object model."""
+"""Deterministic doctor for the T2AG 0.2.3 object model."""
 from __future__ import annotations
 
 import argparse
@@ -136,7 +136,8 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_activity_ledgers", "check_engagements_and_activities",
     "check_question_banks", "check_knowledge_ledgers", "check_project_verification",
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
-    "check_registry", "check_working_pages", "check_trading_boundary",
+    "check_registry", "check_textbook_preparation", "check_checkpoint_block_routing",
+    "check_trading_boundary",
     "check_legacy_references", "check_retired_instance_ids", "check_cloud_pause",
     "check_context_packet_contract", "check_test_management_contract",
     "check_course_activity_templates", "check_flow_and_guide", "check_handoff_contract",
@@ -144,6 +145,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_migration_021_evidence", "check_activity_migration_021_evidence",
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
+    "check_skeleton_textbook",
 }
 LEGACY_DOMAINS = {
     "10_case", "12_activity_records", "15_curricula", "20_groups",
@@ -375,11 +377,11 @@ def check_version_and_profile() -> None:
     constitution = MAIN / "t2ag.md"
     memory = MAIN / "00_core/t2ag_memory.md"
     for path in (constitution, memory):
-        if path.exists() and "0.2.2" not in read(path):
-            report("FAIL", f"版本未更新为 0.2.2：{rel(path)}")
+        if path.exists() and "0.2.3" not in read(path):
+            report("FAIL", f"版本未更新为 0.2.3：{rel(path)}")
     for path in (ROOT / "README.md", ROOT / "AGENTS.md", MAIN / "bin/t2ag"):
-        if not path.exists() or "0.2.2" not in read(path):
-            report("FAIL", f"发行入口版本未更新为 0.2.2：{rel(path)}")
+        if not path.exists() or "0.2.3" not in read(path):
+            report("FAIL", f"发行入口版本未更新为 0.2.3：{rel(path)}")
     launcher = MAIN / "bin/t2ag"
     if launcher.exists():
         content = read(launcher)
@@ -2084,7 +2086,7 @@ def check_registry() -> None:
         report("FAIL", "artifact_id 重复或为空")
     active: dict[str, list[str]] = {}
     temporary_segments = {
-        "working_pages", "temppage", "__pycache__", ".staging", ".recovery",
+        "working_pages", "temppage", "__pycache__", ".staging", ".recovery",  # working_pages: 保留防御性 skip（0.2.2 S3 退役）
     }
     for item in artifacts:
         artifact_id = item.get("artifact_id", "<?>")
@@ -2136,8 +2138,8 @@ def check_registry() -> None:
             report("FAIL", f"多个 active artifact 共用 canonical：{canonical} -> {ids}")
 
 
-def check_working_pages(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
-    """Textbook lesson evidence: EV-0012 current Snapshot path or legacy working_pages."""
+def check_textbook_preparation(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
+    """Textbook lesson evidence: EV-0012 current Snapshot path (legacy working_pages retired in 0.2.2)."""
     for course_id, (folder, meta) in courses.items():
         if (
             meta.get("current_activity") != "lesson"
@@ -2146,7 +2148,7 @@ def check_working_pages(courses: dict[str, tuple[Path, dict[str, str]]]) -> None
             continue
         lesson = meta.get("current_activity_id", "")
         if not re.fullmatch(r"lesson\d+", lesson):
-            if meta.get("working_pages_window") or meta.get("textbook_page"):
+            if meta.get("textbook_page"):
                 report(
                     "FAIL",
                     f"working pages 缺当前 Lesson 活动：{course_id} -> {lesson or '缺失'}",
@@ -2342,32 +2344,133 @@ def check_working_pages(courses: dict[str, tuple[Path, dict[str, str]]]) -> None
                     f"scope_n={scope_n}（P0={scope_n} 页不得驱逐）",
                 )
             continue
-        raw = meta.get("working_pages_window")
-        page = meta.get("textbook_page")
-        if not raw and not page:
+        # Legacy working_pages window retired in 0.2.2 S3.
+        # Textbook lessons must use preparation Snapshots exclusively.
+        report(
+            "FAIL",
+            f"textbook lesson 缺 preparation Snapshot，legacy 路径已退役："
+            f"{course_id}/{lesson}",
+        )
+
+
+def check_checkpoint_block_routing(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
+    """CKP-SCOPE-002: verify active checkpoint block_id appears in LessonMap.
+
+    Also emits CKP-SCOPE-001 (WARN) and CKP-SCOPE-003 (WARN) as informational
+    gates whose full enforcement requires multi-session comparison or a formal
+    block successor model.
+    """
+    for course_id, (folder, meta) in courses.items():
+        if meta.get("current_activity") != "lesson":
+            continue
+        lesson = meta.get("current_activity_id", "")
+        if not re.fullmatch(r"lesson\d+", lesson):
+            continue
+        progress_path = folder / "progress.md"
+        if not progress_path.is_file():
             continue
         try:
-            window = [int(value) for value in re.findall(r"\d+", raw or "")]
-            current = int(page or "0")
-        except ValueError:
-            report("FAIL", f"working pages 字段不可解析：{course_id}")
+            progress_content = read(progress_path)
+        except OSError:
             continue
-        if not window or current not in window:
-            report("FAIL", f"working pages 不含当前页：{course_id}")
+
+        # CKP-SCOPE-002: extract current pending checkpoint and verify block_id
+        ckpt_id = None
+        ckpt_block = None
+        in_table = False
+        for line in progress_content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("| checkpoint_id "):
+                in_table = True
+                continue
+            if not in_table:
+                continue
+            if stripped.startswith("|---"):
+                continue
+            if not stripped.startswith("| "):
+                break
+            cols = [c.strip() for c in stripped.split("|")]
+            if len(cols) < 6:
+                continue
+            status = cols[-1] if cols[-1] else cols[-2] if len(cols) >= 7 else ""
+            if status in ("pending", "arrived", "queued"):
+                ckpt_id = cols[1]
+                ckpt_block = cols[4] if len(cols) >= 7 else ""
+                break
+
+        if not ckpt_id:
+            continue  # No active checkpoint to verify
+
+        if not ckpt_block:
+            report(
+                "FAIL",
+                f"CKP-SCOPE-002: 当前 checkpoint 缺 block_id："
+                f"{course_id}/{lesson} {ckpt_id}",
+            )
             continue
-        if window != list(range(min(window), max(window) + 1)):
-            report("FAIL", f"working pages 窗口不连续：{course_id} -> {window}")
-        working = folder / "lessons" / lesson / "working_pages"
-        for value in window:
-            if (
-                FLAVOR != "lite"
-                and not (working / f"pages/page{value}.png").exists()
-            ):
-                report("FAIL", f"缺 working page PNG：{course_id} page{value}")
-            if not (working / f"raw_ocr/page_{value}_raw.txt").exists():
-                report("FAIL", f"缺 OCR 原文：{course_id} page{value}")
-        if not (working / "source_excerpt.md").exists():
-            report("FAIL", f"缺 source_excerpt：{course_id}")
+
+        # block_id format: page_key#BNN
+        if "#" not in ckpt_block:
+            report(
+                "FAIL",
+                f"CKP-SCOPE-002: block_id 格式无效（缺 #）："
+                f"{course_id}/{lesson} {ckpt_id} -> {ckpt_block}",
+            )
+            continue
+
+        page_key = ckpt_block.split("#")[0]
+        map_path = folder / "lessons" / lesson / "lesson_map.md"
+        if not map_path.is_file():
+            report(
+                "FAIL",
+                f"CKP-SCOPE-002: LessonMap 缺失，无法验证 block routing："
+                f"{course_id}/{lesson}",
+            )
+            continue
+
+        try:
+            map_text = read(map_path)
+        except OSError:
+            report(
+                "FAIL",
+                f"CKP-SCOPE-002: LessonMap 不可读：{course_id}/{lesson}",
+            )
+            continue
+
+        if page_key not in map_text:
+            report(
+                "FAIL",
+                f"CKP-SCOPE-002: 当前 checkpoint block_id 的 page_key 不在 "
+                f"LessonMap 中：{course_id}/{lesson} {ckpt_id} -> {page_key}",
+            )
+            continue
+
+        trg = "outside_active_lesson_boundary"
+        page_block_lines = [
+            ln for ln in map_text.splitlines()
+            if page_key in ln and "|" in ln
+        ]
+        if page_block_lines and trg in page_block_lines[0]:
+            report(
+                "FAIL",
+                f"CKP-SCOPE-002: 当前 checkpoint 的 page_key 在 LessonMap 中 "
+                f"标记为 outside_active_lesson_boundary："
+                f"{course_id}/{lesson} {ckpt_id} -> {page_key}",
+            )
+
+        # CKP-SCOPE-001 (WARN): multi-session comparison not available
+        report(
+            "WARN",
+            f"CKP-SCOPE-001: confirmed checkpoint 跨 Scope 不变性校验需多 session "
+            f"snapshot 对比（当前仅单 session 运行，无法执行）：{course_id}",
+        )
+
+        # CKP-SCOPE-003 (WARN): block successor model not formalised
+        report(
+            "WARN",
+            f"CKP-SCOPE-003: LessonMap 块 successor 精确映射需正式块模型 + "
+            f"block migration 表（当前仅有非正式块清单）：{course_id}/{lesson}",
+        )
 
 
 def check_trading_boundary() -> None:
@@ -3369,7 +3472,7 @@ def check_context_packet_contract(*, check_release_parity: bool = True) -> None:
         "test_cli_stdout_matches_serialized_cost",
         "test_digest_uses_original_file_bytes",
         "test_activity_router_uses_same_cache_and_detects_mutation",
-        "test_textbook_lesson_requires_window_metadata_and_file",
+        "test_textbook_lesson_without_preparation_returns_none",
         "test_non_current_same_group_has_explicit_switch_context",
         "test_course_outside_active_group_is_rejected",
         "test_lesson_conditional_reads_never_point_to_exercise_tree",
@@ -3772,7 +3875,7 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
         "#### `lesson` 分支",
         "#### `exercise` 分支",
         "Exercise 首启不得读取或构造 Lesson 路径",
-        "working_pages 仅在 `lesson` 分支",
+        "教材原文窗口 **仅在 `lesson` + `course_driver: textbook`**",
         "t2ag_activity.py --course <COURSE_ID> --intent recover",
     )
     marker_positions = [recovery_content.find(marker) for marker in recovery_markers]
@@ -3873,6 +3976,36 @@ def check_cloud_pause() -> None:
         r"^-\s*cloud_bridge_status:\s*paused\s*$", read(state), re.MULTILINE
     ):
         report("FAIL", "Cloud bridge 未保持 paused")
+
+
+def check_skeleton_textbook_gate() -> None:
+    """Release profile: Skeleton 内 40_course/**/book/** 只允许模板骨架，不得含实际教材内容。"""
+    if FLAVOR != "skeleton":
+        return
+    book_root = ROOT / "main/40_course"
+    if not book_root.exists():
+        return
+    # 允许的目录：_templates/ 及其子内容
+    allowed_prefix = str(book_root / "_templates")
+    # 不允许的实质性内容模式
+    forbidden_patterns = [
+        "book/reference/",
+        "book/course_materials/",
+        "book/primary/",
+        "book/book_notes/",
+    ]
+    for course_dir in book_root.iterdir():
+        if not course_dir.is_dir():
+            continue
+        if str(course_dir) == allowed_prefix:
+            continue
+        for pattern in forbidden_patterns:
+            check_path = course_dir / pattern
+            if check_path.exists() and check_path.is_dir():
+                # 目录存在且非空
+                contents = list(check_path.iterdir())
+                if contents:
+                    report("FAIL", f"Skeleton 教材门：{rel(check_path)} 含实质教材内容")
 
 
 def check_dirty_tree() -> None:
@@ -4017,6 +4150,34 @@ def check_activity_ledgers(
             report("FAIL", f"Activity ledger 非法：{course_id} -> {error}")
         if errors:
             continue
+        # 新增 correction / migration_snapshot 门
+        for event in doc.events:
+            kind = event.get("event_kind")
+            eid = event.get("event_id", "?")
+            if kind == "migration_snapshot" and event.get("triggered_by") != "migration":
+                if eid == "ALE-000011" and course_id == "MATH1607H":
+                    # 已知历史指纹：允许一条具名兼容 WARN，直到合法 correction 闭合
+                    has_correction = any(
+                        ce.get("event_kind") == "correction"
+                        and ce.get("corrects_event_id") == "ALE-000011"
+                        for ce in doc.events
+                    )
+                    if not has_correction:
+                        report(
+                            "WARN",
+                            f"ALE-000011 (migration_snapshot + user trigger) 已知历史指纹，"
+                            "待 correction 闭合；不得作为新事件模板",
+                        )
+                else:
+                    report(
+                        "FAIL",
+                        f"migration_snapshot 必须 triggered_by=migration: {course_id}/{eid}",
+                    )
+            if kind == "correction":
+                corrects = event.get("corrects_event_id")
+                if corrects == "ALE-000011" and course_id == "MATH1607H":
+                    # correction 闭合后移除对应 WARN（由上述 WARN 条件自行处理）
+                    pass
         index = doc.rebuild_index()
         physical = {
             *(f"lesson:{path.parent.name}" for path in folder.glob("lessons/lesson*/lesson*.md")),
@@ -4146,6 +4307,7 @@ def execute_doctor_checks(
         "check_candidate_replay_contract": check_candidate_replay_contract,
         "check_tracked_environment": check_tracked_environment,
         "check_dirty_tree": check_dirty_tree,
+        "check_skeleton_textbook": check_skeleton_textbook_gate,
     }
     course_handlers = {
         "check_groups": check_groups,
@@ -4154,7 +4316,8 @@ def execute_doctor_checks(
         "check_knowledge_ledgers": check_knowledge_ledgers,
         "check_project_verification": check_project_verification,
         "check_exercises": check_exercises,
-        "check_working_pages": check_working_pages,
+        "check_textbook_preparation": check_textbook_preparation,
+        "check_checkpoint_block_routing": check_checkpoint_block_routing,
     }
     for row in rows:
         handler = str(row["handler"])
@@ -4169,6 +4332,8 @@ def execute_doctor_checks(
             context["courses"] = courses
             if FLAVOR == "skeleton" and courses:
                 report("FAIL", "Skeleton 不得包含课程实例")
+            if FLAVOR == "skeleton" and not courses:
+                check_skeleton_textbook_gate()
         elif handler in course_handlers:
             course_handlers[handler](context["courses"])
         elif handler == "check_teacher_contract":

@@ -178,13 +178,14 @@ class TextbookWindowTests(unittest.TestCase):
         return SimpleNamespace(
             activity_type="lesson",
             course_driver="textbook",
-            working_pages_path=(
-                "main/40_course/TEST100/lessons/lesson01/"
-                "working_pages/source_excerpt.md"
+            activity_id="lesson01",
+            resume_path=(
+                "main/40_course/TEST100/lessons/lesson01/lesson01.md"
             ),
         )
 
-    def test_textbook_lesson_requires_window_metadata_and_file(self) -> None:
+    def test_textbook_lesson_without_preparation_returns_none(self) -> None:
+        """Without preparation Snapshot, textbook_lesson_window returns None (legacy retired)."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             cache = context.SourceCache(root)
@@ -194,116 +195,16 @@ class TextbookWindowTests(unittest.TestCase):
                 content="",
                 meta={},
             )
-            with self.assertRaisesRegex(
-                context.ContextPacketError,
-                "working_pages_window",
-            ):
-                context.textbook_lesson_window(
-                    cache,
-                    snapshot,
-                    self.route(),
-                )
-
-            snapshot = context.ProgressSnapshot(
-                path=progress_path,
-                content="",
-                meta={"working_pages_window": "[9, 10, 11, 12]"},
-            )
-            with self.assertRaisesRegex(
-                context.ContextPacketError,
-                "textbook_page",
-            ):
-                context.textbook_lesson_window(
-                    cache,
-                    snapshot,
-                    self.route(),
-                )
-
-            snapshot = context.ProgressSnapshot(
-                path=progress_path,
-                content="",
-                meta={
-                    "textbook_page": "10",
-                    "working_pages_window": "[9, 10, 11, 12]",
-                },
-            )
-            with self.assertRaisesRegex(
-                context.ContextPacketError,
-                "required context source missing",
-            ):
-                context.textbook_lesson_window(
-                    cache,
-                    snapshot,
-                    self.route(),
-                )
-
-    def test_textbook_lesson_rejects_missing_page(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            working = (
-                root
-                / "main/40_course/TEST100/lessons/lesson01/"
-                "working_pages/source_excerpt.md"
-            )
-            write_utf8(
-                working,
-                "# Excerpt\n\n"
-                "## 第 9 页\n\nnine\n\n"
-                "## 第 10 页\n\nten\n\n"
-                "## 第 11 页\n\neleven\n",
-            )
-            snapshot = context.ProgressSnapshot(
-                path=root / "main/40_course/TEST100/progress.md",
-                content="",
-                meta={
-                    "textbook_page": "10",
-                    "working_pages_window": "[9, 10, 11, 12]",
-                },
-            )
-            with self.assertRaisesRegex(
-                context.ContextPacketError,
-                "教材窗口缺页",
-            ):
-                context.textbook_lesson_window(
-                    context.SourceCache(root),
-                    snapshot,
-                    self.route(),
-                )
-
-    def test_textbook_lesson_accepts_complete_window(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            working = (
-                root
-                / "main/40_course/TEST100/lessons/lesson01/"
-                "working_pages/source_excerpt.md"
-            )
-            write_utf8(
-                working,
-                "# Excerpt\n\n"
-                + "\n\n".join(
-                    f"## 第 {page} 页\n\npage {page}"
-                    for page in (9, 10, 11, 12)
-                )
-                + "\n",
-            )
-            snapshot = context.ProgressSnapshot(
-                path=root / "main/40_course/TEST100/progress.md",
-                content="",
-                meta={
-                    "textbook_page": "10",
-                    "working_pages_window": "[9, 10, 11, 12]",
-                },
-            )
-            path, excerpt = context.textbook_lesson_window(
-                context.SourceCache(root),
+            # No preparation → returns None, not an error
+            result = context.textbook_lesson_window(
+                cache,
                 snapshot,
                 self.route(),
             )
-            self.assertEqual(path, working)
-            self.assertIn("## 第 12 页", excerpt)
+            self.assertIsNone(result)
 
     def test_invalid_snapshot_does_not_fallback_to_legacy(self) -> None:
+        # Post-S3 defense: working_pages 目录创建仅用于验证不回退 legacy
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             lesson = root / "main/40_course/TEST100/lessons/lesson01"
@@ -337,7 +238,6 @@ class TextbookWindowTests(unittest.TestCase):
                 content="",
                 meta={
                     "textbook_page": "10",
-                    "working_pages_window": "[9, 10, 11, 12]",
                 },
             )
             with self.assertRaisesRegex(
@@ -449,7 +349,7 @@ class TextbookWindowTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            # Legacy also present — must NOT be used when new path is valid.
+            # Post-S3 defense: legacy working_pages 创建仅用于验证不被选中
             write_utf8(
                 course / "lessons" / lesson / "working_pages/source_excerpt.md",
                 "# legacy should not be selected\n\n## 第 10 页\n\nlegacy\n",
@@ -494,10 +394,6 @@ class ConditionalRoutingTests(unittest.TestCase):
         route = SimpleNamespace(
             activity_type="lesson",
             activity_id="lesson01",
-            working_pages_path=(
-                "main/40_course/TEST100/lessons/lesson01/"
-                "working_pages/source_excerpt.md"
-            ),
         )
         reads = context.conditional_reads("TEST100", route, "G01")
         rendered = "\n".join(item["read"] for item in reads)

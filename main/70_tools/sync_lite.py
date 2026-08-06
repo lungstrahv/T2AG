@@ -19,7 +19,7 @@
 - 扩展名：PDF/EPUB/压缩包/Office 二进制/图片/可执行/编译产物/DB 等
   （图片例外见 ALLOWED_BINARY_REL 注释）
 - 体积：非文本默认 >1.5MB 跳过；.md/.py/.json/.yaml 等上限 3MB
-- working_pages/pages 截图页
+- working_pages/pages 截图页（已在 0.2.2 S3 退役，目录不再存在）
 
 保留：
 - 规则、playbook、doctor、实例 Markdown 状态、lesson 文本、cloud 文本
@@ -164,6 +164,13 @@ LITE_README = """# T2AG 0.2.2 线上模型审查快照（t2ag-lite）
 > **产品方向**：`t2ag-skeleton/` 按可复用开源基础持续维护；个人实例不因此公开。
 > 仓库根当前尚无明确开源许可证，正式对外分发前仍需单独裁决许可。
 
+## 基线与增量
+
+- **基线**：`0.2.2`，`finalization_delta_passed` 于 2026-08-05
+- **此后变更**：见 `main/00_core/t2ag_changelog.md` 顶部至
+  `[2026-08-05] EV-0012 教材页资产与 Lesson Preparation 技术收口` 为止（不含该条）。
+  **这些变更未经候选独立复审，不在 0.2.2 发布资格范围内。**
+
 - 再生机制：A 案（`main/70_tools/sync_lite.py`）— 每次从 main 整树导出 + 排除清单
 - 源实例：`../t2ag/`
 - 唯一模板源：`../t2ag-skeleton/`
@@ -238,6 +245,10 @@ LITE_AGENTS = """# t2ag-lite 0.2.2 启动说明
 ## 版本
 
 - 与源 main 对齐；当前版本为 `0.2.2`，权威版本号见 `main/t2ag.md`。
+- **基线与增量**：基线为 `0.2.2` / `finalization_delta_passed`（2026-08-05）。
+  此后变更见 `main/00_core/t2ag_changelog.md` 顶部至
+  `[2026-08-05] EV-0012` 为止（不含该条），这些变更未经候选独立复审，
+  不在 0.2.2 发布资格范围内。
 - 本文件在每次 `sync_lite.py` 运行时重写为审查身份说明。
 """
 
@@ -258,7 +269,7 @@ def should_skip_file(path: Path, rel: Path, tree_prefix: str = "") -> bool:
     for p in parts:
         if p in SKIP_DIR_NAMES:
             return True
-        if p == "pages" and "working_pages" in parts:
+        if p == "pages" and "working_pages" in parts:  # Post-S3 defense（目录已退役，防御性 skip）
             return True
     if is_allowed_binary(rel, tree_prefix):
         return False
@@ -546,11 +557,61 @@ def projection_manifest(src: Path, dst: Path) -> list[tuple[str, Path, Path]]:
         for source, rel in iter_projected_files(src / name, tree_prefix=name):
             label = f"{name}/{rel.as_posix()}"
             projected.append((label, source, dst / name / rel))
+    # docs/handoffs/ — 受控投影：活跃 handoff + 宪法 §7 六份版本权威
+    _project_handoffs(src, dst, projected)
     for name in ("t2ag_directory_guide.html", ".gitignore"):
         source = src / name
         if source.is_file() and not should_skip_file(source, Path(name)):
             projected.append((name, source, dst / name))
     return projected
+
+
+# 宪法 §7 引用的六份版本权威 handoff（无论 status，必须可校验）
+_CONSTITUTION_HANDOFFS: frozenset[str] = frozenset({
+    "T2AG_021_FULL_CLOSEOUT_AND_REVIEW_GOVERNANCE_WORKORDER_2026-08-04.md",
+    "T2AG_021_VERSION_INDEPENDENT_REVIEW_2026-08-04.md",
+    "T2AG_021_FINALIZATION_DELTA_REVIEW_2026-08-04.md",
+    "T2AG_022_ACTIVITY_CLOSE_LEDGER_WORKORDER_2026-08-04.md",
+    "T2AG_022_VERSION_INDEPENDENT_REVIEW_2026-08-05.md",
+    "T2AG_022_FINALIZATION_DELTA_REVIEW_2026-08-05.md",
+})
+
+
+def _project_handoffs(
+    src: Path, dst: Path, projected: list[tuple[str, Path, Path]]
+) -> None:
+    """Project active handoffs and constitutional references from docs/handoffs/."""
+    handoff_dir = src / "docs" / "handoffs"
+    if not handoff_dir.is_dir():
+        return
+    for path in sorted(handoff_dir.rglob("*.md")):
+        if path.name.startswith("_"):
+            continue  # 跳过工具脚本附件
+        rel = path.relative_to(src)
+        # 只投影 .md（文本可审查），跳过 backups/ 与超大文件
+        if "backups" in rel.parts:
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        if size > MAX_FILE_BYTES:
+            continue
+        # 宪法 §7 六份无条件投影；其余只投影带活跃状态标记的
+        is_constitutional = path.name in _CONSTITUTION_HANDOFFS
+        if not is_constitutional:
+            # 检查 frontmatter / 首行是否有 active / in_progress 标记
+            try:
+                first_lines = path.read_text(encoding="utf-8")[:2000]
+            except Exception:
+                continue
+            if not re.search(
+                r"\*\*状态\*\*[：:]\s*(?:active|进行中|in.progress|方案讨论完成)",
+                first_lines,
+            ):
+                continue
+        label = rel.as_posix()
+        projected.append((label, path, dst / rel))
 
 
 def check_current_projection(src: Path, dst: Path) -> int:

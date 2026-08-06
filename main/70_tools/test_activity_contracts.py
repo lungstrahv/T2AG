@@ -9,7 +9,7 @@ TESTS = (
     contracts.test_exercise_first_course_resume,
     contracts.test_exercise_current_lesson_driver_matrix,
     contracts.test_planned_activity_fields_rejected,
-    contracts.test_working_pages_activity_matrix,
+    contracts.test_textbook_preparation_activity_matrix,
     contracts.test_course_activity_templates,
     contracts.test_hint_gate_contract,
     contracts.test_exercise_evidence,

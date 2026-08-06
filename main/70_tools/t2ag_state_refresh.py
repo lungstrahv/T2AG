@@ -118,6 +118,43 @@ def next_action(content: str) -> str:
     return "—"
 
 
+def derive_current_checkpoint(progress_content: str) -> tuple[str, str]:
+    """Derive (current_checkpoint, checkpoint_state) from the checkpoint table.
+
+    The checkpoint table inside progress.md is the authoritative source.
+    Frontmatter values are GENERATED projections and are overwritten by
+    ``--write``.
+
+    Rules:
+    - Scan the checkpoint table rows in order.
+    - Return the first checkpoint whose status is ``pending``, ``arrived``,
+      or ``queued``.
+    - If no such row exists, return ``("none", "none")``.
+    - ``confirmed`` and ``archived`` checkpoints are never selected as current.
+    """
+    in_table = False
+    for line in progress_content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("| checkpoint_id "):
+            in_table = True
+            continue
+        if not in_table:
+            continue
+        if stripped.startswith("|---"):
+            continue
+        if not stripped.startswith("| "):
+            in_table = False
+            continue
+        cols = [c.strip() for c in stripped.split("|")]
+        if len(cols) < 6:
+            continue
+        ckpt_id = cols[1]
+        status = cols[-1] if cols[-1] else cols[-2]
+        if status in ("pending", "arrived", "queued"):
+            return (ckpt_id, status)
+    return ("none", "none")
+
+
 def explicit_or_dash(value: str | None) -> str:
     normalized = (value or "").strip()
     return normalized if normalized else "—"
@@ -179,6 +216,7 @@ def discover_courses(
             resume_path = meta.get("resume_path", "")
             lesson_context = "无"
             lesson_context_path = ""
+        derived_ckpt, derived_state = derive_current_checkpoint(content)
         result[course_id] = Course(
             course_id=course_id,
             name=course_name(folder / "course.md", course_id, reader=reader),
@@ -195,8 +233,8 @@ def discover_courses(
             ),
             updated=meta.get("updated", "—"),
             node=meta.get("current_completion_node", "—"),
-            checkpoint=meta.get("current_checkpoint", "—"),
-            checkpoint_state=meta.get("checkpoint_state", "—"),
+            checkpoint=derived_ckpt if derived_ckpt != "none" else "—",
+            checkpoint_state=derived_state if derived_state != "none" else "—",
             next_action=next_action(content),
             path=progress,
         )

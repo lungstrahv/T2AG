@@ -179,7 +179,7 @@ class DistributionFoundationTests(unittest.TestCase):
             "book/.cache/**",
             "不构成 RT3",
             "仍为 RT3",
-            "working_pages",
+            "working_pages（0.2.2 S3 退役）",
         ):
             self.assertIn(marker, self_text)
         self.assertEqual(

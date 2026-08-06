@@ -59,12 +59,17 @@ lifecycle_status: planned  # planned / ongoing / completed / dropped
 
 checkpoint 是细粒度恢复点，用来回答“具体讲到哪一句、哪个证明步骤或哪个项目动作”。
 
-- 教材课以当前 4–6 页工作窗口为范围；一页可有多个 checkpoint，当前窗口最多 12 个。
+- 教材课以当前 5–8 页工作窗口为范围；一页可有多个 checkpoint。Scope 规格 owner 为
+  `50_playbook/source_page_assets.md` §2 LessonScope，本文件不重复定义。
 - 项目/实践课按当前时间表、里程碑或项目顺序表的细步骤生成。
 - checkpoint 使用来源定位 ID，例如 `MATH1607H-B001-P026-N02`。
+- checkpoint 挂在 LessonMap 块下：一个块可有多个 checkpoint（学生可能在同一块内多次停顿）。
+  块引用使用稳定 ID `page_key#block_id`；同一 SourcePageAsset 的同一教材块跨 Scope 版本保持同 ID。
 - 到达 checkpoint 时静默自动保存，不要求学生说“保存进度”。
 - 状态至少区分 `queued / arrived / pending / confirmed / archived`。
 - checkpoint 只证明到达位置与确认状态，不等于完成一个教材小节或项目节点。
+- checkpoint 表格是权威真相源；frontmatter 的 `current_checkpoint` / `checkpoint_state`
+  由 `t2ag_state_refresh.py --write` 从表格生成（GENERATED 投影），手写无效。
 
 ### 2.2 completion node：完成节点
 
@@ -80,7 +85,37 @@ completion node 是粗粒度、永久稳定的正式进度单元，通常跨若�
 ## 三、生成与滚动窗口
 
 1. completion node 先从已核验教材目录、项目顺序表或实践时间表生成；不凭模型记忆猜结构。
-2. 教材课只为当前 4–6 页生成 checkpoint，当前窗口上限 12 个；翻页时归档离开窗口的 checkpoint，再生成新窗口。
+2. 教材课只为当前 Scope（5–8 页）生成 checkpoint。Scope 换版时：
+   (1) 当前 LessonMap 块成员关系派生路由，「离开块」= 新旧 Map 块 ID 集合差判定；
+   (2) `confirmed` checkpoint 保持 `confirmed`，Scope 换版不改写既有确认事实；
+   (3) 即将离开 Scope 的块若仍有 `queued / arrived / pending` checkpoint → fail-closed，
+       必须先确认闭合或学生明确 defer/retire；
+   (4) `archived` 只表示 checkpoint 本身被明确判定为重复、失效、被替代或不再恢复，
+       退役原因必须在对应 Lesson/活动记录中留痕；`archived` 不再是 Scope rollover 的自动清退机制。
+
+### 重分块与 block migration
+
+教材的块划分不是静态的。同一个 SourcePageAsset 在后续 Scope 版本中可能被重新分块
+（如定义与例子拆成不同块、教材修订导致块边界移动）。块 ID 变更必须通过 **block migration 表**
+显式记录，不得静默覆盖旧 ID 或凭空创建新 ID 而不建立对应关系。
+
+block migration 表至少记录：
+
+| 字段 | 说明 |
+|---|---|
+| page_key | 不变的页级 ID |
+| old_block_id | 旧版块的短 ID（如 B02） |
+| new_block_id | 新版块的短 ID（如 B03） |
+| kind | `split / merge / renumber / boundary_shift / retired / new` |
+| successor_of | 旧块是否被完全包含或替代；一对多或多对一时必须解释 |
+| decision | 学生或教师确认的裁决（如「B03 替代 B02，旧 B03→B04」） |
+
+规则：
+- 同一次 Scope 换版中，同一 `page_key` 下**存在一对多 successor 映射且无精确 successor
+  判定时，doctor 必须 fail-closed**（CKP-SCOPE-003），要求教师在迁移表中明确 successor。
+- `kind: retired` 的块：旧 checkpoint 可标 `archived`，并在对应 Lesson 记录退役原因。
+- `kind: new` 的块：未在任何已确认 completion node 出现过的新增内容，不继承任何旧 checkpoint。
+
 3. 非活跃课程只保留最小生命周期字段，首次激活或真正恢复时惰性生成节点。
 4. `node_id` 绑定来源身份；文件改名通过 artifact registry 解析，不重造节点 ID。
 

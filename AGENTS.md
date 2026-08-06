@@ -1,4 +1,4 @@
-# T2AG 0.2.2 Skeleton 启动指令
+# T2AG 0.2.3 Skeleton 启动指令
 
 本目录是空实例原件。进入后先读 `main/t2ag.md`。Agent 池上限为 6、同时运行上限为 3
 （均包含 Main）；默认启动一个主 Agent与两个辅助 Agent。完成态释放并发槽，池满时优先

@@ -16,7 +16,8 @@
     "runtime.teacher_contract": {"phase": "runtime", "handler": "check_teacher_contract", "depends_on": ["runtime.course_discovery"]},
     "runtime.memory_pointers": {"phase": "runtime", "handler": "check_memory_pointers", "depends_on": ["runtime.teacher_contract"]},
     "runtime.registry": {"phase": "runtime", "handler": "check_registry", "depends_on": ["runtime.structure"]},
-    "runtime.working_pages": {"phase": "runtime", "handler": "check_working_pages", "depends_on": ["runtime.course_discovery"]},
+    "runtime.textbook_preparation": {"phase": "runtime", "handler": "check_textbook_preparation", "depends_on": ["runtime.course_discovery"]},
+    "runtime.checkpoint_block_routing": {"phase": "runtime", "handler": "check_checkpoint_block_routing", "depends_on": ["runtime.course_discovery"]},
     "runtime.trading_boundary": {"phase": "runtime", "handler": "check_trading_boundary", "depends_on": ["runtime.structure"]},
     "runtime.legacy_references": {"phase": "runtime", "handler": "check_legacy_references", "depends_on": ["runtime.structure"]},
     "runtime.retired_instance_ids": {"phase": "runtime", "handler": "check_retired_instance_ids", "depends_on": ["runtime.structure"]},
@@ -35,7 +36,8 @@
     "release.core_playbooks": {"phase": "release", "handler": "check_core_playbooks", "depends_on": ["runtime.structure"]},
     "release.candidate_replay": {"phase": "release", "handler": "check_candidate_replay_contract", "depends_on": ["runtime.structure"]},
     "release.tracked_environment": {"phase": "release", "handler": "check_tracked_environment", "depends_on": ["runtime.structure"]},
-    "release.dirty_tree": {"phase": "release", "handler": "check_dirty_tree", "depends_on": ["runtime.structure"]}
+    "release.dirty_tree": {"phase": "release", "handler": "check_dirty_tree", "depends_on": ["runtime.structure"]},
+    "release.skeleton_textbook": {"phase": "release", "handler": "check_skeleton_textbook", "depends_on": ["runtime.structure"]}
   },
   "profiles": {
     "runtime": {
@@ -47,8 +49,8 @@
         "runtime.course_discovery", "runtime.groups", "runtime.activity_ledgers",
         "runtime.engagements_activities", "runtime.question_banks", "runtime.knowledge_ledgers",
         "runtime.project_verification", "runtime.exercises", "runtime.teacher_contract",
-        "runtime.memory_pointers", "runtime.registry", "runtime.working_pages",
-        "runtime.trading_boundary", "runtime.legacy_references", "runtime.retired_instance_ids",
+        "runtime.memory_pointers", "runtime.registry", "runtime.textbook_preparation",
+        "runtime.checkpoint_block_routing", "runtime.trading_boundary", "runtime.legacy_references", "runtime.retired_instance_ids",
         "runtime.cloud_pause", "runtime.context_packet", "runtime.test_management",
         "runtime.course_templates"
       ]
@@ -61,7 +63,7 @@
         "release.flow_guide", "release.handoff", "release.cloud", "release.derived_tools",
         "release.migration_020", "release.migration_021", "release.activity_migration_021",
         "release.reading_bridge", "release.core_playbooks", "release.candidate_replay",
-        "release.tracked_environment", "release.dirty_tree"
+        "release.tracked_environment", "release.dirty_tree", "release.skeleton_textbook"
       ]
     }
   },

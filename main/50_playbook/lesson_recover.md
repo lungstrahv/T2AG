@@ -20,7 +20,7 @@
 > - 课程疑问：对应课程 `question_bank.md` →「待解决 / 需要回看」
 > - 课程错题库：对应课程 `mistake_bank.md`
 > - 学生状态档案：`main/10_student/profile/profile.md`、`reasoning_patterns.md` 与 `course_reflections.md`
-> - 教材缓存：当前活动为 Lesson 时，对应 `lessons/lessonXX/working_pages/source_excerpt.md`
+> - 教材缓存：当前活动为 Lesson 时，通过 preparation Snapshot + source_assets 交付（legacy `working_pages/` 已在 0.2.2 批 S3 退役）
 > - 交接管理：`main/50_playbook/handoff_management.md` + 运行时 `<handoff_root>/README.md`
 > - 自检工具：`main/70_tools/t2ag_doctor.py`
 
@@ -176,16 +176,12 @@ L0 从学生档案做逐段摘录，重点关注：
 
 > **情绪状态只调整"怎么教"**：恢复上下文时，必须先确认学生状态再调整节奏，但不得降低课程标准、回避纠错或复测放水。
 
-### 步骤 5：条件读取 working_pages
+### 步骤 5：教材原文窗口（Snapshot-only）
 
-默认恢复链路中，**working_pages 仅在 `lesson` 分支**读取（含其 legacy 目录与 EV-0012
-页资产投影）。当前活动为 Exercise 时跳过本步；不得依据退役的 `current_lesson` 无条件
-打开 working pages 或伪造教材路径。
+默认恢复链路中，教材原文窗口 **仅在 `lesson` + `course_driver: textbook`** 分支读取。
+当前活动为 Exercise 时跳过本步；goal / project / praxis Lesson 跳过教材窗口。
 
-只有 `course_driver: textbook` 的当前 Lesson 强制恢复教材原文证据；goal / project /
-praxis Lesson 的路由为 `working_pages: null`，跳过教材窗口。
-
-**优先（EV-0012）**：
+**当前路径（EV-0012）**：
 
 1. 读取 **current** `LessonPreparationSnapshot`（`preparation/current_snapshot.json` 指针，
    **禁止**字典序取最后一个 `PREP-*.json`）与 `LessonMap`；
@@ -199,13 +195,9 @@ snapshot、PDF SHA、完整 `pdf_page_index`、每页 `opened=true`、书内 `pr
 与冲突。缺页或混用两种页码时停止教学。Main 不得把历史 `content_consumed=true`、receipt、
 文件哈希或辅助 Agent 的“无需额外读取”解释成自己/本轮已经扫描。
 
-**Legacy**：仅当新路径 **完全不存在** 时，仍可读
-`lessons/<current_activity_id>/working_pages/source_excerpt.md` 与窗口 PNG/OCR。
-若 preparation 新路径存在但无效：**必须失败**，不得静默回退 legacy。
-
-> **若 textbook 既无合法 Snapshot/页资产，也无可用 legacy working_pages**：
-> - 上下文工具必须失败，**不得返回缺教材的 `ready`**
-> - 按 `ocr_correct_flow.md` + `source_page_assets.md` 补齐后重跑
+**Legacy 路径已退役**：原 `lessons/<current_activity_id>/working_pages/` 路径已在 0.2.2 批 S3 退役。
+若 preparation 新路径不存在，上下文工具必须失败，**不得返回缺教材的 `ready`**。
+按 `ocr_correct_flow.md` + `source_page_assets.md` 补齐后重跑。
 
 ### 步骤 6：确认健康检查仍有效并执行开课抽查
 
@@ -308,9 +300,9 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
 
 **本节只有在只读活动路由返回 `current_activity: lesson` 且课程 driver 为 textbook 时
 执行。Exercise（包括带历史 Lesson 的 Exercise）和其他 driver 直接跳过整节，不解析旧
-`textbook_page / working_pages_window`，也不据此构造 Lesson 路径。**
+`textbook_page`，也不据此构造 Lesson 路径。**
 
-恢复上下文后，`working_pages/` 中的物理文件（OCR 原图、OCR 结果、扫描图等）按以下窗口管理：
+恢复上下文后，教材原文通过 preparation Snapshot + source_assets 管理：
 
 ### 基准 Scope / TeachingWindow（EV-0012）
 
@@ -322,13 +314,10 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
 
 **新路径**：进入讲授前须有 valid `LessonPreparationSnapshot`（Scope + Map + load receipts）与足够核验等级（`t2ag.md`）。
 
-**Legacy 路径**（仅 `working_pages/source_excerpt.md` 仍为唯一证据时）：
+**Legacy 路径已退役**：原 `working_pages/source_excerpt.md` + `progress.md` `textbook_page` / `working_pages_window` 路径
+已在 0.2.2 批 S3 退役；历史摘录见各课 `archive/`。
 
-1. `progress.md` 含 `textbook_page` 与 `working_pages_window`，与摘录头一致。
-2. 窗口连续且含当前页；每页有 PNG 与 raw OCR（非 lite）。
-3. 摘录含对应页校对章节；“校对 ✓”须人工逐符号核验。
-
-翻页原子流程：**渲染 → 目视 → OCR → 校对写入 source_assets（或 legacy）→ 新 Scope/Snapshot → progress → doctor**。
+翻页原子流程：**渲染 → 目视 → OCR → 校对写入 source_assets → 新 Scope/Snapshot → progress → doctor**。
 任一步未完成不得讲新页。
 
 ### 窗口管理规则（EV-0012）
@@ -339,12 +328,12 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
 | 扩窗 / 翻页 | 新 Scope 版本 → **新** Snapshot；旧 Snapshot 只读保留 | 不改旧 PREP |
 | 短书 `N<5` | Scope = 全部可用页固定 | `short_document: true` |
 | 页图配额 | `.cache` 内非 P0 可重建项按 CacheEviction | P0 永不删；失败 `cache_quota_blocked` |
-| legacy 物理文件 | 仅未迁移实例；**不得**因结课/切课自动清理 | 删除须 E 的 exact RT3 |
+| legacy 物理文件 | 已退役（0.2.2 批 S3），历史摘录见各课 `archive/` | — |
 
-**废除**：4 页基线 / 6 页上限 / 结课自动删 `working_pages` 的旧表述。
+**废除**：working_pages_window、结课自动删 `working_pages`、4 页基线 / 6 页上限的旧表述。
 
-> **source_excerpt.md / source_assets**：持久核验文本不做窗口内删除。`.cache` PNG 才是可驱逐派生。
-> Lesson 关闭或切换到 Exercise：**不得自动清理** legacy `working_pages`；清理始终走迁移批次 E 的 exact RT3。
+> **source_assets**：持久核验文本不做窗口内删除。`.cache` PNG 才是可驱逐派生。
+> Legacy `working_pages/` 路径已在 0.2.2 批 S3 退役；历史摘录见各课 `archive/`。
 
 ---
 
@@ -380,15 +369,11 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
 - 教学方案提供框架，教材原文提供内容
 - 「看教材原文」意味着真正去扫描、提取原文，而不是凭已有材料复述
 
-### 4. working_pages/ 生命周期
+### 4. working_pages/ 生命周期（已退役）
 
-- `working_pages/` 是 textbook Lesson 的 **legacy** 临时工作区；新权威为 Course
-  `source_assets` + Snapshot/Map。
-- **Lesson 关闭或切换到 Exercise 不得自动清理 `working_pages`**。
-- legacy 删除始终保留 **E 的 exact RT3**（exact object + 当轮确认）；CacheEviction
-  只作用于 `book/.cache`，不得删 working_pages。
-- 跨会话恢复：优先 current Snapshot；仅新路径完全不存在时才读 legacy；若 legacy
-  已被 RT3 删除且无 Snapshot，须按 `source_page_assets.md` 重新核验。
+- `working_pages/` 是 textbook Lesson 的 legacy 临时工作区，已在 0.2.2 批 S3 退役。
+- 新权威为 Course `source_assets` + preparation Snapshot/Map。
+- 历史摘录与 OCR 已归档至各课 `archive/`；不得重建或重新使用。
 - `illustration/` 是持久保存的，不受课程结束影响
 
 ### 5. 状态指针可靠性

@@ -1,11 +1,11 @@
-# T2AG 0.2.2 Skeleton
+# T2AG 0.2.3 Skeleton
 
 > 空实例原件。它可复制为新的 T2AG 实例，但自身不得承载真实学生数据。
 > 复制到任意新目录后，未初始化 profile 仍按 Skeleton 空模板验收；完成
 > `first_run.md` 并把 profile 改为 initialized 后，该副本自动按个人实例验收，
 > 不依赖目录名。原始 `t2ag-skeleton/` 仓本身永远保持空模板身份。
 
-0.2.2 Skeleton 提供 activity ledger、exerciseNN 模板、原子 activity lifecycle/close 工具，
+0.2.3 Skeleton 提供 activity ledger、exerciseNN 模板、原子 activity lifecycle/close 工具，
 并保留分类 reading ActivityRecord 空容器和双向 JSON 候选桥接能力；它不含真实课程活动、
 AR、书籍、sidecar、候选贡献或消费回执。两个系统始终各写各仓。
 

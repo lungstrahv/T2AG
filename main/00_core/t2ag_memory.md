@@ -27,7 +27,7 @@
 | 当前教师 | — | `main/20_teacher/overlay.md` |
 | 学生档案 | uninitialized | `main/10_student/profile/profile.md` |
 | active binding | 无 | 首次启动后创建 |
-| T2AG 版本 | 0.2.2 | `main/t2ag.md` |
+| T2AG 版本 | 0.2.3 | `main/t2ag.md` |
 | Cloud bridge | paused | `cloud/cloud_sync_state.md` |
 <!-- T2AG_GENERATED:STATE_POINTERS:END -->
 

@@ -1122,7 +1122,7 @@ def test_planned_activity_fields_rejected(root: Path) -> None:
         raise AssertionError(f"legal planned course rejected: {doctor.fails}")
 
 
-def test_working_pages_activity_matrix(root: Path) -> None:
+def test_textbook_preparation_activity_matrix(root: Path) -> None:
     exercise = root / "main/40_course/EXER1001"
     lesson = root / "main/40_course/LESS1001"
     write(
@@ -1142,7 +1142,6 @@ def test_working_pages_activity_matrix(root: Path) -> None:
                 "current_activity_id": "U0001",
                 "current_lesson": "lesson01",
                 "textbook_page": "not-a-number",
-                "working_pages_window": "[broken]",
             },
         ),
         "LESS1001": (
@@ -1153,16 +1152,15 @@ def test_working_pages_activity_matrix(root: Path) -> None:
                 "current_activity_id": "lesson01",
                 "current_lesson": "lesson01",
                 "textbook_page": "1",
-                "working_pages_window": "[1]",
             },
         ),
     }
     reset(root)
-    run_silently(doctor.check_working_pages, courses)
+    run_silently(doctor.check_textbook_preparation, courses)
     if any("EXER1001" in message for message in doctor.fails):
         raise AssertionError(f"Exercise inherited working-pages validation: {doctor.fails}")
     assert_message(doctor.fails, "LESS1001")
-    assert_message(doctor.fails, "缺 working page PNG")
+    assert_message(doctor.fails, "缺 preparation Snapshot")
 
     write(
         lesson / "progress.md",
@@ -1174,8 +1172,8 @@ def test_working_pages_activity_matrix(root: Path) -> None:
         "activity_position: first goal lesson\n---\n",
     )
     route = state_refresh.resolve_activity(root, "LESS1001")
-    if route.recovery_plan()["working_pages"] is not None:
-        raise AssertionError("non-textbook Lesson inherited working-pages routing")
+    if "working_pages" in route.recovery_plan():
+        raise AssertionError("recovery_plan must not include retired working_pages key")
     try:
         state_refresh.resolve_activity(root, "../escape")
     except state_refresh.ActivityContractError as exc:
@@ -1872,6 +1870,7 @@ def test_persistent_exercise_source_contract(root: Path) -> None:
     assert_message(doctor.fails, "哈希绑定 manifest")
 
     temporary_source = (
+        # Post-S3 defense: working_pages 路径用于验证 registry 对不存在文件的 FAIL 检查
         "main/40_course/TEST1001/lessons/lesson01/"
         "working_pages/source_excerpt.md"
     )
@@ -2076,13 +2075,13 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
     branch = content.find("### 步骤 3：按 current_activity 恢复主载体")
     lesson = content.find("#### `lesson` 分支")
     exercise = content.find("#### `exercise` 分支")
-    working = content.find("### 步骤 5：条件读取 working_pages")
+    working = content.find("步骤 5：教材原文窗口（Snapshot-only）")
     if not (0 <= branch < lesson < exercise < working):
-        raise AssertionError("lesson_recover does not branch before Lesson/working-pages consumers")
+        raise AssertionError("lesson_recover does not branch before Lesson/preparation consumers")
     required = (
         "Exercise 首启不得读取或构造 Lesson 路径",
         "不写 `current_lesson`",
-        "working_pages 仅在 `lesson` 分支",
+        "教材原文窗口 **仅在 `lesson` + `course_driver: textbook`**",
         "t2ag_activity.py --course <COURSE_ID> --intent recover",
         "连续 Scope **5–8**",
         "不得自动清理",
@@ -3018,7 +3017,7 @@ ALL_CONTRACT_TESTS = (
         test_state_refresh_activity_roundtrip,
         test_exercise_current_lesson_driver_matrix,
         test_planned_activity_fields_rejected,
-        test_working_pages_activity_matrix,
+        test_textbook_preparation_activity_matrix,
         test_skin_art,
         test_course_activity_templates,
         test_flow_and_offline_guide,
