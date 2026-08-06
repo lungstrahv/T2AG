@@ -8,6 +8,8 @@
     "contracts.release": {"path": "main/70_tools/test_release_contracts.py", "tier": "release_only", "kind": "atomic"},
     "migrations.legacy": {"path": "main/70_tools/test_legacy_migrations.py", "tier": "deep", "kind": "atomic"},
     "context.packet": {"path": "main/70_tools/test_context_packet.py", "tier": "fast", "kind": "atomic"},
+    "host.teaching_egress": {"path": "main/70_tools/test_host_teaching_egress.py", "tier": "fast", "kind": "atomic"},
+    "decision.records": {"path": "main/70_tools/test_decision_record_contract.py", "tier": "fast", "kind": "atomic"},
     "source.pages": {"path": "main/70_tools/test_source_pages.py", "tier": "fast", "kind": "atomic"},
     "reading.closeout": {"path": "main/70_tools/test_021_closeout.py", "tier": "deep", "kind": "atomic"},
     "reading.release_saga": {"path": "main/70_tools/scenarios/release_reading_bridge_saga.py", "tier": "release_only", "kind": "scenario", "automatic": false},
@@ -41,6 +43,28 @@
     "context": {
       "sources": ["main/70_tools/t2ag_context.py", "main/70_tools/t2ag_activity.py", "main/50_playbook/context_packet.md"],
       "tests": ["context.packet"]
+    },
+    "host_teaching_egress": {
+      "sources": [
+        "main/70_tools/host_teaching_egress.py",
+        "main/70_tools/test_host_teaching_egress.py",
+        "docs/protocol/host-teaching-egress-api.md",
+        "docs/adr/0002-host-controlled-textbook-teaching-egress.md"
+      ],
+      "tests": ["host.teaching_egress", "context.packet"]
+    },
+    "decision_records": {
+      "sources": [
+        "main/70_tools/decision_record_contract.py",
+        "main/70_tools/test_decision_record_contract.py",
+        "main/60_journal/t2ag_evolution_register.md",
+        "main/60_journal/t2ag_evolution.md",
+        "docs/adr/README.md",
+        "docs/adr/0001-textbook-source-assets-and-bounded-cache.md",
+        "docs/adr/0002-host-controlled-textbook-teaching-egress.md",
+        "main/50_playbook/journal_management.md"
+      ],
+      "tests": ["decision.records"]
     },
     "source_pages": {
       "sources": [

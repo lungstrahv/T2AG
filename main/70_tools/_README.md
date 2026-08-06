@@ -27,5 +27,13 @@ tools = 确定性检查，playbook = 裁量流程（宪法 2.7）。
 - `test_source_pages.py`：Scope 几何、稀疏失败、heat_at、P0/越界驱逐、Snapshot 幂等与
   覆写拒绝、CLI 参数、prepare 负向用例。
 - `50_playbook/source_page_assets.md`：页资产与缓存的可执行流程。
+- `host_teaching_egress.py` + `test_host_teaching_egress.py`：宿主教材教学 egress 纯契约
+  （`lesson_emit` / freeform 关闭 / status 模板 / reserve→commit）。**不**发送消息、
+  **不**构成结构性硬门；设计见 `docs/protocol/host-teaching-egress-api.md` 与 ADR-0002。
+- critical packet withhold（`t2ag_context.py`）：scope scan pending 时 `route_ready` +
+  剥离可照发正文；见 `PendingScopeScanWithholdTests`。
+- `decision_record_contract.py` + `test_decision_record_contract.py`：Evolution Register
+  ↔ ADR 确定性关联（无 CLI）；Doctor `runtime.decision_records` 调用。
+- `build_journal_index.py`：支持通用 `journal_index: false`（redirect 不进生成索引）。
 
 桥接工具只写本仓 sidecar，不读取或启动辅助阅读系统；跨仓调用由外部 saga 编排层完成。

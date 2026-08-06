@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -156,7 +157,7 @@ LITE_IDENTITY_REL = frozenset({"README.md", "AGENTS.md"})
 LITE_GUIDE_DIVERGE_REL = frozenset({"t2ag_directory_guide.html"})
 PRESERVE_DST_TOP = frozenset({".git", ".venv", ".recovery", ".staging"})
 
-LITE_README = """# T2AG 0.2.2 线上模型审查快照（t2ag-lite）
+LITE_README = """# T2AG 0.2.3 线上模型审查快照（t2ag-lite）
 
 > **身份**：由主实例 `t2ag/` **全量再生**得到的文本优先审查快照。
 > 不是空白 skeleton，不用于初始化新学生，也不得作为教学写回源。
@@ -166,16 +167,18 @@ LITE_README = """# T2AG 0.2.2 线上模型审查快照（t2ag-lite）
 
 ## 基线与增量
 
-- **基线**：`0.2.2`，`finalization_delta_passed` 于 2026-08-05
-- **此后变更**：见 `main/00_core/t2ag_changelog.md` 顶部至
-  `[2026-08-05] EV-0012 教材页资产与 Lesson Preparation 技术收口` 为止（不含该条）。
-  **这些变更未经候选独立复审，不在 0.2.2 发布资格范围内。**
+- **运行版本**：`0.2.3`（教材教学发送边界 defense-in-depth + 宿主 egress 契约；**未**宣称 FIN）
+- **最近 release 资格基线**：`0.2.2`，`finalization_delta_passed` 于 2026-08-05
+- **此后变更**：见 `main/00_core/t2ag_changelog.md` 顶部。
+  **0.2.3 未经候选独立复审与 finalization delta，不在发布资格范围内。**
 
 - 再生机制：A 案（`main/70_tools/sync_lite.py`）— 每次从 main 整树导出 + 排除清单
 - 源实例：`../t2ag/`
 - 唯一模板源：`../t2ag-skeleton/`
 - 包含：系统规则、实例 Markdown 状态、课程与 lesson 文本、工具脚本、
+  `docs/adr/**` 与 `docs/protocol/**` 纯文本审查闭包、
   `t2ag_directory_guide.html` 与其单一蜗牛图
+- ADR/Protocol 仅为**只读审查资料**，不赋予 Lite 执行权或宿主教学硬门
 - 排除：教材二进制（PDF/压缩包等）、`.venv`、`.tools`、`.git`、`.recovery`、
   缓存、二进制生成资产、DB/WAL 等；审查所需的纯文本课程材料可以保留
 
@@ -224,7 +227,7 @@ lite 只能由 main 再生，不是规则源。顺序固定为：
 不要手改 lite 后期望回写 main。半同步靠全量再生灭绝，不靠白名单补丁。
 """
 
-LITE_AGENTS = """# t2ag-lite 0.2.2 启动说明
+LITE_AGENTS = """# t2ag-lite 0.2.3 启动说明
 
 本目录是 **t2ag 主实例的线上审查快照**（由 `main/70_tools/sync_lite.py` 全量再生）。
 
@@ -244,11 +247,10 @@ LITE_AGENTS = """# t2ag-lite 0.2.2 启动说明
 
 ## 版本
 
-- 与源 main 对齐；当前版本为 `0.2.2`，权威版本号见 `main/t2ag.md`。
-- **基线与增量**：基线为 `0.2.2` / `finalization_delta_passed`（2026-08-05）。
-  此后变更见 `main/00_core/t2ag_changelog.md` 顶部至
-  `[2026-08-05] EV-0012` 为止（不含该条），这些变更未经候选独立复审，
-  不在 0.2.2 发布资格范围内。
+- 与源 main 对齐；当前运行版本为 `0.2.3`，权威版本号见 `main/t2ag.md`。
+- **基线与增量**：最近 release 资格基线为 `0.2.2` / `finalization_delta_passed`（2026-08-05）；
+  运行版本 `0.2.3` 未宣称 FIN。此后变更见 `main/00_core/t2ag_changelog.md` 顶部；
+  未经候选独立复审与 finalization delta 的条目不在发布资格范围内。
 - 本文件在每次 `sync_lite.py` 运行时重写为审查身份说明。
 """
 
@@ -559,6 +561,8 @@ def projection_manifest(src: Path, dst: Path) -> list[tuple[str, Path, Path]]:
             projected.append((label, source, dst / name / rel))
     # docs/handoffs/ — 受控投影：活跃 handoff + 宪法 §7 六份版本权威
     _project_handoffs(src, dst, projected)
+    # docs/adr + docs/protocol — 只读审查闭包（文本 .md；非执行权）
+    _project_decision_docs(src, dst, projected)
     for name in ("t2ag_directory_guide.html", ".gitignore"):
         source = src / name
         if source.is_file() and not should_skip_file(source, Path(name)):
@@ -612,6 +616,35 @@ def _project_handoffs(
                 continue
         label = rel.as_posix()
         projected.append((label, path, dst / rel))
+
+
+def _project_decision_docs(
+    src: Path, dst: Path, projected: list[tuple[str, Path, Path]]
+) -> None:
+    """Project ADR and protocol markdown for Lite review-only closure.
+
+    Does not grant Lite execution authority or host hard gates.
+    """
+    for sub in ("adr", "protocol"):
+        base = src / "docs" / sub
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*.md")):
+            rel = path.relative_to(src)
+            if "backups" in rel.parts:
+                continue
+            if path.name.startswith("_"):
+                continue
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            if size > MAX_FILE_BYTES:
+                continue
+            if should_skip_file(path, rel):
+                continue
+            label = rel.as_posix()
+            projected.append((label, path, dst / rel))
 
 
 def check_current_projection(src: Path, dst: Path) -> int:
@@ -696,6 +729,25 @@ def build_candidate(
             print(f"root file: {name}")
         elif source.is_file():
             total_skipped += 1
+
+    # Copy projected docs/* extras (handoffs, adr, protocol) not covered by tree loops.
+    projected_preview = projection_manifest(src, candidate)
+    extras = 0
+    for label, source, target in projected_preview:
+        if label.startswith(("main/", "cloud/", "assets/")):
+            continue
+        if label in LITE_IDENTITY_REL or label in LITE_GUIDE_DIVERGE_REL:
+            continue
+        if label in {".gitignore", "t2ag_directory_guide.html"}:
+            continue
+        if not source.is_file():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        extras += 1
+        total_copied += 1
+    if extras:
+        print(f"docs extras: copied={extras}")
 
     write_identity(candidate, False)
     tools_dir = Path(__file__).resolve().parent

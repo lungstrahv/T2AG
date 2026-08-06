@@ -1,6 +1,19 @@
+---
+adr_id: ADR-0001
+portable_key: textbook-source-assets-and-bounded-cache
+status: accepted
+authority_project: T2AG
+source_evolution: [EV-0012]
+supersedes: []
+implementation_refs:
+  - main/50_playbook/source_page_assets.md
+  - main/70_tools/t2ag_source_pages.py
+---
+
 # ADR-0001: 教材页资产、短书与有界缓存
 
-**Status:** accepted
+**Status:** accepted  
+**source_evolution:** EV-0012
 
 EV-0012 将可复用的教材原文证据归入 Course/Book，而不是随每个 Lesson 复制；Lesson 只拥有
 自己的范围版本、导航与备课收据。这个边界既保留严格原文教学，也避免同一教材页随 Lesson

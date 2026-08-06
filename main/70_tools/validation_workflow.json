@@ -24,6 +24,7 @@
     "runtime.cloud_pause": {"phase": "runtime", "handler": "check_cloud_pause", "depends_on": ["runtime.structure"]},
     "runtime.context_packet": {"phase": "runtime", "handler": "check_context_packet_contract", "depends_on": ["runtime.structure"]},
     "runtime.test_management": {"phase": "runtime", "handler": "check_test_management_contract", "depends_on": ["runtime.structure"]},
+    "runtime.decision_records": {"phase": "runtime", "handler": "check_decision_records", "depends_on": ["runtime.structure"]},
     "runtime.course_templates": {"phase": "runtime", "handler": "check_course_activity_templates", "depends_on": ["runtime.structure"]},
     "release.flow_guide": {"phase": "release", "handler": "check_flow_and_guide", "depends_on": ["runtime.structure"]},
     "release.handoff": {"phase": "release", "handler": "check_handoff_contract", "depends_on": ["runtime.structure"]},
@@ -52,6 +53,7 @@
         "runtime.memory_pointers", "runtime.registry", "runtime.textbook_preparation",
         "runtime.checkpoint_block_routing", "runtime.trading_boundary", "runtime.legacy_references", "runtime.retired_instance_ids",
         "runtime.cloud_pause", "runtime.context_packet", "runtime.test_management",
+        "runtime.decision_records",
         "runtime.course_templates"
       ]
     },

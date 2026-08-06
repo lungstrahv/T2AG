@@ -38,12 +38,35 @@ journal 是回看层，不覆盖任何真相源。
 
 ---
 
+## 二点五、Evolution Register 与 ADR
+
+| 对象 | 路径 | 职责 |
+|---|---|---|
+| **Evolution Register** | `main/60_journal/t2ag_evolution_register.md` | 决策生命周期：`observing → discussing → decided → archived` |
+| **兼容 redirect** | `main/60_journal/t2ag_evolution.md` | 无正文；`journal_index: false`；指向 Register |
+| **ADR** | `docs/adr/` | 可移植架构决定正文；**不**复制状态机 |
+
+规则（摘要；完整字段见 `docs/adr/README.md`）：
+
+1. 不是每个 EV 都生成 ADR；仅跨模块、难逆转、改变责任/信任边界或可跨项目复用的架构决定才提升。
+2. 本地 `accepted` ADR 必须关联 ≥1 个本地 `decided`/`archived` 架构 EV（`source_evolution`）。
+3. `proposed` ADR 可关联 `discussing` EV。
+4. 新 `architecture` + `decided`/`archived` EV 应有 `adr_refs`，或显式 `adr_exception`。
+5. ADR accepted ≠ 实现完成；落地仍由 EV、changelog、版本状态与协议表达。
+6. 确定性校验：`main/70_tools/decision_record_contract.py` + Doctor `runtime.decision_records`。
+
+`decided → archived` 仍须 changelog 批次 + 落地指向 + 当月索引一行（见 Register 正文状态机）。
+
+---
+
 ## 三、目录与命名
 
 ```text
 main/60_journal/
 ├── INDEX.md
 ├── YYYY-MM.md
+├── t2ag_evolution_register.md   # Evolution Register（canonical）
+├── t2ag_evolution.md            # redirect only（journal_index: false）
 └── YYYY-MM-DD-<主题关键词>.md
 ```
 

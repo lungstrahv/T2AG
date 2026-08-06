@@ -155,6 +155,28 @@ class DistributionFoundationTests(unittest.TestCase):
         ):
             self.assertIn(marker, sync_lite.LITE_README + sync_lite.LITE_AGENTS)
         self.assertIn("不得在 Lite 执行", sync_lite.LITE_AGENTS)
+        self.assertIn("docs/adr", sync_lite.LITE_README)
+        self.assertIn("只读审查", sync_lite.LITE_README)
+
+    def test_decision_docs_are_in_lite_projection_manifest(self) -> None:
+        """Active ADR/protocol paths referenced by tests must project to Lite."""
+        src = REPO
+        dst = REPO.parent / "t2ag-lite"
+        if not dst.is_dir():
+            self.skipTest("t2ag-lite not beside main")
+        projected = {
+            label for label, _, _ in sync_lite.projection_manifest(src, dst)
+        }
+        required = [
+            "docs/adr/README.md",
+            "docs/adr/0001-textbook-source-assets-and-bounded-cache.md",
+            "docs/adr/0002-host-controlled-textbook-teaching-egress.md",
+            "docs/protocol/host-teaching-egress-api.md",
+            "docs/protocol/textbook-scope-scan-admission.md",
+        ]
+        for rel in required:
+            self.assertTrue((src / rel).is_file(), msg=f"main missing {rel}")
+            self.assertIn(rel, projected, msg=f"{rel} not in Lite projection rules")
 
     def test_cache_eviction_clause_is_homologous_main_skeleton(self) -> None:
         """EV-0012 CacheEviction must exist in self and match sibling byte-for-byte."""
@@ -179,7 +201,8 @@ class DistributionFoundationTests(unittest.TestCase):
             "book/.cache/**",
             "不构成 RT3",
             "仍为 RT3",
-            "working_pages（0.2.2 S3 退役）",
+            "working_pages",
+            "0.2.2",
         ):
             self.assertIn(marker, self_text)
         self.assertEqual(

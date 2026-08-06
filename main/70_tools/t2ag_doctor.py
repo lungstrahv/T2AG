@@ -140,6 +140,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_trading_boundary",
     "check_legacy_references", "check_retired_instance_ids", "check_cloud_pause",
     "check_context_packet_contract", "check_test_management_contract",
+    "check_decision_records",
     "check_course_activity_templates", "check_flow_and_guide", "check_handoff_contract",
     "check_cloud_contract", "check_derived_tools", "check_migration_evidence",
     "check_migration_021_evidence", "check_activity_migration_021_evidence",
@@ -3970,6 +3971,14 @@ def check_tracked_environment() -> None:
         report("FAIL", "Git 跟踪了环境目录或 .env：" + proc.stdout.strip().replace("\n", ", "))
 
 
+def check_decision_records() -> None:
+    """Deterministic Evolution Register ↔ ADR linkage (no value judgment)."""
+    import decision_record_contract as drc  # local tools path already on sys.path
+
+    for level, message in drc.validate_decision_records_as_report(ROOT):
+        report(level, message)
+
+
 def check_cloud_pause() -> None:
     state = ROOT / "cloud/cloud_sync_state.md"
     if state.exists() and not re.search(
@@ -4296,6 +4305,7 @@ def execute_doctor_checks(
         "check_legacy_references": check_legacy_references,
         "check_retired_instance_ids": check_retired_instance_ids,
         "check_cloud_pause": check_cloud_pause,
+        "check_decision_records": check_decision_records,
         "check_flow_and_guide": check_flow_and_guide,
         "check_handoff_contract": check_handoff_contract,
         "check_cloud_contract": check_cloud_contract,

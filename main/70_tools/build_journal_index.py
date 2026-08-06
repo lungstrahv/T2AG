@@ -84,6 +84,9 @@ def normalize_key(value: str) -> str:
         "created": "date",
         "created_at": "date",
         "状态": "status",
+        "journal_index": "journal_index",
+        "redirect_to": "redirect_to",
+        "redirect": "redirect_to",
     }
     return aliases.get(key, key)
 
@@ -99,8 +102,9 @@ def parse_metadata(lines: list[str]) -> dict[str, str]:
                 continue
             key, value = line.split(":", 1)
             normalized = normalize_key(key)
-            if normalized in {"date", "status"} and value.strip():
-                metadata.setdefault(normalized, value.strip().strip("\"'"))
+            raw_value = value.strip().strip("\"'")
+            if normalized in {"date", "status", "journal_index", "redirect_to"} and raw_value:
+                metadata.setdefault(normalized, raw_value)
 
     for line in lines[:80]:
         stripped = line.strip()
@@ -115,7 +119,7 @@ def parse_metadata(lines: list[str]) -> dict[str, str]:
             closing = candidate.find("**", 2)
             key = normalize_key(candidate[2:closing])
             value = candidate[closing + 2 :].lstrip("：: ").strip()
-            if key in {"date", "status"} and value:
+            if key in {"date", "status", "journal_index", "redirect_to"} and value:
                 metadata.setdefault(key, value)
                 continue
 
@@ -125,6 +129,21 @@ def parse_metadata(lines: list[str]) -> dict[str, str]:
             metadata.setdefault(key, match.group("value").strip())
 
     return metadata
+
+
+def journal_index_excluded(path: Path) -> bool:
+    """True when metadata opts the file out of generated journal indexes.
+
+    Recognizes frontmatter ``journal_index: false`` and blockquote/bold forms.
+    Generic: not hard-coded to any single filename.
+    """
+    try:
+        text, _ = read_text(path)
+    except OSError:
+        return False
+    metadata = parse_metadata(text.splitlines())
+    flag = str(metadata.get("journal_index", "")).strip().lower()
+    return flag in {"false", "0", "no", "off"}
 
 
 def first_h1(lines: list[str], fallback: str) -> str:
@@ -204,7 +223,9 @@ def journal_records() -> list[JournalRecord]:
     paths = [
         path
         for path in JOURNAL_DIR.glob("*.md")
-        if path.name != INDEX_PATH.name and not MONTH_FILE_RE.fullmatch(path.name)
+        if path.name != INDEX_PATH.name
+        and not MONTH_FILE_RE.fullmatch(path.name)
+        and not journal_index_excluded(path)
     ]
     records = [parse_record(path) for path in paths]
     return sorted(

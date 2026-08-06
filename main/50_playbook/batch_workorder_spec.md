@@ -40,11 +40,11 @@
 2. 完整缓存键可解析，且源 `SourceDocument` PDF **存在**、SHA 匹配、`render_profile` 与重建参数一致（可重建证明）。
 3. 目标**不是**当前保护集 P0（当前 `LessonScope` 页图身份；P0 可在 cache 或 session_temp）。
 4. 删除由配额算法、显式 `cache_gc --apply`（非 dry-run）或同等工具触发，并留下可审计理由（触发类型、键、heat_at）。
-5. 不删除：核验文本、raw OCR、PDF、学习证据、Snapshot 记录、未迁移的 `working_pages` 权威副本。
+5. 不删除：核验文本、raw OCR、PDF、学习证据、Snapshot 记录。`working_pages` 路径已退役，历史副本见各课 `archive/`。
 
 **仍为 RT3**（须 exact 清单 + 当轮确认）：
 
-- 迁移删除 `lessons/**/working_pages/**` 或任何非缓存根路径。
+- `working_pages` 路径已退役（0.2.2 批 S3），历史副本已归档；不得重建或重新使用。
 - PDF / 页资产正文 / 不可重建或源缺失时的唯一可见副本。
 - 扩大缓存根、跨课批量删除、或把 CacheEviction 解释为通用 `rm`。
 
@@ -96,7 +96,7 @@ handoff、receipt chain、确定性 policy、模型建议、实现者或 reviewe
 
 ## 二、施工单必备结构（出单单方义务）
 
-1. **头部**：职能｜基线快照声明（版本/日期，行号是否可信）｜EV 关联（本单是哪条 EV 的施工细化，冲突时以已批 EV 为准）｜`execution_mode`｜`risk_tier`｜批次分类｜与其他批次的依赖关系；`version_campaign` 还须给出完整 envelope；
+1. **头部**：职能｜基线快照声明（版本/日期，行号是否可信）｜**Evolution Register 关联**（本单是哪条 EV 的施工细化，登记在 `t2ag_evolution_register.md`；冲突时以已批 EV 为准；旧称「EV 关联」语义不变）｜`execution_mode`｜`risk_tier`｜批次分类｜与其他批次的依赖关系；`version_campaign` 还须给出完整 envelope；
 2. **硬规则节**：一行引用「硬规则按本规范 §三」，另列**本单领域铁律**（如"evidence 索引先于实例主文件"），不复制通用规则正文；
 3. **编号步骤**：每步给锚点定位 + 验证命令；闸门步骤显式标注「前置：学生一句话批准」，内容裁决类步骤显式标注「agent 出差异报告，不自行判定」；
 4. **引用面收口表**：基于实测 grep，并注明「**清单是下限不是上限**，收口 grep 发现超出清单的活动引用时，执行方应扩展处理并在报告列明」；
