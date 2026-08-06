@@ -82,7 +82,8 @@ registry.SKxxx: SKxxx_名称
 
 ### 步骤 5：验证
 
-运行 `python -B main/70_tools/t2ag_doctor.py`，确认 0 FAIL。
+运行 `python -B main/70_tools/t2ag_doctor.py --profile runtime`，确认本地皮肤 0 FAIL；
+跨发行皮肤一致性留到 `--profile release`。
 
 ---
 

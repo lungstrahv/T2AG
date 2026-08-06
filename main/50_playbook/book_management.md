@@ -98,10 +98,14 @@ book/
 ```
 
 - **跨课程文件**：只有确需离线保存且被两门以上课程共同使用时，才存入 `main/40_course/_shared/library/[资源ID]/`。不得复制到多个课程的 `_book/`；其他课程通过共享索引中的本地相对路径引用。
-- **临时资料**：只有当前活动为教材型 Lesson 时，当堂页面与 OCR 缓存才放
-  `lessons/lessonXX/working_pages/`；Exercise 作答图片放对应 Attempt 的 `assets/`，
-  可复用教学资料放课程 `book/course_materials/supplements/`。结课按各载体规则清理；
-  确认长期跨课使用后再转入 `_shared/library/`。
+- **教材页证据（EV-0012）**：核验文本与 raw OCR 在
+  `book/primary/source_assets/<document_id>/` **Course 持久**持有；可重建 PNG 在
+  `book/.cache/source_pages/`（CacheEviction，见 `source_page_assets.md` 与
+  `batch_workorder_spec` §1.2.1）。Lesson **不**长期复制教材二进制。
+- **Legacy**：未迁移实例可仍有 `lessons/lessonXX/working_pages/`；新建核验不得再以
+  "每课复制 + 结课删除核验文本"为权威。
+- Exercise 作答图片放对应 Attempt 的 `assets/`；可复用教学资料放
+  `book/course_materials/supplements/`。确认长期跨课使用后再转入 `_shared/library/`。
 - **lite 审查快照**：不打包 PDF、教材、压缩包、环境、缓存、生成资产或
   `_shared/library/` 二进制内容；被排除的文件在索引中标记“主项目持有”。
 
@@ -131,18 +135,21 @@ book/
 3. 不预建 primary/ reference/ 等子目录——有文件时才建
 4. 下载/放入教材时按分类规则归入对应子目录
 
-## 七、OCR 产物管理
+## 七、OCR / 页资产产物管理
 
-- 活跃中的 OCR 产物（页面截图、raw 文本）放 `course_materials/ocr/`
-- OCR 完成后，最终文本层并入 primary/（如 `_text.pdf`），中间产物移入 `archives/` 或删除
-- `archives/tmp_*` 目录名带 `tmp_` 前缀的，可在 OCR 完成后直接删除
+- **权威链**：`SourceDocument`/原版 PDF + Course `source_assets`（核验文本 / raw OCR 及元数据）。
+  **`.cache` PNG 不是真相源**：仅为可从 PDF 按 `render_profile` **重建的派生物**，可被 CacheEviction 驱逐；缺失不得改写教学事实。流程见 `source_page_assets.md` 与 ADR-0001。
+- `course_materials/ocr/` 仅作可选工作暂存；完成后应并入 `source_assets` 或 archives，不得成为第二真相源。
+- 最终可读文本层可另存 primary 的 `_text.pdf`；**页级核验**以 `source_assets/pages/` 为准。
+- `archives/tmp_*` 可在完成后删除；**不得**用 archives 清理代替 CacheEviction 规则。
+- 结课：**不**删除持久 `source_assets` 或 PDF；可对 `.cache` 合法驱逐。
 
 ## 八、纪律
 
-- **不复制教材内容到其他文件**：working_pages 是教学时的临时缓存，不替代教材原文
-- **archives 可删**：archives 里的文件不参与 doctor 检查，删除不影响系统
-- **文件命名**：保留原始文件名（包括中文），不强制重命名——可读性优先于一致性
-- **大小限制**：单文件 >100MB 的教材考虑分割或仅保留 OCR 文本层
+- **不按 Lesson 复制教材二进制**为权威；Lesson 持引用与 Snapshot。
+- **archives 可删**：不参与 doctor 权威链（页资产除外）。
+- **文件命名**：主教材保留原始文件名；页资产用稳定 `page_<pdf_index>`。
+- **大小限制**：单文件 >100MB 的教材考虑分割或仅保留文本层 + 页资产。
 
 ## 九、关联文件
 

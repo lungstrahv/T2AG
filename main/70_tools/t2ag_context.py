@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+import activity_close
+import activity_ledger
 from t2ag_activity import (
     ActivityContractError,
     ProgressSnapshot,
@@ -30,6 +32,8 @@ from t2ag_activity import (
 ROOT = Path(__file__).resolve().parents[2]
 MAIN = ROOT / "main"
 DEFAULT_SOFT_CHAR_BUDGET = 16_000
+CRITICAL_MAX_CHARS = 12_000
+CRITICAL_EXCERPT_CHARS = 1_200
 PLACEHOLDER_RE = re.compile(
     r"<(?:required|confirm|confirm-or-none|off\s*\|\s*suggest\s*\|\s*auto)>"
     r"|[（(]待填写[）)]",
@@ -37,6 +41,9 @@ PLACEHOLDER_RE = re.compile(
 )
 COURSE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 PROBLEM_ID_RE = re.compile(r"(?:U\d{4}|exercise\d{2,})-Q\d{3}")
+NEXT_ACTION_KINDS = frozenset(
+    {"confirm_close", "resume", "choose_activity", "start_activity", "none"}
+)
 
 
 class ContextPacketError(ValueError):
@@ -294,6 +301,205 @@ def initialized(profile: str, memory: str) -> bool:
     return bool(summary) and not re.search(r"\*\*日期\*\*[：:]\s*—", summary)
 
 
+def build_snapshot_id(
+    cache: SourceCache,
+    course_id: str,
+    sources: dict[str, Path],
+) -> str:
+    """Bind a handoff to one course and one byte-identical critical source set."""
+    material = {
+        "course_id": course_id,
+        "source_sha256": {
+            name: cache.digest(path)
+            for name, path in sorted(sources.items())
+        },
+    }
+    encoded = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"CTX-{course_id}-{hashlib.sha256(encoded).hexdigest()}"
+
+
+def public_source_sha256(
+    cache: SourceCache,
+    *,
+    progress_path: Path | None,
+    activity_path: Path | None,
+    profile_path: Path,
+    overlay_path: Path | None,
+) -> dict[str, str | None]:
+    return {
+        "progress": cache.digest(progress_path) if progress_path else None,
+        "activity": cache.digest(activity_path) if activity_path else None,
+        "profile": cache.digest(profile_path),
+        "teacher_overlay": cache.digest(overlay_path) if overlay_path else None,
+    }
+
+
+def progress_next_action(meta: dict[str, str]) -> dict[str, str]:
+    result = {
+        "next_action_kind": meta.get("next_action_kind", "").strip(),
+        "next_activity_type": meta.get("next_activity_type", "").strip(),
+        "next_activity_id": meta.get("next_activity_id", "").strip(),
+    }
+    if result["next_action_kind"] not in NEXT_ACTION_KINDS:
+        raise ContextPacketError(
+            "progress 缺合法 next_action_kind："
+            f"{result['next_action_kind'] or '缺失'}"
+        )
+    if not result["next_activity_type"] or not result["next_activity_id"]:
+        raise ContextPacketError("progress 缺 next_activity_type / next_activity_id")
+    return result
+
+
+def load_ledger_route(
+    cache: SourceCache,
+    main: Path,
+    course_id: str,
+    route: object,
+    progress_meta: dict[str, str],
+) -> tuple[Path, activity_ledger.LedgerDocument, dict[str, str]]:
+    """Validate ledger replay and bind progress next_action to that replay."""
+    ledger_path = main / "40_course" / course_id / "activity_ledger.md"
+    document = activity_ledger.parse_ledger_text(
+        cache.read(ledger_path),
+        path=ledger_path,
+    )
+    errors = document.validate()
+    if errors:
+        raise ContextPacketError("activity ledger invalid: " + "; ".join(errors))
+    try:
+        index = document.rebuild_index()
+    except activity_ledger.LedgerError as exc:
+        raise ContextPacketError(f"activity ledger replay failed: {exc}") from exc
+
+    actual = progress_next_action(progress_meta)
+    if route.activity_type != "none":
+        key = f"{route.activity_type}:{route.activity_id}"
+        entry = index.get(key)
+        if entry is None:
+            raise ContextPacketError(f"activity ledger 缺当前活动：{key}")
+        expected = activity_ledger.resolve_next_action(
+            current_activity_type=route.activity_type,
+            current_activity_id=route.activity_id,
+            current_state=entry.state,
+            index=index,
+        )
+        if actual != expected:
+            raise ContextPacketError(
+                "progress next_action 与 activity ledger replay 冲突："
+                f"progress={actual} ledger={expected}"
+            )
+    return ledger_path, document, actual
+
+
+def exact_excerpt(content: str, limit: int = CRITICAL_EXCERPT_CHARS) -> str:
+    """Return a bounded exact prefix, preferring a paragraph boundary."""
+    text = content.strip()
+    if len(text) <= limit:
+        return text
+    boundary = text.rfind("\n\n", 0, limit)
+    if boundary < limit // 2:
+        boundary = limit
+    return text[:boundary].rstrip()
+
+
+def problem_statement(problem: str) -> str:
+    lines = problem.splitlines()
+    selected: list[str] = []
+    collecting = False
+    for raw in lines:
+        if not collecting:
+            match = re.match(r"^-\s*题面[：:]\s*(.*)$", raw.strip())
+            if match:
+                collecting = True
+                selected.append(match.group(1).rstrip())
+            continue
+        if re.match(r"^#{1,6}\s+", raw) or re.match(
+            r"^-\s*(?:提示|答案|解答|讲解)[：:]", raw.strip()
+        ):
+            break
+        selected.append(raw.rstrip())
+    result = "\n".join(selected).strip()
+    if not result:
+        raise ContextPacketError("当前 Exercise 缺可安全展示的题面")
+    return result
+
+
+def latest_pending_event(
+    document: activity_ledger.LedgerDocument,
+    route: object,
+) -> dict[str, object]:
+    candidates = [
+        event
+        for event in document.events
+        if event.get("activity_type") == route.activity_type
+        and event.get("activity_id") == route.activity_id
+        and event.get("to_state") == "pending_close"
+        and event.get("event_kind") in {"transition", "pending_revision"}
+    ]
+    if not candidates:
+        raise ContextPacketError(
+            f"confirm_close 缺 pending event：{route.activity_type}:{route.activity_id}"
+        )
+    return candidates[-1]
+
+
+def retrospective_summary(body: dict[str, object], name: str) -> str:
+    visible = body.get("learner_visible_retrospective")
+    if not isinstance(visible, dict):
+        raise ContextPacketError("pending body 缺 learner_visible_retrospective")
+    node = visible.get(name)
+    if not isinstance(node, dict) or not str(node.get("summary") or "").strip():
+        raise ContextPacketError(f"pending body 缺 {name} summary")
+    return str(node["summary"]).strip()
+
+
+def confirm_close_payload(
+    document: activity_ledger.LedgerDocument,
+    route: object,
+) -> dict[str, object]:
+    event = latest_pending_event(document, route)
+    try:
+        body = activity_close.decode_body(event)
+    except activity_close.CloseError as exc:
+        raise ContextPacketError(f"pending body invalid: {exc}") from exc
+    if (
+        body.get("activity_type") != route.activity_type
+        or body.get("activity_id") != route.activity_id
+    ):
+        raise ContextPacketError("pending body 与当前 Activity 不一致")
+    pending_id = str(event.get("event_id") or "")
+    body_sha = str(body.get("body_sha256") or "")
+    recommendation = str(body.get("recommendation") or "")
+    if recommendation not in {"completed", "closed_incomplete"}:
+        raise ContextPacketError("pending body 缺合法 recommendation")
+    confirmation = (
+        f"pending_event_id={pending_id}\n"
+        f"body_sha256={body_sha}\n"
+        f"result={recommendation}"
+    )
+    return {
+        "kind": "confirm_close",
+        "pending_event_id": pending_id,
+        "body_sha256": body_sha,
+        "learner_retrospective_markdown": activity_close.render_learner_retrospective(
+            body
+        ),
+        "retrospective_presentation_sha256": (
+            activity_close.learner_retrospective_sha256(body)
+        ),
+        "recommended_result": recommendation,
+        "binding_tuple": confirmation,
+        "accepted_close_intent": (
+            "结课" if recommendation == "completed" else "以未完成状态结课"
+        ),
+    }
+
+
 def selected_field_lines(content: str, field_names: Iterable[str]) -> str:
     names = tuple(field_names)
     lines: list[str] = []
@@ -373,6 +579,16 @@ def parse_int_list(raw: str) -> list[int]:
     return result
 
 
+def markdown_bold_value(markdown: str, label: str) -> str:
+    """Return one exact ``- **label**: value`` field without inventing text."""
+    match = re.search(
+        rf"^-\s*\*\*{re.escape(label)}\*\*[：:]\s*(.+?)\s*$",
+        markdown,
+        re.MULTILINE,
+    )
+    return match.group(1).strip() if match else ""
+
+
 def add_selection(
     selections: list[Selection],
     cache: SourceCache,
@@ -392,16 +608,460 @@ def add_selection(
     )
 
 
-def textbook_lesson_window(
+def _textbook_lesson_ids(route: object) -> tuple[str, str]:
+    """Return (course_id, lesson_id) from resume/working_pages route paths."""
+    activity_id = str(getattr(route, "activity_id", "") or "").strip()
+    candidates = [
+        str(getattr(route, "resume_path", "") or ""),
+        str(getattr(route, "working_pages_path", "") or ""),
+    ]
+    course_id = ""
+    lesson_id = activity_id if re.fullmatch(r"lesson\d+", activity_id) else ""
+    for raw in candidates:
+        parts = Path(raw.replace("\\", "/")).parts
+        if "40_course" in parts:
+            i = parts.index("40_course")
+            if i + 1 < len(parts):
+                course_id = parts[i + 1]
+        if "lessons" in parts:
+            j = parts.index("lessons")
+            if j + 1 < len(parts) and re.fullmatch(r"lesson\d+", parts[j + 1]):
+                lesson_id = parts[j + 1]
+    if not course_id or not lesson_id:
+        raise ContextPacketError(
+            "textbook Lesson 无法从路由解析 course_id/lesson_id"
+        )
+    return course_id, lesson_id
+
+
+def _preparation_dir(cache: SourceCache, course_id: str, lesson_id: str) -> Path:
+    return cache.root / "main" / "40_course" / course_id / "lessons" / lesson_id / "preparation"
+
+
+def _new_source_path_presence(prep_dir: Path) -> bool:
+    """True when EV-0012 preparation artifacts exist (must not silent-fallback)."""
+    if not prep_dir.is_dir():
+        return False
+    if (prep_dir / "current_snapshot.json").is_file():
+        return True
+    return any(prep_dir.glob("PREP-*.json"))
+
+
+def _load_current_preparation(
+    cache: SourceCache,
+    course_id: str,
+    lesson_id: str,
+) -> dict[str, object]:
+    prep_dir = _preparation_dir(cache, course_id, lesson_id)
+    pointer_path = prep_dir / "current_snapshot.json"
+    if not pointer_path.is_file():
+        raise ContextPacketError(
+            "preparation 新路径存在但缺 current_snapshot 指针；"
+            "不得回退 legacy working_pages"
+        )
+    try:
+        pointer = json.loads(cache.read(pointer_path))
+    except (json.JSONDecodeError, ContextPacketError) as exc:
+        raise ContextPacketError(
+            f"current Snapshot 指针不可读：{cache.relative(pointer_path)}"
+        ) from exc
+    snap_id = str(pointer.get("snapshot_id") or "")
+    if not snap_id.startswith("PREP-"):
+        raise ContextPacketError(f"current Snapshot 指针 id 非法：{snap_id}")
+    snap_path = prep_dir / f"{snap_id}.json"
+    if not snap_path.is_file():
+        raise ContextPacketError(
+            f"current Snapshot 目标缺失：{cache.relative(snap_path)}"
+        )
+    try:
+        payload = json.loads(cache.read(snap_path))
+    except (json.JSONDecodeError, ContextPacketError) as exc:
+        raise ContextPacketError(
+            f"current Snapshot 不可读：{cache.relative(snap_path)}"
+        ) from exc
+    if payload.get("snapshot_id") != snap_id:
+        raise ContextPacketError("current Snapshot id 与指针不一致")
+    if payload.get("state") != "valid":
+        raise ContextPacketError("current Snapshot 非 valid")
+    if payload.get("scope_coverage") != "complete":
+        raise ContextPacketError("current Snapshot scope 未 complete")
+    if not payload.get("content_consumed"):
+        raise ContextPacketError("current Snapshot content_consumed 为 false")
+    expected_body = pointer.get("snapshot_body_sha256")
+    stored_body = payload.get("snapshot_body_sha256")
+    if expected_body and stored_body and expected_body != stored_body:
+        raise ContextPacketError("current Snapshot body hash 与指针不一致")
+    return payload
+
+
+def _snapshot_scope_pages(snap: dict[str, object]) -> list[int]:
+    page_keys = snap.get("page_keys") or []
+    if not isinstance(page_keys, list) or not page_keys:
+        raise ContextPacketError("current Snapshot 缺 page_keys")
+    pages: list[int] = []
+    for key in page_keys:
+        if not isinstance(key, dict) or "pdf_page_index" not in key:
+            raise ContextPacketError("current Snapshot page_keys 非法")
+        pages.append(int(key["pdf_page_index"]))
+    if len(pages) != len(set(pages)):
+        raise ContextPacketError(f"current Snapshot Scope 含重复页：{pages}")
+    if pages != list(range(min(pages), max(pages) + 1)):
+        raise ContextPacketError(f"current Snapshot Scope 不连续：{pages}")
+    return pages
+
+
+def _scope_asset_path(
+    cache: SourceCache,
+    course_id: str,
+    document_id: str,
+    page: int,
+) -> Path:
+    return (
+        cache.root
+        / "main"
+        / "40_course"
+        / course_id
+        / "book"
+        / "primary"
+        / "source_assets"
+        / document_id
+        / "pages"
+        / f"page_{page}.md"
+    )
+
+
+def _read_snapshot_scope_asset(
+    cache: SourceCache,
+    course_id: str,
+    snap: dict[str, object],
+    page: int,
+) -> tuple[Path, str]:
+    pages = _snapshot_scope_pages(snap)
+    if page not in pages:
+        raise ContextPacketError(f"请求页 {page} 不在 current Snapshot Scope {pages}")
+    document_id = str(snap.get("document_id") or "").strip()
+    if not document_id:
+        raise ContextPacketError("current Snapshot 缺 document_id")
+    asset_path = _scope_asset_path(cache, course_id, document_id, page)
+    if not asset_path.is_file():
+        raise ContextPacketError(f"Scope 页资产缺失：{cache.relative(asset_path)}")
+    text = cache.read(asset_path)
+    meta = frontmatter_text(text)
+    if meta.get("pdf_page_index") != str(page):
+        raise ContextPacketError(f"SourcePageAsset 页索引错配：{cache.relative(asset_path)}")
+    if meta.get("source_document_id") != document_id:
+        raise ContextPacketError(f"SourcePageAsset document_id 错配：{cache.relative(asset_path)}")
+    if meta.get("source_document_sha256") != snap.get("source_document_sha256"):
+        raise ContextPacketError(f"SourcePageAsset document SHA 错配：{cache.relative(asset_path)}")
+    if meta.get("verification_status") != "verified":
+        raise ContextPacketError(f"SourcePageAsset 未 verified：{cache.relative(asset_path)}")
+    receipts = snap.get("load_receipts") or []
+    receipt = next(
+        (
+            item
+            for item in receipts
+            if isinstance(item, dict)
+            and isinstance(item.get("page_key"), dict)
+            and int(item["page_key"].get("pdf_page_index", -1)) == page
+        ),
+        None,
+    )
+    if not isinstance(receipt, dict):
+        raise ContextPacketError(f"current Snapshot 缺页 {page} 的 load receipt")
+    expected_asset_sha = str(receipt.get("source_page_asset_sha256") or "")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_asset_sha):
+        raise ContextPacketError(f"页 {page} 的 load receipt 缺合法 asset SHA")
+    if cache.digest(asset_path) != expected_asset_sha:
+        raise ContextPacketError(f"SourcePageAsset SHA 与 Snapshot 错配：页 {page}")
+    return asset_path, text
+
+
+def textbook_page_teaching_contract(
+    source_text: str,
+    current_page: int,
+    page_inventory: dict[str, object],
+) -> dict[str, object]:
+    """Return the non-compressible classroom gates for one textbook page."""
+    meta = frontmatter_text(source_text)
+    printed_page_label = meta.get("printed_page_label", "").strip()
+    if not printed_page_label:
+        raise ContextPacketError(
+            f"SourcePageAsset 页 {current_page} 缺 printed_page_label"
+        )
+    return {
+        "schema": "t2ag.page_teaching_contract.v1",
+        "current_page": {
+            "pdf_page_index": current_page,
+            "printed_page_label": printed_page_label,
+            "announcement": (
+                f"当前教材位置：PDF {current_page} / 书内 {printed_page_label}"
+            ),
+        },
+        "active_boundary": page_inventory["active_boundary"],
+        "teaching_blocks": page_inventory["teaching_blocks"],
+        "classroom_tree_required": True,
+        "coverage_register": {
+            "basis": "LessonMap active segment + full verified SourcePageAsset",
+            "status": "session_local_required",
+            "allowed_block_states": [
+                "covered",
+                "explicitly_deferred",
+                "outside_active_lesson_boundary",
+            ],
+            "silent_skip_forbidden": True,
+            "page_change_requires_all_blocks_accounted": True,
+        },
+        "interaction_gates": {
+            "one_new_teaching_block_per_turn": True,
+            "understanding_confirmation_required": True,
+            "affect_check_required_after": ["derivation", "summary"],
+            "explicit_continue_authorization_required": True,
+            "continue_authorization_scope": "single_use_next_block",
+            "correct_answer_is_not_continue_authorization": True,
+            "page_turn_announcement_required": True,
+            "page_turn_requires_separate_continue_authorization": True,
+        },
+    }
+
+
+def lesson_map_page_inventory(
+    cache: SourceCache,
+    course_id: str,
+    lesson_id: str,
+    snap: dict[str, object],
+    current_page: int,
+) -> dict[str, object]:
+    """Read the Snapshot-bound LessonMap row used for the visible page tree."""
+    map_path = (
+        cache.root
+        / "main"
+        / "40_course"
+        / course_id
+        / "lessons"
+        / lesson_id
+        / "lesson_map.md"
+    )
+    map_raw = cache.read_bytes(map_path)
+    expected_sha = str(snap.get("lesson_map_sha256") or "")
+    if not expected_sha or hashlib.sha256(map_raw).hexdigest() != expected_sha:
+        raise ContextPacketError("LessonMap hash 与 Snapshot 不一致")
+    rows = [
+        [cell.strip() for cell in line.strip().strip("|").split("|")]
+        for line in map_raw.decode("utf-8").splitlines()
+        if line.lstrip().startswith("|")
+    ]
+    header_index = next(
+        (index for index, row in enumerate(rows) if "pdf_page_index" in row),
+        None,
+    )
+    if header_index is None:
+        raise ContextPacketError("LessonMap 缺 pdf_page_index 表头")
+    header = rows[header_index]
+    required = {"pdf_page_index", "active boundary", "教材块清单"}
+    if not required.issubset(set(header)):
+        raise ContextPacketError("LessonMap 缺 active boundary 或教材块清单列")
+    page_col = header.index("pdf_page_index")
+    boundary_col = header.index("active boundary")
+    blocks_col = header.index("教材块清单")
+    matches = [
+        row
+        for row in rows[header_index + 1 :]
+        if len(row) > max(page_col, boundary_col, blocks_col)
+        and row[page_col].isdigit()
+        and int(row[page_col]) == current_page
+    ]
+    if len(matches) != 1:
+        raise ContextPacketError(f"LessonMap 页 {current_page} 必须恰有一条覆盖清单")
+    boundary = matches[0][boundary_col].strip()
+    blocks = [
+        block.strip()
+        for block in re.split(r"[；;]", matches[0][blocks_col])
+        if block.strip()
+    ]
+    if not boundary or not blocks:
+        raise ContextPacketError(f"LessonMap 页 {current_page} 覆盖清单为空")
+    return {"active_boundary": boundary, "teaching_blocks": blocks}
+
+
+def lesson_opening_contract(
+    cache: SourceCache,
+    lesson_path: Path,
+) -> dict[str, object]:
+    """Expose the overview/tree that every Lesson must present before content."""
+    content = cache.read(lesson_path)
+    learning_range = section(content, "学习范围", level=2, required=False)
+    overview = section(content, "Lesson 开场概览", level=2, required=False)
+    knowledge_tree = section(content, "开场知识树", level=2, required=False)
+    ready = bool(overview and knowledge_tree and "```text" in knowledge_tree)
+    if "```mermaid" in knowledge_tree:
+        raise ContextPacketError("Lesson 开场知识树必须是字符树，不得使用 Mermaid")
+    return {
+        "schema": "t2ag.lesson_opening_contract.v1",
+        "presentation_required_at": [
+            "lesson_start",
+            "first_resume_without_confirmed_opening",
+        ],
+        "status": "source_ready" if ready else "creative_composition_required",
+        "overview_required": True,
+        "knowledge_tree_required": True,
+        "knowledge_tree_format": "ascii_text",
+        "source": cache.relative(lesson_path),
+        "learning_range": exact_excerpt(learning_range, limit=1_200),
+        "overview_markdown": exact_excerpt(overview, limit=1_800) if overview else "",
+        "knowledge_tree_markdown": (
+            exact_excerpt(knowledge_tree, limit=2_400) if knowledge_tree else ""
+        ),
+        "creative_composition_allowed": True,
+        "creative_opening_questions_allowed": True,
+        "overview_does_not_count_as_page_coverage": True,
+        "reaction_and_continue_required_before_first_block": True,
+    }
+
+
+def classroom_creativity_policy() -> dict[str, object]:
+    """Return the instance-wide creativity boundary for classroom actions."""
+    return {
+        "schema": "t2ag.classroom_creativity_policy.v1",
+        "creative_interaction_default": "allowed",
+        "allowed_modes": [
+            "analogy",
+            "alternative_explanation",
+            "historical_context",
+            "visual_or_ascii_model",
+            "student_led_branch",
+            "labeled_warmup_or_exploration",
+        ],
+        "hard_limits": [
+            "do_not_reveal_unrequested_exercise_answers_or_solution_structure",
+            "do_not_skip_required_textbook_blocks",
+        ],
+        "automatic_extra_exercise_generation": False,
+        "extra_exercise_trigger": "student_request_or_explicit_opt_in",
+        "understanding_check_counts_as_extra_exercise": False,
+        "generated_supplement_must_not_impersonate_textbook_or_exam_source": True,
+    }
+
+
+def textbook_scope_scan_manifest(
+    cache: SourceCache,
+    course_id: str,
+    snap: dict[str, object],
+    current_page: int,
+) -> dict[str, object]:
+    """Return exact inputs for a session-local full-Scope visual scan."""
+    pages = _snapshot_scope_pages(snap)
+    if current_page not in pages:
+        raise ContextPacketError("textbook_page 不在 current Snapshot Scope 内")
+    document_id = str(snap.get("document_id") or "").strip()
+    manifest_path = (
+        cache.root
+        / "main"
+        / "40_course"
+        / course_id
+        / "book"
+        / "primary"
+        / "source_assets"
+        / document_id
+        / "manifest.json"
+    )
+    try:
+        manifest = json.loads(cache.read(manifest_path))
+    except (json.JSONDecodeError, ContextPacketError) as exc:
+        raise ContextPacketError("SourceDocument manifest 不可读") from exc
+    if manifest.get("source_document_sha256") != snap.get("source_document_sha256"):
+        raise ContextPacketError("SourceDocument manifest SHA 与 Snapshot 错配")
+    source_path_raw = str(manifest.get("source_path") or "").strip()
+    source_path = cache.root / source_path_raw
+    if not source_path_raw or not source_path.is_file():
+        raise ContextPacketError("SourceDocument PDF 缺失")
+    manifest_pages = {
+        int(item.get("pdf_page_index"))
+        for item in (manifest.get("pages") or [])
+        if isinstance(item, dict) and item.get("verification_status") == "verified"
+    }
+    if not set(pages).issubset(manifest_pages):
+        raise ContextPacketError("SourceDocument manifest 未 verified 覆盖整个 Scope")
+    return {
+        "required_this_session": True,
+        "status": "pending_visual_scan",
+        "source_document": cache.relative(source_path),
+        "source_document_sha256": snap.get("source_document_sha256"),
+        "document_id": document_id,
+        "pdf_page_indices": pages,
+        "current_pdf_page_index": current_page,
+        "render_profile": (snap.get("page_keys") or [{}])[0].get("render_profile"),
+        "preparation_snapshot_id": snap.get("snapshot_id"),
+        "lesson_scope_version": snap.get("lesson_scope_version"),
+        "completion_semantics": (
+            "只有本轮实际打开全部页图并逐页核对后，外部 Prefetcher 才可改报 complete；"
+            "Snapshot/content_consumed/哈希核对均不得冒充本轮视觉扫描。"
+        ),
+    }
+
+
+def _textbook_window_from_snapshot(
+    cache: SourceCache,
+    course_id: str,
+    lesson_id: str,
+    progress_snapshot: ProgressSnapshot,
+    snap: dict[str, object],
+) -> tuple[Path, str]:
+    pages = _snapshot_scope_pages(snap)
+    current_raw = progress_snapshot.meta.get("textbook_page", "").strip()
+    if current_raw.isdigit():
+        current = int(current_raw)
+        if current not in pages:
+            raise ContextPacketError(
+                "textbook_page 不在 current Snapshot Scope 内"
+            )
+    document_id = str(snap.get("document_id") or "").strip()
+    if not document_id:
+        raise ContextPacketError("current Snapshot 缺 document_id")
+    map_path = (
+        cache.root
+        / "main"
+        / "40_course"
+        / course_id
+        / "lessons"
+        / lesson_id
+        / "lesson_map.md"
+    )
+    if not map_path.is_file():
+        raise ContextPacketError(f"缺 LessonMap：{cache.relative(map_path)}")
+    # Authoritative digest = raw file bytes (same as prepare/Doctor). Never hash
+    # Path.read_text / UTF-8 re-encode of normalized newlines.
+    map_raw = cache.read_bytes(map_path)
+    map_text = map_raw.decode("utf-8")
+    expected_map = str(snap.get("lesson_map_sha256") or "")
+    if expected_map:
+        actual_map = hashlib.sha256(map_raw).hexdigest()
+        if actual_map != expected_map:
+            raise ContextPacketError("LessonMap hash 与 Snapshot 不一致")
+    for page in pages:
+        if not re.search(rf"\|\s*{page}\s*\|", map_text) and f"page_{page}" not in map_text:
+            raise ContextPacketError(f"LessonMap 未覆盖 Scope 页 {page}")
+
+    page_sections: list[str] = []
+    primary_path: Path | None = None
+    for page in pages:
+        asset_path, text = _read_snapshot_scope_asset(cache, course_id, snap, page)
+        if primary_path is None:
+            primary_path = asset_path
+        page_sections.append(text.strip())
+    assert primary_path is not None
+    header = (
+        f"# LessonScope from {snap.get('snapshot_id')}\n"
+        f"document_id: {document_id}\n"
+        f"scope_pages: {pages}\n"
+    )
+    return primary_path, join_exact((header, *page_sections))
+
+
+def _textbook_window_from_legacy(
     cache: SourceCache,
     progress_snapshot: ProgressSnapshot,
     route: object,
-) -> tuple[Path, str] | None:
-    if (
-        route.activity_type != "lesson"
-        or route.course_driver != "textbook"
-    ):
-        return None
+) -> tuple[Path, str]:
     if not route.working_pages_path:
         raise ContextPacketError("textbook Lesson 缺 canonical working pages 路由")
     pages = parse_int_list(
@@ -436,6 +1096,32 @@ def textbook_lesson_window(
         working_path,
         join_exact((raw_frontmatter(working), *page_sections)),
     )
+
+
+def textbook_lesson_window(
+    cache: SourceCache,
+    progress_snapshot: ProgressSnapshot,
+    route: object,
+) -> tuple[Path, str] | None:
+    if (
+        route.activity_type != "lesson"
+        or route.course_driver != "textbook"
+    ):
+        return None
+    course_id, lesson_id = _textbook_lesson_ids(route)
+    prep_dir = _preparation_dir(cache, course_id, lesson_id)
+    if _new_source_path_presence(prep_dir):
+        # New path present: must succeed from Snapshot/source_assets; never legacy.
+        snap = _load_current_preparation(cache, course_id, lesson_id)
+        return _textbook_window_from_snapshot(
+            cache,
+            course_id,
+            lesson_id,
+            progress_snapshot,
+            snap,
+        )
+    # Only when the new path is completely absent may legacy working_pages be used.
+    return _textbook_window_from_legacy(cache, progress_snapshot, route)
 
 
 def exercise_first_step_selections(
@@ -554,6 +1240,377 @@ def conditional_reads(course_id: str, route: object, group_id: str) -> list[dict
     ]
 
 
+def lesson_critical_payload(
+    cache: SourceCache,
+    progress_snapshot: ProgressSnapshot,
+    route: object,
+) -> dict[str, object]:
+    current_slice = section(progress_snapshot.content, "二、当前进度", level=2)
+    exact_stop = markdown_bold_value(current_slice, "精确停顿点")
+    next_plan = markdown_bold_value(current_slice, "下一步计划")
+    checkpoint_state = progress_snapshot.meta.get("checkpoint_state", "").strip()
+    if checkpoint_state == "pending" and not exact_stop:
+        raise ContextPacketError("pending checkpoint 缺 progress 当前切片的精确停顿点")
+    resume_contract = {
+        "kind": "pending_checkpoint" if checkpoint_state == "pending" else "next_action",
+        "checkpoint_state": checkpoint_state or "none",
+        "exact_stop": exact_stop or str(getattr(route, "activity_position", "")),
+        "next_plan": next_plan,
+        "prompt": exact_stop if checkpoint_state == "pending" else next_plan,
+        "source": f"{cache.relative(progress_snapshot.path)}#二、当前进度",
+        "authoritative_prompt_must_remain_exact": True,
+        "creative_supplements_allowed": True,
+        "creative_supplement_policy": (
+            "可以加入明确标注的概括、暖场、类比或探索问题；不得替换或伪装成权威停点，"
+            "也不得绕过 Exercise 提示闸门。"
+        ),
+    }
+    if route.course_driver == "textbook":
+        current_page = progress_snapshot.meta.get("textbook_page", "").strip()
+        if not current_page.isdigit():
+            raise ContextPacketError("textbook Lesson 缺合法 textbook_page")
+        course_id, lesson_id = _textbook_lesson_ids(route)
+        prep_dir = _preparation_dir(cache, course_id, lesson_id)
+        if _new_source_path_presence(prep_dir):
+            snap = _load_current_preparation(cache, course_id, lesson_id)
+            source_path, current_text = _read_snapshot_scope_asset(
+                cache,
+                course_id,
+                snap,
+                int(current_page),
+            )
+            scan_manifest = textbook_scope_scan_manifest(
+                cache,
+                course_id,
+                snap,
+                int(current_page),
+            )
+            page_inventory = lesson_map_page_inventory(
+                cache,
+                course_id,
+                lesson_id,
+                snap,
+                int(current_page),
+            )
+        else:
+            window = textbook_lesson_window(cache, progress_snapshot, route)
+            if window is None:
+                raise ContextPacketError("textbook Lesson 无法构造教材窗口")
+            source_path, current_text = window
+            snap = None
+            scan_manifest = {
+                "required_this_session": True,
+                "status": "legacy_visual_scan_required",
+                "pdf_page_indices": parse_int_list(
+                    progress_snapshot.meta.get("working_pages_window", "")
+                ),
+                "current_pdf_page_index": int(current_page),
+            }
+            page_inventory = {
+                "active_boundary": "legacy_window_manual_boundary_required",
+                "teaching_blocks": ["full legacy current-page lesson segment"],
+            }
+        page_contract = textbook_page_teaching_contract(
+            current_text,
+            int(current_page),
+            page_inventory,
+        )
+        payload: dict[str, object] = {
+            "kind": "lesson",
+            "source": cache.relative(source_path),
+            "source_sha256": cache.digest(source_path),
+            "textbook_excerpt": exact_excerpt(current_text),
+            "resume_contract": resume_contract,
+            "scope_scan": scan_manifest,
+            "lesson_opening_contract": lesson_opening_contract(
+                cache,
+                cache.root
+                / "main"
+                / "40_course"
+                / course_id
+                / "lessons"
+                / lesson_id
+                / f"{lesson_id}.md",
+            ),
+            "page_teaching_contract": page_contract,
+            "teaching_constraint": (
+                "一次只推进一个教学块；理解确认、感受反馈与继续授权是三个独立门。"
+            ),
+        }
+        if resume_contract["kind"] == "pending_checkpoint":
+            payload["first_confirmation_question"] = resume_contract["prompt"]
+        if snap is not None:
+            payload["preparation_snapshot_id"] = snap.get("snapshot_id")
+            payload["lesson_scope_version"] = snap.get("lesson_scope_version")
+            payload["source_page"] = {
+                "document_id": snap.get("document_id"),
+                "pdf_page_index": int(current_page),
+                "printed_page_label": page_contract["current_page"][
+                    "printed_page_label"
+                ],
+            }
+        return payload
+    source_path = cache.root / route.resume_path
+    source = cache.read(source_path)
+    candidates = [item for item in headings(source) if item.level == 2]
+    if not candidates:
+        raise ContextPacketError("当前 Lesson 缺可恢复的教材片段")
+    excerpt = source[candidates[0].start : candidates[0].end].strip()
+    payload = {
+        "kind": "lesson",
+        "source": cache.relative(source_path),
+        "source_sha256": cache.digest(source_path),
+        "textbook_excerpt": exact_excerpt(excerpt),
+        "resume_contract": resume_contract,
+        "lesson_opening_contract": lesson_opening_contract(cache, source_path),
+        "teaching_constraint": "一次只推进一个逻辑动作，等待学生明确确认。",
+    }
+    if resume_contract["kind"] == "pending_checkpoint":
+        payload["first_confirmation_question"] = resume_contract["prompt"]
+    return payload
+
+
+def exercise_critical_payload(
+    cache: SourceCache,
+    main: Path,
+    course_id: str,
+    route: object,
+) -> dict[str, object]:
+    carrier = cache.read(cache.root / route.resume_path)
+    problem_id = current_problem_id(section(carrier, "学习范围", level=2))
+    problems_path = (
+        main
+        / "40_course"
+        / course_id
+        / "exercises"
+        / route.activity_id
+        / "problems.md"
+    )
+    problems = cache.read(problems_path)
+    statement = problem_statement(section(problems, problem_id, level=2))
+    return {
+        "kind": "exercise",
+        "problem_id": problem_id,
+        "source": cache.relative(problems_path),
+        "source_sha256": cache.digest(problems_path),
+        "problem_statement": statement,
+        "teaching_constraint": "首次只展示题面；不得展示提示、思维树、答案或历史解法。",
+    }
+
+
+def build_critical_packet(
+    root: Path = ROOT,
+    *,
+    course_id: str | None = None,
+) -> dict[str, object]:
+    """Build the bounded critical handoff without constructing the full L0 packet."""
+    cache = SourceCache(root)
+    main = root / "main"
+    profile_path = main / "10_student/profile/profile.md"
+    memory_path = main / "00_core/t2ag_memory.md"
+    profile = cache.read(profile_path)
+    memory = cache.read(memory_path)
+
+    if not initialized(profile, memory):
+        snapshot_id = build_snapshot_id(
+            cache,
+            "FIRST-RUN",
+            {"memory": memory_path, "profile": profile_path},
+        )
+        packet: dict[str, object] = {
+            "status": "first_run_required",
+            "course_id": None,
+            "snapshot_id": snapshot_id,
+            "route": {
+                "current_activity": "none",
+                "current_activity_id": "none",
+                "activity_position": "first_run",
+                "next_action_kind": "first_run",
+            },
+            "blocking_teach": True,
+            "sources_unchanged": True,
+            "source_sha256": public_source_sha256(
+                cache,
+                progress_path=None,
+                activity_path=None,
+                profile_path=profile_path,
+                overlay_path=None,
+            ),
+            "action_payload": {
+                "kind": "first_run",
+                "playbook": "main/50_playbook/first_run.md",
+                "next_action": "收集并确认首次初始化字段后再创建课程状态。",
+            },
+        }
+        cache.assert_unchanged()
+        return packet
+
+    memory_current_course = memory_value(memory, "当前课程")
+    resolved_course = course_id or memory_current_course
+    if not COURSE_ID_RE.fullmatch(resolved_course):
+        raise ContextPacketError(f"illegal course_id: {resolved_course!r}")
+    group_id = memory_value(memory, "活跃课程组")
+    if not re.fullmatch(r"G\d{2,}", group_id):
+        raise ContextPacketError(f"illegal active group id: {group_id!r}")
+
+    learning_path_path = main / "10_student/profile/learning_path.md"
+    learning_path = cache.read(learning_path_path)
+    markdown_table_row(learning_path, resolved_course)
+    group_row = markdown_table_row(learning_path, group_id)
+    if resolved_course not in group_course_ids(group_row):
+        raise ContextPacketError(
+            f"requested course {resolved_course} is not a member of "
+            f"active group {group_id}; activate its group before teaching"
+        )
+
+    progress_path = main / "40_course" / resolved_course / "progress.md"
+    progress = cache.read(progress_path)
+    progress_meta = frontmatter_text(progress)
+    progress_snapshot = ProgressSnapshot(
+        path=progress_path,
+        content=progress,
+        meta=progress_meta,
+    )
+    route = resolve_activity(
+        root,
+        resolved_course,
+        snapshot=progress_snapshot,
+        reader=cache.read,
+    )
+    ledger_path, document, next_action = load_ledger_route(
+        cache,
+        main,
+        resolved_course,
+        route,
+        progress_meta,
+    )
+    activity_path = (
+        progress_path if route.activity_type == "none" else root / route.resume_path
+    )
+    cache.read(activity_path)
+    overlay_path = main / "20_teacher/overlay.md"
+    cache.read(overlay_path)
+
+    if next_action["next_action_kind"] == "confirm_close":
+        action_payload = confirm_close_payload(document, route)
+    elif route.activity_type == "exercise":
+        action_payload = exercise_critical_payload(
+            cache,
+            main,
+            resolved_course,
+            route,
+        )
+    elif route.activity_type == "lesson":
+        action_payload = lesson_critical_payload(
+            cache,
+            progress_snapshot,
+            route,
+        )
+    else:
+        action_payload = {
+            "kind": next_action["next_action_kind"],
+            "next_activity_type": next_action["next_activity_type"],
+            "next_activity_id": next_action["next_activity_id"],
+        }
+
+    critical_sources = {
+        "activity": activity_path,
+        "ledger": ledger_path,
+        "learning_path": learning_path_path,
+        "memory": memory_path,
+        "profile": profile_path,
+        "progress": progress_path,
+        "teacher_overlay": overlay_path,
+    }
+    packet = {
+        "status": "ready",
+        "course_id": resolved_course,
+        "snapshot_id": build_snapshot_id(
+            cache,
+            resolved_course,
+            critical_sources,
+        ),
+        "route": {
+            "current_activity": route.activity_type,
+            "current_activity_id": route.activity_id,
+            "activity_position": route.activity_position,
+            **next_action,
+        },
+        "blocking_teach": False,
+        "teaching_gate": {
+            "route_payload_consistent": True,
+            "scope_scan_required": bool(action_payload.get("scope_scan")),
+            "scope_scan_status": (
+                action_payload.get("scope_scan", {}).get("status")
+                if isinstance(action_payload.get("scope_scan"), dict)
+                else "not_required"
+            ),
+            "may_release_action": not bool(action_payload.get("scope_scan")),
+            "page_contract_required": bool(
+                action_payload.get("page_teaching_contract")
+            ),
+            "explicit_continue_gate_required": bool(
+                action_payload.get("page_teaching_contract")
+            ),
+            "lesson_opening_required": bool(
+                action_payload.get("lesson_opening_contract")
+            ),
+            "creative_supplements_allowed": bool(
+                isinstance(action_payload.get("resume_contract"), dict)
+                and action_payload["resume_contract"].get(
+                    "creative_supplements_allowed"
+                )
+            ),
+        },
+        "classroom_creativity_policy": classroom_creativity_policy(),
+        "sources_unchanged": True,
+        "source_sha256": public_source_sha256(
+            cache,
+            progress_path=progress_path,
+            activity_path=activity_path,
+            profile_path=profile_path,
+            overlay_path=overlay_path,
+        ),
+        "action_payload": action_payload,
+    }
+    cache.assert_unchanged()
+    return packet
+
+
+def critical_blocker_packet(
+    error: Exception,
+    *,
+    course_id: str | None,
+) -> dict[str, object]:
+    errors = list(getattr(error, "errors", (str(error),)))
+    return {
+        "status": "blocked",
+        "course_id": course_id,
+        "snapshot_id": None,
+        "route": {},
+        "blocking_teach": True,
+        "sources_unchanged": False,
+        "source_sha256": {},
+        "action_payload": {},
+        "blockers": errors,
+    }
+
+
+def render_critical(packet: dict[str, object]) -> str:
+    rendered = json.dumps(
+        packet,
+        ensure_ascii=False,
+        sort_keys=True,
+        indent=2,
+    ) + "\n"
+    if len(rendered) > CRITICAL_MAX_CHARS:
+        raise ContextPacketError(
+            "critical packet exceeds hard character budget: "
+            f"{len(rendered)} > {CRITICAL_MAX_CHARS}"
+        )
+    return rendered
+
+
 def build_packet(
     root: Path = ROOT,
     *,
@@ -579,10 +1636,25 @@ def build_packet(
         summary = section(memory, "上次课摘要", level=2, required=False)
         if summary:
             add_selection(selections, cache, memory_path, "上次课摘要", summary)
+        snapshot_id = build_snapshot_id(
+            cache,
+            "FIRST-RUN",
+            {"memory": memory_path, "profile": profile_path},
+        )
         cache.assert_unchanged()
         return {
             "schema_version": 2,
             "status": "first_run_required",
+            "course_id": None,
+            "snapshot_id": snapshot_id,
+            "sources_unchanged": True,
+            "source_sha256": public_source_sha256(
+                cache,
+                progress_path=None,
+                activity_path=None,
+                profile_path=profile_path,
+                overlay_path=None,
+            ),
             "next_action": "读取 main/50_playbook/first_run.md",
             "selections": [item.as_dict() for item in selections],
         }
@@ -622,6 +1694,13 @@ def build_packet(
         resolved_course,
         snapshot=progress_snapshot,
         reader=cache.read,
+    )
+    ledger_path, _ledger_document, next_action = load_ledger_route(
+        cache,
+        main,
+        resolved_course,
+        route,
+        progress_snapshot.meta,
     )
     selections = []
 
@@ -738,6 +1817,11 @@ def build_packet(
         [] if route.activity_type == "none" else [carrier_path]
     )
     l1_selections: list[Selection] = []
+    source_consumption: dict[str, object] = {
+        "required": False,
+        "scope_text_status": "not_required",
+        "scope_visual_status": "not_required",
+    }
     if route.activity_type == "exercise":
         scope = section(carrier, "学习范围", level=2)
         add_selection(
@@ -863,6 +1947,33 @@ def build_packet(
                 excerpt,
             )
             baseline_activity_paths.append(working_path)
+            if route.course_driver == "textbook":
+                course_id, lesson_id = _textbook_lesson_ids(route)
+                prep_dir = _preparation_dir(cache, course_id, lesson_id)
+                if _new_source_path_presence(prep_dir):
+                    snap = _load_current_preparation(cache, course_id, lesson_id)
+                    current_page = int(progress_snapshot.meta["textbook_page"])
+                    scan_manifest = textbook_scope_scan_manifest(
+                        cache,
+                        course_id,
+                        snap,
+                        current_page,
+                    )
+                    source_consumption = {
+                        "required": True,
+                        "scope_text_status": "complete_in_current_packet",
+                        "scope_visual_status": "external_scan_required",
+                        **scan_manifest,
+                    }
+                else:
+                    source_consumption = {
+                        "required": True,
+                        "scope_text_status": "complete_legacy_window",
+                        "scope_visual_status": "external_scan_required",
+                        "pdf_page_indices": parse_int_list(
+                            progress_snapshot.meta.get("working_pages_window", "")
+                        ),
+                    }
 
     course_root = main / "40_course" / resolved_course
     question_path = course_root / "question_bank.md"
@@ -984,6 +2095,7 @@ def build_packet(
             plan_path,
             calendar_path,
             progress_path,
+            ledger_path,
             *baseline_activity_paths,
             question_path,
             mistake_path,
@@ -1002,10 +2114,32 @@ def build_packet(
         if reference_chars
         else 1.0
     )
+    critical_sources = {
+        "activity": carrier_path,
+        "ledger": ledger_path,
+        "learning_path": learning_path_path,
+        "memory": memory_path,
+        "profile": profile_path,
+        "progress": progress_path,
+        "teacher_overlay": overlay_path,
+    }
     packet: dict[str, object] = {
         "schema_version": 2,
         "status": "ready",
         "course_id": resolved_course,
+        "snapshot_id": build_snapshot_id(
+            cache,
+            resolved_course,
+            critical_sources,
+        ),
+        "sources_unchanged": True,
+        "source_sha256": public_source_sha256(
+            cache,
+            progress_path=progress_path,
+            activity_path=carrier_path,
+            profile_path=profile_path,
+            overlay_path=overlay_path,
+        ),
         "memory_current_course": memory_current_course,
         "context_mode": context_mode,
         "group_id": group_id,
@@ -1020,11 +2154,13 @@ def build_packet(
                 "id": route.lesson_context_id or None,
             },
             "working_pages": route.working_pages_path or None,
+            **next_action,
         },
         "teacher": {
             "template_id": teacher_id,
             "template_path": teacher_relative,
         },
+        "source_consumption": source_consumption,
         "cost": {
             "metric": (
                 "Unicode characters in LF-normalized Markdown; exact for "
@@ -1068,11 +2204,14 @@ def render_markdown(
             "# T2AG 上下文包",
             "",
             "- status: `first_run_required`",
+            f"- snapshot_id: `{packet['snapshot_id']}`",
+            "- sources_unchanged: `true`",
             f"- next_action: `{packet['next_action']}`",
         ]
     else:
         route = packet["route"]
         cost = packet["cost"]
+        consumption = packet.get("source_consumption", {})
         lines = [
             (
                 "# T2AG L0 + 首个 L1 学习会话上下文包"
@@ -1084,6 +2223,8 @@ def render_markdown(
             "",
             f"- status: `{packet['status']}`",
             f"- course: `{packet['course_id']}`",
+            f"- snapshot_id: `{packet['snapshot_id']}`",
+            f"- sources_unchanged: `{str(packet['sources_unchanged']).lower()}`",
             f"- memory_current_course: `{packet['memory_current_course']}`",
             f"- context_mode: `{packet['context_mode']}`",
             f"- active_group: `{packet['group_id']}`",
@@ -1092,7 +2233,24 @@ def render_markdown(
                 f"`{route['current_activity']}: {route['current_activity_id']}`"
             ),
             f"- activity_position: {route['activity_position']}",
+            f"- next_action_kind: `{route['next_action_kind']}`",
+            (
+                "- next_activity: "
+                f"`{route['next_activity_type']}:{route['next_activity_id']}`"
+            ),
             f"- primary_read: `{route['primary_read']}`",
+            (
+                "- scope_text_status: "
+                f"`{consumption.get('scope_text_status', 'not_required')}`"
+            ),
+            (
+                "- scope_visual_status: "
+                f"`{consumption.get('scope_visual_status', 'not_required')}`"
+            ),
+            (
+                "- scope_pdf_page_indices: "
+                f"`{consumption.get('pdf_page_indices', [])}`"
+            ),
             "",
             "## 成本账",
             "",
@@ -1236,8 +2394,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--format",
-        choices=("markdown", "json", "stats"),
+        choices=("critical", "markdown", "json", "stats"),
         default="markdown",
+    )
+    parser.add_argument(
+        "--expect-snapshot",
+        help="Reject a background packet that does not match this critical snapshot.",
     )
     parser.add_argument(
         "--soft-char-budget",
@@ -1253,27 +2415,51 @@ def main() -> int:
     if args.soft_char_budget <= 0:
         print("[FAIL] --soft-char-budget must be positive")
         return 2
+    critical_output: str | None = None
     try:
-        packet = build_packet(
-            ROOT,
-            course_id=args.course,
-            soft_char_budget=args.soft_char_budget,
+        packet = (
+            build_critical_packet(ROOT, course_id=args.course)
+            if args.format == "critical"
+            else build_packet(
+                ROOT,
+                course_id=args.course,
+                soft_char_budget=args.soft_char_budget,
+            )
         )
+        if (
+            args.expect_snapshot
+            and packet.get("snapshot_id") != args.expect_snapshot
+        ):
+            raise ContextPacketError(
+                "snapshot mismatch: "
+                f"expected={args.expect_snapshot} actual={packet.get('snapshot_id')}"
+            )
+        if args.format == "critical":
+            critical_output = render_critical(packet)
     except (
         ActivityContractError,
         ContextPacketError,
         TeacherContractError,
     ) as exc:
+        if args.format == "critical":
+            blocker = critical_blocker_packet(exc, course_id=args.course)
+            print(render_critical(blocker), end="")
+            return 0
         errors = getattr(exc, "errors", (str(exc),))
         for error in errors:
             print(f"[FAIL] context packet: {error}")
         return 1
-    if args.format == "json":
+    if args.format == "critical":
+        print(critical_output, end="")
+    elif args.format == "json":
         print(json.dumps(packet, ensure_ascii=False, sort_keys=True, indent=2))
     elif args.format == "stats":
         payload = {
             "status": packet["status"],
             "course_id": packet.get("course_id"),
+            "snapshot_id": packet.get("snapshot_id"),
+            "sources_unchanged": packet.get("sources_unchanged"),
+            "source_sha256": packet.get("source_sha256"),
             "memory_current_course": packet.get("memory_current_course"),
             "context_mode": packet.get("context_mode"),
             "group_id": packet.get("group_id"),

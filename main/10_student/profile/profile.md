@@ -2,6 +2,12 @@
 type: student_profile
 initialization_status: uninitialized
 exercise_hint_gate: ask
+agent_collaboration_schema: agent_collaboration_preferences.v1
+agent_pool_limit: 6
+agent_max_active: 3
+agent_parallel_startup: enabled
+agent_startup_readiness: learning_ready_first
+agent_background_reporting: blockers_only
 activity_close_preference_schema: activity_close_preferences.v1
 activity_close_preferences_initialized_at: <set-on-initialization>
 activity_close_first_prompt_status: pending

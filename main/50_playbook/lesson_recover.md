@@ -123,9 +123,11 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
 2. L0 读取 canonical `resume_path` 的 frontmatter 与最近恢复胶囊；
 3. textbook Lesson 必须在 L0 拥有与 progress 页码一致、逐页完整的当前教材窗口；缺失时
    命令非零，不得以 `ready` 推进；
-4. L1 按当前停点读取 L0 尚未包含的必要教学记录、问答、错误尝试、
+4. 新对话本轮还必须按 critical 的 `scope_scan` manifest 实际打开 Scope 全部页图；已有
+   Snapshot、历史 load receipt 或 L0 文本不等于本轮视觉扫描；
+5. L1 按当前停点读取 L0 尚未包含的必要教学记录、问答、错误尝试、
    completion node/checkpoint；
-5. 当前 Lesson 存在 `lesson_thoughts.md` 时，按需读取相关想法。
+6. 当前 Lesson 存在 `lesson_thoughts.md` 时，按需读取相关想法。
 
 #### `exercise` 分支
 
@@ -176,30 +178,34 @@ L0 从学生档案做逐段摘录，重点关注：
 
 ### 步骤 5：条件读取 working_pages
 
-默认恢复链路中，working_pages 仅在 `lesson` 分支读取。当前活动为 Exercise 时跳过本步；
-不得依据退役的 `current_lesson` 无条件打开 working pages。只有后续
-通过同一 ContentGroup 明确需要回看某个真实 Lesson，才按一次具体任务读取该 Lesson。
+默认恢复链路中，**working_pages 仅在 `lesson` 分支**读取（含其 legacy 目录与 EV-0012
+页资产投影）。当前活动为 Exercise 时跳过本步；不得依据退役的 `current_lesson` 无条件
+打开 working pages 或伪造教材路径。
 
-只有 `course_driver: textbook` 的当前 Lesson 强制读取
-`working_pages/source_excerpt.md`；goal / project / praxis Lesson 的路由为
-`working_pages: null`，跳过教材窗口。
+只有 `course_driver: textbook` 的当前 Lesson 强制恢复教材原文证据；goal / project /
+praxis Lesson 的路由为 `working_pages: null`，跳过教材窗口。
 
-**文件路径**：课程根 + `lessons/<current_activity_id>/working_pages/source_excerpt.md`
+**优先（EV-0012）**：
 
-**关注内容**：
-- **头部信息**：当前 temp 窗口（如 `[22, 23, 24, 25]`）、当前讲授页、OCR 状态说明
-- **教材原文**：恢复上次讲授的教材内容，确保讲解连续
-- **OCR 状态**：哪些页已校对可放心使用，哪些页仍需对照原图复核
+1. 读取 **current** `LessonPreparationSnapshot`（`preparation/current_snapshot.json` 指针，
+   **禁止**字典序取最后一个 `PREP-*.json`）与 `LessonMap`；
+2. 按 Snapshot/Scope 加载 Course `source_assets` 页文本；页图命中 `.cache` 或按 PDF 重建；
+3. 工具入口：`t2ag_source_pages.py prepare --course … --current …`（只读）与 critical 中的
+   snapshot 字段。
 
-> **若 textbook Lesson 的 working_pages/ 不存在**：
-> - 上下文工具必须失败，不得返回缺教材的 `ready`
-> - 按 `ocr_correct_flow.md` 重新渲染、OCR、校对
-> - 重新生成 `working_pages/` 目录及 `source_excerpt.md`，更新 progress 页码与窗口后
->   重新运行上下文工具
->
-> **若 working_pages/ 存在但内容不全**：
-> - 工具必须对空窗口、重复页、当前页不在窗口、任一页缺段落返回失败
-> - 按翻页窗口管理规则补齐后重新运行，不得静默跳页
+上述三项只证明 prepared 与文本来源。每个新对话首次进入 textbook Lesson 时，Prefetcher
+还必须使用 critical 的 `scope_scan` manifest 在本轮逐页打开全部 Scope 页图，并回报：
+snapshot、PDF SHA、完整 `pdf_page_index`、每页 `opened=true`、书内 `printed_page_label`
+与冲突。缺页或混用两种页码时停止教学。Main 不得把历史 `content_consumed=true`、receipt、
+文件哈希或辅助 Agent 的“无需额外读取”解释成自己/本轮已经扫描。
+
+**Legacy**：仅当新路径 **完全不存在** 时，仍可读
+`lessons/<current_activity_id>/working_pages/source_excerpt.md` 与窗口 PNG/OCR。
+若 preparation 新路径存在但无效：**必须失败**，不得静默回退 legacy。
+
+> **若 textbook 既无合法 Snapshot/页资产，也无可用 legacy working_pages**：
+> - 上下文工具必须失败，**不得返回缺教材的 `ready`**
+> - 按 `ocr_correct_flow.md` + `source_page_assets.md` 补齐后重跑
 
 ### 步骤 6：确认健康检查仍有效并执行开课抽查
 
@@ -211,7 +217,7 @@ L0 从学生档案做逐段摘录，重点关注：
 若环境可执行代码，运行：
 
 ```bash
-python -B main/70_tools/t2ag_doctor.py
+python -B main/70_tools/t2ag_doctor.py --profile runtime
 ```
 
 - 若有 FAIL：先按提示修复权威链，再开课。
@@ -243,7 +249,20 @@ python -B main/70_tools/t2ag_doctor.py
 1. **简述上次进度**：Lesson 分支说明章节、教材页与具体位置；Exercise 分支说明 Unit、
    当前题目/批次与精确停点，不虚构章节或 Lesson。
 2. **确认学生状态**：若 personality_baseline 或 course_reflections 显示学生近期有情绪波动，适当问候
-3. **询问是否继续**：「从这里继续？还是想复习一下前面的内容？」
+3. **询问是否继续**：若用户本轮尚未明确要求继续，才问「从这里继续？还是想复习一下
+   前面的内容？」；用户已经说“继续”时不得重复提问。
+4. **权威动作与创造性补充并存**：pending checkpoint 必须逐字复用并标明 `progress.md`
+   当前切片的“精确停顿点”；可以另加明确标注的概括题、暖场题、类比或模型生成的探索问题，
+   但不得替换权威停点、冒充进度证据或绕过 Exercise 提示闸门。
+5. **冲突即停**：route、progress、Activity、当前页 SourcePageAsset、Scope manifest 任一
+   不一致时先报告冲突，不向学生展示候选教学动作。
+6. **恢复课堂树**：textbook Lesson 在第一条内容前显示字符树，列出当前 PDF/书内页、
+   active lesson boundary、本页教材块及各块状态。扫描完成不等于教学覆盖完成。
+7. **恢复三门协议**：旧对话中的一次“继续”不跨恢复点复用；正确作答只闭合理解门。
+   推导或总结之后必须再询问学生感受/疑问，并为下一个教学块取得一次性继续授权。
+8. **恢复 Lesson 开场**：若当前 Lesson 尚无本次会话已展示并确认的开场，先概括本课学习
+   内容，再显示 ASCII 知识树。缺少现成树时可依据 Lesson 学习范围和 LessonMap 创造性编排；
+   展示后询问路线感受与是否进入第一块，不能把概览记成已讲完。
 
 **确认示例**：
 
@@ -254,6 +273,10 @@ python -B main/70_tools/t2ag_doctor.py
 ```
 
 > **重要规则**：在学生明确确认「继续」之前，不得跳到后续内容。即使学生问了后续相关的问题，也只能回答该问题本身，不能提前展开尚未讲授的后续内容。
+
+进入新页时，“继续”必须在教师先展示旧页覆盖清单、宣布“翻页：PDF N / 书内 M”并展示
+新页字符树之后取得。若教师已经越页但未满足这些门，新页交流只作澄清，不计正式推进；
+恢复点退回最近一个完整覆盖并确认的旧页教学块。
 
 ---
 
@@ -289,48 +312,39 @@ python -B main/70_tools/t2ag_doctor.py
 
 恢复上下文后，`working_pages/` 中的物理文件（OCR 原图、OCR 结果、扫描图等）按以下窗口管理：
 
-### 基准窗口：4 页
+### 基准 Scope / TeachingWindow（EV-0012）
 
-常态下保留 4 页物理文件。窗口组成为「前一页 + 当前讲授页 + 后两页」，确保知识上下文完整。
+- **LessonScope**：含当前页连续 **5–8** 页（短书 = 全部可用页固定）；见 `source_page_assets.md`。
+- **TeachingWindow**：投影 current 与驻留；默认偏好相对 `[-1,0,+1,+2,+3]`，书首/末平移。
+- 页图优先 `.cache`；配额满时合法 CacheEviction，失败才 session_temp。
 
-> **教材阅读通用规则**：讲授当前页时，必须同时包含前一页、当前页和后两页的内容，确保知识上下文完整。若感觉知识仍有缺失（定义不完整、证明链条断裂、概念跳跃），可请求多阅读几页。
+### 预加载 / prepared 验收门
 
-### 预加载验收门（教材驱动课程强制）
+**新路径**：进入讲授前须有 valid `LessonPreparationSnapshot`（Scope + Map + load receipts）与足够核验等级（`t2ag.md`）。
 
-教材驱动课程一旦存在 `lessonXX/working_pages/source_excerpt.md`，进入当前页教学前必须同时满足：
+**Legacy 路径**（仅 `working_pages/source_excerpt.md` 仍为唯一证据时）：
 
-1. `progress.md` 文件头包含 `textbook_page` 与 `working_pages_window`，并与 `source_excerpt.md` 头部的“当前讲授页 / 当前 temp 窗口”一致。
-2. 基准窗口严格等于 `[当前页-1, 当前页, 当前页+1, 当前页+2]`；扩展到 5–6 页时，头部必须明确标注扩展窗口及原因，不能口头宣称已加载。
-3. 当前窗口每页均存在 `working_pages/pages/pageNN.png` 与 `working_pages/raw_ocr/page_NN_raw.txt`，且文件非空。
-4. `source_excerpt.md` 中每页均有 `## 第 NN 页` 校对章节，页面状态表中的“扫描 / OCR / 校对 / 已加载”全部为 `✓`。
-5. 原图和 OCR 只证明材料已取得；“校对 ✓”必须来自对照原图的人工逐符号核验，doctor 不替代视觉判断。
+1. `progress.md` 含 `textbook_page` 与 `working_pages_window`，与摘录头一致。
+2. 窗口连续且含当前页；每页有 PNG 与 raw OCR（非 lite）。
+3. 摘录含对应页校对章节；“校对 ✓”须人工逐符号核验。
 
-翻页必须作为一个原子流程执行：**渲染 → 目视检查 → OCR 留档 → 逐符号校对 → 更新摘录头与状态表 → 更新 progress → 运行 doctor**。任一步未完成，不得讲授新页；doctor 出现教材窗口 FAIL 时，课堂停在原页。
+翻页原子流程：**渲染 → 目视 → OCR → 校对写入 source_assets（或 legacy）→ 新 Scope/Snapshot → progress → doctor**。
+任一步未完成不得讲新页。
 
-### 可扩展至 6 页
-
-当内容连贯性需要时，可预加载新页而不立即删除旧页，使存在的页数最多达到 6 页。
-
-### 窗口管理规则
+### 窗口管理规则（EV-0012）
 
 | 场景 | 操作 | 结果 |
 |---|---|---|
-| 基准状态 | 保留 4 页 | P1–P4（4 页） |
-| 预加载新页（不删除） | 加载 P5 | P1–P5（5 页） |
-| 继续预加载（不删除） | 加载 P6 | P1–P6（6 页，达到上限） |
-| 6 页后加载新页 | 加载 P7，删除最旧 P1 | P2–P7（6 页） |
-| 回退机制 | 阅读到窗口中从 newest 往 old 数第 4 页时，删除最旧 2 页 | 回到 4 页基准窗口 |
+| 正常书开讲 | prepare 连续 Scope **5–8** 页（默认 5） | 新 Snapshot + current 指针 |
+| 扩窗 / 翻页 | 新 Scope 版本 → **新** Snapshot；旧 Snapshot 只读保留 | 不改旧 PREP |
+| 短书 `N<5` | Scope = 全部可用页固定 | `short_document: true` |
+| 页图配额 | `.cache` 内非 P0 可重建项按 CacheEviction | P0 永不删；失败 `cache_quota_blocked` |
+| legacy 物理文件 | 仅未迁移实例；**不得**因结课/切课自动清理 | 删除须 E 的 exact RT3 |
 
-**示例**：
-```
-基准 P1–P4（4 页）
-→ 预加载 P5（不删除）→ P1–P5（5 页）
-→ 预加载 P6（不删除）→ P1–P6（6 页，达到上限）
-→ 加载 P7，删除 P1 → P2–P7（6 页）
-→ 阅读到 P4（从 newest 往 old 数第 4 页），删除 P2、P3 → P4–P7（4 页，回到基准）
-```
+**废除**：4 页基线 / 6 页上限 / 结课自动删 `working_pages` 的旧表述。
 
-> **source_excerpt.md 不受窗口限制**：`source_excerpt.md` 持续累积当前 Lesson 已讲授页面原文，不做窗口内删除。窗口管理仅针对物理文件（`pages/` 原图、`raw_ocr/` 原始 OCR、`scripts/` 脚本等）。Lesson 关闭或切换到 Exercise 后可随 `working_pages/` 目录一起清理。
+> **source_excerpt.md / source_assets**：持久核验文本不做窗口内删除。`.cache` PNG 才是可驱逐派生。
+> Lesson 关闭或切换到 Exercise：**不得自动清理** legacy `working_pages`；清理始终走迁移批次 E 的 exact RT3。
 
 ---
 
@@ -368,10 +382,13 @@ python -B main/70_tools/t2ag_doctor.py
 
 ### 4. working_pages/ 生命周期
 
-- `working_pages/` 是 textbook Lesson 的临时工作区；Lesson 继续时按窗口保留，关闭
-  Lesson 或切换到 Exercise 后可清理
-- 跨会话恢复当前 Lesson 时，若 `working_pages/` 已被删除，需重新扫描教材原文；
-  当前 Exercise 不因此重建历史 Lesson 缓存
+- `working_pages/` 是 textbook Lesson 的 **legacy** 临时工作区；新权威为 Course
+  `source_assets` + Snapshot/Map。
+- **Lesson 关闭或切换到 Exercise 不得自动清理 `working_pages`**。
+- legacy 删除始终保留 **E 的 exact RT3**（exact object + 当轮确认）；CacheEviction
+  只作用于 `book/.cache`，不得删 working_pages。
+- 跨会话恢复：优先 current Snapshot；仅新路径完全不存在时才读 legacy；若 legacy
+  已被 RT3 删除且无 Snapshot，须按 `source_page_assets.md` 重新核验。
 - `illustration/` 是持久保存的，不受课程结束影响
 
 ### 5. 状态指针可靠性
@@ -380,7 +397,7 @@ python -B main/70_tools/t2ag_doctor.py
   `activity_ledger.md` replay
 - 当前活动主载体中的局部停点是细粒度证据，用于帮助修复真相源；Lesson 的“最后停点
   快照”与 Exercise 的精确停点都不是 GENERATED 缓存
-- 若各文件状态不一致，先运行 `main/70_tools/t2ag_doctor.py`，再以 `progress.md` 为准；
+- 若各文件状态不一致，先运行 `main/70_tools/t2ag_doctor.py --profile runtime`，再以 `progress.md` 为准；
   若当前活动证据更细，需向学生确认后写回 `activity_position`，不得从历史 Lesson 推断
 - checkpoint 可静默保存精确停点，但 completion node 只有满足课程既有关闭证据才完成；二者不得混写
 

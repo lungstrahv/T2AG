@@ -7,9 +7,14 @@
 >
 > **关联文件**：
 > - 规则定义：`main/t2ag.md` →「OCR 文本提取与校验规则」
+> - **产物权威（EV-0012）**：`main/50_playbook/source_page_assets.md` —— 核验文本/OCR 写入 Course
+>   `source_assets`（权威）；PNG 仅可选写入 `book/.cache`（可重建派生，非真相源）；Lesson 只存 Snapshot/Map 引用。
 > - 通用要求：`main/10_student/profile/learning_path.md` →「OCR 工具选择与结果校对」
 > - 问题日志：`main/00_core/t2ag_problemlog.md`
 > - 课程命令：对应课程 `progress.md` →「常用命令」
+>
+> **过渡**：实例迁移完成前，既有 `lessonXX/working_pages/` 仍可 **legacy 读取**；
+> **新建** 校对不得再以“每 Lesson 复制后结课删除”为权威生命周期。
 
 ---
 
@@ -65,27 +70,50 @@
 
 ## 三、完整步骤
 
-### 步骤 1：PyMuPDF 渲染 PNG（200–300 DPI）
+### 步骤 1：渲染 PNG 到 Course `.cache`（默认 300 DPI）
 
-使用 PyMuPDF（`fitz`）将目标 PDF 页面渲染为 PNG 图片。DPI 推荐 200–300，保证文字与公式清晰可辨。
+使用 PyMuPDF（`fitz`）或等价工具，将目标 **SourceDocument PDF** 页面渲染为 PNG。
 
-```powershell
-# 默认只检查输入、依赖、工具和输出位置，不写文件
-python -B lessons/lesson01/working_pages/scripts/ocr_page.py --page 21
+| 规则 | 要求 |
+|---|---|
+| **默认** | 全书统一 **300 DPI、RGB**；与 `render_profile` `pdf-300dpi-rgb-v1` 一致 |
+| **下限** | 不得低于 **200 DPI**（糊字、OCR 崩溃） |
+| **难页例外** | 小字/密公式/污迹可另渲 **400–600 DPI**，写入 **另一** `render_profile`，不覆盖默认 300 键 |
+| **禁止** | 同一课无标记混用 180 与 300；新建核验不得再产出混档默认图 |
 
-# 只有明确需要生成 raw OCR 时才写入
-python -B lessons/lesson01/working_pages/scripts/ocr_page.py --page 21 --write
+页码：PDF **1-based 页 N** ↔ 渲染 `page[N-1]`；文件名中的索引必须与 `pdf_page_index=N` 一致。
+
+**新建输出路径（canonical）**：
+
+```text
+40_course/<COURSE_ID>/book/.cache/source_pages/
+  <source_document_sha256>/<render_profile>/page_<pdf_index>.png
 ```
 
-> **命名规范**：渲染后的 PNG 命名为 `pageXX.png`（如 `page21.png`），存入对应 lesson 的 `working_pages/pages/` 目录。
->
-> **路径与环境**：教材默认从课程根的 `book/primary/` 读取。Tesseract
-> 通过 PATH、`TESSERACT_CMD` 或 `--tesseract` 定位；不得在脚本中保存用户名绝对路径，
-> 也不得自动安装依赖或改造 `.venv`。
+工具中立契约（**禁止**新建 Lesson-local `ocr_page.py` 或任何 `working_pages/scripts`）：
+
+```text
+输入：book/primary 下 SourceDocument PDF；pdf_page_index = N（人类页码）
+渲染：page[N-1] → PNG，默认 pdf-300dpi-rgb-v1
+输出：仅写入上列 Course .cache 键路径
+禁止：写入 lessons/**/working_pages/pages|raw_ocr|scripts
+```
+
+示例（占位；路径按课程与 document SHA 替换）：
+
+```powershell
+# 概念示例：用 PyMuPDF 将 PDF 第 21 页渲染到 Course .cache（写盘前须用户/任务授权）
+# page index: human N=21 → fitz page 20
+# out: main/40_course/<COURSE_ID>/book/.cache/source_pages/<doc_sha>/pdf-300dpi-rgb-v1/page_21.png
+```
+
+> **路径与环境**：教材 PDF 从课程根 `book/primary/` 读取。Tesseract 通过 PATH、
+> `TESSERACT_CMD` 或 `--tesseract` 定位；不得在脚本中保存用户名绝对路径，也不得自动
+> 安装依赖或改造 `.venv`。
 
 ### 步骤 2：优先用模型视觉识读原图逐符号转录
 
-将渲染后的 PNG 图片用模型视觉能力直接识读，逐行、逐符号转录为文本。
+将 **Course `.cache`** 中刚渲染（或已存在）的 PNG 用模型视觉能力直接识读，逐行、逐符号转录为文本。
 
 **操作要点**：
 - 逐页识读，每页对照原图完整转录
@@ -93,7 +121,8 @@ python -B lessons/lesson01/working_pages/scripts/ocr_page.py --page 21 --write
 - 转录过程中即可完成第一轮校对，发现可疑符号立即对照原图确认
 - 汉字识别不确定时，结合上下文推断
 
-> 此步骤产出的文本质量最高，可直接作为校对后的基础文本。
+> 此步骤产出的文本质量最高，可直接作为校对后的基础文本。**持久写入**见步骤 6
+> （`source_assets`），不得落到 Lesson `working_pages`。
 
 ### 步骤 3：若公式太多视觉识读不便，用 Pix2Text
 
@@ -103,7 +132,11 @@ python -B lessons/lesson01/working_pages/scripts/ocr_page.py --page 21 --write
 from pix2text import Pix2Text
 
 p2t = Pix2Text()
-text = p2t.recognize('working_pages/pages/page21.png')
+# 输入必须是 Course .cache 中的页图，不是 lessons/**/working_pages/pages
+text = p2t.recognize(
+    "main/40_course/<COURSE_ID>/book/.cache/source_pages/"
+    "<source_document_sha256>/pdf-300dpi-rgb-v1/page_21.png"
+)
 print(text)
 ```
 
@@ -121,62 +154,57 @@ print(text)
 export PATH="$PATH:/c/Program Files/Tesseract-OCR"
 export TESSDATA_PREFIX="$HOME/tessdata"
 
-# OCR 识别一页（中英文混合）
-tesseract working_pages/pages/page21.png working_pages/raw_ocr/page_21_raw -l chi_sim+eng
+# 输入：Course .cache PNG；输出：Course source_assets raw OCR（禁止 working_pages）
+tesseract \
+  "main/40_course/<COURSE_ID>/book/.cache/source_pages/<doc_sha>/pdf-300dpi-rgb-v1/page_21.png" \
+  "main/40_course/<COURSE_ID>/book/primary/source_assets/<document_id>/raw_ocr/page_21_raw" \
+  -l chi_sim+eng
 ```
 
 > 也可使用 `pytesseract` Python 接口，但 Bash 直接调用 / 文件输出模式更稳定（避免 subprocess stdout 编码问题）。
 >
 > Tesseract 对数学符号识别较差，**必须**在步骤 5 中重点校对。
+> **禁止**将输出写到 `lessons/**/working_pages/raw_ocr/`。
 
 ### 步骤 5：逐行对照原图校对
 
 无论使用哪种 OCR 工具，**都必须逐行对照原图进行人工校对**。
 
 **校对流程**：
-1. 将 OCR 结果与渲染的 PNG 原图并排对照
+1. 将 OCR 结果与 **Course `.cache`** 中的 PNG 原图并排对照
 2. 逐行核对文字，重点关注数学符号
 3. 对无法理解的汉字组合、缺字、疑似错字，**联网搜索**教材目录、官方出版信息、网络题库或 Wikipedia 进行交叉验证
 4. 关键定义、定理编号、公式必须对照 Image Container PDF 图片做最终核对
 5. 校对过程中的错误模式记入「常见错误对照表」（见下文），持续积累
 
-### 步骤 6：校对后写入 source_excerpt.md，原始结果保留 raw_ocr/page_XX_raw.txt
+### 步骤 6：校对后写入 Course 页资产（权威）
 
-**文件保存规则**：
-- **校对后的正确文本** → 写入 `lessonXX/working_pages/source_excerpt.md`
-  - `source_excerpt.md` 是当堂课教材原文缓存，持续累积，课程结束随 `working_pages/` 目录删除
-  - 写入时标注页码、OCR 状态、校对情况
-- **原始 OCR 结果** → 保留在 `lessonXX/working_pages/raw_ocr/page_XX_raw.txt`
-  - 原始结果不修改，备查
-  - 命名格式：`page_XX_raw.txt`（如 `page_22_raw.txt`）
+**优先路径（EV-0012）** — 详见 `source_page_assets.md`：
 
-**source_excerpt.md 头部模板**：
+- **校对文本** → `book/primary/source_assets/<document_id>/pages/page_<pdf_index>.md`（持久）
+- **raw OCR** → `book/primary/source_assets/<document_id>/raw_ocr/page_<pdf_index>_raw.txt`
+- **页图 PNG** → `book/.cache/source_pages/<doc_sha>/<render_profile>/page_<pdf_index>.png`（可重建缓存）
+- **Lesson** → 更新 `LessonScope` / `LessonMap` / **新** `LessonPreparationSnapshot` + load receipts
+- 工具：`python -B main/70_tools/t2ag_source_pages.py prepare ...`
+- prepare / Context 对 LessonMap 与资产的校验使用**文件原始字节**（含 CRLF）；不得仅按
+  `read_text` 规范化后的文本宣称 hash 一致。
 
-```markdown
-> 本文件为当堂课的临时教材原文缓存，课程结束时删除。
-> 当前 temp 窗口：[22, 23, 24, 25]（前一页 + 当前讲授页 + 后两页）
-> 当前讲授页：第 23 页（集合运算——交换律、结合律、分配律、De Morgan 律）
-> 最后更新：YYYY-MM-DD
->
-> ⚠️ OCR 状态说明：
-> - 第 25 页：已对照原图人工逐符号校对，可放心用于教学。
-> - 第 22–24 页：仍为 Tesseract OCR 原始结果，数学符号存在识别偏差，讲授前请对照原图复核。
+**Legacy Compatibility**（仅未迁移实例、兼容 Doctor；**不是**新建权威输出）：
 
----
+- 历史可读：`lessonXX/working_pages/source_excerpt.md` 及旧 `pages/` / `raw_ocr/`（若仍存在）
+- **新建核验禁止**向 `working_pages/pages`、`working_pages/raw_ocr` 或 `working_pages/scripts` 写入 PNG、raw OCR 或脚本；新输出只走 `source_assets` / `.cache`。
+- **结课不得删除**已提升为 Course `source_assets` 的持久证据。
+- legacy 目录清理须走迁移批次 **E 的 exact RT3**，不得与 CacheEviction 混淆；
+  Lesson close/switch **不得自动清理** working_pages。
 
-## 第 22 页
-
-（校对后的文本内容）
-```
-
-同时在教材驱动课程的 `progress.md` YAML 文件头写入机器可检字段：
+`progress.md` 可保留教学投影字段（**不是**资产写入路径）：
 
 ```yaml
 textbook_page: 23
-working_pages_window: [22, 23, 24, 25]
+working_pages_window: [22, 23, 24, 25]   # legacy 或 TeachingWindow 印刷页列表
 ```
 
-每次翻页必须在同一次变更中同步更新这两个字段、`source_excerpt.md` 头部、翻页管理表和页面状态跟踪表；不得只改其中一处。标准物理文件名固定为 `pages/pageNN.png` 与 `raw_ocr/page_NN_raw.txt`，doctor 据此验收。
+新字段（可选，工具可写）：`lesson_scope_version`、`preparation_snapshot_id`、`short_document`。
 
 ---
 
@@ -240,7 +268,8 @@ OCR 对数学符号识别错误率极高，校对时务必对照下表逐项排�
 
 1. **OCR 不能替代人工校对**：任何 OCR 工具都无法保证 100% 准确，数学公式部分必须逐符号人工核对。
 2. **原始结果保留备查**：`page_XX_raw.txt` 保留原始 OCR 结果，不修改，便于追溯校对过程。
-3. **source_excerpt.md 持续累积**：随着教学推进，不断追加新扫描页的校对后内容，不做删除。课程结束后随 `working_pages/` 目录一起删除。
+3. **核验文本持续累积**：优先写入 Course `source_assets`；legacy `source_excerpt.md`
+   若仍存在可继续追加，但**课程结束不得自动删除**；删除须 E 的 exact RT3。
 4. **优先使用模型视觉识读**：在条件允许时，优先使用模型视觉识读原图，可显著减少校对工作量。
-5. **DPI 不低于 200**：渲染 DPI 低于 200 会导致文字模糊，增加 OCR 错误率；推荐 300 DPI。
+5. **DPI 纪律**：默认全书 **300 DPI**；不得低于 200；难页可另档 400–600；**禁止**同一课无标记混用 180/300（见 `source_page_assets.md` §1.1）。
 6. **批量处理效率**：多页 OCR 时，可先批量渲染 PNG，再逐页识读校对，避免反复打开 PDF。

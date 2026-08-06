@@ -49,3 +49,7 @@
   exerciseNN、原子 lifecycle/close 和 recover 通用能力，但不携带真实迁移或结课实例。
 - 0.2.1 收口候选已提供 reading ActivityRecord 空容器、六份 JSON schema 和双方各写各仓的
   context/contribution/receipt saga；Skeleton 不含真实 AR、书籍、sidecar 或 receipt。
+- EV-0012 通用能力：Course `source_assets` + `.cache/source_pages` + Lesson
+  Map/Snapshot/pointer/Context 契约已落地；playbook 不再把 `working_pages` 当作新建权威输出。
+  Skeleton 只含通用契约与空模板，不携带 MATH1607H、学生或其他实例数据。见 changelog
+  `[2026-08-05] EV-0012 教材页资产与 Lesson Preparation 技术收口`。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract tests for exact-plan kill boundary enumeration."""
+"""Atomic contracts for release fault-boundary enumeration."""
 from __future__ import annotations
 
 import sys

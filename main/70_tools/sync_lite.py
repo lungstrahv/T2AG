@@ -172,6 +172,16 @@ LITE_README = """# T2AG 0.2.2 线上模型审查快照（t2ag-lite）
 - 排除：教材二进制（PDF/压缩包等）、`.venv`、`.tools`、`.git`、`.recovery`、
   缓存、二进制生成资产、DB/WAL 等；审查所需的纯文本课程材料可以保留
 
+## 三形态基础验证内容
+
+Doctor/测试基础结构是 Main、Skeleton、Lite 都必须携带的基础内容，包括
+`doctor_contracts.md`、`test_strategy.md`、`validation_flow.md`、`t2ag_doctor.py`、
+`t2ag_test.py`、`validation_control.py`、`validation_workflow.json` 与
+`test_dependencies.json`。Main/Skeleton 启动只使用 `--profile runtime`；冻结候选或正式
+发布才使用 `--profile release`。原子项必须先列计划并绑定 plan SHA，release 执行还要提供
+登记 reason；Lite 保留这些文件供逐字节审查，但仍是只读快照，不在本目录执行 Doctor、
+测试、场景或写回。
+
 ## 给线上模型的使用边界
 
 建议按此顺序阅读：
@@ -216,6 +226,14 @@ LITE_AGENTS = """# t2ag-lite 0.2.2 启动说明
 - **只读审查**：不要教学写回、不要改进度真相源、不要装依赖、不要当 skeleton 用。
 - 入口仍可读 `main/t2ag.md` 与 `main/00_core/t2ag_memory.md` 以理解结构。
 - 发现的问题以审查报告返回本地；由 main/skeleton 裁决后落盘，再再生 lite。
+
+## 三形态基础内容
+
+- Doctor/测试基础结构必须与 Main、Skeleton 对齐：runtime 是启动档，release 是发布审计档。
+- `--profile runtime` 与 `--profile release` 的代码、流程树、控制文件和依赖清单均保留供
+  只读审查；`validation_workflow.json` 机械约束计划 SHA、release reason 和普通预算。
+- **不得在 Lite 执行** Doctor、测试选择器、release scenario 或任何写回；执行责任只在
+  本地 Main/Skeleton。
 
 ## 版本
 

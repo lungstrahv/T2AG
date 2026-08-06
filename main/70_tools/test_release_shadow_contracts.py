@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Atomic contracts for isolated release-shadow authorization and cleanup."""
 from __future__ import annotations
 
 import tempfile

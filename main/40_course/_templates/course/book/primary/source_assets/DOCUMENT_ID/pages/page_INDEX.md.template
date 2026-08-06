@@ -1,0 +1,22 @@
+---
+schema: t2ag.source_page_asset.v1
+asset_id: DOCUMENT_ID-P0000
+course_id: COURSE_ID
+source_document_id: DOCUMENT_ID
+source_document_sha256: ""
+pdf_page_index: 0
+printed_page_label: ""
+source_locator: ""
+render_profile: pdf-300dpi-rgb-v1
+render_sha256: ""
+raw_ocr_sha256: ""
+verified_text_sha256: ""
+verification_status: unverified
+verification_method: ""
+verified_at: ""
+lifecycle: persistent
+---
+
+# Page INDEX
+
+（核验文本写在此处；绑定上方 SHA 与 SourceDocument。）

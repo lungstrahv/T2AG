@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Receipt graph regression tests for T2AG-022 V4."""
+"""Atomic release receipt-chain contracts."""
 from __future__ import annotations
 
 import json

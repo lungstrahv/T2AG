@@ -36,10 +36,97 @@ PREF_KEYS = (
     "exercise_problem_review",
     "exercise_knowledge_mastery",
 )
+CLOSE_BODY_SCHEMA = "activity_close_body.v2"
+RETROSPECTIVE_TREE: dict[str, tuple[str, ...]] = {
+    "actual_teaching_process": (
+        "taught_content",
+        "teaching_sequence",
+        "expanded_or_skipped",
+        "plan_difference",
+    ),
+    "content_completion": (
+        "completed_content",
+        "unfinished_content",
+        "out_of_scope_content",
+        "next_lesson_boundary",
+    ),
+    "knowledge_absorption": (
+        "initial_understanding",
+        "reasoning_difficulties",
+        "turning_points",
+        "self_correction",
+        "independent_reconstruction_or_transfer",
+        "current_mastery",
+        "remaining_retests",
+    ),
+    "course_content_feedback": (
+        "valuable_content",
+        "difficult_content",
+        "content_sequence",
+        "example_effectiveness",
+        "redundancy_or_omission",
+        "requested_course_adjustment",
+    ),
+    "teacher_reflection": (
+        "effective_explanations",
+        "overcompressed_expressions",
+        "over_assistance",
+        "next_teaching_improvement",
+    ),
+    "learning_transition": (
+        "spaced_retests",
+        "next_lesson_entry",
+        "learner_thought_followup",
+    ),
+}
+REVIEW_STATUSES = frozenset({"applicable", "not_applicable", "missing"})
+BOUND_COMPLETED_INTENTS = frozenset({"结课", "确认结课", "愿意结课"})
+BOUND_INCOMPLETE_INTENTS = frozenset({"以未完成状态结课", "确认以未完成状态结课"})
+RETROSPECTIVE_SECTION_LABELS = {
+    "actual_teaching_process": "实际教学过程",
+    "content_completion": "课程内容完成情况",
+    "knowledge_absorption": "知识吸收",
+    "course_content_feedback": "学生课程内容反馈",
+    "teacher_reflection": "教师教学反思",
+    "learning_transition": "后续学习衔接",
+}
+RETROSPECTIVE_ITEM_LABELS = {
+    "taught_content": "实际讲授",
+    "teaching_sequence": "教学顺序",
+    "expanded_or_skipped": "展开或跳过",
+    "plan_difference": "计划差异",
+    "completed_content": "已完成内容",
+    "unfinished_content": "未完成内容",
+    "out_of_scope_content": "越界内容",
+    "next_lesson_boundary": "下一 Lesson 边界",
+    "initial_understanding": "最初理解",
+    "reasoning_difficulties": "思维困难",
+    "turning_points": "理解转折点",
+    "self_correction": "自我修正",
+    "independent_reconstruction_or_transfer": "独立复述或迁移",
+    "current_mastery": "当前掌握",
+    "remaining_retests": "仍需复测",
+    "valuable_content": "有价值的内容",
+    "difficult_content": "难懂内容",
+    "content_sequence": "内容顺序",
+    "example_effectiveness": "例子效果",
+    "redundancy_or_omission": "冗余或缺失",
+    "requested_course_adjustment": "希望怎样调整课程",
+    "effective_explanations": "有效讲解",
+    "overcompressed_expressions": "过度压缩的表达",
+    "over_assistance": "帮助边界",
+    "next_teaching_improvement": "下次教学改进",
+    "spaced_retests": "间隔复测",
+    "next_lesson_entry": "下一 Lesson 入口",
+    "learner_thought_followup": "学生想法后续消费",
+}
 TERMINAL_DECISIONS = {
     "confirm_completed": "completed",
     "confirm_closed_incomplete": "closed_incomplete",
 }
+DIRECT_USER_AUTHORITY = ("user", "direct_user")
+PRODUCTION_DECISION_AUTHORITIES = frozenset({DIRECT_USER_AUTHORITY})
+PRODUCTION_APPLY_AUTHORIZATION_MODES = frozenset({"direct_user"})
 
 
 class CloseError(RuntimeError):
@@ -96,6 +183,176 @@ def resolve_prefs(
     return result
 
 
+def _review_item(value: Any) -> dict[str, Any]:
+    """Normalize one closeout-tree leaf without inventing lesson content."""
+    if value is None:
+        return {"status": "missing"}
+    if isinstance(value, str):
+        value = {"status": "applicable", "summary": value}
+    if not isinstance(value, dict):
+        raise CloseError("retrospective item must be an object, string, or null")
+    item = dict(value)
+    status = str(item.get("status") or "applicable")
+    if status not in REVIEW_STATUSES:
+        raise CloseError(f"illegal retrospective status: {status}")
+    item["status"] = status
+    if status == "applicable" and not str(item.get("summary") or "").strip():
+        raise CloseError("applicable retrospective item requires summary")
+    if status == "not_applicable" and not str(item.get("reason") or "").strip():
+        raise CloseError("not_applicable retrospective item requires reason")
+    refs = item.get("evidence_refs")
+    if refs is not None and (
+        not isinstance(refs, list)
+        or any(not str(ref).strip() for ref in refs)
+    ):
+        raise CloseError("retrospective evidence_refs must be nonempty strings")
+    return item
+
+
+def _simple_review_node(value: Any, *, default_refs: list[str] | None = None) -> dict[str, Any]:
+    node = _review_item(value)
+    if node["status"] == "applicable" and default_refs and "evidence_refs" not in node:
+        node["evidence_refs"] = list(default_refs)
+    return node
+
+
+def build_teaching_retrospective(
+    supplied: Any,
+) -> tuple[dict[str, Any], dict[str, Any], bool]:
+    """Traverse every approved retrospective leaf and aggregate applicable content."""
+    if supplied is None:
+        supplied = {}
+    if not isinstance(supplied, dict):
+        raise CloseError("teaching_retrospective must be an object")
+    unknown_sections = set(supplied) - set(RETROSPECTIVE_TREE)
+    if unknown_sections:
+        if "system_feedback" in unknown_sections:
+            raise CloseError(
+                "system_feedback must be routed outside course_content_feedback"
+            )
+        raise CloseError(
+            f"unknown teaching_retrospective sections: {sorted(unknown_sections)}"
+        )
+    tree: dict[str, Any] = {}
+    visible: dict[str, Any] = {}
+    complete = True
+    for section_name, leaf_names in RETROSPECTIVE_TREE.items():
+        raw_section = supplied.get(section_name) or {}
+        if not isinstance(raw_section, dict):
+            raise CloseError(f"retrospective section must be an object: {section_name}")
+        declared_status = raw_section.get("status")
+        declared_reason = str(raw_section.get("reason") or "").strip()
+        raw_items = raw_section.get("items") or {}
+        if not isinstance(raw_items, dict):
+            raise CloseError(f"retrospective items must be an object: {section_name}")
+        items: dict[str, Any] = {}
+        for leaf_name in leaf_names:
+            if declared_status == "not_applicable" and leaf_name not in raw_items:
+                raw_value: Any = {
+                    "status": "not_applicable",
+                    "reason": declared_reason,
+                }
+            else:
+                raw_value = raw_items.get(leaf_name)
+            items[leaf_name] = _review_item(raw_value)
+        statuses = [item["status"] for item in items.values()]
+        if "missing" in statuses:
+            section_status = "missing"
+            complete = False
+        elif all(status == "not_applicable" for status in statuses):
+            section_status = "not_applicable"
+        else:
+            section_status = "applicable"
+        applicable_summaries = [
+            str(item["summary"]).strip()
+            for item in items.values()
+            if item["status"] == "applicable"
+        ]
+        section: dict[str, Any] = {"status": section_status, "items": items}
+        if section_status == "not_applicable":
+            section["reason"] = declared_reason or next(
+                str(item["reason"]) for item in items.values()
+            )
+        if applicable_summaries:
+            section["summary"] = str(raw_section.get("summary") or "；".join(applicable_summaries)).strip()
+            visible[section_name] = {
+                "summary": section["summary"],
+                "items": {
+                    key: value
+                    for key, value in items.items()
+                    if value["status"] == "applicable"
+                },
+            }
+        tree[section_name] = section
+    return tree, visible, complete
+
+
+def learner_retrospective_payload(body: dict[str, Any]) -> dict[str, Any]:
+    """Return the exact student-facing closeout object bound to dialogue delivery."""
+    if body.get("schema") != CLOSE_BODY_SCHEMA:
+        raise CloseError("learner-facing retrospective requires activity_close_body.v2")
+    visible = body.get("learner_visible_retrospective")
+    if not isinstance(visible, dict) or not visible:
+        raise CloseError("learner-facing retrospective is missing")
+    return {
+        "activity_type": body.get("activity_type"),
+        "activity_id": body.get("activity_id"),
+        "close_scope": body.get("close_scope"),
+        "learner_visible_retrospective": visible,
+        "knowledge": body.get("knowledge") or [],
+        "completion_assessment": body.get("completion_assessment") or {},
+        "recommendation": body.get("recommendation"),
+    }
+
+
+def learner_retrospective_sha256(body: dict[str, Any]) -> str:
+    return sha256_text(canonical_json(learner_retrospective_payload(body)))
+
+
+def render_learner_retrospective(body: dict[str, Any]) -> str:
+    """Render the complete applicable-item summary for direct dialogue display."""
+    payload = learner_retrospective_payload(body)
+    lines = [
+        f"# {payload['activity_id']} 教学复盘",
+        "",
+        "## 结课范围",
+        "",
+        str((payload.get("close_scope") or {}).get("summary") or "未提供范围摘要"),
+    ]
+    visible = payload["learner_visible_retrospective"]
+    for section_name in RETROSPECTIVE_TREE:
+        section = visible.get(section_name)
+        if not isinstance(section, dict):
+            continue
+        lines.extend(["", f"## {RETROSPECTIVE_SECTION_LABELS[section_name]}", ""])
+        for item_name in RETROSPECTIVE_TREE[section_name]:
+            item = (section.get("items") or {}).get(item_name)
+            if not isinstance(item, dict) or item.get("status") != "applicable":
+                continue
+            lines.append(
+                f"- **{RETROSPECTIVE_ITEM_LABELS[item_name]}**：{item['summary']}"
+            )
+    lines.extend(["", "## 掌握层级", ""])
+    for item in payload["knowledge"]:
+        lines.append(f"- `{item.get('state')}`：{item.get('topic')}")
+    assessment = payload["completion_assessment"]
+    lines.extend(
+        [
+            "",
+            "## 完成性判定",
+            "",
+            f"- completion blockers：{assessment.get('completion_blockers') or '无'}",
+            f"- scope change：{assessment.get('scope_change') or '无'}",
+            f"- 判定理由：{assessment.get('reason') or '未提供'}",
+            f"- 推荐结果：`{payload.get('recommendation')}`",
+            "",
+            "---",
+            f"复盘展示 SHA-256：`{learner_retrospective_sha256(body)}`",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def build_close_body(
     *,
     activity_type: str,
@@ -121,64 +378,57 @@ def build_close_body(
             raise CloseError(f"illegal knowledge state: {item.get('state')}")
         if not str(item.get("topic") or "").strip():
             raise CloseError("knowledge item requires topic")
-    fixed: dict[str, Any]
-    optional: dict[str, Any] = {}
-    if activity_type == "lesson":
-        fixed = {
-            "actual_review": content_sections.get("actual_review")
-            or {"summary": "依据本次 evidence_refs 回溯实际教学", "evidence_refs": evidence_refs},
-            "student_feedback": content_sections.get("student_feedback")
-            or {"status": "captured" if student_feedback_ref else "missing", "reference": student_feedback_ref},
-            "knowledge_absorption": knowledge
-            or [{"topic": "unspecified", "state": "unverified"}],
-        }
-        if prefs.get("lesson_actual_review") == "on":
-            optional["classroom_evaluation"] = content_sections.get(
-                "classroom_evaluation", {"status": "no_additional_content"}
-            )
-        if prefs.get("lesson_student_feedback") == "on":
-            optional["mastery_suggestions"] = content_sections.get(
-                "mastery_suggestions", {"status": "no_additional_content"}
-            )
-        if prefs.get("lesson_knowledge_absorption") == "on":
-            optional["next_lesson_preview"] = content_sections.get(
-                "next_lesson_preview", {"status": "no_additional_content"}
-            )
-    else:
-        fixed = {
-            "problem_review": content_sections.get("problem_review")
-            or {"summary": "依据本次 evidence_refs 回溯题目表现", "evidence_refs": evidence_refs},
-            "knowledge_mastery": knowledge
-            or [{"topic": "unspecified", "state": "unverified"}],
-            "student_feedback": content_sections.get("student_feedback")
-            or {"status": "captured" if student_feedback_ref else "missing", "reference": student_feedback_ref},
-        }
-        if prefs.get("exercise_problem_review") == "on":
-            optional["practice_evaluation"] = content_sections.get(
-                "practice_evaluation", {"status": "no_additional_content"}
-            )
-        if prefs.get("exercise_knowledge_mastery") == "on":
-            optional["study_suggestions"] = content_sections.get(
-                "study_suggestions", {"status": "no_additional_content"}
-            )
+    close_scope = _simple_review_node(content_sections.get("close_scope"))
+    evidence_collection = _simple_review_node(
+        content_sections.get("evidence_collection"),
+        default_refs=evidence_refs,
+    )
+    retrospective, learner_visible, tree_complete = build_teaching_retrospective(
+        content_sections.get("teaching_retrospective")
+    )
+    knowledge_section = retrospective["knowledge_absorption"]
+    feedback_section = retrospective["course_content_feedback"]
     mandatory_evidence = {
         "evidence_refs_present": bool(evidence_refs),
         "knowledge_evidence_present": bool(knowledge),
-        "student_feedback_present": bool(student_feedback_ref),
+        "scope_review_complete": close_scope["status"] != "missing",
+        "evidence_collection_complete": evidence_collection["status"] != "missing",
+        "retrospective_tree_complete": tree_complete,
+        "knowledge_absorption_narrative_present": knowledge_section["status"]
+        != "missing",
+        "course_content_feedback_assessed": feedback_section["status"]
+        != "missing",
     }
+    completion_reason = (
+        "无 blocker，范围、证据与结课树均已逐项检查；not_applicable 节点不阻断完成。"
+        if not blockers and all(mandatory_evidence.values())
+        else "仍有 blocker 或结课树中的 missing 节点，不能推荐 completed。"
+    )
     body: dict[str, Any] = {
+        "schema": CLOSE_BODY_SCHEMA,
         "activity_type": activity_type,
         "activity_id": activity_id,
-        "fixed": fixed,
-        "optional": optional,
+        "close_scope": close_scope,
+        "evidence_collection": evidence_collection,
+        "teaching_retrospective": retrospective,
+        "learner_visible_retrospective": learner_visible,
         "preferences_snapshot": {key: prefs.get(key, "on") for key in PREF_KEYS},
         "knowledge": knowledge,
         "completion_blockers": blockers,
         "evidence_refs": evidence_refs,
+        "course_content_feedback_ref": student_feedback_ref,
+        # Kept only as a read-compatible alias for v1 callers and ledger history.
         "student_feedback_ref": student_feedback_ref,
         "scope_change": scope_change,
         "scope_change_confirmed": bool(scope_change and scope_change_confirmed),
         "mandatory_evidence": mandatory_evidence,
+        "completion_assessment": {
+            "mandatory_evidence": mandatory_evidence,
+            "completion_blockers": blockers,
+            "scope_change": scope_change,
+            "scope_change_confirmed": bool(scope_change and scope_change_confirmed),
+            "reason": completion_reason,
+        },
         "recommendation": (
             "completed"
             if not blockers and all(mandatory_evidence.values())
@@ -204,21 +454,81 @@ def deterministic_decision(body: dict[str, Any]) -> str:
 
 
 def parse_strict_confirmation(text: str) -> dict[str, str]:
-    pending = re.search(r"pending_event_id\s*=\s*(ALE-\d{6})", text)
-    body = re.search(r"body_sha256\s*=\s*([0-9a-f]{64})", text)
-    result = re.search(r"result\s*=\s*(completed|closed_incomplete)", text)
-    if not pending or not body or not result:
+    match = re.fullmatch(
+        r"pending_event_id=(ALE-\d{6})\r?\n"
+        r"body_sha256=([0-9a-f]{64})\r?\n"
+        r"result=(completed|closed_incomplete)",
+        text or "",
+    )
+    if not match:
         raise CloseError(
-            "strict confirmation requires pending_event_id=ALE-…, "
-            "body_sha256=…, result=completed|closed_incomplete"
+            "exact confirmation must contain exactly three bound lines: "
+            "pending_event_id=ALE-…, body_sha256=…, "
+            "result=completed|closed_incomplete"
         )
-    if re.fullmatch(r"\s*(可以|继续|嗯|ok|OK)\s*", text or ""):
-        raise CloseError("isolated ack is not confirmation")
     return {
-        "pending_event_id": pending.group(1),
-        "body_sha256": body.group(1),
-        "result": result.group(1),
+        "pending_event_id": match.group(1),
+        "body_sha256": match.group(2),
+        "result": match.group(3),
     }
+
+
+def parse_bound_close_confirmation(
+    text: str,
+    *,
+    pending_event_id: str,
+    body_sha256: str,
+    result: str,
+) -> dict[str, str]:
+    """Bind concise learner intent to the one tuple already shown by the system."""
+    raw = text or ""
+    try:
+        parsed = parse_strict_confirmation(raw)
+    except CloseError:
+        parsed = None
+    if parsed is not None:
+        return {**parsed, "confirmation_mode": "exact_tuple"}
+
+    normalized = raw.strip().rstrip("。！!").strip()
+    if result == "completed" and normalized in BOUND_COMPLETED_INTENTS:
+        return {
+            "pending_event_id": pending_event_id,
+            "body_sha256": body_sha256,
+            "result": result,
+            "confirmation_mode": "bound_close_intent",
+        }
+    if result == "closed_incomplete" and normalized in BOUND_INCOMPLETE_INTENTS:
+        return {
+            "pending_event_id": pending_event_id,
+            "body_sha256": body_sha256,
+            "result": result,
+            "confirmation_mode": "bound_incomplete_close_intent",
+        }
+
+    tuple_with_comment = re.fullmatch(
+        r"pending_event_id=(ALE-\d{6})\r?\n"
+        r"body_sha256=([0-9a-f]{64})\r?\n"
+        r"result=(completed|closed_incomplete)([\s\S]*)",
+        raw,
+    )
+    if tuple_with_comment:
+        tail = tuple_with_comment.group(4).strip()
+        intent_matches = (
+            result == "completed" and "结课" in tail
+        ) or (
+            result == "closed_incomplete" and "以未完成状态结课" in tail
+        )
+        if intent_matches:
+            return {
+                "pending_event_id": tuple_with_comment.group(1),
+                "body_sha256": tuple_with_comment.group(2),
+                "result": tuple_with_comment.group(3),
+                "confirmation_mode": "tuple_with_close_intent",
+            }
+    raise CloseError(
+        "close confirmation must be the shown exact tuple, or a bound close intent "
+        "such as 结课 after the complete retrospective has been presented"
+    )
 
 
 def plan_pending(
@@ -501,6 +811,11 @@ def update_progress(
             "current_activity_id": "none",
             "resume_path": "none",
             "activity_position": "between_activities",
+            "textbook_page": "none",
+            "working_pages_window": "[]",
+            "current_completion_node": "none",
+            "current_checkpoint": "none",
+            "checkpoint_state": "none",
         }
     else:
         updates = {
@@ -561,6 +876,10 @@ def update_progress(
                 "完整结论与证据边界以 activity_ledger.md 的 CLR 为准。"
             ),
         }
+        if activity_type == "lesson":
+            terminal_summary["Lesson 上下文"] = (
+                "无；当前处于活动之间，尚未创建或激活下一 Lesson。"
+            )
         for label, summary in terminal_summary.items():
             pattern = re.compile(
                 rf"(?ms)^-\s+\*\*{re.escape(label)}\*\*[：:].*?"
@@ -731,7 +1050,7 @@ def materialize_pending_plan(
             "to_state": "pending_close",
             "occurred_at": recorded_at,
             "recorded_at": recorded_at,
-            "triggered_by": "delegated_operator",
+            "triggered_by": "activity_close_tool",
             "trigger": "activity_close_pending",
             "transaction_id": transaction_id,
             "evidence_refs": evidence_refs,
@@ -826,19 +1145,22 @@ def materialize_decision_plan(
     decision: str,
     authorization_source_sha256: str,
     delegated_quote: str,
-    decision_actor: str = "delegated_operator",
-    authorization_mode: str = "user_continuous_delegation",
+    decision_actor: str | None = None,
+    authorization_mode: str | None = None,
     strict_confirmation_text: str | None = None,
+    presented_retrospective_sha256: str | None = None,
     revision_patch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if decision not in {*TERMINAL_DECISIONS, "refuse", "revise"}:
         raise CloseError(f"unsupported decision: {decision}")
-    valid_authority = {
-        ("delegated_operator", "user_continuous_delegation"),
-        ("user", "direct_user"),
-    }
-    if (decision_actor, authorization_mode) not in valid_authority:
-        raise CloseError("decision actor/authorization mode mismatch")
+    if decision_actor is None or authorization_mode is None:
+        raise CloseError("decision actor and authorization mode must be explicit")
+    if (decision_actor, authorization_mode) not in PRODUCTION_DECISION_AUTHORITIES:
+        raise CloseError("terminal lifecycle decisions require user + direct_user")
+    if not re.fullmatch(r"[0-9a-f]{64}", authorization_source_sha256 or ""):
+        raise CloseError("direct user authorization source SHA missing")
+    if not delegated_quote:
+        raise CloseError("direct user authorization quote missing")
     ledger_rel = f"main/40_course/{course_id}/activity_ledger.md"
     progress_rel = f"main/40_course/{course_id}/progress.md"
     ledger_text = (root / ledger_rel).read_text(encoding="utf-8")
@@ -861,11 +1183,20 @@ def materialize_decision_plan(
         [str(item.get("event_id") or "") for item in doc.events], "ALE", 6
     )
     close_record_fields: dict[str, Any] | None = None
+    confirmation_mode: str | None = None
     if decision == "revise":
         if not revision_patch:
             raise CloseError("revision requires substantive revision_patch")
-        content_sections = dict(body.get("fixed") or {})
-        content_sections.update(body.get("optional") or {})
+        if body.get("schema") == CLOSE_BODY_SCHEMA:
+            content_sections = {
+                "close_scope": body.get("close_scope"),
+                "evidence_collection": body.get("evidence_collection"),
+                "teaching_retrospective": body.get("teaching_retrospective"),
+            }
+        else:
+            # v1 pending bodies remain readable and can be revised into v2.
+            content_sections = dict(body.get("fixed") or {})
+            content_sections.update(body.get("optional") or {})
         content_sections.update(revision_patch.get("content_sections") or {})
         new_body = build_close_body(
             activity_type=activity_type,
@@ -941,25 +1272,30 @@ def materialize_decision_plan(
         chosen_body = body
     else:
         terminal_state = TERMINAL_DECISIONS[decision]
-        if strict_confirmation_text is None:
-            if authorization_mode == "direct_user":
-                raise CloseError("direct user decision requires exact confirmation text")
-            strict_text = (
-                f"pending_event_id={pending_event_id}\n"
-                f"body_sha256={body_sha256}\n"
-                f"result={terminal_state}\n"
-                f"decision_actor={decision_actor}\n"
-                f"authorization_mode={authorization_mode}"
+        expected_retrospective_sha = learner_retrospective_sha256(body)
+        if presented_retrospective_sha256 != expected_retrospective_sha:
+            raise CloseError(
+                "terminal decision requires the complete learner retrospective "
+                "to be presented in dialogue first"
             )
-        else:
-            strict_text = strict_confirmation_text
-        parsed = parse_strict_confirmation(strict_text)
+        if strict_confirmation_text is None:
+            raise CloseError("direct user decision requires confirmation text")
+        strict_text = strict_confirmation_text
+        parsed = parse_bound_close_confirmation(
+            strict_text,
+            pending_event_id=pending_event_id,
+            body_sha256=body_sha256,
+            result=terminal_state,
+        )
         if (
             parsed["pending_event_id"] != pending_event_id
             or parsed["body_sha256"] != body_sha256
             or parsed["result"] != terminal_state
         ):
             raise CloseError("strict confirmation binding mismatch")
+        if delegated_quote != strict_text:
+            raise CloseError("authorization quote must equal direct confirmation text")
+        confirmation_mode = parsed["confirmation_mode"]
         transition = render_event(
             {
                 "event_id": event_id,
@@ -992,17 +1328,19 @@ def materialize_decision_plan(
                 "body_json_b64": b64_json(body),
                 "result": terminal_state,
                 "strict_confirmation_sha256": sha256_text(strict_text),
+                "confirmation_mode": confirmation_mode,
                 "strict_confirmation_b64": base64.b64encode(
                     strict_text.encode("utf-8")
                 ).decode("ascii"),
                 "decision_actor": decision_actor,
                 "authorization_mode": authorization_mode,
+                "authorization_procedure_status": "valid_direct_user",
                 "authorization_source_sha256": authorization_source_sha256,
                 "authorization_quote_b64": base64.b64encode(
                     delegated_quote.encode("utf-8")
                 ).decode("ascii"),
                 "authorization_quote_sha256": sha256_text(delegated_quote),
-                "delegated_quote_sha256": sha256_text(delegated_quote),
+                "retrospective_presentation_sha256": expected_retrospective_sha,
                 "recorded_at": recorded_at,
                 "transaction_id": transaction_id,
                 "evidence_refs": body.get("evidence_refs") or [],
@@ -1071,9 +1409,17 @@ def materialize_decision_plan(
             "deterministic_policy_result": expected,
             "decision_actor": decision_actor,
             "authorization_mode": authorization_mode,
+            "authorization_procedure_status": "valid_direct_user",
+            "authorization_source_sha256": authorization_source_sha256,
             "authorization_quote_sha256": sha256_text(delegated_quote),
             "strict_confirmation_sha256": (
                 sha256_text(strict_text) if decision in TERMINAL_DECISIONS else None
+            ),
+            "confirmation_mode": confirmation_mode,
+            "retrospective_presentation_sha256": (
+                learner_retrospective_sha256(chosen_body)
+                if decision in TERMINAL_DECISIONS
+                else None
             ),
         },
     )
@@ -1141,7 +1487,7 @@ def materialize_reopen_plan(
             "to_state": "ongoing",
             "occurred_at": recorded_at,
             "recorded_at": recorded_at,
-            "triggered_by": "delegated_operator",
+            "triggered_by": "activity_close_tool",
             "trigger": "activity_reopened",
             "transaction_id": transaction_id,
             "evidence_refs": [close_id],
@@ -1206,33 +1552,27 @@ def validate_authorization(
     expected_phase = "F0_PENDING" if plan["mode"] == "pending" else "F_AUTHORIZED"
     if auth.get("phase") != expected_phase:
         raise CloseError(f"close authorization phase must be {expected_phase}")
-    if auth.get("authorization_mode") not in {
-        "user_continuous_delegation",
-        "direct_user",
-        "test",
-        "shadow",
-    }:
+    if auth.get("authorization_mode") not in {"direct_user", "test", "shadow"}:
         raise CloseError("unsupported close authorization mode")
     if root.resolve() == PRODUCTION_ROOT:
         if not auth.get("authorization_source_sha256"):
             raise CloseError("production close authorization source missing")
-        if auth.get("authorization_mode") == "user_continuous_delegation":
-            workspace = root.parent
-            head_path, head_data, _ = campaign.validate_receipt_chain(workspace)
-            if not head_path or campaign.sha256_file(head_path) != got:
-                raise CloseError("delegated close authorization is not receipt-chain head")
-            if head_data != auth:
-                raise CloseError("delegated close receipt bytes/data mismatch")
-        elif auth.get("authorization_mode") == "direct_user":
-            if plan["mode"] == "decision":
-                for key in (
-                    "strict_confirmation_sha256",
-                    "authorization_quote_sha256",
-                ):
-                    if auth.get(key) != plan["details"].get(key):
-                        raise CloseError(f"direct close authorization mismatch: {key}")
-        else:
-            raise CloseError("production close requires direct or delegated user authority")
+        if auth.get("authorization_mode") not in PRODUCTION_APPLY_AUTHORIZATION_MODES:
+            raise CloseError("production close requires direct_user authority")
+        if plan["mode"] != "pending":
+            if auth.get("decision_actor") != "user":
+                raise CloseError("production lifecycle apply requires user decision actor")
+            if auth.get("authorization_procedure_status") != "valid_direct_user":
+                raise CloseError("production lifecycle apply lacks valid direct-user procedure")
+        if plan["mode"] == "decision":
+            for key in (
+                "authorization_source_sha256",
+                "authorization_procedure_status",
+                "strict_confirmation_sha256",
+                "authorization_quote_sha256",
+            ):
+                if auth.get(key) != plan["details"].get(key):
+                    raise CloseError(f"direct close authorization mismatch: {key}")
     elif os.environ.get("T2AG_022_CLOSE_TEST") != "1":
         raise CloseError("non-production close apply requires test/shadow guard")
     return auth
@@ -1383,18 +1723,19 @@ def main(argv: list[str] | None = None) -> int:
         choices=["confirm_completed", "confirm_closed_incomplete", "refuse", "revise"],
     )
     parser.add_argument("--authorization-source-sha256", default="")
-    parser.add_argument("--delegated-quote", default="")
+    parser.add_argument("--authorization-quote", default="")
     parser.add_argument(
         "--decision-actor",
-        choices=["user", "delegated_operator"],
-        default="delegated_operator",
+        choices=["user"],
+        default=None,
     )
     parser.add_argument(
         "--authorization-mode",
-        choices=["direct_user", "user_continuous_delegation"],
-        default="user_continuous_delegation",
+        choices=["direct_user"],
+        default=None,
     )
     parser.add_argument("--strict-confirmation-text")
+    parser.add_argument("--presented-retrospective-sha256")
     parser.add_argument("--revision-json", type=Path)
     parser.add_argument("--expect-payload-sha")
     parser.add_argument("--expect-file-sha")
@@ -1431,7 +1772,9 @@ def main(argv: list[str] | None = None) -> int:
                     args.body_sha256,
                     args.decision,
                     args.authorization_source_sha256,
-                    args.delegated_quote,
+                    args.authorization_quote,
+                    args.decision_actor,
+                    args.authorization_mode,
                 ]
             ):
                 raise CloseError("decision plan requires pending/body/decision/authorization fields")
@@ -1445,10 +1788,11 @@ def main(argv: list[str] | None = None) -> int:
                 body_sha256=args.body_sha256,
                 decision=args.decision,
                 authorization_source_sha256=args.authorization_source_sha256,
-                delegated_quote=args.delegated_quote,
+                delegated_quote=args.authorization_quote,
                 decision_actor=args.decision_actor,
                 authorization_mode=args.authorization_mode,
                 strict_confirmation_text=args.strict_confirmation_text,
+                presented_retrospective_sha256=args.presented_retrospective_sha256,
                 revision_patch=load_json_file(args.revision_json, None),
             )
         elif args.plan_reopen:

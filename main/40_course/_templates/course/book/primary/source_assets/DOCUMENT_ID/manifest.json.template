@@ -1,0 +1,11 @@
+{
+  "schema": "t2ag.source_document_manifest.v1",
+  "document_id": "DOCUMENT_ID",
+  "course_id": "COURSE_ID",
+  "source_path": "main/40_course/COURSE_ID/book/primary/SOURCE.pdf",
+  "source_document_sha256": "",
+  "render_profile": "pdf-300dpi-rgb-v1",
+  "available_page_count": 0,
+  "short_document": false,
+  "pages": []
+}

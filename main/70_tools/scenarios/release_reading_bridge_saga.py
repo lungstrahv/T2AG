@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the 0.2.1 reading-bridge LOOP saga in two isolated physical roots."""
+"""Release-only reading-bridge LOOP scenario in isolated physical roots."""
 from __future__ import annotations
 
 import argparse
@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-TOOLS = Path(__file__).resolve().parent
+TOOLS = Path(__file__).resolve().parent.parent
 DEFAULT_T2AG_SCRIPT = TOOLS / "t2ag_reading_bridge.py"
 DEFAULT_CONTRACTS = TOOLS / "contracts" / "reading_bridge_v1"
 COMMAND_TIMEOUT_SECONDS = 60

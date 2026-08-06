@@ -25,8 +25,30 @@
 |---|---|---|
 | `RT0` | 只读检查、哈希、测试、报告 | evidence checkpoint |
 | `RT1` | 局部、可逆、不改 active 权威/schema/真实实例 | 定向验证 + evidence checkpoint |
-| `RT2` | Core/Playbook/Tool/Schema/Registry、跨发行同步、迁移 dry-run、候选生成 | 风险边界 recovery checkpoint + 完整 Doctor |
+| `RT2` | Core/Playbook/Tool/Schema/Registry、跨发行同步、迁移 dry-run、候选生成 | 定向测试 + runtime Doctor；跨发行同步或候选才追加 release Doctor |
 | `RT3` | 真实或受保护数据 migration apply、terminal lifecycle、严格学生确认、跨边界外部写入、破坏性操作、push/发布 | 正文与精确对象可见后单独明确授权；campaign envelope 不得预授权未知事实 |
+
+#### 1.2.1 CacheEviction（派生缓存驱逐，非 RT3 真实资产删除）
+
+> **来源**：EV-0012（`decided`）。用于教材页图等**可从权威源确定性重建**的派生缓存，不得扩大解释为任意删文件。
+
+**定义**：`CacheEviction` 是对 Course 内约定缓存根（默认 `40_course/<ID>/book/.cache/**`）中、已证明可重建的派生文件的删除或覆盖腾位。
+
+**不构成 RT3「破坏性操作 / 真实资产删除」**，当且仅当**全部**满足：
+
+1. 路径落在该课已登记的缓存根内（默认 `.cache`；不得误伤 `source_assets`、PDF、Lesson 正文、ledger、progress）。
+2. 完整缓存键可解析，且源 `SourceDocument` PDF **存在**、SHA 匹配、`render_profile` 与重建参数一致（可重建证明）。
+3. 目标**不是**当前保护集 P0（当前 `LessonScope` 页图身份；P0 可在 cache 或 session_temp）。
+4. 删除由配额算法、显式 `cache_gc --apply`（非 dry-run）或同等工具触发，并留下可审计理由（触发类型、键、heat_at）。
+5. 不删除：核验文本、raw OCR、PDF、学习证据、Snapshot 记录、未迁移的 `working_pages` 权威副本。
+
+**仍为 RT3**（须 exact 清单 + 当轮确认）：
+
+- 迁移删除 `lessons/**/working_pages/**` 或任何非缓存根路径。
+- PDF / 页资产正文 / 不可重建或源缺失时的唯一可见副本。
+- 扩大缓存根、跨课批量删除、或把 CacheEviction 解释为通用 `rm`。
+
+**未满足上述条件时**，对磁盘文件的删除默认按 RT3 破坏性操作处理。Campaign envelope **不得**预授权未知 CacheEviction 清单以外的路径。
 
 ### 1.3 批次分类（出单时必须标注）
 
@@ -49,11 +71,28 @@ repositories / file_scope / allowed_operations
 risk_tier / Git checkpoint plan
 reserved_RT3_gates
 stop_conditions / invalidation_conditions
+rule_migration (required for semantic removal/merge/relocation/retirement of normative rules; otherwise not_applicable + reason)
 ```
 
 envelope 只能覆盖其中列明的仓、路径、操作和有限本地 checkpoint。范围扩张、基线变化、
 风险升级、未知 FAIL/WARN、跨仓边界变化，或无法证明影响闭包时，连续授权立即失效并停手。
 未列路径、未知仓和 RT3 操作不得用“同版本”推定已授权。
+
+凡删除、合并、概括、迁址、退役 `main/t2ag.md`、`AGENTS.md`、core-playbook 或其它硬边界
+治理文中的现行规范性正文，或改变具名硬边界的 owner/触发/授权/结果，envelope 或施工单必须
+附 `rule_migration` 表（见 §三第 11 条）。纯追加、格式与保义澄清可登记
+`rule_migration: not_applicable` 及理由；整文件重写仍须先冻结完整迁移表。
+
+### 1.5 授权不可放大
+
+验证等级与授权等级相互独立；V0–V3 只定义证据成本，不能改变批准主体。任何
+`continuous execution`、`version_campaign`、旧对话或概括性持续许可只覆盖 envelope 明列的
+RT1/RT2，不能覆盖 RT3。真实迁移、terminal lifecycle、严格学生确认和跨边界写入，必须等
+exact object、正文、ID、SHA 与结果都已生成并展示后，由用户在当前轮直接确认。
+
+handoff、receipt chain、确定性 policy、模型建议、实现者或 reviewer 的技术结论都只能保存证据，
+不能生成、续期或代签用户授权；尚未生成的对象不可预授权。压缩、恢复与交接后的授权范围只能
+保持或缩小，无法重建精确边界时必须停在 RT3 前。
 
 ## 二、施工单必备结构（出单单方义务）
 
@@ -67,7 +106,13 @@ envelope 只能覆盖其中列明的仓、路径、操作和有限本地 checkpo
 ## 三、硬规则标准集（各施工单引用，不复制）
 
 1. 定位一律内容锚点（`grep -n`），禁止按行号操作；
-2. 普通 RT1/RT2 单元先跑定向测试；RT2 风险边界、跨发行同步和最终候选必须跑完整 doctor。出现**本单未预告**的 FAIL/WARN → 停手，贴原文报告；
+2. 普通 RT1/RT2 单元先跑定向测试与 `t2ag_doctor.py --profile runtime`；只有跨发行同步、
+   正式候选或发布审计运行 `--profile release`。出现**本单未预告**的相应 profile FAIL/WARN
+   → 停手，贴原文报告；release-only 分叉不得反向阻断日常教学；
+   定向测试必须从 `test_dependencies.json` 选择并由 `t2ag_test.py` 生成内存计划，不得建立
+   或删除一次性 Python suite；计划必须先列出，再以相同选择和 plan SHA 执行。Doctor
+   原子项、V0–V3、预算及越级门以 `validation_workflow.json` 为准；release 执行没有合法
+   reason 或匹配 plan SHA 时只允许生成计划；
 3. registry 条目只新增或 tombstone，永不删除；redirects 数组只追加；
 4. `60_journal/`、changelog、memory、problemlog 中的历史行不改；
 5. 唯一副本不删；文件迁移一律 `git mv`；
@@ -76,6 +121,13 @@ envelope 只能覆盖其中列明的仓、路径、操作和有限本地 checkpo
 8. 内容裁决归学生（agent 出差异报告 → 学生批准 → 执行）；结构裁决按单执行。
 9. **云端 CH 块 status 不变量**（M4 判例，2026-07-24）：`cloud/inbox/CH-*.md` 的 `T2AG_CLOUD_HANDOFF` 块内 `status` 必须恒为云端产出值 `proposed_for_local_review`（见 `cloud_learning_sync.md` §7.2 + doctor）。**本地终态**（accepted / partial_accept / rejected + sync_completed）只写 `cloud_sync_state.md` 交接表与 CH 文件**块外**本地裁决节。施工单若要求改块内 status = **工单错误**，执行方应拒改并声明偏离，不得静默改写或静默跳过闭环。
 10. `clean ≠ reviewed ≠ released`。evidence checkpoint 只证明证据，recovery checkpoint 只提供恢复点；release snapshot 必须绑定已通过的候选完整复审与 finalization delta 独立复审，不能由工作树干净或普通 commit 推出。
+11. **规则语义迁移**：对宪法、AGENTS、core-playbook 与硬边界治理文默认 **diff-patch**。
+    触发语义迁移时必须逐条登记：
+    `rule_id | 旧位置/原文锚点 | 动作(keep/sink/retire) | 新 owner/等价门 | 消费方 | 验证`。
+    `sink` 必须同时证明 canonical owner、必要入口指针、消费者与验证闭包；`retire` 必须有
+    合法裁决。文件长度、关键词、历史 inventory 或模型建议只触发复核，不构成规则、授权或
+    finding；只有具名规则缺失且无有效新落点/退役依据才形成 finding。施工报告必须附
+    rule_migration 执行结果或 `not_applicable` 理由。完整契约见 `main/t2ag.md` §6.3。
 
 ## 四、施工报告模板（执行方义务，字段不可省略）
 
@@ -107,6 +159,9 @@ doctor 施工前后对照；**每个 WARN 必须指名对象并附原文**——
 
 ## 收口 grep 验证
 残留引用逐类归因（历史行 / redirects / 归档内部 / 历史时态说明）。
+
+## rule_migration 执行结果
+表内每行：保留 / 已下沉到… / 已退役理由；无表则写「本批未触碰入口规则」。
 
 ## 禁止事项确认 与 完成定义
 逐项勾选。

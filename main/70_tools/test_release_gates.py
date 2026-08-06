@@ -1,3 +1,4 @@
+"""Atomic contracts for release gate matrices and frozen membership."""
 from __future__ import annotations
 
 import hashlib

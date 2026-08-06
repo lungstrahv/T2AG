@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parents[1]
@@ -20,33 +21,23 @@ if str(TOOLS) not in sys.path:
 
 import activity_ledger as ledger
 import migrate_022_activity_close as mig
+from migration_test_support import write_test_authorization
 
 
-def write_test_authorization(plan_path: Path, result: dict, directory: Path) -> tuple[Path, str]:
-    plan = json.loads(plan_path.read_bytes().decode("utf-8"))
-    approval = f"TEST E {plan['plan_id']} {result['file_sha256']}"
-    payload = {
-        "campaign_id": plan["campaign_id"],
-        "phase": "E_AUTHORIZED",
-        "state": "delegated_authorized",
-        "authorization_mode": "test",
-        "plan_id": plan["plan_id"],
-        "transaction_id": plan["transaction_id"],
-        "plan_file_sha256": result["file_sha256"],
-        "payload_sha256": result["payload_sha256"],
-        "d_review_sha256": "1" * 64,
-        "executor_bundle_sha256": plan["executor_bundle_sha256"],
-        "baseline_binding_sha256": plan["baseline_binding_sha256"],
-        "worktree_manifest_sha256": plan["worktree_manifest_sha256"],
-        "watched_root_manifest_sha256": plan["watched_root_manifest"]["sha256"],
-        "approval_text": approval,
-        "approval_text_sha256": hashlib.sha256(approval.encode()).hexdigest(),
-        "authorization_source_sha256": "2" * 64,
-    }
-    path = directory / "test-authorization.json"
-    raw = (json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n").encode()
-    path.write_bytes(raw)
-    return path, hashlib.sha256(raw).hexdigest()
+class ProductionAuthorizationBoundaryTests(unittest.TestCase):
+    def test_released_022_production_apply_entry_is_retired(self) -> None:
+        self.assertFalse(mig.PRODUCTION_MIGRATION_APPLY_ENABLED)
+        with tempfile.TemporaryDirectory(prefix="t2ag-022-retired-") as tmp:
+            root = Path(tmp) / "t2ag"
+            root.mkdir()
+            with patch.object(mig, "PRODUCTION_ROOT", root.resolve()):
+                with self.assertRaisesRegex(mig.MigrateError, "entry is retired"):
+                    mig.validate_apply_authorization(
+                        root,
+                        {},
+                        authorization_receipt=root / "delegated-receipt.json",
+                        expect_authorization_sha="0" * 64,
+                    )
 
 
 class PlanDryRunMainTests(unittest.TestCase):

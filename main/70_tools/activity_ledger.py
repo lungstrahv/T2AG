@@ -66,6 +66,22 @@ TZ_TIME_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
 )
 
+# Read-only compatibility for the single CLR already published by 0.2.2 before
+# the authorization-boundary defect was found.  Matching this fingerprint does
+# not make the delegation valid and must never be used to authorize a new write.
+KNOWN_INVALID_LEGACY_DELEGATED_CLOSE = {
+    "course_id": "MATH1607H",
+    "close_id": "CLR-0001",
+    "pending_event_id": "ALE-000003",
+    "terminal_event_id": "ALE-000004",
+    "body_sha256": "0aec0b19b8b89b984f5d05c30d783a222c2cb7b4f3843b035118462324abb840",
+    "result": "completed",
+    "transaction_id": "CLOSE022-3869134a25a54209a66f60545675f0d1",
+    "authorization_source_sha256": "0bd59bd88f29b83ff9153e8b5360991f854398b77235f0b90c50690eb21624ae",
+    "authorization_quote_sha256": "3ee10c4af2c0847f24ea080e74e1b4a570c5bff020ce35d7d6102c2e2e172a80",
+    "strict_confirmation_sha256": "324f776c31cb4384a0bb9274280869b5f9e6009e0898f93d02fe2a3aa4073fbf",
+}
+
 KNOWLEDGE_STATES = frozenset(
     {
         "independent_confirmed",
@@ -98,6 +114,25 @@ class LedgerError(ValueError):
 
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def is_known_invalid_legacy_delegated_close(
+    course_id: str, close: dict[str, Any]
+) -> bool:
+    if (
+        close.get("decision_actor"),
+        close.get("authorization_mode"),
+    ) != ("delegated_operator", "user_continuous_delegation"):
+        return False
+    actual = {"course_id": course_id}
+    for key in KNOWN_INVALID_LEGACY_DELEGATED_CLOSE:
+        if key == "course_id":
+            continue
+        value = close.get(key)
+        if key == "close_id" and not value:
+            value = close.get("_header_id")
+        actual[key] = str(value or "")
+    return actual == KNOWN_INVALID_LEGACY_DELEGATED_CLOSE
 
 
 def canonical_json(value: object) -> str:
@@ -561,16 +596,25 @@ class LedgerDocument:
                     }
                     if next_snapshot != expected_next:
                         errors.append(f"CLR {cid} next activity snapshot is not replay-derived")
-                if close.get("decision_actor") not in {
-                    "user",
-                    "delegated_operator",
-                }:
-                    errors.append(f"CLR {cid} decision_actor invalid")
-                if close.get("authorization_mode") not in {
-                    "direct_user",
-                    "user_continuous_delegation",
-                }:
-                    errors.append(f"CLR {cid} authorization_mode invalid")
+                authority = (
+                    close.get("decision_actor"),
+                    close.get("authorization_mode"),
+                )
+                procedure_status = close.get("authorization_procedure_status")
+                known_invalid_legacy = is_known_invalid_legacy_delegated_close(
+                    self.course_id, close
+                )
+                if authority == ("user", "direct_user"):
+                    if procedure_status != "valid_direct_user":
+                        errors.append(
+                            f"CLR {cid} direct authorization procedure status missing"
+                        )
+                elif known_invalid_legacy:
+                    # Preserve and audit the published bytes without treating
+                    # this historical record as a valid authorization example.
+                    pass
+                else:
+                    errors.append(f"CLR {cid} authorization authority invalid")
                 if not re.fullmatch(
                     r"[0-9a-f]{64}",
                     str(close.get("authorization_source_sha256") or ""),
@@ -587,12 +631,8 @@ class LedgerDocument:
                     close.get("authorization_quote_sha256") or ""
                 ):
                     errors.append(f"CLR {cid} authorization quote SHA mismatch")
-                if (
-                    close.get("authorization_mode")
-                    == "user_continuous_delegation"
-                    and not authorization_quote
-                ):
-                    errors.append(f"CLR {cid} delegated authorization quote missing")
+                if not authorization_quote:
+                    errors.append(f"CLR {cid} authorization quote missing")
                 try:
                     strict = base64.b64decode(
                         str(close.get("strict_confirmation_b64") or ""),
@@ -604,7 +644,35 @@ class LedgerDocument:
                     close.get("strict_confirmation_sha256") or ""
                 ):
                     errors.append(f"CLR {cid} strict confirmation SHA mismatch")
-                if (
+                exact_strict = (
+                    f"pending_event_id={pend}\n"
+                    f"body_sha256={body_sha}\n"
+                    f"result={result}"
+                )
+                confirmation_mode = str(close.get("confirmation_mode") or "exact_tuple")
+                normalized_intent = strict.strip().rstrip("。！!").strip()
+                mode_valid = confirmation_mode == "exact_tuple" and strict == exact_strict
+                if confirmation_mode == "bound_close_intent":
+                    mode_valid = result == "completed" and normalized_intent in {
+                        "结课", "确认结课", "愿意结课"
+                    }
+                elif confirmation_mode == "bound_incomplete_close_intent":
+                    mode_valid = result == "closed_incomplete" and normalized_intent in {
+                        "以未完成状态结课", "确认以未完成状态结课"
+                    }
+                elif confirmation_mode == "tuple_with_close_intent":
+                    mode_valid = strict.startswith(exact_strict) and (
+                        (result == "completed" and "结课" in strict[len(exact_strict):])
+                        or (
+                            result == "closed_incomplete"
+                            and "以未完成状态结课" in strict[len(exact_strict):]
+                        )
+                    )
+                if authority == ("user", "direct_user") and (
+                    not mode_valid or authorization_quote != strict
+                ):
+                    errors.append(f"CLR {cid} direct confirmation binding invalid")
+                elif known_invalid_legacy and (
                     f"pending_event_id={pend}" not in strict
                     or f"body_sha256={body_sha}" not in strict
                     or f"result={result}" not in strict

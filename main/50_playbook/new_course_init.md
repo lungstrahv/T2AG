@@ -55,7 +55,9 @@ main/40_course/<COURSE_ID>/
    只有真实创建活动时才追加 genesis ALE，不预造 planned 活动。
 5. 创建 question bank V2，状态仅用 `open / answered / closed`；创建 mistake bank。
 6. 用模板创建 `book/`、`lessons/`、`exercises/`；空活动域用 `_README.md` 持久化。
-   - 首次从讲授进入：建立 `lessons/lesson01/lesson01.md`；教材课同时建立 working pages。
+   - 首次从讲授进入：建立 `lessons/lesson01/lesson01.md`；教材课同时初始化
+     `book/primary/source_assets/`（manifest 模板）与 lesson `preparation/`、`lesson_map` 模板，
+     见 `source_page_assets.md`；**不要**把 Course 页资产建在仅有的 `working_pages` 里当权威。
    - 首次从做题进入：建立 `exercises/exercise01/exercise.md`、`problems.md` 与空
      attempts/reviews 说明文件；教材驱动课程还须先在 Course `book/` 内建立持久
      校对题源并登记 artifact，`problems.md` 写入其路径、定位和 SHA。
@@ -69,7 +71,7 @@ main/40_course/<COURSE_ID>/
 ```powershell
 python -B main/70_tools/t2ag_state_refresh.py --write
 python -B main/70_tools/t2ag_state_refresh.py --check
-python -B main/70_tools/t2ag_doctor.py
+python -B main/70_tools/t2ag_doctor.py --profile runtime
 ```
 
 ## 禁止

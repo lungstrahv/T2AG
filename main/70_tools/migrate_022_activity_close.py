@@ -39,6 +39,12 @@ import campaign_receipt as campaign  # noqa: E402
 import occurrence_classify as occurrence  # noqa: E402
 import t2ag_state_refresh as state_refresh  # noqa: E402
 
+PRODUCTION_ROOT = Path(r"C:\Users\MikeChen\T2AC\t2ag").resolve()
+# 0.2.2 migration has already been applied and released.  Keeping the dry-run
+# oracle is useful, but the production apply entry is permanently retired so a
+# historical delegated receipt can never be replayed as RT3 authority.
+PRODUCTION_MIGRATION_APPLY_ENABLED = False
+
 COURSES = [
     "CS1953",
     "DS1001r",
@@ -150,6 +156,7 @@ def executor_source_manifest(main_root: Path) -> dict[str, Any]:
     skeleton = workspace / "t2ag-skeleton"
     selected = {
         "main/00_core/learning_activity_model.md",
+        "main/50_playbook/validation_flow.md",
         "main/50_playbook/naming_conventions.md",
         "main/40_course/_templates/course/activity_ledger.md.template",
         "main/40_course/_templates/course/progress.md.template",
@@ -165,6 +172,7 @@ def executor_source_manifest(main_root: Path) -> dict[str, Any]:
         "t2ag_context.py",
         "t2ag_doctor.py",
         "t2ag_state_refresh.py",
+        "sync_lite.py",
         "campaign_receipt.py",
         "evidence_runner.py",
         "exact_plan_kill_matrix.py",
@@ -172,14 +180,35 @@ def executor_source_manifest(main_root: Path) -> dict[str, Any]:
         "exact_plan_shadow.py",
         "gate_matrix.py",
         "occurrence_classify.py",
-        "test_020_contracts.py",
+        "contract_test_support.py",
+        "migration_test_support.py",
+        "test_runtime_contracts.py",
+        "test_activity_contracts.py",
+        "test_release_contracts.py",
+        "test_legacy_migrations.py",
+        "test_dependencies.json",
+        "t2ag_test.py",
+        "validation_control.py",
+        "validation_workflow.json",
+        "test_distribution_foundation.py",
         "test_context_packet.py",
+        "test_021_closeout.py",
+        "scenarios/__init__.py",
+        "scenarios/release_reading_bridge_saga.py",
+        "test_022_activity_close.py",
+        "test_022_close_roundtrip.py",
+        "test_022_doctor_postcheck.py",
+        "test_022_kill_recover.py",
+        "test_022_lifecycle_runtime.py",
+        "test_022_migration.py",
+        "test_022_transaction.py",
+        "test_release_receipts.py",
+        "test_release_evidence.py",
+        "test_release_gates.py",
+        "test_release_fault_contracts.py",
+        "test_release_shadow_contracts.py",
+        "scenarios/release_shadow_apply.py",
     }
-    tool_names.update(
-        path.name
-        for path in (main_root / "main/70_tools").glob("test_022_*.py")
-        if path.is_file()
-    )
     selected.update(f"main/70_tools/{name}" for name in tool_names)
     template_root = main_root / "main/40_course/_templates/course/exercises/exerciseNN"
     if template_root.is_dir():
@@ -1765,6 +1794,12 @@ def validate_apply_authorization(
     authorization_receipt: Path,
     expect_authorization_sha: str,
 ) -> dict[str, Any]:
+    production = root.resolve() == PRODUCTION_ROOT
+    if production and not PRODUCTION_MIGRATION_APPLY_ENABLED:
+        raise MigrateError(
+            "apply blocked: 0.2.2 production migration entry is retired; "
+            "a future migration requires a new exact current-turn user authorization path"
+        )
     if not authorization_receipt.is_file():
         raise MigrateError("apply blocked: authorization receipt missing")
     raw = authorization_receipt.read_bytes()
@@ -1801,7 +1836,7 @@ def validate_apply_authorization(
         raise MigrateError(f"apply blocked: authorization missing {missing}")
     if auth["campaign_id"] != plan["campaign_id"]:
         raise MigrateError("apply blocked: authorization campaign mismatch")
-    if auth["phase"] != "E_AUTHORIZED" or auth["state"] != "delegated_authorized":
+    if auth["phase"] != "E_AUTHORIZED":
         raise MigrateError("apply blocked: receipt is not E_AUTHORIZED")
     expected_pairs = {
         "plan_id": plan["plan_id"],
@@ -1818,8 +1853,6 @@ def validate_apply_authorization(
     if sha256_text(auth["approval_text"]) != auth["approval_text_sha256"]:
         raise MigrateError("apply blocked: approval text digest mismatch")
     mode = auth["authorization_mode"]
-    production_root = Path(r"C:\Users\MikeChen\T2AC\t2ag").resolve()
-    production = root.resolve() == production_root
     transaction_plan = root / ".activity_txn" / plan["transaction_id"] / "plan.json"
     transaction_state = None
     if transaction_plan.is_file():
@@ -1832,8 +1865,15 @@ def validate_apply_authorization(
         "committed",
     }
     if production:
-        if mode != "delegated_user":
-            raise MigrateError("apply blocked: production requires delegated_user authorization")
+        if (
+            mode != "direct_user"
+            or auth.get("state") != "direct_user_authorized"
+            or auth.get("decision_actor") != "user"
+            or auth.get("authorization_procedure_status") != "valid_direct_user"
+        ):
+            raise MigrateError(
+                "apply blocked: production migration requires exact direct-user authority"
+            )
         workspace = root.parent
         head_path, head_data, _ = campaign.validate_receipt_chain(workspace)
         if not head_path or head_path.resolve() != authorization_receipt.resolve():
@@ -1845,7 +1885,7 @@ def validate_apply_authorization(
         if sha256_file(review_path) != auth["d_review_sha256"]:
             raise MigrateError("apply blocked: independent review digest mismatch")
         if sha256_file(source_path) != auth["authorization_source_sha256"]:
-            raise MigrateError("apply blocked: delegation source digest mismatch")
+            raise MigrateError("apply blocked: direct authorization source digest mismatch")
         live_main = repository_binding(root)
         live_skeleton = repository_binding(workspace / "t2ag-skeleton")
         live_reading = repository_binding(
@@ -1886,7 +1926,7 @@ def validate_apply_authorization(
             raise MigrateError("apply blocked: non-production mode must be shadow/test")
         if os.environ.get("T2AG_022_SHADOW_APPLY") != "1":
             raise MigrateError("apply blocked: shadow/test environment flag missing")
-        if root.resolve() == production_root:
+        if root.resolve() == PRODUCTION_ROOT:
             raise MigrateError("apply blocked: shadow/test mode refused on production root")
     committed = transaction_state == "committed"
     if committed:

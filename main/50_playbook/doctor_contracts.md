@@ -2,7 +2,43 @@
 
 **保护级别**：core-playbook
 
-> 本文件界定 `t2ag_doctor.py` 在 0.2.0 中承诺机械验证的范围。只有可复现、可定位、违反明确现行契约的事实才能成为 FAIL；语义判断不得伪装成机械闸门。
+> 本文件界定 `t2ag_doctor.py` 在 0.2.2 中承诺机械验证的范围。只有可复现、可定位、违反明确现行契约的事实才能成为 FAIL；语义判断不得伪装成机械闸门。
+
+## 三形态基础能力
+
+Doctor/测试结构是 Main、Skeleton、Lite 的共同基础内容，不是 Main 的实例附加项，也不是
+正式发布时临时生成的证据包。`t2ag_doctor.py`、`t2ag_test.py`、
+`test_dependencies.json`、`validation_control.py`、`validation_workflow.json`、本契约、
+`test_strategy.md` 与 `validation_flow.md` 必须在三形态中存在；共享文件由 release profile
+做 SHA 对照。Main/Skeleton 执行这些能力，Lite 只保留字节一致的审查副本。
+
+`BASE_VALIDATION_FILES` 是机械基础清单；任一形态缺文件、Doctor 不再以 runtime 为默认档，
+或 runtime/release 实现合并，均属于基础结构 FAIL。Lite 的只读身份不允许执行脚本，但不
+允许删减这些基础文件。
+
+## 零、运行档位
+
+- `--profile runtime` 是默认档位，也是启动、恢复、同步与结课入口。它只检查当前发行的
+  本地教学状态、活动/台账、权威链、上下文能力、皮肤与授权安全。日常启动可在 Doctor
+  尚未返回时凭可信 L0-critical 进入只读 `learning-ready`；Doctor 返回 FAIL 后必须阻断
+  下一教学动作与全部写入，`recovery-settled` 更要求 `0 FAIL`。
+- `--profile release` 先运行全部 runtime 检查，再追加跨发行 SHA、Core/Template 同源、
+  migration/journal/guide 派生证据、handoff、候选隔离、Git 环境与 dirty tree 检查。
+- Doctor 原子项、顺序、依赖和 profile 继承只由 `validation_workflow.json` 定义。每次运行先
+  输出 `t2ag.doctor_plan.v1` 的检查列表与 plan SHA；`--check` 可组合定向项并自动包含依赖。
+- 完整 runtime 是启动例外：打印固定计划后可直接执行一次。定向 Doctor 和全部 release
+  执行必须绑定 `--execute-plan`；release 还必须提供清单登记的 `--release-reason`。
+- Lite、Git、候选、历史迁移证据或跨发行分叉不得由 runtime profile 报为启动 FAIL；这些
+  事实只阻断候选与发布。release profile 通过也不等于独立复审或发布批准。
+- Doctor 不是测试调度器。定向测试由 `test_dependencies.json` 和 `t2ag_test.py` 选择；
+  `fast / deep / release_only` 的边界见 `test_strategy.md`，Doctor 不得因测试文件数量增长而
+  扩大默认启动检查。
+- release-only 测试按 receipt/evidence/gate/fault/shadow 分域；`release_suite` 没有
+  changed-path 映射，只能在冻结候选或正式发布时显式选择。
+
+完整树形流程及防越级分支见 `validation_flow.md`。控制文件中 runtime 为唯一默认 profile，
+release 必须显式继承 runtime；任一工具绕过计划 SHA、release reason、三测试命令预算或
+plan-only 聚合门，均属于基础结构 FAIL。
 
 ## 一、结果分类
 
@@ -19,13 +55,13 @@
 
 | 契约 | 自动入口 | 失败边界 |
 |---|---|---|
-| 九域与发行身份 | doctor 内建 | 目录、版本、Main/Skeleton/Lite 身份不闭合 |
-| profile 初始化 | doctor 内建 | initialized 仍有占位符或缺时间、目标、基础、偏好 |
+| 九域与发行身份 | runtime 本地 + release 跨发行 | 本地目录/版本不闭合，或 release 时 Main/Skeleton/Lite 身份不闭合 |
+| profile 初始化与 Agent 偏好 | doctor 内建 | initialized 仍有占位符或缺时间、目标、基础、偏好；Agent schema、1..3 上限、并行/ready/播报枚举非法 |
 | Course/Group/Binding/AR/EG | doctor 内建 | schema、稳定 ID、引用或生命周期冲突 |
 | progress 身份 | 统一活动路由器 + state + doctor | `type/course_id/truth_scope` 缺失、冒名或在任何 GENERATED 写入前未被拒绝；迁移后不接受 truth_source-only |
-| 学习活动发行能力 | doctor 内建 | Core 学习活动契约或 Course/Lesson/Exercise 模板缺失，或 Main/Skeleton/Lite 内容分叉 |
+| 学习活动发行能力 | runtime 本地 + release 跨发行 | 本地 Core/Template 缺失，或 release 时 Main/Skeleton/Lite 内容分叉 |
 | 恢复路径 | 统一活动路由器 + doctor | ongoing Course 缺显式 `current_activity`、`current_activity_id`、canonical `resume_path`、`activity_position`，或目标悬空；Exercise 首启不得依赖预造 Lesson |
-| 学习上下文包 | `t2ag_context.py` + `t2ag_activity.py` + `test_context_packet.py` + doctor | 工具、测试或 core playbook 缺失/三发行分叉；活动/教师路由未注入同一原始字节缓存；SHA 不是文件字节摘要；缺完整序列化 L0 与 L0+首步成本；textbook Lesson 缺窗口仍 ready；非当前课程混用 memory/Group；Lesson 条件路由落到 Exercise；缺首次启动降级或 L0/L1/L2 接线 |
+| 学习上下文包 | runtime 本地 + release 跨发行 | 本地工具/合同缺失或行为错误；三发行分叉只在 release profile 阻断 |
 | 状态快照组件边界 | `test_progress_identity_is_shared` + `test_state_refresh_activity_roundtrip` | state 或 Doctor 推断缺失活动、把历史 Lesson 标成活跃、为 sentinel 构造路径、组视图假定当前活动必为 Lesson，或一次运行对同一 ongoing progress 二次读取而混合状态版本 |
 | 活动事务落盘往返 | `test_activity_cli_disk_roundtrip` | 从当前发行自身建立无 hardlink 的临时完整工作树，并断言 Doctor 实际检测到本发行 flavor；真实执行 `--write → 重读 → --check → 完整 Doctor → recover route → close route`，按路由结果落盘 progress 与当前主载体后再次执行 state/Doctor；写入零命中、任一步失败或 Exercise 修改历史 Lesson |
 | Lesson 上下文退役 | `test_exercise_current_lesson_driver_matrix` | 四种 driver 下 active progress 不依赖或回填 `current_lesson`；遗留非法/悬空值不得驱动路由，历史 Lesson 只从 ledger/ContentGroup 解析 |
@@ -40,12 +76,12 @@
 | 知识台账 | doctor 内建 | question/mistake/reasoning ID、状态或 `next_id` 冲突 |
 | 项目验证 | doctor 内建 | 标准/证据未拆分、未完成节点预填证据、completed M 无有效 `VER-*` 记录，或步骤缺 `passed + 含字母/数字的实际结果摘要`（纯标点不计）为 FAIL；已启动 M 缺模式为 WARN |
 | 皮肤 | doctor 内建 | registry、metadata、art_file 或发行分叉错误 |
-| 序言、九张流程与离线指南 | doctor + `build_guide.py --check` | 序言生成锚点、FLOW 集合/配对、guide drift、外部 Mermaid 运行时、静态 SVG、按需折叠或受控视窗缺失 |
+| 序言、九张流程与离线指南 | release + `build_guide.py --check` | 序言生成锚点、FLOW 集合/配对或 guide drift |
 | Cloud 暂停态 | doctor 内建 | 组件缺失、协议字段冲突、暂停门失效或 CD/CH 登记悬空 |
-| active handoff | doctor 内建 | 索引、文件、元数据、唯一性或体积老化状态冲突 |
-| state/journal/migration/Lite | 派生工具 | 缓存漂移、证据缺失、迁移非幂等或投影差异 |
+| handoff 分类与恢复路由 | release 内建 | Active 缺 lane/artifact_role、支撑材料混入 Active、release backlog 未隔离、索引/文件/元数据/唯一性或体积老化状态冲突 |
+| state/journal/migration/Lite | release 派生工具 | 缓存漂移、证据缺失、迁移非幂等或投影差异 |
 | 发布候选隔离 | `t2ag_candidate_replay.py` + `test_candidate_replay_isolation_contract` | 有效 sparse checkout/sparse index，Git 环境/拓扑污染，Main/Skeleton 安全配置无法 preflight，源/A/B 字节清单或副本结果不一致，或全部 A/B 复核之后的末次源指纹发生变化 |
-| Git/环境卫生 | doctor 内建 | 跟踪环境文件为 FAIL；未提交工作树为 WARN |
+| Git/环境卫生 | release 内建 | 跟踪环境文件为 FAIL；未提交工作树为 WARN |
 
 ## 三、人工检查
 
@@ -61,7 +97,14 @@
 
 - 跨课程考试系统明确不属于 0.2.0；`exam_protocol.md` 与 `exam_bank_spec.md` 只保存延期设计，不触发本版 doctor。
 - 0.1.x 的 Case、CourseDefinition/CourseRun、Curriculum、FieldPractice、旧 `skin/` 与旧题库路径已经退役；doctor 只检查其不得重新进入 active 树。
-- OCR 置信度确认链、KnowledgePoint 独立对象与 AbilitySummary 属于 0.2.1 设计占位，不得在 0.2.0 假装成现行 schema。
+- KnowledgePoint 与 AbilitySummary 仍非正式活动对象。OCR/页核验属于 **SourcePageAsset**
+  来源证据（EV-0012 / `source_page_assets.md`），不是独立 LearningActivity 或 mastery。
+- Doctor runtime 在迁移完成前可对 textbook Lesson 验收：
+  1. **current** preparation Snapshot 指针（`current_snapshot.json`，禁止字典序猜最新）
+     + LessonMap 覆盖/hash + load receipts + 页资产核验 + PDF SHA + Scope 连续性/长度 +
+     P0/quota 告警；或
+  2. 仅当新路径 **完全不存在** 时的 **legacy working_pages**。
+  新路径存在但无效必须 FAIL，不得放行；不得在无证据时放行正式讲授。
 
 ## 五、Waiver 边界
 

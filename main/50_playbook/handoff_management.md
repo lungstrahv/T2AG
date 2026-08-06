@@ -27,6 +27,8 @@
 - 不用交接文档定义永久规则；规则必须写回宪法、playbook、课程 `progress.md` 或其他正式定义源。
 - 不把“摘要越短”当作质量目标，也不以模型实际阅读秒数验收。
 - 不要求 skeleton 或 lite 默认携带实例交接；它们只携带本通用流程。
+- 不把 `<handoff_root>` 中的每个文件都称为 Handoff；workorder、plan、evidence、review、
+  release backlog 和 archive 只是同目录支撑材料。
 
 ---
 
@@ -45,6 +47,10 @@
 
 `<handoff_root>/README.md` 是索引入口。目录可以保持扁平，也可以按 `active/`、`topics/`、`archive/` 分层；索引字段与生命周期不因目录形态改变。不得仅为追求目录整齐而移动仍被外部链接引用的历史文件。
 
+`handoffs/` 是历史形成的物理容器名，不是领域类型声明。是否属于真正 Handoff 只看
+`artifact_role`；文件位于该目录、文件名含 report/workorder/review，或被某份 Handoff 引用，
+都不能让它自动进入恢复路由。
+
 ### 2.2 scope
 
 合法范围：
@@ -56,7 +62,36 @@
 
 同一个 `(scope, applies_to)` 最多只有一份 `active` 交接。同一任务默认原地刷新；用户也可以手动要求生成新交接。新文件不得为空，且只有在内容完整、通过接管演练并写入索引后，才把旧文件标为 `superseded` 并建立双向指针。
 
-### 2.3 status
+### 2.3 lane
+
+`lane` 回答“这份跨对话资料属于哪条工作通道”：
+
+- `learning`：课程、Lesson、Exercise 或学习会话。
+- `maintenance`：日常维护、局部修复和未完成的小问题。
+- `topic_design`：持续专题、概念设计和跨多轮讨论。
+- `version_campaign`：版本升级、冻结候选、迁移和正式发布。
+
+scope 与 lane 是正交维度。例如未完成的局部工具修复可为
+`scope=implementation + lane=maintenance`；Activity Close 设计可为
+`scope=topic + lane=version_campaign`。
+
+### 2.4 artifact_role
+
+`artifact_role` 回答“这个文件在工作流中扮演什么角色”：
+
+- `handoff`：恢复与路由文件；只有此角色可以进入 Active Handoffs。
+- `workorder`：施工要求、完成定义与授权边界。
+- `plan`：计划、冻结对象、baseline 或 manifest。
+- `evidence`：实际执行结果、receipt、报告与可复用 SHA。
+- `review`：独立审查、checklist 或裁决结论。
+- `release_backlog`：下一冻结候选才处理的延期验证或发布待办。
+- `archive`：只供历史回看。
+
+支撑材料可以用 `evidence + release_backlog` 等 `+` 组合角色；真正 Handoff 必须且只能写
+`artifact_role=handoff`。workorder、plan、evidence、review 和 release_backlog 不得伪装成
+`status=active` 来获得启动读取优先级。
+
+### 2.5 status
 
 合法状态：
 
@@ -77,7 +112,7 @@ active → resolved → archived
 交接的内容状态与体积老化分开记录。合法 `aging_state` 为
 `normal / check_1 / check_2 / old`，不得用 `old` 代替 `resolved` 或 `superseded`。
 
-### 2.4 最小充分上下文
+### 2.6 最小充分上下文
 
 交接优化目标是“在有限上下文中最大化思路连续性”，不是最少字数。
 
@@ -137,6 +172,8 @@ active → resolved → archived
 ```markdown
 > **handoff_id**：稳定且唯一
 > **scope**：course_session / project / topic / implementation
+> **lane**：learning / maintenance / topic_design / version_campaign
+> **artifact_role**：handoff
 > **applies_to**：课程、lesson、项目、专题或实现批次
 > **status**：active / resolved / superseded / archived
 > **aging_state**：normal / check_1 / check_2 / old
@@ -233,28 +270,40 @@ doctor 只负责行数、字符数、字段和索引等机械检查；四问答�
 
 ## 六、索引规则
 
-`<handoff_root>/README.md` 至少包含 active 路由表和历史表。推荐格式：
+`<handoff_root>/README.md` 同时是恢复路由和支撑材料目录，但两者必须分区。推荐格式：
 
 ```markdown
-## Active 交接
+## Active Handoffs
 
-| handoff_id | scope | applies_to | task_match | updated_at | 文件 | close_condition |
-|---|---|---|---|---|---|---|
+| handoff_id | scope | lane | artifact_role | status | applies_to | task_match | updated_at | 文件 | close_condition |
+|---|---|---|---|---|---|---|---|---|---|
 
-## 已关闭与历史交接
+## 下一版本 Backlog
 
-| handoff_id | status | applies_to | 文件 | replaced/resolved by |
-|---|---|---|---|---|
+| id | lane | artifact_role | status | 文件 | trigger |
+|---|---|---|---|---|---|
+
+## Workorders / Plans
+
+## Evidence / Reviews
+
+## Resolved / Archive Handoffs
+
+| handoff_id | scope | lane | artifact_role | status | applies_to | 文件 | replaced/resolved by |
+|---|---|---|---|---|---|---|---|
 ```
 
 索引规则：
 
-1. 先按 `status=active` 过滤，再按当前任务的 `scope` 与 `applies_to` 匹配。
+1. 先按 `artifact_role=handoff + status=active` 过滤，再按当前任务的 `lane`、`scope` 与
+   `applies_to` 匹配。
 2. 不建立跨 scope 的全局“最新优先”排序。
 3. 专题交接不会因为日期更新而自动压过课程或项目交接。
 4. `resolved`、`superseded`、`stale`、`archived` 不参与日常恢复，只在核查历史时展开。
 5. 文件创建、重命名、替代、关闭时，同一批次更新索引。
 6. 索引不得复制交接正文，只保存路由与生命周期字段。
+7. `release_backlog` 只在下一次明确冻结候选或正式发布时读取，不得放入 Active Handoffs。
+8. 历史扁平目录可以保留；先修术语和索引。只有在引用全部可控且另有迁移计划时才移动文件。
 
 ---
 
@@ -262,14 +311,15 @@ doctor 只负责行数、字符数、字段和索引等机械检查；四问答�
 
 1. **确认触发**：说明为什么普通正式来源不足以完成这次跨对话恢复。
 2. **解析 handoff root**：按 2.1 定位现有索引；不得因普通启动自动造目录。
-3. **识别 scope 与 applies_to**：确定任务范围，检查是否已有同范围 active 交接；同一任务默认原地刷新。
+3. **识别 lane、scope 与 applies_to**：确定工作通道和任务范围，检查是否已有同范围 active
+   Handoff；同一任务默认原地刷新。
 4. **核对正式来源**：读取 canonical sources、实际文件和必要的工作区状态。
 5. **分离事实与计划**：列出已完成、未完成、未验证和候选裁决。
 6. **写元数据**：生成稳定 handoff_id、状态、关闭条件与替代关系。
 7. **写最小状态摘要**：只承担快速定位，不用它替代后续连续性。
 8. **写连续性摘要**：汇总几个既往长对话中仍影响当前判断的讨论主线、理由和未决问题。
 9. **写操作与证据**：保存精确停点、文件、验证、风险和原始材料入口。
-10. **更新索引**：登记 active 路由；若替代旧交接，先验证新文件非空且可恢复，再更新旧文件状态和双向指针。
+10. **更新索引**：只把 `artifact_role=handoff + status=active` 登记到 Active Handoffs；若替代旧交接，先验证新文件非空且可恢复，再更新旧文件状态和双向指针。
 11. **做权威链检查**：删除任何“交接自动覆盖真相源”的措辞，改为核对与修复流程。
 12. **做接管演练**：只读索引、最小状态摘要和连续性摘要，检查接管者能否判断下一步且不会误用无关交接。
 
@@ -278,7 +328,7 @@ doctor 只负责行数、字符数、字段和索引等机械检查；四问答�
 ## 八、读取与恢复流程
 
 1. 识别当前任务，不先全量读取 handoff root。
-2. 读取索引，只筛选匹配的 active 条目。
+2. 读取索引，只筛选匹配的 `handoff + active` 条目。
 3. 先读最小状态摘要，确认范围、风险和下一步。
 4. 若涉及用户意图、设计理由或多轮概念演化，再读连续性摘要。
 5. 检查版本、更新时间、适用对象和 canonical sources 是否仍存在。
@@ -338,11 +388,14 @@ RT3 门、授权失效事实和下一动作。它不得：
 - 复制或扩张永久治理规则；通用规则只写 `batch_workorder_spec.md`、`git_workflow.md` 与
   `remediation_governance.md`；
 - 把 handoff 中的“已授权”当作新授权，或替代用户原始批准与实际 Git/文件状态；
+- 把旧对话、receipt、policy 或 reviewer 结论解释为尚未生成 exact object/body/ID/SHA/result 的
+  RT3 授权；
 - 用新的摘要把 envelope 未列路径、未知仓、风险升级或 RT3 追加进 campaign；
 - 把 recovery checkpoint 写成 release snapshot，或把 clean 写成 reviewed/released。
 
 接管者必须回读正式 workorder、authorization envelope 和实际仓库状态。任一不一致按第九节
-停止并修复；handoff 只能说明“上次执行到哪里”，不能让已失效的连续授权复活。
+停止并修复；handoff 只能说明“上次执行到哪里”，不能让已失效的连续授权复活。RT3 只能在
+精确对象展示后由用户当前轮直接确认。
 
 ---
 
@@ -354,7 +407,7 @@ RT3 门、授权失效事实和下一动作。它不得：
 
 1. 写回并验证所有 canonical sources。
 2. 把文档状态改为 `resolved`，记录完成时间和验证结果。
-3. 从索引 active 表移出，进入已关闭表。
+3. 从 Active Handoffs 移出，进入 Resolved / Archive Handoffs。
 4. 删除“下一步必须先修复”的临时措辞，或注明已完成结果。
 
 课程交接通常在 `session_close` 完成、doctor 通过且写入确认展示后 resolved。
@@ -367,7 +420,7 @@ RT3 门、授权失效事实和下一动作。它不得：
 2. 对新文件执行接管演练与四问检查，确认不是空壳。
 3. 新文件写 `supersedes`。
 4. 旧文件再写 `status: superseded` 与 `superseded_by`。
-5. 索引 active 表只保留新文件。
+5. Active Handoffs 只保留新文件。
 6. 不删除旧文件中仍有审计价值的讨论轨迹。
 
 ### 10.3 archived
@@ -412,6 +465,10 @@ RT3 门、授权失效事实和下一动作。它不得：
 - **把 350 行当强制换代**：350 行只是第一次检查；第三次门槛才强制生成已验证的新交接。
 - **把计划写成完成**：接管者误判实施状态。事实、候选、未验证和待办分栏。
 - **用“最近 N 次对话”机械截断**：较早但关键的讨论被丢失。使用最小充分上下文判据。
+- **把目录名当领域类型**：`handoffs/` 内的 workorder、evidence 或 backlog 被误读成 active
+  Handoff。按 `artifact_role` 分区索引，只让 `handoff + active` 进入恢复路由。
+- **把发布待办挂 Active**：日常启动反复加载发布成本。把它登记为
+  `lane=version_campaign + artifact_role=release_backlog`，等待明确候选触发。
 
 ---
 

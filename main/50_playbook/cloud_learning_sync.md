@@ -158,7 +158,8 @@ END_T2AG_SESSION_CLOSE
    学生档案。候选错误仍须按现有门槛归因，
    不能因为云端列出就自动成为正式错题。
 7. 从真相源刷新 `t2ag_memory.md` 与 `learning_path.md`；不得从移动端入口反向覆盖真相源。
-8. 运行 `main/70_tools/t2ag_doctor.py`。只有写回完成且 doctor 为 `0 FAIL`，才能记为 `synced`。
+8. 运行 `main/70_tools/t2ag_doctor.py --profile runtime`。只有写回完成且 runtime doctor
+   为 `0 FAIL`，才能记为 `synced`；云端同步不触发 release profile。
 9. 在 `cloud/cloud_sync_state.md` 追加同步结果，并向用户输出 `T2AG_SYNC_RECEIPT`；若发生冲突，
    状态写 `conflict`，保留原因与待确认项。
 

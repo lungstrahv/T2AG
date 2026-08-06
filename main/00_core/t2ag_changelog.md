@@ -5,6 +5,34 @@
 
 ---
 
+## [2026-08-06] 规则反压缩纪律（不升版）
+
+- 宪法新增 §6.3：版本更新默认 diff-patch、强制 `rule_migration`、不可丢集合、废止
+  “越改越短=健康”、编辑≠发布；§1 恢复 tools/playbook 永不合并与单一定义源。
+- `AGENTS.md`、`batch_workorder_spec.md`、`playbook_management.md` 同步；触碰入口规则的
+  campaign 必须附 rule_migration。诊断清单见 Main/工作区 handoff
+  `T2AG_RULE_COMPRESSION_INVENTORY_2026-08-06`。
+- 运行版本仍为 `0.2.2`；本条目不构成 release。
+
+---
+
+## [2026-08-05] EV-0012 教材页资产与 Lesson Preparation 技术收口
+
+- Course `source_assets` 成为页级核验文本与 raw OCR 的持久权威；PNG 仅作
+  `book/.cache/source_pages` 下可重建缓存，不是真相源。
+- 消费链已闭合：`LessonMap → LessonPreparationSnapshot → current pointer → Context`
+  （source_assets 优先；新路径无效不得静默回退 legacy）。
+- prepare、Context、Doctor 对 LessonMap 使用一致的原始文件字节 SHA-256 口径
+  （含 CRLF；不得仅以 `read_text` 规范化文本宣称一致）。
+- personal_instance 下 activity disk-roundtrip 的 synthetic materialize 幂等；不得 wipe
+  多课程 teacher mapping。
+- Main 的 MATH1607H 已在独立 RT3 下完成 E0 资产构建与 exact E apply（30 路径删除、
+  两份 source_excerpt RETAIN）；Skeleton 不携带真实课程实例数据。
+- F-DEEP 独立审计与 U4 playbook delta（Gate A）均通过；技术上 `LEARNING_READY`。
+- 本条目不代表 Git、Lite、版本升级、FIN 或公开发布；运行版本仍为 0.2.2。
+
+---
+
 ## [2026-08-05] 0.2.2 Activity Close 收口
 
 - 新增课程级 activity ledger，分权保存 Lesson/Exercise 生命周期、pending、CLR、alias、

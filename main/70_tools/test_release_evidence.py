@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for immutable structured evidence runner."""
+"""Atomic contracts for immutable structured release evidence."""
 from __future__ import annotations
 
 import json

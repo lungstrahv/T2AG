@@ -2,6 +2,7 @@
 """Deterministic doctor for the T2AG 0.2.2 object model."""
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import json
 import hashlib
@@ -11,7 +12,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import activity_close as activity_close_contract
 import activity_ledger as activity_ledger_contract
+import migrate_022_activity_close as migration_022_contract
+import validation_control
 
 from t2ag_activity import (
     ActivityContractError,
@@ -102,6 +106,44 @@ def distribution_release_names(
 EXPECTED_DOMAINS = {
     "00_core", "10_student", "20_teacher", "30_group", "40_course",
     "50_playbook", "60_journal", "70_tools", "80_interface",
+}
+BASE_VALIDATION_FILES = (
+    "main/50_playbook/doctor_contracts.md",
+    "main/50_playbook/test_strategy.md",
+    "main/50_playbook/validation_flow.md",
+    "main/70_tools/t2ag_doctor.py",
+    "main/70_tools/t2ag_test.py",
+    "main/70_tools/sync_lite.py",
+    "main/70_tools/test_dependencies.json",
+    "main/70_tools/validation_control.py",
+    "main/70_tools/validation_workflow.json",
+    "main/70_tools/contract_test_support.py",
+    "main/70_tools/migration_test_support.py",
+    "main/70_tools/test_distribution_foundation.py",
+    "main/70_tools/scenarios/__init__.py",
+)
+BASE_DOCTOR_PROFILE_MARKERS = (
+    "def run_runtime_checks(",
+    "def run_release_audit_checks(",
+    'parser.add_argument("--check"',
+    'parser.add_argument("--execute-plan"',
+    'choices=("runtime", "release")',
+    'default="runtime"',
+)
+SUPPORTED_DOCTOR_HANDLERS = {
+    "check_structure", "check_version_and_profile", "check_skin_system",
+    "check_authorization_governance", "discover_courses", "check_groups",
+    "check_activity_ledgers", "check_engagements_and_activities",
+    "check_question_banks", "check_knowledge_ledgers", "check_project_verification",
+    "check_exercises", "check_teacher_contract", "check_memory_pointers",
+    "check_registry", "check_working_pages", "check_trading_boundary",
+    "check_legacy_references", "check_retired_instance_ids", "check_cloud_pause",
+    "check_context_packet_contract", "check_test_management_contract",
+    "check_course_activity_templates", "check_flow_and_guide", "check_handoff_contract",
+    "check_cloud_contract", "check_derived_tools", "check_migration_evidence",
+    "check_migration_021_evidence", "check_activity_migration_021_evidence",
+    "check_reading_bridge_contract", "check_core_playbooks",
+    "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
 }
 LEGACY_DOMAINS = {
     "10_case", "12_activity_records", "15_curricula", "20_groups",
@@ -278,6 +320,20 @@ def check_structure() -> None:
             report("FAIL", f"旧 active 域仍存在：main/{name}")
     if not (MAIN / "t2ag.md").is_file():
         report("FAIL", "缺少 main/t2ag.md")
+    missing_base = [
+        relative for relative in BASE_VALIDATION_FILES
+        if not (ROOT / relative).is_file()
+    ]
+    if missing_base:
+        report("FAIL", f"三形态基础验证结构缺失：{missing_base}")
+    else:
+        doctor_content = read(ROOT / "main/70_tools/t2ag_doctor.py")
+        missing_markers = [
+            marker for marker in BASE_DOCTOR_PROFILE_MARKERS
+            if marker not in doctor_content
+        ]
+        if missing_markers:
+            report("FAIL", f"Doctor runtime/release 基础分层缺失：{missing_markers}")
     if not (MAIN / "80_interface/fable_snail.png").is_file():
         report("FAIL", "缺少界面资产 main/80_interface/fable_snail.png")
     if (ROOT / "assets/fable_snail.png").exists():
@@ -336,7 +392,45 @@ def check_version_and_profile() -> None:
         report("FAIL", "缺少 10_student/profile/profile.md")
         return
     meta = frontmatter(profile)
+    collaboration_values = {
+        "agent_collaboration_schema": meta.get("agent_collaboration_schema"),
+        "agent_parallel_startup": meta.get("agent_parallel_startup"),
+        "agent_startup_readiness": meta.get("agent_startup_readiness"),
+        "agent_background_reporting": meta.get("agent_background_reporting"),
+    }
+    if collaboration_values["agent_collaboration_schema"] != "agent_collaboration_preferences.v1":
+        report("FAIL", "profile 缺 agent_collaboration_preferences.v1")
+    try:
+        agent_pool_limit = int(meta.get("agent_pool_limit", ""))
+    except (TypeError, ValueError):
+        agent_pool_limit = 0
+    if agent_pool_limit not in {1, 2, 3, 4, 5, 6}:
+        report("FAIL", "profile agent_pool_limit 必须为 1..6")
+    try:
+        agent_max_active = int(meta.get("agent_max_active", ""))
+    except (TypeError, ValueError):
+        agent_max_active = 0
+    if agent_max_active not in {1, 2, 3}:
+        report("FAIL", "profile agent_max_active 必须为 1..3")
+    if agent_max_active > agent_pool_limit:
+        report("FAIL", "profile agent_max_active 不得超过 agent_pool_limit")
+    if collaboration_values["agent_parallel_startup"] not in {"enabled", "disabled"}:
+        report("FAIL", "profile agent_parallel_startup 必须为 enabled|disabled")
+    if collaboration_values["agent_startup_readiness"] not in {
+        "learning_ready_first", "recovery_settled_first"
+    }:
+        report("FAIL", "profile agent_startup_readiness 非法")
+    if collaboration_values["agent_background_reporting"] not in {"blockers_only", "all"}:
+        report("FAIL", "profile agent_background_reporting 必须为 blockers_only|all")
     if FLAVOR == "skeleton":
+        if (
+            agent_pool_limit != 6
+            or agent_max_active != 3
+            or collaboration_values["agent_parallel_startup"] != "enabled"
+            or collaboration_values["agent_startup_readiness"] != "learning_ready_first"
+            or collaboration_values["agent_background_reporting"] != "blockers_only"
+        ):
+            report("FAIL", "Skeleton Agent 协作偏好必须保留 6 Agent 池 / 3 Agent 并发默认值")
         if meta.get("initialization_status") == "initialized":
             report("FAIL", "Skeleton profile 不得标为 initialized")
         if meta.get("exercise_hint_gate") != "ask":
@@ -2043,11 +2137,210 @@ def check_registry() -> None:
 
 
 def check_working_pages(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
+    """Textbook lesson evidence: EV-0012 current Snapshot path or legacy working_pages."""
     for course_id, (folder, meta) in courses.items():
         if (
             meta.get("current_activity") != "lesson"
             or meta.get("course_driver") != "textbook"
         ):
+            continue
+        lesson = meta.get("current_activity_id", "")
+        if not re.fullmatch(r"lesson\d+", lesson):
+            if meta.get("working_pages_window") or meta.get("textbook_page"):
+                report(
+                    "FAIL",
+                    f"working pages 缺当前 Lesson 活动：{course_id} -> {lesson or '缺失'}",
+                )
+            continue
+        prep_dir = folder / "lessons" / lesson / "preparation"
+        pointer_path = prep_dir / "current_snapshot.json"
+        has_prep = prep_dir.is_dir() and (
+            pointer_path.is_file() or any(prep_dir.glob("PREP-*.json"))
+        )
+        if has_prep:
+            # Never use lexical-last PREP-*.json as "current".
+            if not pointer_path.is_file():
+                report(
+                    "FAIL",
+                    f"preparation 存在但缺 current_snapshot 指针：{course_id}/{lesson}",
+                )
+                continue
+            try:
+                pointer = json.loads(read(pointer_path))
+            except (OSError, json.JSONDecodeError) as exc:
+                report(
+                    "FAIL",
+                    f"current Snapshot 指针不可读：{course_id}/{lesson} {exc}",
+                )
+                continue
+            snap_id = str(pointer.get("snapshot_id") or "")
+            snap_path = prep_dir / f"{snap_id}.json"
+            if not snap_id.startswith("PREP-") or not snap_path.is_file():
+                report(
+                    "FAIL",
+                    f"current Snapshot 指针目标无效：{course_id}/{lesson} -> {snap_id}",
+                )
+                continue
+            try:
+                payload = json.loads(read(snap_path))
+            except (OSError, json.JSONDecodeError) as exc:
+                report(
+                    "FAIL",
+                    f"preparation Snapshot 不可读：{course_id}/{snap_path.name} {exc}",
+                )
+                continue
+            if payload.get("snapshot_id") != snap_id:
+                report("FAIL", f"Snapshot id 与指针不一致：{course_id}/{lesson}")
+            if payload.get("state") != "valid":
+                report("FAIL", f"preparation Snapshot 非 valid：{course_id}/{snap_path.name}")
+            if not payload.get("load_receipt_ids") and not payload.get("load_receipts"):
+                report("FAIL", f"preparation Snapshot 缺 load receipts：{course_id}")
+            if payload.get("scope_coverage") != "complete":
+                report("FAIL", f"preparation Snapshot scope 未 complete：{course_id}")
+            if not payload.get("content_consumed"):
+                report("FAIL", f"preparation Snapshot content_consumed 为 false：{course_id}")
+            page_keys = payload.get("page_keys") or []
+            indices = [
+                int(k.get("pdf_page_index"))
+                for k in page_keys
+                if isinstance(k, dict) and k.get("pdf_page_index") is not None
+            ]
+            if not indices:
+                report("FAIL", f"preparation Snapshot 缺 page_keys：{course_id}")
+            elif indices != list(range(min(indices), max(indices) + 1)):
+                report(
+                    "FAIL",
+                    f"preparation Snapshot Scope 不连续：{course_id} -> {indices}",
+                )
+            short = bool(payload.get("short_document"))
+            if not short and indices and not (5 <= len(indices) <= 8):
+                report(
+                    "FAIL",
+                    f"preparation Snapshot scope_n 越界（须 5–8）：{course_id} n={len(indices)}",
+                )
+            if short and indices and len(indices) >= 5:
+                report(
+                    "FAIL",
+                    f"short_document 标记与 scope_n 冲突：{course_id}",
+                )
+            receipts = payload.get("load_receipts") or []
+            if page_keys and len(receipts) != len(page_keys):
+                report(
+                    "FAIL",
+                    f"preparation Snapshot receipts 与 page_keys 数量不一致：{course_id}",
+                )
+            doc_sha = str(payload.get("source_document_sha256") or "").lower()
+            document_id = str(payload.get("document_id") or "")
+            for receipt in receipts:
+                if not isinstance(receipt, dict):
+                    report("FAIL", f"load receipt 非法：{course_id}")
+                    continue
+                if not receipt.get("source_page_asset_sha256"):
+                    report("FAIL", f"load receipt 缺 SourcePageAsset SHA：{course_id}")
+                rdoc = str(receipt.get("source_document_sha256") or "").lower()
+                if doc_sha and rdoc and rdoc != doc_sha:
+                    report("FAIL", f"load receipt SourceDocument SHA 不一致：{course_id}")
+            map_path = folder / "lessons" / lesson / "lesson_map.md"
+            if not map_path.is_file():
+                report("FAIL", f"缺 LessonMap：{course_id}/{lesson}")
+            else:
+                # Raw file bytes only — must match prepare/Context (no read_text rewrite).
+                map_raw = map_path.read_bytes()
+                map_sha = hashlib.sha256(map_raw).hexdigest()
+                map_text = map_raw.decode("utf-8", errors="replace")
+                expected_map = str(payload.get("lesson_map_sha256") or "")
+                if expected_map and expected_map != map_sha:
+                    report("FAIL", f"LessonMap hash 与 Snapshot 不一致：{course_id}/{lesson}")
+                for value in indices:
+                    if not re.search(rf"\|\s*{value}\s*\|", map_text) and (
+                        f"page_{value}" not in map_text
+                    ):
+                        report(
+                            "FAIL",
+                            f"LessonMap 未覆盖 Scope 页：{course_id} page {value}",
+                        )
+            if document_id and doc_sha:
+                manifest = (
+                    folder
+                    / "book/primary/source_assets"
+                    / document_id
+                    / "manifest.json"
+                )
+                if manifest.is_file():
+                    try:
+                        man = json.loads(read(manifest))
+                        man_sha = str(man.get("source_document_sha256") or "").lower()
+                        if man_sha and man_sha != doc_sha:
+                            report(
+                                "FAIL",
+                                f"Snapshot PDF SHA 与 manifest 不一致：{course_id}",
+                            )
+                        source_path = str(man.get("source_path") or "")
+                        if source_path:
+                            pdf = Path(source_path)
+                            if not pdf.is_absolute():
+                                pdf = (ROOT / source_path) if (ROOT / source_path).is_file() else folder / source_path
+                            if pdf.is_file():
+                                actual = hashlib.sha256(pdf.read_bytes()).hexdigest().lower()
+                                if actual != doc_sha:
+                                    report(
+                                        "FAIL",
+                                        f"SourceDocument PDF SHA 与 Snapshot 不一致：{course_id}",
+                                    )
+                            else:
+                                report(
+                                    "FAIL",
+                                    f"SourceDocument/PDF 缺失：{course_id} {source_path}",
+                                )
+                    except (OSError, json.JSONDecodeError) as exc:
+                        report(
+                            "FAIL",
+                            f"source_assets manifest 不可读：{course_id}/{document_id} {exc}",
+                        )
+                for value in indices:
+                    asset = (
+                        folder
+                        / "book/primary/source_assets"
+                        / document_id
+                        / "pages"
+                        / f"page_{value}.md"
+                    )
+                    if not asset.is_file():
+                        report(
+                            "FAIL",
+                            f"缺 SourcePageAsset：{course_id} page_{value}",
+                        )
+                    else:
+                        asset_text = read(asset)
+                        status_m = re.search(
+                            r"^verification_status:\s*(\S+)",
+                            asset_text,
+                            re.MULTILINE,
+                        )
+                        status = (status_m.group(1) if status_m else "").lower()
+                        if status not in {
+                            "verified",
+                            "verified_human",
+                            "verified_ok",
+                            "ok",
+                        }:
+                            report(
+                                "FAIL",
+                                f"SourcePageAsset 未核验：{course_id} page_{value}",
+                            )
+            scope_n = len(indices) if indices else 0
+            quota_n = min(3 * scope_n, 30) if scope_n else 0
+            cache_root = folder / "book" / ".cache" / "source_pages"
+            cache_n = 0
+            if cache_root.is_dir():
+                cache_n = sum(1 for _ in cache_root.rglob("page_*.png"))
+            # Informational: P0 = current scope page keys; quota is course-aggregated.
+            if scope_n and cache_n > quota_n:
+                report(
+                    "WARN",
+                    f"cache 超过配额：{course_id} cache_n={cache_n} quota_n={quota_n} "
+                    f"scope_n={scope_n}（P0={scope_n} 页不得驱逐）",
+                )
             continue
         raw = meta.get("working_pages_window")
         page = meta.get("textbook_page")
@@ -2064,10 +2357,6 @@ def check_working_pages(courses: dict[str, tuple[Path, dict[str, str]]]) -> None
             continue
         if window != list(range(min(window), max(window) + 1)):
             report("FAIL", f"working pages 窗口不连续：{course_id} -> {window}")
-        lesson = meta.get("current_activity_id", "")
-        if not re.fullmatch(r"lesson\d+", lesson):
-            report("FAIL", f"working pages 缺当前 Lesson 活动：{course_id} -> {lesson or '缺失'}")
-            continue
         working = folder / "lessons" / lesson / "working_pages"
         for value in window:
             if (
@@ -2267,22 +2556,45 @@ def check_handoff_contract() -> None:
     index = handoff_root / "README.md"
     if not index.is_file():
         return
-    rows = table_after_heading(read(index), "Active 交接")
+    index_content = read(index)
+    required_headings = (
+        "Active Handoffs",
+        "下一版本 Backlog",
+        "Workorders / Plans",
+        "Evidence / Reviews",
+        "Resolved / Archive Handoffs",
+    )
+    for heading in required_headings:
+        if not re.search(rf"^##\s+{re.escape(heading)}\s*$", index_content, re.MULTILINE):
+            report("FAIL", f"handoff 索引缺分类区：{heading}")
+    rows = table_after_heading(index_content, "Active Handoffs")
     seen_ids: set[str] = set()
     seen_files: set[str] = set()
     seen_scopes: set[tuple[str, str]] = set()
     required = {
-        "handoff_id", "scope", "applies_to", "status", "aging_state", "task_match",
-        "created_at", "updated_at", "version_context", "supersedes", "superseded_by",
-        "close_condition", "canonical_sources", "next_action", "semantic_check",
+        "handoff_id", "scope", "lane", "artifact_role", "applies_to", "status",
+        "aging_state", "task_match", "created_at", "updated_at", "version_context",
+        "supersedes", "superseded_by", "close_condition", "canonical_sources",
+        "next_action", "semantic_check",
     }
+    allowed_scopes = {"course_session", "project", "topic", "implementation"}
+    allowed_lanes = {"learning", "maintenance", "topic_design", "version_campaign"}
     for row in rows:
         handoff_id = row.get("handoff_id", "")
         filename = row.get("文件", "").strip("` ")
         key = (row.get("scope", ""), row.get("applies_to", ""))
-        if not handoff_id or not filename or not all(key):
+        if (
+            not handoff_id
+            or not filename
+            or not all(key)
+            or row.get("lane") not in allowed_lanes
+            or row.get("artifact_role") != "handoff"
+            or row.get("status") != "active"
+        ):
             report("FAIL", f"active handoff 索引缺必填单元格：{handoff_id or filename or '?'}")
             continue
+        if row["scope"] not in allowed_scopes:
+            report("FAIL", f"active handoff scope 非法：{handoff_id} -> {row['scope']}")
         if handoff_id in seen_ids or filename in seen_files or key in seen_scopes:
             report("FAIL", f"active handoff 索引存在重复：{handoff_id}")
         seen_ids.add(handoff_id)
@@ -2304,7 +2616,13 @@ def check_handoff_contract() -> None:
             continue
         if metadata["status"] != "active":
             report("FAIL", f"active 索引指向非 active 文档：{filename}")
-        for field in ("handoff_id", "scope", "applies_to", "updated_at"):
+        if metadata["artifact_role"] != "handoff":
+            report("FAIL", f"active 索引指向非 handoff 角色：{filename}")
+        if metadata["lane"] not in allowed_lanes:
+            report("FAIL", f"active handoff lane 非法：{filename} -> {metadata['lane']}")
+        for field in (
+            "handoff_id", "scope", "lane", "artifact_role", "status", "applies_to", "updated_at"
+        ):
             index_field = row.get(field, "")
             if index_field and metadata[field] != index_field:
                 report("FAIL", f"handoff 索引与文档 {field} 不一致：{filename}")
@@ -2321,6 +2639,43 @@ def check_handoff_contract() -> None:
                 "FAIL",
                 f"handoff aging_state 漂移：{filename} expected={expected_aging} actual={metadata['aging_state']}",
             )
+
+    backlog_rows = table_after_heading(index_content, "下一版本 Backlog")
+    for row in backlog_rows:
+        item_id = row.get("id", "")
+        filename = row.get("文件", "").strip("` ")
+        role = row.get("artifact_role", "")
+        if (
+            not item_id
+            or not filename
+            or row.get("lane") != "version_campaign"
+            or "release_backlog" not in {part.strip() for part in role.split("+")}
+            or row.get("status") != "pending_next_candidate"
+        ):
+            report("FAIL", f"下一版本 backlog 分类非法：{item_id or filename or '?'}")
+            continue
+        if filename in seen_files:
+            report("FAIL", f"release backlog 被同时登记为 active handoff：{filename}")
+        if not (handoff_root / filename).is_file():
+            report("FAIL", f"release backlog 文件悬空：{filename}")
+
+    closed_rows = table_after_heading(index_content, "Resolved / Archive Handoffs")
+    for row in closed_rows:
+        handoff_id = row.get("handoff_id", "")
+        filename = row.get("文件", "").strip("` ")
+        if (
+            not handoff_id
+            or not filename
+            or row.get("artifact_role") != "handoff"
+            or row.get("status") == "active"
+            or row.get("lane") not in allowed_lanes
+        ):
+            report("FAIL", f"历史 handoff 分类非法：{handoff_id or filename or '?'}")
+            continue
+        if handoff_id in seen_ids or filename in seen_files:
+            report("FAIL", f"handoff 同时进入 active 与历史索引：{handoff_id}")
+        if not (handoff_root / filename).is_file():
+            report("FAIL", f"历史 handoff 文件悬空：{filename}")
 
 
 def check_cloud_contract() -> None:
@@ -2847,7 +3202,7 @@ def check_activity_migration_021_evidence() -> None:
         report("FAIL", "0.2.1 ActivityRecord canonical/legacy 路径状态非法")
 
 
-def check_reading_bridge_contract() -> None:
+def check_reading_bridge_contract(*, check_release_parity: bool = True) -> None:
     contract_relative = Path("main/70_tools/contracts/reading_bridge_v1")
     expected = {
         "__init__.py",
@@ -2879,12 +3234,14 @@ def check_reading_bridge_contract() -> None:
             report("FAIL", f"reading bridge schema 无法读取：{rel(schema_path)} -> {exc}")
     tool = MAIN / "70_tools/t2ag_reading_bridge.py"
     test = MAIN / "70_tools/test_021_closeout.py"
-    saga_test = MAIN / "70_tools/test_021_saga.py"
+    saga_test = MAIN / "70_tools/scenarios/release_reading_bridge_saga.py"
     migration = MAIN / "70_tools/migrate_021_activity_records.py"
     if not tool.is_file() or not test.is_file() or not saga_test.is_file() or not migration.is_file():
         report("FAIL", "reading bridge 工具/测试/saga/ActivityRecord migrator 不完整")
     elif "subprocess" in read(tool) or "辅助阅读系统" in read(tool):
         report("FAIL", "T2AG reading bridge 工具不得 spawn 或绑定辅助阅读系统")
+    if not check_release_parity:
+        return
     release_roots = {
         name: ROOT.parent / name
         for name in distribution_release_names()
@@ -2895,7 +3252,7 @@ def check_reading_bridge_contract() -> None:
     names = sorted(expected) + [
         "../../t2ag_reading_bridge.py",
         "../../test_021_closeout.py",
-        "../../test_021_saga.py",
+        "../../scenarios/release_reading_bridge_saga.py",
         "../../migrate_021_activity_records.py",
         "../../migration_txn_021.py",
     ]
@@ -2945,15 +3302,17 @@ def check_core_playbooks() -> None:
             report("FAIL", f"core-playbook SHA 分叉：{name} -> {drift}")
 
 
-def check_context_packet_contract() -> None:
+def check_context_packet_contract(*, check_release_parity: bool = True) -> None:
     tool_relative = "main/70_tools/t2ag_context.py"
     activity_relative = "main/70_tools/t2ag_activity.py"
     test_relative = "main/70_tools/test_context_packet.py"
     playbook_relative = "main/50_playbook/context_packet.md"
+    startup_relative = "main/50_playbook/startup_orchestration.md"
     tool = ROOT / tool_relative
     activity = ROOT / activity_relative
     test = ROOT / test_relative
     playbook = ROOT / playbook_relative
+    startup = ROOT / startup_relative
     missing = [
         path
         for path, carrier in (
@@ -2961,6 +3320,7 @@ def check_context_packet_contract() -> None:
             (activity_relative, activity),
             (test_relative, test),
             (playbook_relative, playbook),
+            (startup_relative, startup),
         )
         if not carrier.is_file()
     ]
@@ -3030,6 +3390,16 @@ def check_context_packet_contract() -> None:
             "--include-l1",
             "完整序列化 Markdown",
             "t2ag_hint_gate.py",
+            "learning-ready",
+            "recovery-settled",
+            "startup_orchestration.md",
+        ),
+        startup: (
+            "先建依赖树，再分配 Agent",
+            "learning-ready",
+            "recovery-settled",
+            "不得只展示 ID/SHA 让学生盲签",
+            "Task Assist Budget",
         ),
         MAIN / "50_playbook/lesson_recover.md": (
             "t2ag_context.py --course <COURSE_ID> --format markdown",
@@ -3052,6 +3422,8 @@ def check_context_packet_contract() -> None:
                 f"学习上下文包未接入 {rel(path)}：{missing_markers}",
             )
 
+    if not check_release_parity:
+        return
     release_roots = {
         name: ROOT.parent / name
         for name in distribution_release_names()
@@ -3080,9 +3452,214 @@ def check_context_packet_contract() -> None:
         report("FAIL", "学习上下文包/活动工具或测试在三发行分叉")
 
 
+def check_test_management_contract(*, check_release_parity: bool = True) -> None:
+    """Validate the persistent inventory without executing or expanding tests."""
+    required = BASE_VALIDATION_FILES + (
+        "main/70_tools/test_runtime_contracts.py",
+        "main/70_tools/test_activity_contracts.py",
+        "main/70_tools/test_release_contracts.py",
+        "main/70_tools/test_release_receipts.py",
+        "main/70_tools/test_release_evidence.py",
+        "main/70_tools/test_release_gates.py",
+        "main/70_tools/test_release_fault_contracts.py",
+        "main/70_tools/test_release_shadow_contracts.py",
+        "main/70_tools/test_legacy_migrations.py",
+        "main/70_tools/test_022_close_roundtrip.py",
+        "main/70_tools/scenarios/__init__.py",
+        "main/70_tools/scenarios/release_reading_bridge_saga.py",
+        "main/70_tools/scenarios/release_shadow_apply.py",
+    )
+    missing = [relative for relative in required if not (ROOT / relative).is_file()]
+    if missing:
+        report("FAIL", f"测试管理能力缺失：{missing}")
+        return
+    retired = (
+        "main/70_tools/test_020_contracts.py",
+        "main/70_tools/test_021_saga.py",
+        "main/70_tools/test_022_close_runtime.py",
+        "main/70_tools/test_022_campaign_receipt.py",
+        "main/70_tools/test_022_evidence_runner.py",
+        "main/70_tools/test_022_gate_matrix.py",
+        "main/70_tools/test_022_exact_plan_kill_matrix.py",
+        "main/70_tools/test_022_exact_plan_shadow.py",
+        "main/70_tools/test_022_shadow_apply.py",
+    )
+    survivors = [relative for relative in retired if (ROOT / relative).exists()]
+    if survivors:
+        report("FAIL", f"已退役测试入口仍存在：{survivors}")
+
+    manifest_path = ROOT / "main/70_tools/test_dependencies.json"
+    try:
+        manifest = load_json_strict(manifest_path)
+    except (OSError, ContractError) as exc:
+        report("FAIL", f"测试依赖清单无法解析：{exc}")
+        return
+    if not isinstance(manifest, dict) or manifest.get("schema") != "t2ag.test_dependencies.v2":
+        report("FAIL", "测试依赖清单 schema 非法")
+        return
+    if manifest.get("tiers") != ["fast", "deep", "release_only"]:
+        report("FAIL", "测试档位必须固定为 fast/deep/release_only")
+    tests = manifest.get("tests")
+    components = manifest.get("components")
+    if not isinstance(tests, dict) or not isinstance(components, dict):
+        report("FAIL", "测试依赖清单缺 tests/components")
+        return
+    required_components = {
+        "distribution_foundation", "doctor", "context", "activity_close", "transaction",
+        "release_candidate_contracts", "release_receipts", "release_evidence",
+        "release_gates", "release_faults", "release_shadow", "release_suite",
+    }
+    if not required_components.issubset(components):
+        report("FAIL", f"测试依赖清单缺组件：{sorted(required_components - set(components))}")
+    registered = {
+        spec.get("path")
+        for spec in tests.values()
+        if isinstance(spec, dict) and isinstance(spec.get("path"), str)
+    }
+    discovered = {
+        path.relative_to(ROOT).as_posix()
+        for path in (MAIN / "70_tools").glob("test_*.py")
+        if path.is_file()
+    }
+    registered_discovery = {
+        relative
+        for relative in registered
+        if isinstance(relative, str)
+        and Path(relative).parent == Path("main/70_tools")
+        and Path(relative).name.startswith("test_")
+    }
+    if discovered != registered_discovery:
+        report(
+            "FAIL",
+            "普通测试文件与依赖清单分叉："
+            f"missing={sorted(discovered - registered_discovery)} "
+            f"stale={sorted(registered_discovery - discovered)}",
+        )
+    scenario = tests.get("reading.release_saga")
+    if (
+        not isinstance(scenario, dict)
+        or scenario.get("kind") != "scenario"
+        or scenario.get("automatic") is not False
+    ):
+        report("FAIL", "完整物理根 reading saga 未标记为显式 release scenario")
+    shadow_scenario = tests.get("release.shadow_apply_scenario")
+    if (
+        not isinstance(shadow_scenario, dict)
+        or shadow_scenario.get("kind") != "scenario"
+        or shadow_scenario.get("automatic") is not False
+    ):
+        report("FAIL", "shadow apply 未移出普通测试发现范围")
+    release_ids = (
+        "contracts.release",
+        "release.receipts",
+        "release.gates",
+        "release.evidence",
+        "release.fault_contracts",
+        "release.shadow_contracts",
+        "release.shadow_apply_scenario",
+        "reading.release_saga",
+    )
+    invalid_release = [
+        test_id
+        for test_id in release_ids
+        if not isinstance(tests.get(test_id), dict)
+        or tests[test_id].get("tier") != "release_only"
+    ]
+    if invalid_release:
+        report("FAIL", f"发布证据测试未隔离到 release_only：{invalid_release}")
+    release_suite = components.get("release_suite")
+    if (
+        not isinstance(release_suite, dict)
+        or release_suite.get("aggregate") is not True
+        or release_suite.get("plan_only") is not True
+        or release_suite.get("sources") != []
+        or set(release_suite.get("tests", [])) != set(release_ids)
+    ):
+        report("FAIL", "release_suite 必须是无 changed-path 映射的显式聚合组件")
+
+    workflow_path = ROOT / "main/70_tools/validation_workflow.json"
+    try:
+        workflow = validation_control.load_workflow(workflow_path)
+    except validation_control.ValidationControlError as exc:
+        report("FAIL", f"标准检测流程控制文件非法：{exc}")
+        workflow = None
+    if workflow is not None:
+        handlers = {
+            spec["handler"]
+            for spec in workflow["doctor_checks"].values()
+        }
+        if handlers != SUPPORTED_DOCTOR_HANDLERS:
+            report(
+                "FAIL",
+                "Doctor 控制文件与执行器原子 handler 分叉："
+                f"missing={sorted(SUPPORTED_DOCTOR_HANDLERS - handlers)} "
+                f"unknown={sorted(handlers - SUPPORTED_DOCTOR_HANDLERS)}",
+            )
+        flow_content = read(ROOT / "main/50_playbook/validation_flow.md")
+        for marker in ("flowchart TD", "runtime（默认、启动安全）", "不得越级", "plan SHA"):
+            if marker not in flow_content:
+                report("FAIL", f"标准检测流程树缺标记：{marker}")
+
+    runner_content = read(ROOT / "main/70_tools/t2ag_test.py")
+    runner_markers = (
+        "t2ag.test_plan.v1",
+        'parser.add_argument("--component"',
+        'parser.add_argument("--test"',
+        'parser.add_argument("--changed"',
+        'parser.add_argument("--plan-only"',
+        'parser.add_argument("--execute-plan"',
+        'parser.add_argument("--release-reason"',
+        "ordinary test inventory differs from manifest",
+        "aggregate component",
+        "selected aggregate is plan-only",
+        "scenario must be outside ordinary test discovery",
+        "three-test-command budget",
+    )
+    absent = [marker for marker in runner_markers if marker not in runner_content]
+    if absent:
+        report("FAIL", f"测试选择器缺内存计划/清单约束：{absent}")
+    close_content = read(ROOT / "main/70_tools/test_022_close_roundtrip.py")
+    close_markers = (
+        "test_preference_sources_and_first_prompt_are_durable",
+        "test_pending_plan_body_has_full_tree_and_exposes_missing",
+        "test_five_knowledge_states_scope_confirmation_and_v2_body",
+        "test_learner_retrospective_is_complete_dialogue_payload",
+        "test_bound_close_intent_uses_shown_tuple_without_copying",
+        "test_blockers_suggest_closed_incomplete",
+    )
+    absent = [marker for marker in close_markers if marker not in close_content]
+    if absent:
+        report("FAIL", f"close runtime 独有断言未并入 roundtrip：{absent}")
+    migrator_content = read(ROOT / "main/70_tools/migrate_022_activity_close.py")
+    if '.glob("test_022_*.py")' in migrator_content:
+        report("FAIL", "0.2.2 迁移器仍以 glob 自动扩大测试边界")
+
+    if not check_release_parity:
+        return
+    release_roots = {
+        name: ROOT.parent / name
+        for name in distribution_release_names()
+        if (ROOT.parent / name).is_dir()
+    }
+    if len(release_roots) != len(distribution_release_names()):
+        return
+    manifests: dict[str, tuple[str, ...]] = {}
+    for name, release_root in release_roots.items():
+        missing_release = [relative for relative in required if not (release_root / relative).is_file()]
+        if missing_release:
+            report("FAIL", f"发行版缺测试管理文件：{name} -> {missing_release}")
+            continue
+        manifests[name] = tuple(
+            hashlib.sha256((release_root / relative).read_bytes()).hexdigest()
+            for relative in required
+        )
+    if len(manifests) == len(distribution_release_names()) and len(set(manifests.values())) != 1:
+        report("FAIL", "测试管理规则、清单或入口在三发行分叉")
+
+
 def check_candidate_replay_contract() -> None:
     tool_relative = "main/70_tools/t2ag_candidate_replay.py"
-    test_relative = "main/70_tools/test_020_contracts.py"
+    test_relative = "main/70_tools/test_release_contracts.py"
     tool = ROOT / tool_relative
     test = ROOT / test_relative
     workflow = MAIN / "50_playbook/git_workflow.md"
@@ -3143,7 +3720,7 @@ def check_candidate_replay_contract() -> None:
         report("FAIL", "发布候选隔离工具或负例测试在三发行分叉")
 
 
-def check_course_activity_templates() -> None:
+def check_course_activity_templates(*, check_release_parity: bool = True) -> None:
     required = {
         "README.md", "course.md.template", "progress.md.template",
         "activity_map.md.template", "activity_ledger.md.template",
@@ -3213,6 +3790,8 @@ def check_course_activity_templates() -> None:
     )
     if any(marker not in close_content for marker in close_markers):
         report("FAIL", "结课流程未共享统一活动路由与原子写回")
+    if not check_release_parity:
+        return
     release_roots = {
         name: ROOT.parent / name
         for name in distribution_release_names()
@@ -3305,6 +3884,83 @@ def check_dirty_tree() -> None:
     )
     if proc.stdout.strip():
         report("WARN", "工作树存在未快照改动；可继续施工，但不得宣称可发布")
+
+
+def check_authorization_governance(*, include_external_handoffs: bool = True) -> None:
+    """Fail closed when Agent, runtime, or active workorders can amplify RT3."""
+    if activity_close_contract.PRODUCTION_DECISION_AUTHORITIES != frozenset(
+        {("user", "direct_user")}
+    ):
+        report("FAIL", "RT3 授权契约漂移：terminal decision 非 user + direct_user")
+    if activity_close_contract.PRODUCTION_APPLY_AUTHORIZATION_MODES != frozenset(
+        {"direct_user"}
+    ):
+        report("FAIL", "RT3 授权契约漂移：生产 close apply 仍接受非 direct_user")
+    if migration_022_contract.PRODUCTION_MIGRATION_APPLY_ENABLED is not False:
+        report("FAIL", "RT3 授权契约漂移：已发布的 0.2.2 production migration apply 未退役")
+
+    instruction_paths = [ROOT / "AGENTS.md", MAIN / "t2ag.md"]
+    workspace_agents = ROOT.parent / "AGENTS.md"
+    if workspace_agents.is_file():
+        instruction_paths.append(workspace_agents)
+    for path in instruction_paths:
+        if not path.is_file():
+            report("FAIL", f"授权治理入口缺失：{path}")
+            continue
+        content = read(path)
+        if "授权不可放大与闭环止损" not in content:
+            report("FAIL", f"授权治理入口缺不可放大规则：{path}")
+        if "stopped_budget" not in content or "token" not in content:
+            report("FAIL", f"授权治理入口缺闭环预算止损：{path}")
+
+    playbook_markers = {
+        MAIN / "50_playbook/batch_workorder_spec.md": (
+            "授权不可放大",
+            "尚未生成的对象不可预授权",
+        ),
+        MAIN / "50_playbook/session_close.md": (
+            "user + direct_user",
+            "receipt 只记录授权证据",
+        ),
+        MAIN / "50_playbook/remediation_governance.md": (
+            "stopped_budget",
+            "默认最多两轮 finding 整改",
+        ),
+    }
+    for path, markers in playbook_markers.items():
+        content = read(path) if path.is_file() else ""
+        if not all(marker in content for marker in markers):
+            report("FAIL", f"授权/止损 playbook 契约缺失：{path}")
+
+    if FLAVOR != "main":
+        return
+    if include_external_handoffs:
+        handoffs = ROOT.parent / "docs/handoffs"
+        v4 = handoffs / (
+            "T2AG_022_ACTIVITY_CLOSE_AUTONOMOUS_COMPLETION_WORKORDER_V4_2026-08-05.md"
+        )
+        v2 = handoffs / (
+            "T2AG_022_ACTIVITY_CLOSE_EXECUTION_WORKORDER_V2_2026-08-04.md"
+        )
+        if v4.is_file() and "**status**: `superseded_for_authorization`" not in read(v4):
+            report("FAIL", "当前 V4 工单仍可被解释为 continuous RT3 授权")
+        if v2.is_file() and "authorization supersession notice" not in read(v2):
+            report("FAIL", "V2 continuation notice 仍把 V4 指向当前授权入口")
+
+    ledger_path = MAIN / "40_course/MATH1607H/activity_ledger.md"
+    if ledger_path.is_file():
+        doc = activity_ledger_contract.load_ledger(ledger_path)
+        if any(
+            activity_ledger_contract.is_known_invalid_legacy_delegated_close(
+                doc.course_id, close
+            )
+            for close in doc.closes
+        ):
+            report(
+                "WARN",
+                "0.2.2 历史 CLR-0001 保留 invalid legacy delegation；"
+                "不得作为新授权模板，真实状态处置须另获 RT3",
+            )
 
 
 def check_activity_ledgers(
@@ -3462,48 +4118,213 @@ def check_activity_ledgers(
                 report("FAIL", f"Activity transaction 未收口：status={state}")
 
 
-def main() -> int:
+def execute_doctor_checks(
+    rows: list[dict[str, object]],
+    *,
+    include_release_parity: bool,
+) -> None:
+    """Execute one ordered Doctor plan without widening its declared scope."""
+    context: dict[str, object] = {}
+    no_argument_handlers = {
+        "check_structure": check_structure,
+        "check_version_and_profile": check_version_and_profile,
+        "check_skin_system": check_skin_system,
+        "check_engagements_and_activities": check_engagements_and_activities,
+        "check_registry": check_registry,
+        "check_trading_boundary": check_trading_boundary,
+        "check_legacy_references": check_legacy_references,
+        "check_retired_instance_ids": check_retired_instance_ids,
+        "check_cloud_pause": check_cloud_pause,
+        "check_flow_and_guide": check_flow_and_guide,
+        "check_handoff_contract": check_handoff_contract,
+        "check_cloud_contract": check_cloud_contract,
+        "check_derived_tools": check_derived_tools,
+        "check_migration_evidence": check_migration_evidence,
+        "check_migration_021_evidence": check_migration_021_evidence,
+        "check_activity_migration_021_evidence": check_activity_migration_021_evidence,
+        "check_core_playbooks": check_core_playbooks,
+        "check_candidate_replay_contract": check_candidate_replay_contract,
+        "check_tracked_environment": check_tracked_environment,
+        "check_dirty_tree": check_dirty_tree,
+    }
+    course_handlers = {
+        "check_groups": check_groups,
+        "check_activity_ledgers": check_activity_ledgers,
+        "check_question_banks": check_question_banks,
+        "check_knowledge_ledgers": check_knowledge_ledgers,
+        "check_project_verification": check_project_verification,
+        "check_exercises": check_exercises,
+        "check_working_pages": check_working_pages,
+    }
+    for row in rows:
+        handler = str(row["handler"])
+        if handler in no_argument_handlers:
+            no_argument_handlers[handler]()
+        elif handler == "check_authorization_governance":
+            check_authorization_governance(
+                include_external_handoffs=include_release_parity,
+            )
+        elif handler == "discover_courses":
+            courses = discover_courses()
+            context["courses"] = courses
+            if FLAVOR == "skeleton" and courses:
+                report("FAIL", "Skeleton 不得包含课程实例")
+        elif handler in course_handlers:
+            course_handlers[handler](context["courses"])
+        elif handler == "check_teacher_contract":
+            context["teacher_mapping"] = check_teacher_contract(context["courses"])
+        elif handler == "check_memory_pointers":
+            check_memory_pointers(context["courses"], context["teacher_mapping"])
+        elif handler == "check_context_packet_contract":
+            check_context_packet_contract(check_release_parity=include_release_parity)
+        elif handler == "check_test_management_contract":
+            check_test_management_contract(check_release_parity=include_release_parity)
+        elif handler == "check_course_activity_templates":
+            check_course_activity_templates(check_release_parity=include_release_parity)
+        elif handler == "check_reading_bridge_contract":
+            check_reading_bridge_contract(check_release_parity=True)
+        else:
+            raise validation_control.ValidationControlError(
+                f"Doctor handler is not registered by the executor: {handler}"
+            )
+
+
+def print_doctor_plan(plan: dict[str, object]) -> None:
+    rows = plan["checks"]
+    assert isinstance(rows, list)
+    print(
+        "doctor_plan: "
+        f"schema={plan['schema']} profile={plan['profile']} scope={plan['scope']} checks={len(rows)} "
+        f"sha256={plan['plan_sha256']}"
+    )
+    for phase in ("runtime", "release"):
+        ids = [str(row["id"]) for row in rows if row["phase"] == phase]
+        if ids:
+            print(f"  {phase}: {', '.join(ids)}")
+
+
+def run_runtime_checks(*, include_release_parity: bool = False) -> None:
+    """Check the full local teaching runtime from the shared control file."""
+    workflow = validation_control.load_workflow()
+    plan = validation_control.build_doctor_plan(
+        workflow,
+        profile="runtime",
+        requested_checks=[],
+    )
     report("INFO", f"release_flavor: {FLAVOR}")
-    check_structure()
-    check_version_and_profile()
-    check_skin_system()
-    courses = discover_courses()
-    if FLAVOR == "skeleton" and courses:
-        report("FAIL", "Skeleton 不得包含课程实例")
-    check_groups(courses)
-    check_activity_ledgers(courses)
-    check_engagements_and_activities()
-    check_question_banks(courses)
-    check_knowledge_ledgers(courses)
-    check_project_verification(courses)
-    check_exercises(courses)
-    teacher_mapping = check_teacher_contract(courses)
-    check_memory_pointers(courses, teacher_mapping)
-    check_registry()
-    check_working_pages(courses)
-    check_trading_boundary()
-    check_legacy_references()
-    check_retired_instance_ids()
-    check_flow_and_guide()
-    check_handoff_contract()
-    check_cloud_contract()
-    check_derived_tools()
-    check_migration_evidence()
-    check_migration_021_evidence()
-    check_activity_migration_021_evidence()
-    check_reading_bridge_contract()
-    check_course_activity_templates()
-    check_core_playbooks()
-    check_context_packet_contract()
-    check_candidate_replay_contract()
-    check_tracked_environment()
-    check_dirty_tree()
+    execute_doctor_checks(
+        plan["checks"],
+        include_release_parity=include_release_parity,
+    )
+
+
+def run_release_audit_checks() -> None:
+    """Add only the release extension declared by the shared control file."""
+    workflow = validation_control.load_workflow()
+    release_ids = workflow["profiles"]["release"]["checks"]
+    rows = [
+        {
+            "id": check_id,
+            "phase": workflow["doctor_checks"][check_id]["phase"],
+            "handler": workflow["doctor_checks"][check_id]["handler"],
+            "depends_on": workflow["doctor_checks"][check_id]["depends_on"],
+        }
+        for check_id in release_ids
+    ]
+    execute_doctor_checks(rows, include_release_parity=True)
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="T2AG local runtime check or explicit release audit",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=("runtime", "release"),
+        default="runtime",
+        help="runtime is startup-safe; release adds cross-distribution and release gates",
+    )
+    parser.add_argument("--workflow", type=Path, default=validation_control.DEFAULT_WORKFLOW)
+    parser.add_argument("--check", action="append", default=[])
+    parser.add_argument("--list-checks", action="store_true")
+    parser.add_argument("--plan-only", action="store_true")
+    parser.add_argument("--execute-plan")
+    parser.add_argument("--release-reason")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        workflow = validation_control.load_workflow(args.workflow.resolve())
+        if args.list_checks:
+            print(json.dumps({
+                "schema": workflow["schema"],
+                "profiles": workflow["profiles"],
+                "doctor_checks": workflow["doctor_checks"],
+                "validation_levels": workflow["validation_levels"],
+                "guards": workflow["guards"],
+                "ordinary_budget": workflow["ordinary_budget"],
+                "release_execution_reasons": workflow["release_execution_reasons"],
+            }, ensure_ascii=False, indent=2))
+            return 0
+        plan = validation_control.build_doctor_plan(
+            workflow,
+            profile=args.profile,
+            requested_checks=args.check,
+        )
+    except validation_control.ValidationControlError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    print_doctor_plan(plan)
+    if args.plan_only and args.execute_plan:
+        print("ERROR: --plan-only and --execute-plan cannot be combined", file=sys.stderr)
+        return 2
+    needs_bound_execution = args.profile == "release" or bool(args.check)
+    if args.plan_only or (needs_bound_execution and not args.execute_plan):
+        print("PLAN ONLY: review the list, then rerun with --execute-plan <plan_sha256>.")
+        return 0
+    if args.execute_plan and args.execute_plan != plan["plan_sha256"]:
+        print("ERROR: --execute-plan does not match the current Doctor plan", file=sys.stderr)
+        return 2
+    if args.profile == "release":
+        if args.release_reason not in workflow["release_execution_reasons"]:
+            print(
+                "ERROR: release execution requires --release-reason from validation_workflow.json",
+                file=sys.stderr,
+            )
+            return 2
+    elif args.release_reason:
+        print("ERROR: --release-reason is valid only for the release profile", file=sys.stderr)
+        return 2
+    fails.clear()
+    warns.clear()
+    report("INFO", f"doctor_profile: {args.profile}")
+    report("INFO", f"release_flavor: {FLAVOR}")
+    try:
+        execute_doctor_checks(
+            plan["checks"],
+            include_release_parity=args.profile == "release",
+        )
+    except validation_control.ValidationControlError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     print()
     print(f"result: {len(fails)} FAIL, {len(warns)} WARN")
     if fails:
-        print("先修 FAIL；按 progress/ledger 分权真相源修复。")
+        if args.profile == "runtime" and plan["claimable_profile_result"]:
+            print("启动运行检查失败；先修本地教学状态，不开新内容。")
+        elif args.profile == "release" and plan["claimable_profile_result"]:
+            print("发布审计失败；不得宣称候选或正式发布通过。")
+        else:
+            print("定向 Doctor 检查失败；结论仅限本计划。")
     else:
-        print("结构与状态检查通过。")
+        if args.profile == "runtime" and plan["claimable_profile_result"]:
+            print("本地教学运行检查通过。")
+        elif args.profile == "release" and plan["claimable_profile_result"]:
+            print("发布审计机械门通过；不等同于独立复审或发布批准。")
+        else:
+            print("定向 Doctor 检查通过；不得外推为完整 profile 结论。")
     return 1 if fails else 0
 
 

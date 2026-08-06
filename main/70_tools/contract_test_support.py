@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zero-dependency contract tests plus a real-disk T2AG 0.2.2 CLI roundtrip."""
+"""Shared atomic contract assertions; selected by domain-specific test runners."""
 from __future__ import annotations
 
 import contextlib
@@ -15,6 +15,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import activity_ledger as ledger_contract
 import t2ag_activity as activity
 import t2ag_hint_gate as hint_gate
 
@@ -80,6 +81,51 @@ def write_teacher_mapping(root: Path, course_ids: tuple[str, ...]) -> None:
         f"{rows}\n"
         "| (默认) | 其他/未指定课程 | `main/20_teacher/T001.md` | default |\n",
     )
+
+
+def ensure_teacher_mapping_row(
+    root: Path,
+    course_id: str,
+    existing_course_ids: set[str],
+) -> None:
+    """Add one synthetic mapping without rewriting any existing course route."""
+    overlay = root / "main/20_teacher/overlay.md"
+    if not overlay.is_file():
+        write_teacher_mapping(root, (course_id,))
+        return
+
+    before = doctor.resolve_teacher_mapping(root, existing_course_ids)
+    raw = overlay.read_bytes()
+    bom = b"\xef\xbb\xbf" if raw.startswith(b"\xef\xbb\xbf") else b""
+    content = raw[len(bom):].decode("utf-8")
+    course_rows = list(re.finditer(
+        rf"(?m)^\|\s*{re.escape(course_id)}\s*\|",
+        content,
+    ))
+    if len(course_rows) > 1:
+        raise AssertionError(f"duplicate teacher mapping row: {course_id}")
+    if not course_rows:
+        default_rows = list(re.finditer(r"(?m)^\|\s*\([^|\r\n]+\)\s*\|", content))
+        if len(default_rows) != 1:
+            raise AssertionError(
+                "teacher overlay must contain exactly one default mapping row"
+            )
+        newline = "\r\n" if "\r\n" in content else "\n"
+        row = (
+            f"| {course_id} | Synthetic Course | "
+            "`main/20_teacher/T001.md` | test |" + newline
+        )
+        content = content[:default_rows[0].start()] + row + content[default_rows[0].start():]
+        overlay.write_bytes(bom + content.encode("utf-8"))
+
+    after = doctor.resolve_teacher_mapping(root, existing_course_ids | {course_id})
+    changed = {
+        existing_id: (before[existing_id], after.get(existing_id))
+        for existing_id in existing_course_ids
+        if after.get(existing_id) != before[existing_id]
+    }
+    if changed:
+        raise AssertionError(f"materialize changed existing teacher mappings: {changed}")
 
 
 def write_textbook_source_contract(
@@ -269,6 +315,15 @@ def reset_state(root: Path) -> None:
     state_refresh.MAIN = root / "main"
 
 
+def write_validation_foundation_fixture(root: Path) -> None:
+    """Seed the structural minimum required by Doctor's base-profile check."""
+    for relative in doctor.BASE_VALIDATION_FILES:
+        content = "# validation foundation fixture\n"
+        if relative == "main/70_tools/t2ag_doctor.py":
+            content = "\n".join(doctor.BASE_DOCTOR_PROFILE_MARKERS) + "\n"
+        write(root / relative, content)
+
+
 def run_silently(function, *args) -> None:
     with contextlib.redirect_stdout(io.StringIO()):
         function(*args)
@@ -303,6 +358,7 @@ def test_profile_container_contract(root: Path) -> None:
     def build(case_root: Path) -> None:
         for domain in doctor.EXPECTED_DOMAINS:
             (case_root / "main" / domain).mkdir(parents=True, exist_ok=True)
+        write_validation_foundation_fixture(case_root)
         write(case_root / "main/t2ag.md", "0.2.2\n")
         write(case_root / "main/80_interface/fable_snail.png", "fixture\n")
         for name in ("profile.md", "learning_path.md", "course_reflections.md", "reasoning_patterns.md"):
@@ -2028,6 +2084,10 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
         "不写 `current_lesson`",
         "working_pages 仅在 `lesson` 分支",
         "t2ag_activity.py --course <COURSE_ID> --intent recover",
+        "连续 Scope **5–8**",
+        "不得自动清理",
+        "exact RT3",
+        "current_snapshot.json",
     )
     missing = [token for token in required if token not in content]
     if missing:
@@ -2037,6 +2097,9 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
         "写入当前 lesson 问答记录",
         "`lessonXX.md` 的「当前教学进度」",
         "步骤 1.5 核对 question_bank",
+        "保留 4 页",
+        "6 页，达到上限",
+        "4 页基准",
     )
     leaked = [token for token in forbidden_recovery if token in content]
     if leaked:
@@ -2099,16 +2162,48 @@ def copy_release_without_links(source: Path, fixture: Path) -> None:
 
 def materialize_synthetic_exercise_first(fixture: Path) -> str:
     course_id = "TEST1001"
+    exercise_id = "exercise01"
     content_group = "TEST1001-B001-C01-S01"
     source_relative = (
         "main/40_course/TEST1001/book/primary/verified_excerpts/"
         "test1001_b001_c01_s01.md"
     )
     source = fixture / source_relative
-    write(
-        fixture / "main/10_student/profile/profile.md",
+    profile = fixture / "main/10_student/profile/profile.md"
+    profile_before = profile.read_bytes()
+    profile_before_text = profile_before.decode("utf-8-sig")
+    profile_was_initialized = bool(re.search(
+        r"^initialization_status:\s*initialized\s*$",
+        profile_before_text,
+        re.MULTILINE,
+    ))
+    if not profile_was_initialized and not re.search(
+        r"^initialization_status:\s*uninitialized\s*$",
+        profile_before_text,
+        re.MULTILINE,
+    ):
+        raise AssertionError("profile has no recognized initialization_status")
+
+    def write_synthetic_profile(path: Path, content: str) -> None:
+        if not profile_was_initialized:
+            write(path, content)
+
+    write_synthetic_profile(
+        profile,
         "---\ntype: student_profile\ninitialization_status: initialized\n"
-        "exercise_hint_gate: enabled\nupdated: 2026-07-26\n---\n"
+        "exercise_hint_gate: enabled\n"
+        "agent_collaboration_schema: agent_collaboration_preferences.v1\n"
+        "agent_pool_limit: 6\nagent_max_active: 3\n"
+        "agent_parallel_startup: enabled\n"
+        "agent_startup_readiness: learning_ready_first\n"
+        "agent_background_reporting: blockers_only\n"
+        "activity_close_preference_schema: activity_close_preferences.v1\n"
+        "activity_close_first_prompt_status: pending\n"
+        "activity_close_first_prompt_at: none\n"
+        "learning_timezone: Asia/Singapore\nlearning_day_cutoff: 04:00\n"
+        "lesson_actual_review: on\nlesson_student_feedback: on\n"
+        "lesson_knowledge_absorption: on\nexercise_problem_review: on\n"
+        "exercise_knowledge_mastery: on\nupdated: 2026-07-26\n---\n"
         "# Synthetic profile\n\n"
         "## 每周可投入学习时间\n- 1 小时\n\n"
         "## 学习目标\n- 验证 Exercise-first 往返\n\n"
@@ -2127,38 +2222,72 @@ def materialize_synthetic_exercise_first(fixture: Path) -> str:
     )
     cloud_state = fixture / "cloud/cloud_sync_state.md"
     state_content = cloud_state.read_text(encoding="utf-8-sig")
-    state_content = replace_regex_exactly_once(
+    # R2-F05a: convert generic_skeleton once; already personal_instance → skip;
+    # neither form → fail. Never force Main through Skeleton-only rewrite.
+    if re.search(
+        r"^-\s*current_cloud_project_mode:\s*personal_instance\s*$",
         state_content,
+        re.MULTILINE,
+    ):
+        pass
+    elif re.search(
         r"^-\s*current_cloud_project_mode:\s*generic_skeleton\s*$",
-        "- current_cloud_project_mode: personal_instance",
-        label="Skeleton current_cloud_project_mode",
-        flags=re.MULTILINE,
-    )
-    state_content = replace_exactly_once(
         state_content,
-        "- cloud_bridge_status: paused\n",
-        "- cloud_bridge_status: paused\n"
-        "- new_cloud_sessions_allowed: false\n"
-        "- new_component_directives_allowed: false\n",
-        label="Skeleton cloud pause gates",
-    )
+        re.MULTILINE,
+    ):
+        state_content = replace_regex_exactly_once(
+            state_content,
+            r"^-\s*current_cloud_project_mode:\s*generic_skeleton\s*$",
+            "- current_cloud_project_mode: personal_instance",
+            label="Skeleton current_cloud_project_mode",
+            flags=re.MULTILINE,
+        )
+    else:
+        raise AssertionError(
+            "cloud_sync_state has neither generic_skeleton nor personal_instance "
+            "current_cloud_project_mode"
+        )
+    if "new_cloud_sessions_allowed:" not in state_content:
+        state_content = replace_exactly_once(
+            state_content,
+            "- cloud_bridge_status: paused\n",
+            "- cloud_bridge_status: paused\n"
+            "- new_cloud_sessions_allowed: false\n"
+            "- new_component_directives_allowed: false\n",
+            label="Skeleton cloud pause gates",
+        )
     cloud_state.write_text(state_content, encoding="utf-8", newline="\n")
     cloud_prompt = fixture / "cloud/T2AG_PROJECT_INSTRUCTIONS.txt"
     prompt_content = cloud_prompt.read_text(encoding="utf-8-sig")
-    prompt_content = replace_exactly_once(
-        prompt_content,
-        "cloud_project_mode: generic_skeleton",
-        "cloud_project_mode: personal_instance",
-        label="Skeleton cloud prompt flavor",
-    )
-    prompt_content += (
-        "\n\npersonal_instance_protocol_markers:\n"
-        "- T2AG_SESSION_CLOSE\n"
-        "- T2AG_CLOUD_CHANGE_DIRECTIVE\n"
-        "- T2AG_CLOUD_HANDOFF\n"
-    )
+    if "cloud_project_mode: personal_instance" in prompt_content:
+        pass
+    elif "cloud_project_mode: generic_skeleton" in prompt_content:
+        prompt_content = replace_exactly_once(
+            prompt_content,
+            "cloud_project_mode: generic_skeleton",
+            "cloud_project_mode: personal_instance",
+            label="Skeleton cloud prompt flavor",
+        )
+    else:
+        raise AssertionError(
+            "cloud prompt has neither generic_skeleton nor personal_instance "
+            "cloud_project_mode"
+        )
+    if "personal_instance_protocol_markers:" not in prompt_content:
+        prompt_content += (
+            "\n\npersonal_instance_protocol_markers:\n"
+            "- T2AG_SESSION_CLOSE\n"
+            "- T2AG_CLOUD_CHANGE_DIRECTIVE\n"
+            "- T2AG_CLOUD_HANDOFF\n"
+        )
     cloud_prompt.write_text(prompt_content, encoding="utf-8", newline="\n")
-    write_teacher_mapping(fixture, (course_id,))
+    # Preserve existing course→teacher rows when materializing on top of Main;
+    # only-TEST1001 wipe breaks state_refresh on multi-course personal_instance.
+    existing_course_ids = {
+        path.parent.name
+        for path in (fixture / "main/40_course").glob("*/progress.md")
+    }
+    ensure_teacher_mapping_row(fixture, course_id, existing_course_ids)
     document_relative = (
         "main/40_course/TEST1001/book/primary/source_documents/"
         "test1001_b001_c01_s01.txt"
@@ -2169,26 +2298,34 @@ def materialize_synthetic_exercise_first(fixture: Path) -> str:
     write(
         source,
         "---\ntype: verified_source_excerpt\n"
-        "artifact_id: TEST1001_U0001_SOURCE\ncourse_id: TEST1001\n"
+        "artifact_id: TEST1001_EXERCISE01_SOURCE\ncourse_id: TEST1001\n"
         f"content_group_id: {content_group}\n"
         f"source_document: {document_relative}\n"
         f"source_document_sha256: {document_sha}\n"
         "source_locator: synthetic problem 1\n"
         "verification_status: synthetic_verified\nverified: 2026-07-26\n"
         "lifecycle: persistent\n---\n# Synthetic source\n\n"
-        "## U0001-Q001\n\n- 教材题号：1\n- 来源页：1\n"
+        f"## {exercise_id}-Q001\n\n- 教材题号：1\n- 来源页：1\n"
         "- 题面：证明 1 = 1。\n",
     )
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     registry_path = fixture / "main/70_tools/artifact_registry.json"
     registry = json.loads(registry_path.read_text(encoding="utf-8-sig"))
-    registry.setdefault("artifacts", []).append({
-        "artifact_id": "TEST1001_U0001_SOURCE",
+    synthetic_artifact = {
+        "artifact_id": "TEST1001_EXERCISE01_SOURCE",
         "canonical_path": source_relative,
         "redirects": [],
         "status": "active",
         "migration_reason": "synthetic contract fixture",
-    })
+    }
+    matching_artifacts = [
+        item for item in registry.setdefault("artifacts", [])
+        if item.get("artifact_id") == synthetic_artifact["artifact_id"]
+    ]
+    if not matching_artifacts:
+        registry["artifacts"].append(synthetic_artifact)
+    elif matching_artifacts != [synthetic_artifact]:
+        raise AssertionError("synthetic artifact registry entry drifted or duplicated")
     registry_path.write_text(
         json.dumps(registry, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -2206,15 +2343,17 @@ def materialize_synthetic_exercise_first(fixture: Path) -> str:
     write(
         course / "progress.md",
         "---\ntype: course_progress\ncourse_id: TEST1001\n"
-        "lifecycle_status: ongoing\ncourse_driver: textbook\ntruth_source: true\n"
-        "current_lesson: none\ncurrent_activity: exercise\n"
-        "current_activity_id: U0001\n"
-        "resume_path: main/40_course/TEST1001/exercises/U0001/exercise.md\n"
+        "lifecycle_status: ongoing\ncourse_driver: textbook\n"
+        "truth_scope: course_lifecycle,course_frontend,activity_position\n"
+        "current_activity: exercise\n"
+        f"current_activity_id: {exercise_id}\n"
+        f"resume_path: main/40_course/TEST1001/exercises/{exercise_id}/exercise.md\n"
         "activity_position: synthetic start\nupdated: 2026-07-26\n"
         f"current_completion_node: {content_group}-N01\n"
         "current_checkpoint: TEST1001-B001-P001-N01\n"
-        "checkpoint_state: queued\nnext_action: solve synthetic problem\n---\n"
-        "# TEST1001 progress\n\n- **下一步计划**：solve synthetic problem\n\n"
+        "checkpoint_state: queued\nnext_action_kind: resume\n"
+        f"next_activity_type: exercise\nnext_activity_id: {exercise_id}\n---\n"
+        f"# TEST1001 progress\n\n- **下一步计划**：resume exercise:{exercise_id}\n\n"
         "## Completion nodes\n\n"
         "| node_id | 标题 | 来源范围 | 状态 | 完成证据 |\n"
         "|---|---|---|---|---|\n"
@@ -2227,33 +2366,52 @@ def materialize_synthetic_exercise_first(fixture: Path) -> str:
         "## 内容组连接表\n\n"
         "| content_group_id | source_scope | lesson_ids | exercise_ids |\n"
         "|---|---|---|---|\n"
-        f"| {content_group} | synthetic | — | U0001 |\n",
+        f"| {content_group} | synthetic | — | {exercise_id} |\n",
     )
     write(course / "lessons/_README.md", "No Lesson: Exercise-first fixture.\n")
     write(course / "book/README.md", "Synthetic persistent source.\n")
     write(
-        course / "exercises/U0001/exercise.md",
-        "---\ntype: exercise\ncourse_id: TEST1001\nexercise_id: U0001\n"
+        course / f"exercises/{exercise_id}/exercise.md",
+        f"---\ntype: exercise\ncourse_id: TEST1001\nexercise_id: {exercise_id}\n"
         f"content_group_ids: [{content_group}]\nstatus: ongoing\n"
-        "created: 2026-07-26\n---\n# U0001\n\n## 学习记录\n",
+        f"created: 2026-07-26\n---\n# {exercise_id}\n\n## 学习记录\n",
     )
     write(
-        course / "exercises/U0001/problems.md",
+        course / f"exercises/{exercise_id}/problems.md",
         "---\ntype: exercise_problem_set\ncourse_id: TEST1001\n"
-        "exercise_id: U0001\n"
+        f"exercise_id: {exercise_id}\n"
         f"content_group_id: {content_group}\n"
-        "source_artifact_id: TEST1001_U0001_SOURCE\n"
+        "source_artifact_id: TEST1001_EXERCISE01_SOURCE\n"
         f"source_path: {source_relative}\n"
         "source_locator: synthetic problem 1\n"
         f"source_sha256: {source_sha}\n"
-        "source_order: [U0001-Q001]\nteaching_sequence: [U0001-Q001]\n"
-        "status: active\n---\n# Problems\n\n## U0001-Q001\n\n"
+        f"source_order: [{exercise_id}-Q001]\n"
+        f"teaching_sequence: [{exercise_id}-Q001]\n"
+        f"status: active\n---\n# Problems\n\n## {exercise_id}-Q001\n\n"
         "- 题号：1\n- 来源页：1\n- 难度：未评估\n"
         f"- 依赖 completion node：`{content_group}-N01`\n"
         "- 状态：open\n- 错误级别：—\n- 题面：证明 1 = 1。\n",
     )
-    (course / "exercises/U0001/attempts").mkdir(parents=True, exist_ok=True)
-    (course / "exercises/U0001/reviews").mkdir(parents=True, exist_ok=True)
+    (course / f"exercises/{exercise_id}/attempts").mkdir(parents=True, exist_ok=True)
+    (course / f"exercises/{exercise_id}/reviews").mkdir(parents=True, exist_ok=True)
+    ledger_event = ledger_contract.render_migration_snapshot_event(
+        event_id="ALE-000001",
+        course_id=course_id,
+        activity_type="exercise",
+        activity_id=exercise_id,
+        observed_state="ongoing",
+        recorded_at="2026-07-26T00:00:00Z",
+        transaction_id="MIG022-TEST1001",
+        observed_from_refs=[
+            f"main/40_course/{course_id}/exercises/{exercise_id}/exercise.md"
+        ],
+        evidence_refs=["contract_test_support:synthetic_exercise_first"],
+        content_group_ids=[content_group],
+    )
+    write(
+        course / "activity_ledger.md",
+        ledger_contract.build_ledger_with_events(course_id, ledger_event),
+    )
     write(
         course / "question_bank.md",
         "---\ntype: question_bank\ncourse_id: TEST1001\nnext_id: 1\n---\n"
@@ -2371,32 +2529,34 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
                     and re.search(r"^activity_position:\s*between_activities\s*$", content, re.MULTILINE)
                 ):
                     between.append(candidate.parent.name)
-            if not between:
-                raise AssertionError(
-                    "initialized release has neither an ongoing Exercise nor a between-activities course"
+            if between:
+                course_id = between[0]
+                cli("t2ag_state_refresh.py", "--check")
+                doctor = cli("t2ag_doctor.py")
+                assert_doctor_flavor(doctor, expected_runtime_flavor)
+                recover = json.loads(
+                    cli(
+                        "t2ag_activity.py", "--course", course_id, "--intent", "recover",
+                    ).stdout
                 )
-            course_id = between[0]
-            cli("t2ag_state_refresh.py", "--check")
-            doctor = cli("t2ag_doctor.py")
-            assert_doctor_flavor(doctor, expected_runtime_flavor)
-            recover = json.loads(
-                cli(
-                    "t2ag_activity.py", "--course", course_id, "--intent", "recover",
-                ).stdout
-            )
-            expected_progress = f"main/40_course/{course_id}/progress.md"
-            if (
-                recover["current_activity"] != "none"
-                or recover["current_activity_id"] != "none"
-                or recover["primary_read"] != expected_progress
-                or recover["activity_read_targets"]
-                or recover["working_pages"] is not None
-            ):
-                raise AssertionError(
-                    f"between-activities recover invented an active activity: {recover}"
-                )
-            return
-        course_id = candidates[0]
+                expected_progress = f"main/40_course/{course_id}/progress.md"
+                if (
+                    recover["current_activity"] != "none"
+                    or recover["current_activity_id"] != "none"
+                    or recover["primary_read"] != expected_progress
+                    or recover["activity_read_targets"]
+                    or recover["working_pages"] is not None
+                ):
+                    raise AssertionError(
+                        f"between-activities recover invented an active activity: {recover}"
+                    )
+                return
+            # Initialized Main may only have ongoing textbook Lessons (no Exercise /
+            # between_activities). Do not depend on mutable instance shape: synthesize
+            # an Exercise-first course inside the fixture for the disk roundtrip.
+            course_id = materialize_synthetic_exercise_first(fixture)
+        else:
+            course_id = candidates[0]
 
     progress_path = fixture / f"main/40_course/{course_id}/progress.md"
     source_progress = source / progress_path.relative_to(fixture)
@@ -2404,20 +2564,8 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
         raise AssertionError("release fixture reused a hardlink to the source progress")
 
     progress = progress_path.read_text(encoding="utf-8-sig")
-    current_lesson = re.search(
-        r"^current_lesson:\s*(.*?)\s*$",
-        progress,
-        re.MULTILINE,
-    )
-    if not current_lesson:
-        raise AssertionError("E2E fixture progress lacks current_lesson")
-    progress = replace_frontmatter_field(
-        progress,
-        "current_lesson",
-        "none",
-        expected=current_lesson.group(1),
-    )
-    detached_write(progress_path, progress)
+    if re.search(r"^current_lesson:", progress, re.MULTILINE):
+        raise AssertionError("0.2.2 E2E fixture retained retired current_lesson")
 
     course_root = fixture / f"main/40_course/{course_id}"
     historical_lessons = {
@@ -2433,7 +2581,7 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
     memory_path = fixture / "main/00_core/t2ag_memory.md"
     memory = memory_path.read_text(encoding="utf-8-sig")
     activity_id_match = re.search(
-        r"^current_activity_id:\s*(U\d{4})\s*$",
+        r"^current_activity_id:\s*((?:U\d{4}|exercise\d{2,}))\s*$",
         progress,
         re.MULTILINE,
     )
@@ -2857,8 +3005,7 @@ def test_profile_migration_roundtrip(root: Path) -> None:
         raise AssertionError("profile migration applied across a collision")
 
 
-def main() -> int:
-    tests = (
+ALL_CONTRACT_TESTS = (
         test_profile_placeholder,
         test_profile_container_contract,
         test_resume_path,
@@ -2894,16 +3041,16 @@ def main() -> int:
         test_main_readme_skeleton_reference_does_not_change_migration_kind,
         test_profile_migration_manifest_tamper,
         test_profile_migration_roundtrip,
-    )
-    with tempfile.TemporaryDirectory(prefix="t2ag_contracts_") as tmp:
+)
+
+
+def run_contract_tests(tests: tuple, *, suite_name: str) -> int:
+    """Run a durable selection of atomic assertions in isolated fixture roots."""
+    with tempfile.TemporaryDirectory(prefix=f"t2ag_{suite_name}_") as tmp:
         base = Path(tmp)
         for index, test in enumerate(tests, start=1):
             root = base / f"case_{index}"
             test(root)
             print(f"PASS {test.__name__}")
-    print(f"result: {len(tests)}/{len(tests)} contract/integration tests passed")
+    print(f"result: {len(tests)}/{len(tests)} {suite_name} tests passed")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

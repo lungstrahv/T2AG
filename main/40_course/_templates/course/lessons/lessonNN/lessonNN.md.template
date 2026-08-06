@@ -12,6 +12,18 @@ created: YYYY-MM-DD
 - 来源：SOURCE_SCOPE
 - 精确停点：START_POSITION
 
+## Lesson 开场概览
+
+- 开课前按教材目录、完整 Lesson 范围与 `LessonMap` 编写本课目标和学习路径；只作路线概览，
+  不把概览冒充教材讲授或学生确认。
+
+## 开场知识树
+
+```text
+lessonNN
+└─ 按本课 active lesson blocks 填写字符知识树
+```
+
 ## 教学记录
 
 - 真实教学开始后追加；不得预造学生确认。

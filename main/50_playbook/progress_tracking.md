@@ -95,7 +95,8 @@ completion node 是粗粒度、永久稳定的正式进度单元，通常跨若�
 
 completion node 的既有完成证据满足后，自动把该节点标为 completed，并把下一节点标为 in_progress。
 
-- 教材课：内容讲完，且没有悬空确认或未回答问题；不额外强制生成习题。
+- 教材课：内容讲完，且没有悬空确认或未回答问题；不额外强制生成习题。额外习题默认
+  不自动生成，只在学生请求或明确 opt-in 后创建；课堂理解确认不算额外习题。
 - 教材原有例题/习题：继续执行习题闭环，但习题闭环不是每个完成节点的附加考试。
 - 项目课：以计划中已有的代码运行、文件产出或功能结果关闭。
 - 实践课：以计划中已有的行动记录或复盘结果关闭。
@@ -137,7 +138,7 @@ Lesson/Exercise 的局部停点由 `session_close.md` 写成活动证据，不�
 progress.md / active group 文件
   → t2ag_state_refresh.py --write
   → t2ag_state_refresh.py --check
-  → t2ag_doctor.py
+  → t2ag_doctor.py --profile runtime
 ```
 
 工具失败时不得用手抄结果冒充生成成功。

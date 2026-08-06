@@ -1,0 +1,8 @@
+# Lesson Map（覆盖当前 LessonScope）
+
+> 每个节点必须回指 `SourcePageAsset` / 完整页键。禁止 mastery、completion、学生确认字段。
+> active boundary 与教材块清单用于生成开场知识树和页内覆盖清单，不代表已经讲授。
+
+| 序 | pdf_page_index | asset_id / page_key | active boundary | 教材块清单 |
+|---:|---:|---|---|---|
+| 1 |  |  |  |  |

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -301,6 +303,171 @@ class TextbookWindowTests(unittest.TestCase):
             self.assertEqual(path, working)
             self.assertIn("## 第 12 页", excerpt)
 
+    def test_invalid_snapshot_does_not_fallback_to_legacy(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lesson = root / "main/40_course/TEST100/lessons/lesson01"
+            working = lesson / "working_pages/source_excerpt.md"
+            write_utf8(
+                working,
+                "# Excerpt\n\n"
+                + "\n\n".join(
+                    f"## 第 {page} 页\n\npage {page}"
+                    for page in (9, 10, 11, 12)
+                )
+                + "\n",
+            )
+            prep = lesson / "preparation"
+            write_utf8(
+                prep / "PREP-deadbeefdeadbeef.json",
+                json.dumps(
+                    {
+                        "schema": "t2ag.lesson_preparation_snapshot.v1",
+                        "snapshot_id": "PREP-deadbeefdeadbeef",
+                        "state": "valid",
+                        "scope_coverage": "complete",
+                        "content_consumed": True,
+                        "page_keys": [],
+                    }
+                ),
+            )
+            # New path present (PREP file) but pointer missing → must fail, not legacy.
+            snapshot = context.ProgressSnapshot(
+                path=root / "main/40_course/TEST100/progress.md",
+                content="",
+                meta={
+                    "textbook_page": "10",
+                    "working_pages_window": "[9, 10, 11, 12]",
+                },
+            )
+            with self.assertRaisesRegex(
+                context.ContextPacketError,
+                "不得回退 legacy|缺 current_snapshot",
+            ):
+                context.textbook_lesson_window(
+                    context.SourceCache(root),
+                    snapshot,
+                    self.route(),
+                )
+
+    def test_valid_snapshot_source_assets_path_succeeds_with_crlf_map(self) -> None:
+        """Legal Snapshot + current pointer + source_assets must open (CRLF map ok)."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            course_id = "TEST100"
+            lesson = "lesson01"
+            document_id = "DOC1"
+            pages = [9, 10, 11, 12, 13]
+            doc_sha = "a" * 64
+            course = root / "main/40_course" / course_id
+            # CRLF LessonMap on disk
+            map_rows = "\r\n".join(
+                f"| {i + 1} | {p} | {document_id}-P{p:04d} | n |"
+                for i, p in enumerate(pages)
+            )
+            map_body = (
+                "# Lesson Map\r\n\r\n"
+                "| 序 | pdf_page_index | asset_id / page_key | 节点摘要 |\r\n"
+                "|---:|---:|---|---|\r\n"
+                f"{map_rows}\r\n"
+            ).encode("utf-8")
+            map_path = course / "lessons" / lesson / "lesson_map.md"
+            map_path.parent.mkdir(parents=True, exist_ok=True)
+            map_path.write_bytes(map_body)
+            map_sha = hashlib.sha256(map_body).hexdigest()
+            asset_shas: dict[int, str] = {}
+            for p in pages:
+                asset = (
+                    course
+                    / "book/primary/source_assets"
+                    / document_id
+                    / "pages"
+                    / f"page_{p}.md"
+                )
+                write_utf8(
+                    asset,
+                    "---\n"
+                    f"verification_status: verified\n"
+                    f"source_document_id: {document_id}\n"
+                    f"source_document_sha256: {doc_sha}\n"
+                    f"pdf_page_index: {p}\n"
+                    "---\n\n"
+                    f"# Page {p}\n\ncontent {p}\n",
+                )
+                asset_shas[p] = hashlib.sha256(asset.read_bytes()).hexdigest()
+            page_keys = [
+                {
+                    "source_document_sha256": doc_sha,
+                    "pdf_page_index": p,
+                    "render_profile": "pdf-300dpi-rgb-v1",
+                }
+                for p in pages
+            ]
+            receipts = [
+                {
+                    "receipt_id": f"RCP-{p}",
+                    "page_key": page_keys[i],
+                    "verified_text_sha256": "b" * 64,
+                    "source_page_asset_sha256": asset_shas[p],
+                    "source_document_sha256": doc_sha,
+                }
+                for i, p in enumerate(pages)
+            ]
+            snap = {
+                "schema": "t2ag.lesson_preparation_snapshot.v1",
+                "snapshot_id": "PREP-validcrlf00001",
+                "lesson_id": lesson,
+                "lesson_scope_version": "SCOPE-test",
+                "page_keys": page_keys,
+                "load_receipt_ids": [r["receipt_id"] for r in receipts],
+                "load_receipts": receipts,
+                "lesson_map_sha256": map_sha,
+                "source_document_sha256": doc_sha,
+                "document_id": document_id,
+                "scope_coverage": "complete",
+                "content_consumed": True,
+                "short_document": False,
+                "snapshot_body_sha256": "d" * 64,
+                "state": "valid",
+            }
+            prep = course / "lessons" / lesson / "preparation"
+            prep.mkdir(parents=True, exist_ok=True)
+            (prep / f"{snap['snapshot_id']}.json").write_text(
+                json.dumps(snap, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (prep / "current_snapshot.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "t2ag.preparation_current_pointer.v1",
+                        "lesson_id": lesson,
+                        "snapshot_id": snap["snapshot_id"],
+                        "snapshot_body_sha256": snap["snapshot_body_sha256"],
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            # Legacy also present — must NOT be used when new path is valid.
+            write_utf8(
+                course / "lessons" / lesson / "working_pages/source_excerpt.md",
+                "# legacy should not be selected\n\n## 第 10 页\n\nlegacy\n",
+            )
+            progress = context.ProgressSnapshot(
+                path=course / "progress.md",
+                content="",
+                meta={"textbook_page": "10"},
+            )
+            path, excerpt = context.textbook_lesson_window(
+                context.SourceCache(root),
+                progress,
+                self.route(),
+            )
+            self.assertIn("source_assets", str(path).replace("\\", "/"))
+            self.assertIn("content 10", excerpt)
+            self.assertNotIn("legacy should not be selected", excerpt)
+
 
 class ConditionalRoutingTests(unittest.TestCase):
     def test_between_activities_route_has_no_fake_carrier(self) -> None:
@@ -388,6 +555,8 @@ class FirstStepTests(unittest.TestCase):
             "schema_version": 2,
             "status": "ready",
             "course_id": "TEST100",
+            "snapshot_id": "CTX-TEST100-" + "0" * 64,
+            "sources_unchanged": True,
             "memory_current_course": "TEST100",
             "context_mode": "memory_current",
             "group_id": "G01",
@@ -396,6 +565,9 @@ class FirstStepTests(unittest.TestCase):
                 "current_activity_id": "U0001",
                 "activity_position": "start",
                 "primary_read": "main/example.md",
+                "next_action_kind": "resume",
+                "next_activity_type": "exercise",
+                "next_activity_id": "U0001",
             },
             "cost": {
                 "reference_inventory_chars": 1000,
@@ -433,6 +605,167 @@ class FirstStepTests(unittest.TestCase):
         self.assertEqual(
             len(combined),
             packet["cost"]["serialized_l0_plus_l1_markdown_chars"],
+        )
+
+
+class CriticalPacketTests(unittest.TestCase):
+    def test_live_critical_contract_is_bounded_and_complete(self) -> None:
+        packet = context.build_critical_packet(context.ROOT)
+        rendered = context.render_critical(packet)
+        self.assertLessEqual(len(rendered), context.CRITICAL_MAX_CHARS)
+        self.assertTrue(packet["snapshot_id"].startswith("CTX-"))
+        self.assertTrue(packet["sources_unchanged"])
+        if packet["status"] == "first_run_required":
+            self.assertEqual(packet["action_payload"]["kind"], "first_run")
+            return
+        self.assertEqual(packet["status"], "ready")
+        self.assertFalse(packet["blocking_teach"])
+        self.assertIn(packet["route"]["next_action_kind"], context.NEXT_ACTION_KINDS)
+        self.assertEqual(
+            set(packet["source_sha256"]),
+            {"progress", "activity", "profile", "teacher_overlay"},
+        )
+        creativity = packet["classroom_creativity_policy"]
+        self.assertEqual(creativity["creative_interaction_default"], "allowed")
+        self.assertFalse(creativity["automatic_extra_exercise_generation"])
+        self.assertEqual(
+            creativity["extra_exercise_trigger"],
+            "student_request_or_explicit_opt_in",
+        )
+        self.assertFalse(creativity["understanding_check_counts_as_extra_exercise"])
+        self.assertEqual(len(creativity["hard_limits"]), 2)
+        if packet["action_payload"].get("kind") == "lesson":
+            payload = packet["action_payload"]
+            resume = payload["resume_contract"]
+            self.assertTrue(resume["authoritative_prompt_must_remain_exact"])
+            self.assertTrue(resume["creative_supplements_allowed"])
+            opening = payload["lesson_opening_contract"]
+            self.assertTrue(opening["overview_required"])
+            self.assertTrue(opening["knowledge_tree_required"])
+            self.assertEqual(opening["knowledge_tree_format"], "ascii_text")
+            self.assertTrue(opening["creative_composition_allowed"])
+            self.assertTrue(opening["creative_opening_questions_allowed"])
+            self.assertTrue(
+                opening["reaction_and_continue_required_before_first_block"]
+            )
+            if resume["checkpoint_state"] == "pending":
+                self.assertEqual(
+                    payload["first_confirmation_question"],
+                    resume["exact_stop"],
+                )
+            if "source_page" in payload:
+                page = payload["source_page"]["pdf_page_index"]
+                self.assertTrue(payload["source"].endswith(f"page_{page}.md"))
+                contract = payload["page_teaching_contract"]
+                self.assertTrue(contract["active_boundary"])
+                self.assertGreaterEqual(len(contract["teaching_blocks"]), 1)
+                self.assertEqual(
+                    payload["source_page"]["printed_page_label"],
+                    contract["current_page"]["printed_page_label"],
+                )
+                self.assertTrue(contract["classroom_tree_required"])
+                self.assertTrue(
+                    contract["coverage_register"][
+                        "page_change_requires_all_blocks_accounted"
+                    ]
+                )
+                gates = contract["interaction_gates"]
+                self.assertTrue(gates["one_new_teaching_block_per_turn"])
+                self.assertTrue(gates["understanding_confirmation_required"])
+                self.assertEqual(
+                    gates["affect_check_required_after"],
+                    ["derivation", "summary"],
+                )
+                self.assertEqual(
+                    gates["continue_authorization_scope"],
+                    "single_use_next_block",
+                )
+                self.assertTrue(gates["correct_answer_is_not_continue_authorization"])
+                self.assertTrue(gates["page_turn_announcement_required"])
+                self.assertTrue(packet["teaching_gate"]["scope_scan_required"])
+                self.assertFalse(packet["teaching_gate"]["may_release_action"])
+                self.assertTrue(packet["teaching_gate"]["page_contract_required"])
+                self.assertTrue(
+                    packet["teaching_gate"]["explicit_continue_gate_required"]
+                )
+                self.assertTrue(packet["teaching_gate"]["lesson_opening_required"])
+                self.assertTrue(
+                    packet["teaching_gate"]["creative_supplements_allowed"]
+                )
+        if packet["route"]["next_action_kind"] == "confirm_close":
+            payload = packet["action_payload"]
+            self.assertEqual(payload["kind"], "confirm_close")
+            self.assertIn("教学复盘", payload["learner_retrospective_markdown"])
+            self.assertIn("知识吸收", payload["learner_retrospective_markdown"])
+            self.assertIn("学生课程内容反馈", payload["learner_retrospective_markdown"])
+            self.assertRegex(
+                payload["retrospective_presentation_sha256"], r"^[0-9a-f]{64}$"
+            )
+            self.assertRegex(payload["pending_event_id"], r"^ALE-\d{6}$")
+            self.assertRegex(payload["body_sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual(len(payload["binding_tuple"].splitlines()), 3)
+            self.assertIn(
+                payload["accepted_close_intent"],
+                {"结课", "以未完成状态结课"},
+            )
+
+    def test_critical_does_not_build_or_wait_for_full_l0(self) -> None:
+        with mock.patch.object(
+            context,
+            "build_packet",
+            side_effect=AssertionError("full L0 must not run"),
+        ):
+            packet = context.build_critical_packet(context.ROOT)
+        self.assertIn(packet["status"], {"ready", "first_run_required"})
+
+    def test_background_snapshot_matches_and_mismatch_is_rejected(self) -> None:
+        critical = context.build_critical_packet(context.ROOT)
+        background = context.build_packet(context.ROOT)
+        self.assertEqual(critical["snapshot_id"], background["snapshot_id"])
+        if background["route"]["current_activity"] == "lesson":
+            consumption = background["source_consumption"]
+            if consumption["required"]:
+                self.assertEqual(
+                    consumption["scope_text_status"],
+                    "complete_in_current_packet",
+                )
+                self.assertEqual(
+                    consumption["scope_visual_status"],
+                    "external_scan_required",
+                )
+                self.assertIn(
+                    consumption["current_pdf_page_index"],
+                    consumption["pdf_page_indices"],
+                )
+        tool = context.ROOT / "main/70_tools/t2ag_context.py"
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                str(tool),
+                "--format",
+                "markdown",
+                "--expect-snapshot",
+                "CTX-stale",
+            ],
+            cwd=context.ROOT,
+            capture_output=True,
+            encoding="utf-8",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("snapshot mismatch", result.stdout)
+
+    def test_exercise_statement_stops_before_hint(self) -> None:
+        problem = (
+            "## exercise01-Q001\n"
+            "- 难度：未评估\n"
+            "- 题面：证明 A。\n"
+            "  继续题面。\n"
+            "- 提示：不要泄露。\n"
+        )
+        self.assertEqual(
+            context.problem_statement(problem),
+            "证明 A。\n  继续题面。",
         )
 
 

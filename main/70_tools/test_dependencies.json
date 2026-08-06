@@ -1,0 +1,120 @@
+{
+  "schema": "t2ag.test_dependencies.v2",
+  "tiers": ["fast", "deep", "release_only"],
+  "tests": {
+    "foundation.structure": {"path": "main/70_tools/test_distribution_foundation.py", "tier": "fast", "kind": "atomic"},
+    "contracts.runtime": {"path": "main/70_tools/test_runtime_contracts.py", "tier": "fast", "kind": "atomic"},
+    "contracts.activity": {"path": "main/70_tools/test_activity_contracts.py", "tier": "fast", "kind": "atomic"},
+    "contracts.release": {"path": "main/70_tools/test_release_contracts.py", "tier": "release_only", "kind": "atomic"},
+    "migrations.legacy": {"path": "main/70_tools/test_legacy_migrations.py", "tier": "deep", "kind": "atomic"},
+    "context.packet": {"path": "main/70_tools/test_context_packet.py", "tier": "fast", "kind": "atomic"},
+    "source.pages": {"path": "main/70_tools/test_source_pages.py", "tier": "fast", "kind": "atomic"},
+    "reading.closeout": {"path": "main/70_tools/test_021_closeout.py", "tier": "deep", "kind": "atomic"},
+    "reading.release_saga": {"path": "main/70_tools/scenarios/release_reading_bridge_saga.py", "tier": "release_only", "kind": "scenario", "automatic": false},
+    "activity.close": {"path": "main/70_tools/test_022_activity_close.py", "tier": "fast", "kind": "atomic"},
+    "activity.close_roundtrip": {"path": "main/70_tools/test_022_close_roundtrip.py", "tier": "fast", "kind": "atomic"},
+    "doctor.postcheck": {"path": "main/70_tools/test_022_doctor_postcheck.py", "tier": "fast", "kind": "atomic"},
+    "lifecycle.runtime": {"path": "main/70_tools/test_022_lifecycle_runtime.py", "tier": "fast", "kind": "atomic"},
+    "transaction.core": {"path": "main/70_tools/test_022_transaction.py", "tier": "deep", "kind": "atomic"},
+    "transaction.kill_recover": {"path": "main/70_tools/test_022_kill_recover.py", "tier": "deep", "kind": "atomic"},
+    "migration.022": {"path": "main/70_tools/test_022_migration.py", "tier": "deep", "kind": "atomic"},
+    "release.receipts": {"path": "main/70_tools/test_release_receipts.py", "tier": "release_only", "kind": "atomic"},
+    "release.gates": {"path": "main/70_tools/test_release_gates.py", "tier": "release_only", "kind": "atomic"},
+    "release.evidence": {"path": "main/70_tools/test_release_evidence.py", "tier": "release_only", "kind": "atomic"},
+    "release.fault_contracts": {"path": "main/70_tools/test_release_fault_contracts.py", "tier": "release_only", "kind": "atomic"},
+    "release.shadow_contracts": {"path": "main/70_tools/test_release_shadow_contracts.py", "tier": "release_only", "kind": "atomic"},
+    "release.shadow_apply_scenario": {"path": "main/70_tools/scenarios/release_shadow_apply.py", "tier": "release_only", "kind": "scenario", "automatic": false}
+  },
+  "components": {
+    "distribution_foundation": {
+      "sources": ["AGENTS.md", "README.md", "main/t2ag.md", "main/50_playbook/batch_workorder_spec.md", "main/50_playbook/doctor_contracts.md", "main/50_playbook/test_strategy.md", "main/50_playbook/validation_flow.md", "main/70_tools/t2ag_doctor.py", "main/70_tools/t2ag_test.py", "main/70_tools/test_dependencies.json", "main/70_tools/validation_control.py", "main/70_tools/validation_workflow.json", "main/70_tools/sync_lite.py"],
+      "tests": ["foundation.structure", "doctor.postcheck", "contracts.runtime", "reading.closeout"]
+    },
+    "workorder_governance": {
+      "sources": ["main/50_playbook/batch_workorder_spec.md"],
+      "tests": ["foundation.structure", "contracts.runtime"]
+    },
+    "doctor": {
+      "sources": ["main/70_tools/t2ag_doctor.py", "main/70_tools/validation_control.py", "main/70_tools/validation_workflow.json", "main/70_tools/test_022_doctor_postcheck.py", "main/50_playbook/doctor_contracts.md", "main/50_playbook/validation_flow.md"],
+      "tests": ["doctor.postcheck", "contracts.runtime"]
+    },
+    "context": {
+      "sources": ["main/70_tools/t2ag_context.py", "main/70_tools/t2ag_activity.py", "main/50_playbook/context_packet.md"],
+      "tests": ["context.packet"]
+    },
+    "source_pages": {
+      "sources": [
+        "main/70_tools/t2ag_source_pages.py",
+        "main/70_tools/test_source_pages.py",
+        "main/50_playbook/source_page_assets.md",
+        "main/50_playbook/ocr_correct_flow.md",
+        "main/50_playbook/book_management.md",
+        "main/50_playbook/lesson_recover.md",
+        "docs/adr/0001-textbook-source-assets-and-bounded-cache.md"
+      ],
+      "tests": ["source.pages", "contracts.runtime"]
+    },
+    "startup_orchestration": {
+      "sources": ["AGENTS.md", "README.md", "main/t2ag.md", "main/00_core/domain_model.md", "main/10_student/profile/profile.md", "main/50_playbook/context_packet.md", "main/50_playbook/first_run.md", "main/50_playbook/startup_orchestration.md", "main/70_tools/t2ag_doctor.py"],
+      "tests": ["foundation.structure", "contracts.runtime", "context.packet"]
+    },
+    "activity_close": {
+      "sources": ["main/70_tools/activity_close.py", "main/70_tools/activity_ledger.py", "main/50_playbook/session_close.md"],
+      "tests": ["activity.close", "activity.close_roundtrip"]
+    },
+    "activity_contracts": {
+      "sources": ["main/40_course/_templates", "main/50_playbook/progress_tracking.md", "main/70_tools/t2ag_activity.py"],
+      "tests": ["contracts.activity"]
+    },
+    "lifecycle": {
+      "sources": ["main/70_tools/activity_lifecycle.py", "main/70_tools/activity_ledger.py"],
+      "tests": ["lifecycle.runtime"]
+    },
+    "transaction": {
+      "sources": ["main/70_tools/activity_transaction.py", "main/70_tools/exact_plan_shadow.py"],
+      "tests": ["transaction.core", "transaction.kill_recover"]
+    },
+    "migrations": {
+      "sources": ["main/70_tools/migrate_021.py", "main/70_tools/migrate_021_activity_records.py", "main/70_tools/migrate_022_activity_close.py", "main/70_tools/migration_test_support.py"],
+      "tests": ["migration.022", "migrations.legacy"]
+    },
+    "reading_bridge": {
+      "sources": ["main/70_tools/t2ag_reading_bridge.py", "main/70_tools/contracts/reading_bridge_v1"],
+      "tests": ["reading.closeout", "reading.release_saga"]
+    },
+    "release_candidate_contracts": {
+      "sources": ["main/70_tools/t2ag_candidate_replay.py", "main/50_playbook/git_workflow.md", "main/50_playbook/t2ag_flow.md"],
+      "tests": ["contracts.release"]
+    },
+    "release_receipts": {
+      "sources": ["main/70_tools/campaign_receipt.py"],
+      "tests": ["release.receipts"]
+    },
+    "release_evidence": {
+      "sources": ["main/70_tools/evidence_runner.py"],
+      "tests": ["release.evidence"]
+    },
+    "release_gates": {
+      "sources": ["main/70_tools/gate_matrix.py"],
+      "tests": ["release.gates"]
+    },
+    "release_faults": {
+      "sources": ["main/70_tools/exact_plan_kill_matrix.py", "main/70_tools/exact_plan_exception_matrix.py"],
+      "tests": ["release.fault_contracts"]
+    },
+    "release_shadow": {
+      "sources": ["main/70_tools/exact_plan_shadow.py", "main/70_tools/scenarios/release_shadow_apply.py"],
+      "tests": ["release.shadow_contracts", "release.shadow_apply_scenario"]
+    },
+    "release_suite": {
+      "aggregate": true,
+      "plan_only": true,
+      "sources": [],
+      "tests": ["contracts.release", "release.receipts", "release.evidence", "release.gates", "release.fault_contracts", "release.shadow_contracts", "release.shadow_apply_scenario", "reading.release_saga"]
+    },
+    "test_management": {
+      "sources": ["main/70_tools/t2ag_test.py", "main/70_tools/test_dependencies.json", "main/70_tools/validation_control.py", "main/70_tools/validation_workflow.json", "main/70_tools/contract_test_support.py", "main/50_playbook/test_strategy.md", "main/50_playbook/validation_flow.md"],
+      "tests": ["foundation.structure", "contracts.runtime", "contracts.activity", "doctor.postcheck", "activity.close_roundtrip", "migrations.legacy", "contracts.release"]
+    }
+  }
+}

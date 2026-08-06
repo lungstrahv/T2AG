@@ -23,7 +23,7 @@ import migrate_021
 import migrate_021_activity_records as activity_migration
 import migration_txn_021 as migration_txn
 import sync_lite
-import test_021_saga as saga
+from scenarios import release_reading_bridge_saga as saga
 import t2ag_doctor as doctor
 import t2ag_reading_bridge as bridge
 from contracts.reading_bridge_v1.validator import (

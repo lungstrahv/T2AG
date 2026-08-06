@@ -7,8 +7,18 @@
 - 课程：`40_course/<COURSE_ID>/`，目录名就是稳定课程 ID。
 - group：`30_group/GNN/`。
 - lesson：`lessons/lessonNN/`。
-- working pages：`working_pages/pages/pageNN.png` 与
-  `working_pages/raw_ocr/page_NN_raw.txt`。
+- 教材页资产（EV-0012 / Course 权威链）：
+  - 持久核验文本、raw OCR 与元数据：
+    `book/primary/source_assets/<document_id>/pages/page_<pdf_index>.md`、
+    `book/primary/source_assets/<document_id>/raw_ocr/page_<pdf_index>_raw.txt` 等；
+  - 可重建 PNG 缓存：
+    `book/.cache/source_pages/<source_document_sha256>/<render_profile>/page_<pdf_index>.png`；
+  - Lesson 只持有 `lesson_map.md`、不可变 preparation Snapshot（`preparation/PREP-*.json`）
+    与 current pointer（`preparation/current_snapshot.json`），不复制页图/OCR 正文。
+- **Legacy 兼容输入**（仅未迁移实例）：`lessons/lessonNN/working_pages/**`
+  （含历史 `pages/pageNN.png`、`raw_ocr/page_NN_raw.txt`、`source_excerpt.md`）。
+  **不得**作为新课程、新 Lesson 或新备课的 canonical 输出；retained
+  `source_excerpt.md` **不是**新建教材权威。
 
 ## 稳定 ID
 

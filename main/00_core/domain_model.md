@@ -12,6 +12,12 @@ patterns、reflections、activities 与 engagements；不再存在 Case、SN 路
 - 课程清单缓存：`10_student/profile/learning_path.md`
 - 解题模式：`10_student/profile/reasoning_patterns.md`
 - 课程感想与课程核心内容思考：`10_student/profile/course_reflections.md`
+- Agent 协作偏好：`10_student/profile/profile.md` 的
+  `agent_collaboration_schema / agent_pool_limit / agent_max_active / agent_parallel_startup /
+  agent_startup_readiness / agent_background_reporting`。它只表达学生允许的最大计算拓扑、
+  启动就绪策略与后台播报偏好。`agent_pool_limit` 是含 Main 的可保留身份池容量；
+  `agent_max_active` 是含 Main 的同时运行上限。完成态释放并发槽但仍可复用，不是写权限、
+  terminal lifecycle 或 RT3 授权。
 
 ## 2. Course
 
@@ -73,7 +79,32 @@ LearningActivity 生命周期。Course 生命周期/前台/停点与 Activity �
   `t2ag_hint_gate.py` 检查。概念问答只答所问概念，不自动应用到当前题；方向、资料与
   完整讲解分别需要学生显式授权。Attempt 保存 gate 快照和最高帮助暴露，但不把概念
   问答或教师越级提示冒充学生独立证据。
-- KnowledgePoint、OCR 确认链与 AbilitySummary 尚未成为 0.2.0 活动对象。
+- KnowledgePoint 与 AbilitySummary 尚未成为 0.2.0 活动对象。OCR 核验是
+  SourcePageAsset 的来源证据，不是独立的 LearningActivity 或学生 mastery。
+
+### 2.3 Textbook source and lesson preparation
+
+教材原文证据由 Course/Book 持久持有，Lesson 只持有消费范围、导航和备课收据；同一页资产
+可被多个 Lesson 引用，但任何 Lesson 的进度、Snapshot 或学生学习证据都不得共享。
+
+- **SourceDocument**：Course/Book 持有的原版教材文档及其版本，是教材原文的最终权威；它不因
+  Lesson 关闭而失效。
+- **SourcePageAsset**：某一 SourceDocument 版本中一个物理页的持久逻辑资产，锚定其原文定位、
+  OCR 与核验来源证据；“已核验”不等于学生已学习或已掌握。
+- **LessonScope**：Lesson 拥有的版本化、不可变的有序页资产集，是该版本必须消费的范围真相。
+  正常文档为包含当前页的连续 5–8 页；可用页少于 5 的短书固定为全部可用页。翻页或扩窗新建
+  Scope 版本，不改写旧版本。
+- **TeachingWindow**：Lesson Progress 拥有的可变运行视图，投影当前 LessonScope 的 current
+  page、相对展示与驻留；它不是第二份可独立裁剪的教学范围。
+- **LessonMap**：Lesson 随 Scope 版本派生的导航图，必须覆盖当前 Scope 的每个
+  SourcePageAsset；不拥有 mastery、completion 或学生确认。
+- **LessonPreparationSnapshot**：Lesson 拥有的不可变备课收据，绑定一个 Scope 版本、其
+  LessonMap 与逐页消费收据。Scope 变化须新建 Snapshot；不原地修改旧 Snapshot，也不把它当作
+  学生学习证据。
+
+关系链为 `SourceDocument → SourcePageAsset`、`LessonScope → 有序页资产`、
+`TeachingWindow → 当前 Scope 投影`、`LessonMap → Scope 全覆盖`、
+`LessonPreparationSnapshot → Scope + Map + 消费收据`。
 
 ## 3. Group
 

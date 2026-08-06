@@ -19,6 +19,7 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 import migrate_022_activity_close as mig
+import activity_close as close
 
 
 class ShadowError(RuntimeError):
@@ -70,7 +71,7 @@ def shadow_authorization(plan: dict[str, Any], plan_file_sha: str) -> dict[str, 
     return {
         "campaign_id": plan["campaign_id"],
         "phase": "E_AUTHORIZED",
-        "state": "delegated_authorized",
+        "state": "shadow_authorized",
         "authorization_mode": "shadow",
         "plan_id": plan["plan_id"],
         "transaction_id": plan["transaction_id"],
@@ -547,8 +548,17 @@ def execute(root: Path, plan_file: Path, report_file: Path) -> dict[str, Any]:
         content_path.write_text(
             json.dumps(
                 {
-                    "problem_review": {"summary": "shadow integrated CLI close"},
-                    "student_feedback": {"status": "captured", "reference": "shadow:feedback"},
+                    "close_scope": "shadow activity scope frozen",
+                    "evidence_collection": "shadow evidence collected",
+                    "teaching_retrospective": {
+                        section: {
+                            "items": {
+                                leaf: f"shadow {section}.{leaf}"
+                                for leaf in leaves
+                            }
+                        }
+                        for section, leaves in close.RETROSPECTIVE_TREE.items()
+                    },
                 },
                 ensure_ascii=False,
             ) + "\n",
@@ -587,6 +597,16 @@ def execute(root: Path, plan_file: Path, report_file: Path) -> dict[str, Any]:
         ) -> tuple[dict[str, Any], Path]:
             decision_path = temp_root / f"{prefix}-decision.json"
             details = pending["json"]["details"]
+            terminal_result = {
+                "confirm_completed": "completed",
+                "confirm_closed_incomplete": "closed_incomplete",
+            }[decision]
+            strict_confirmation = (
+                f"pending_event_id={details['pending_event_id']}\n"
+                f"body_sha256={details['body_sha256']}\n"
+                f"result={terminal_result}"
+            )
+            presentation_sha = close.learner_retrospective_sha256(details["body"])
             planned, _ = plan_and_apply(
                 tool=close_cli,
                 plan_argv=[
@@ -595,9 +615,11 @@ def execute(root: Path, plan_file: Path, report_file: Path) -> dict[str, Any]:
                     "--activity-id", "exercise01", "--plan-decision", "--plan-out",
                     str(decision_path), "--pending-event-id", details["pending_event_id"],
                     "--body-sha256", details["body_sha256"], "--decision", decision,
-                    "--authorization-source-sha256", "a" * 64, "--delegated-quote",
-                    "shadow continuous delegation", "--decision-actor", "delegated_operator",
-                    "--authorization-mode", "user_continuous_delegation",
+                    "--authorization-source-sha256", "a" * 64,
+                    "--authorization-quote", strict_confirmation,
+                    "--decision-actor", "user", "--authorization-mode", "direct_user",
+                    "--strict-confirmation-text", strict_confirmation,
+                    "--presented-retrospective-sha256", presentation_sha,
                 ],
                 plan_path=decision_path,
                 phase="F_AUTHORIZED",

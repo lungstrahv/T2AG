@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RD shadow apply: isolated root, real apply, second-run, no Main mutation."""
+"""Release-only physical-root shadow apply, rollback, and second-run scenario."""
 from __future__ import annotations
 
 import json
@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-TOOLS = Path(__file__).resolve().parent
+TOOLS = Path(__file__).resolve().parent.parent
 MAIN = TOOLS.parents[1]
 if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
@@ -21,7 +21,7 @@ import migrate_022_activity_close as mig
 import activity_close as close
 import activity_ledger as ledger
 import t2ag_activity as activity
-from test_022_migration import write_test_authorization
+from migration_test_support import write_test_authorization
 
 
 def _copy_subset(src_root: Path, dst_root: Path) -> None:
@@ -410,6 +410,19 @@ class ShadowApplyTests(unittest.TestCase):
                     blockers=[],
                     evidence_refs=["attempts/AT0001", "reviews/RV0001"],
                     student_feedback_ref="exercise_thoughts.md",
+                    content_sections={
+                        "close_scope": "shadow activity scope frozen",
+                        "evidence_collection": "shadow evidence collected",
+                        "teaching_retrospective": {
+                            section: {
+                                "items": {
+                                    leaf: f"shadow {section}.{leaf}"
+                                    for leaf in leaves
+                                }
+                            }
+                            for section, leaves in close.RETROSPECTIVE_TREE.items()
+                        },
+                    },
                 )
                 pending_auth, pending_auth_sha = _close_authorization(
                     pending_path, Path(tmp), "F0_PENDING"
@@ -423,6 +436,11 @@ class ShadowApplyTests(unittest.TestCase):
                     expect_authorization_sha=pending_auth_sha,
                 )
                 decision_path = Path(tmp) / "close-decision.json"
+                strict = (
+                    f"pending_event_id={pending['details']['pending_event_id']}\n"
+                    f"body_sha256={pending['details']['body_sha256']}\n"
+                    "result=completed"
+                )
                 decision = close.materialize_decision_plan(
                     shadow,
                     decision_path,
@@ -433,7 +451,13 @@ class ShadowApplyTests(unittest.TestCase):
                     body_sha256=pending["details"]["body_sha256"],
                     decision="confirm_completed",
                     authorization_source_sha256="a" * 64,
-                    delegated_quote="continuous delegation",
+                    delegated_quote=strict,
+                    decision_actor="user",
+                    authorization_mode="direct_user",
+                    strict_confirmation_text=strict,
+                    presented_retrospective_sha256=close.learner_retrospective_sha256(
+                        pending["details"]["body"]
+                    ),
                 )
                 decision_plan = json.loads(decision_path.read_text(encoding="utf-8"))
                 self.assertIn("main/00_core/t2ag_memory.md", decision_plan["files"])

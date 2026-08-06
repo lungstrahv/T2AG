@@ -63,6 +63,13 @@ T2AG 用 `core-playbook` 语义保护高价值流程。满足任一条件时，�
 
 核心 playbook 不应被自动归档、合并或大幅改写；如需修改，必须在 `t2ag_changelog.md` 中说明原因。核心保护不等于不可编辑，它只阻止自动清理和随意合并。
 
+对 core-playbook 与承载硬边界的治理 playbook，版本更新或大改默认 **diff-patch**。删除、
+合并、概括、迁址、退役规范性正文或改变具名硬边界语义时，必须登记 `rule_migration`；
+纯追加、格式与保义澄清可写 `not_applicable`。整文件重写须先冻结完整迁移表。下沉必须证明
+新 canonical owner、必要入口指针、消费者与验证闭包；文件长度、关键词或历史清单只触发
+复核，不单独构成 finding。完整纪律见 `main/t2ag.md` §6.3 与
+`batch_workorder_spec.md` §三第 11 条。
+
 ## 五、发行版同步纪律
 
 - 每个标记为 `core-playbook` 的文件都必须存在于 main、skeleton 与 lite，文件正文保持一致。
