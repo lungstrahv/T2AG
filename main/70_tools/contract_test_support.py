@@ -819,6 +819,160 @@ def test_fixture_mutations_cannot_silently_noop(root: Path) -> None:
         raise AssertionError("regex replacement accepted duplicate matches")
 
 
+def _checkpoint_progress(rows: str, *, ckpt: str = "X", state: str = "queued") -> str:
+    """Minimal progress.md text for checkpoint-projection contracts (P-0058)."""
+    return (
+        "---\n"
+        "type: course_progress\n"
+        "course_id: TEST1001\n"
+        "lifecycle_status: ongoing\n"
+        f"current_checkpoint: {ckpt}\n"
+        f"checkpoint_state: {state}\n"
+        "truth_scope: course_lifecycle\n"
+        "---\n"
+        "\n"
+        "## 当前窗口 checkpoints\n"
+        "\n"
+        "| checkpoint_id | parent_node | 页码 | block_id | 到达内容 | 状态 |\n"
+        "|---|---|---:|---|---|---|\n"
+        f"{rows}"
+        "\n"
+        "## 维护规则\n"
+    )
+
+
+def _projection_course(root: Path, content: str, lifecycle: str = "ongoing"):
+    return state_refresh.Course(
+        course_id="TEST1001",
+        name="Test",
+        lifecycle=lifecycle,
+        current_activity="lesson",
+        activity_id="lesson01",
+        resume_path="",
+        lesson_context="",
+        lesson_context_path="",
+        position="",
+        updated="",
+        node="",
+        checkpoint="",
+        checkpoint_state="",
+        next_action="",
+        path=root / "main/40_course/TEST1001/progress.md",
+        content=content,
+    )
+
+
+def test_checkpoint_projection_uses_table_not_frontmatter(root: Path) -> None:
+    """P-0058: the table is authoritative; the frontmatter is its projection."""
+    open_row = "| C-N02 | P01 | 30 | B#02 | 讲 | pending |\n"
+    content = _checkpoint_progress(
+        "| C-N01 | P01 | 30 | B#01 | 讲 | confirmed |\n" + open_row,
+        ckpt="stale",
+        state="confirmed",
+    )
+    projected = state_refresh.planned_progress_projections(
+        {"TEST1001": _projection_course(root, content)}
+    )
+    if len(projected) != 1:
+        raise AssertionError(f"expected one projection, got {len(projected)}")
+    text = projected[0][1]
+    if "current_checkpoint: C-N02" not in text or "checkpoint_state: pending" not in text:
+        raise AssertionError(f"open row not projected into frontmatter:\n{text}")
+
+    # All confirmed -> `none / none`, never the last confirmed id.  This is the
+    # exact value a human hand-wrote wrongly on 2026-08-07 13:54.
+    all_confirmed = _checkpoint_progress(
+        "| C-N01 | P01 | 30 | B#01 | 讲 | confirmed |\n"
+        "| C-N02 | P01 | 30 | B#02 | 讲 | confirmed |\n",
+        ckpt="C-N02",
+        state="confirmed",
+    )
+    text = state_refresh.planned_progress_projections(
+        {"TEST1001": _projection_course(root, all_confirmed)}
+    )[0][1]
+    if "current_checkpoint: none" not in text or "checkpoint_state: none" not in text:
+        raise AssertionError(f"all-confirmed table must project none/none:\n{text}")
+
+    # Idempotent: projecting the projection changes nothing.
+    again = state_refresh.planned_progress_projections(
+        {"TEST1001": _projection_course(root, text)}
+    )[0][1]
+    if again != text:
+        raise AssertionError("checkpoint projection is not idempotent")
+
+
+def test_checkpoint_projection_is_fail_closed(root: Path) -> None:
+    """P-0058 §3.3: a parse failure must fail the run, not blank the pointer."""
+    malformed = _checkpoint_progress("| C-N01 | 讲 |\n")
+    try:
+        state_refresh.planned_progress_projections(
+            {"TEST1001": _projection_course(root, malformed)}
+        )
+    except ValueError as exc:
+        if "列数异常" not in str(exc):
+            raise AssertionError(f"unexpected fail-closed error: {exc}") from exc
+    else:
+        raise AssertionError("malformed checkpoint row silently projected none")
+
+    try:
+        state_refresh.derive_current_checkpoint("no table here", strict=True)
+    except ValueError as exc:
+        if "表头" not in str(exc):
+            raise AssertionError(f"unexpected missing-table error: {exc}") from exc
+    else:
+        raise AssertionError("missing checkpoint table accepted under strict")
+
+    # Non-strict keeps the legacy display behaviour for planned courses.
+    if state_refresh.derive_current_checkpoint("no table here") != ("none", "none"):
+        raise AssertionError("non-strict derive must stay backward compatible")
+
+
+def test_checkpoint_projection_scope_is_narrow(root: Path) -> None:
+    """Only ongoing courses that already have a table get a projection."""
+    fresh = (
+        "---\ntype: course_progress\ncourse_id: TEST1001\n"
+        "lifecycle_status: ongoing\ncurrent_checkpoint: CHECKPOINT\n"
+        "checkpoint_state: queued\n---\n# no table yet\n"
+    )
+    if state_refresh.planned_progress_projections(
+        {"TEST1001": _projection_course(root, fresh)}
+    ):
+        raise AssertionError(
+            "freshly initialised course (template frontmatter, no table) "
+            "must not be projected"
+        )
+    planned = _checkpoint_progress("| C-N01 | P01 | 30 | B#01 | 讲 | pending |\n")
+    if state_refresh.planned_progress_projections(
+        {"TEST1001": _projection_course(root, planned, lifecycle="planned")}
+    ):
+        raise AssertionError("non-ongoing course must not be projected")
+
+
+def test_replace_frontmatter_fields_is_byte_preserving(root: Path) -> None:
+    """Only the targeted key lines may change; a missing key must raise."""
+    content = _checkpoint_progress("| C-N01 | P01 | 30 | B#01 | 讲 | pending |\n")
+    updated = state_refresh.replace_frontmatter_fields(
+        content, {"checkpoint_state": "none"}
+    )
+    changed = [
+        (before, after)
+        for before, after in zip(content.split("\n"), updated.split("\n"))
+        if before != after
+    ]
+    if changed != [("checkpoint_state: queued", "checkpoint_state: none")]:
+        raise AssertionError(f"frontmatter rewrite was not byte-preserving: {changed}")
+    if len(content.split("\n")) != len(updated.split("\n")):
+        raise AssertionError("frontmatter rewrite changed the line count")
+
+    try:
+        state_refresh.replace_frontmatter_fields(content, {"absent_key": "x"})
+    except ValueError as exc:
+        if "缺少字段" not in str(exc):
+            raise AssertionError(f"unexpected missing-key error: {exc}") from exc
+    else:
+        raise AssertionError("missing frontmatter key was silently appended")
+
+
 def test_state_refresh_activity_roundtrip(root: Path) -> None:
     reset_state(root)
     course = root / "main/40_course/TEST1001"

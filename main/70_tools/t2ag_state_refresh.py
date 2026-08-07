@@ -46,6 +46,12 @@ class Course:
     checkpoint_state: str
     next_action: str
     path: Path
+    # Raw progress.md text from the single read in discover_courses.  Carried on
+    # the dataclass so planned_progress_projections never re-reads the file:
+    # test_state_refresh_activity_roundtrip asserts exactly one read per
+    # planned_updates() call, and a second read could tear against a concurrent
+    # classroom write (observed 2026-08-07 13:54, see P-0058).
+    content: str = ""
 
 
 @dataclass
@@ -118,7 +124,23 @@ def next_action(content: str) -> str:
     return "—"
 
 
-def derive_current_checkpoint(progress_content: str) -> tuple[str, str]:
+CHECKPOINT_TABLE_HEADER = "| checkpoint_id "
+OPEN_CHECKPOINT_STATES = ("pending", "arrived", "queued")
+
+
+def has_checkpoint_table(progress_content: str) -> bool:
+    """True when progress.md carries a checkpoint table header."""
+    return any(
+        line.strip().startswith(CHECKPOINT_TABLE_HEADER)
+        for line in progress_content.splitlines()
+    )
+
+
+def derive_current_checkpoint(
+    progress_content: str,
+    *,
+    strict: bool = False,
+) -> tuple[str, str]:
     """Derive (current_checkpoint, checkpoint_state) from the checkpoint table.
 
     The checkpoint table inside progress.md is the authoritative source.
@@ -131,12 +153,28 @@ def derive_current_checkpoint(progress_content: str) -> tuple[str, str]:
       or ``queued``.
     - If no such row exists, return ``("none", "none")``.
     - ``confirmed`` and ``archived`` checkpoints are never selected as current.
+
+    ``strict`` makes parse failures fail closed (P-0058).  Without it, "table
+    missing or unparseable" and "table present, zero open rows" both collapse to
+    ``("none", "none")`` -- harmless while the value only fed display caches, but
+    unsafe now that ``--write`` projects it into the progress frontmatter: a
+    parser regression would silently blank the pointer instead of failing the
+    run.  Callers that are about to *write* the result must pass ``strict=True``
+    and gate on :func:`has_checkpoint_table` first, because a freshly
+    initialised course legitimately has the frontmatter keys (from
+    ``_templates/course/progress.md.template``) before any table exists.
+
+    A header with zero data rows is *not* an error -- that is the legitimate
+    bootstrap state before the first checkpoint is recorded.
     """
     in_table = False
+    header_seen = False
+    malformed: list[str] = []
     for line in progress_content.splitlines():
         stripped = line.strip()
-        if stripped.startswith("| checkpoint_id "):
+        if stripped.startswith(CHECKPOINT_TABLE_HEADER):
             in_table = True
+            header_seen = True
             continue
         if not in_table:
             continue
@@ -147,12 +185,53 @@ def derive_current_checkpoint(progress_content: str) -> tuple[str, str]:
             continue
         cols = [c.strip() for c in stripped.split("|")]
         if len(cols) < 6:
+            malformed.append(stripped[:80])
             continue
         ckpt_id = cols[1]
         status = cols[-1] if cols[-1] else cols[-2]
-        if status in ("pending", "arrived", "queued"):
+        if status in OPEN_CHECKPOINT_STATES:
             return (ckpt_id, status)
+    if strict:
+        if not header_seen:
+            raise ValueError(
+                "checkpoint 表缺失：未找到以 "
+                f"`{CHECKPOINT_TABLE_HEADER}` 开头的表头"
+            )
+        if malformed:
+            raise ValueError(
+                f"checkpoint 表有 {len(malformed)} 行列数异常（需 ≥6 列），"
+                f"首行：{malformed[0]}"
+            )
     return ("none", "none")
+
+
+def replace_frontmatter_fields(content: str, fields: dict[str, str]) -> str:
+    """Replace whole frontmatter lines for ``fields``, byte-preserving elsewhere.
+
+    Only the matched key lines change; order, indentation, comments, blank lines
+    and every other field survive untouched.  A missing key raises instead of
+    being appended -- absent required keys are a doctor FAIL
+    (``check_course_routes`` ongoing branch), not something this tool backfills.
+    """
+    lines = content.split("\n")
+    if not lines or lines[0].strip() != "---":
+        raise ValueError("progress.md 缺少 frontmatter 起始分隔符")
+    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+    if end is None:
+        raise ValueError("progress.md 缺少 frontmatter 结束分隔符")
+    remaining = dict(fields)
+    for index in range(1, end):
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*):", lines[index])
+        if not match:
+            continue
+        key = match.group(1)
+        if key in remaining:
+            lines[index] = f"{key}: {remaining.pop(key)}"
+    if remaining:
+        raise ValueError(
+            f"progress.md frontmatter 缺少字段：{sorted(remaining)}"
+        )
+    return "\n".join(lines)
 
 
 def explicit_or_dash(value: str | None) -> str:
@@ -237,6 +316,7 @@ def discover_courses(
             checkpoint_state=derived_state if derived_state != "none" else "—",
             next_action=next_action(content),
             path=progress,
+            content=content,
         )
     return result
 
@@ -552,7 +632,55 @@ def planned_updates(
                 group.path,
                 replace_block(content, "GROUP_VIEW", render_group_view(group, courses)),
             ))
+    updates.extend(planned_progress_projections(courses))
     return updates
+
+
+def planned_progress_projections(
+    courses: dict[str, Course],
+) -> list[tuple[Path, str]]:
+    """Project the checkpoint table into each ongoing course's frontmatter.
+
+    Closes P-0058: ``progress_tracking.md`` §2.1 declares
+    ``current_checkpoint`` / ``checkpoint_state`` to be GENERATED projections of
+    the checkpoint table ("手写无效"), but nothing generated them -- so
+    ``--write`` never refreshed them and ``--check`` could not see them drift.
+    Adding them to ``updates`` gives the declaration a producer and hands the
+    existing ``--check`` its coverage for free.
+
+    Scope rules:
+    - ``ongoing`` only.  Non-ongoing progress files carry neither the checkpoint
+      table nor the two frontmatter keys (doctor requires them only for
+      ``ongoing``).
+    - Courses without a checkpoint table are skipped: a freshly initialised
+      course has the template's frontmatter keys before any table exists.
+    - The literal written for "no open checkpoint" is ``none``, matching
+      ``activity_close.py``.  The display-only ``—`` from :func:`discover_courses`
+      must never reach the frontmatter, or the two writers would each treat the
+      other's value as drift and oscillate forever.
+
+    Uses ``course.content`` from the single read in :func:`discover_courses`
+    rather than re-reading, keeping the one-read-per-run contract intact.
+    """
+    projections: list[tuple[Path, str]] = []
+    for course in sorted(courses.values(), key=lambda item: item.course_id):
+        if course.lifecycle != "ongoing":
+            continue
+        content = course.content
+        if not has_checkpoint_table(content):
+            continue
+        derived_ckpt, derived_state = derive_current_checkpoint(content, strict=True)
+        projections.append((
+            course.path,
+            replace_frontmatter_fields(
+                content,
+                {
+                    "current_checkpoint": derived_ckpt,
+                    "checkpoint_state": derived_state,
+                },
+            ),
+        ))
+    return projections
 
 
 def main() -> int:
