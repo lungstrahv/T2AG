@@ -101,6 +101,8 @@ handoff、receipt chain、确定性 policy、模型建议、实现者或 reviewe
 3. **编号步骤**：每步给锚点定位 + 验证命令；闸门步骤显式标注「前置：学生一句话批准」，内容裁决类步骤显式标注「agent 出差异报告，不自行判定」；
 4. **引用面收口表**：基于实测 grep，并注明「**清单是下限不是上限**，收口 grep 发现超出清单的活动引用时，执行方应扩展处理并在报告列明」；
 5. **登记节**：changelog 草稿（占位符标注清楚）｜EV 推进动作（decided→changelog→archived 回填）｜skeleton 同步范围；
+   条目结构、锚定/佐证断言与验证语义见 `changelog_management.md`（验证层 canonical owner；
+   出单方「写草稿」义务仍在本节，不 sink）。
 6. **风险登记与回滚粒度**：每段的 checkpoint 单元、Git 计划、RT3 保留项与授权失效条件。
 
 ## 三、硬规则标准集（各施工单引用，不复制）
@@ -115,6 +117,8 @@ handoff、receipt chain、确定性 policy、模型建议、实现者或 reviewe
    reason 或匹配 plan SHA 时只允许生成计划；
 3. registry 条目只新增或 tombstone，永不删除；redirects 数组只追加；
 4. `60_journal/`、changelog、memory、problemlog 中的历史行不改；
+   （changelog 新条目的锚定/佐证结构与抽验语义见 `changelog_management.md`；本条仍是执行方
+   硬规则，不 sink。）
 5. 唯一副本不删；文件迁移一律 `git mv`；
 6. 「移动 + 全部引用更新」构成一个提交单元，不留中间态；
 7. **checkpoint / commit 协议**：默认模式下 agent 每次 Git 写操作仍须逐次明确授权；经批准的 `version_campaign` 可按列明的有限 Git 计划建立 recovery checkpoint。每次都须使用显式路径、展示实际状态与 cached diff；不得使用 `git add .`。checkpoint 不包含 push、tag、reset、checkout、stash、历史改写、删除 recovery 或发布；
@@ -184,5 +188,6 @@ doctor 施工前后对照；**每个 WARN 必须指名对象并附原文**——
 
 ## 六、本规范的维护
 
-- 修改本文件走批次 + changelog；
+- 修改本文件走批次 + changelog；changelog 条目的验证层约定见 `changelog_management.md`
+  （本条仍是出单方/维护方纪律，不 sink）。
 - 新教训入编的门槛：同类问题**出现第二次**——出现一次记复审意见即可，第二次才值得成文（防规范膨胀）。

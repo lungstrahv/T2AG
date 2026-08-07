@@ -80,6 +80,9 @@ plan-only 聚合门，均属于基础结构 FAIL。
 | 序言、九张流程与离线指南 | release + `build_guide.py --check` | 序言生成锚点、FLOW 集合/配对或 guide drift |
 | Cloud 暂停态 | doctor 内建 | 组件缺失、协议字段冲突、暂停门失效或 CD/CH 登记悬空 |
 | handoff 分类与恢复路由 | release 内建 | Active 缺 lane/artifact_role、支撑材料混入 Active、release backlog 未隔离、索引/文件/元数据/唯一性或体积老化状态冲突 |
+| handoff 断言复算来源 | release `handoff` + `unsourced_handoff_assertions` | active 交接正文中数量/存在性/哈希断言（`N 个`、`零命中`、`sha256:`）同行及下一行均无 `←` 复算来源为 WARN，逐条指名文件与行号；围栏代码与标题不扫描，**引述与散文不豁免**（`handoff_management.md` §5.6.4）。门只证明「来源相邻」，**不判定**命令质量 |
+| 宿主环境假设 | runtime `environment` + `environment_probe_results` | `environment_assumptions.md` 缺失或缺 `EA-0001`~`EA-0003` 为 FAIL；`PRODUCTION_ROOT` 不匹配、`fitz` 不可用为 INFO；`.git` 可建不可 unlink 为 WARN。探测**只读且只报事实**——不安装、不清理锁文件、不改路径 |
+| changelog 漂移与腐烂 | 规范：`changelog_management.md`；自动入口：计划中的 runtime `changelog`（**U3 未授权前无 handler**） | **锚定**：最新条目声明的锚定量与实测不等 → WARN，须含声明值与实测值两者。**佐证**：条目内可复算断言复算命中为零 → WARN，须指名条目标题与失效断言原文。**缺锚定块** → WARN。不证明完整性；形式复用 `handoff_management.md` §5.6.2；锚定量零 git 依赖 |
 | state/journal/migration/Lite | release 派生工具 | 缓存漂移、证据缺失、迁移非幂等或投影差异 |
 | 发布候选隔离 | `t2ag_candidate_replay.py` + `test_candidate_replay_isolation_contract` | 有效 sparse checkout/sparse index，Git 环境/拓扑污染，Main/Skeleton 安全配置无法 preflight，源/A/B 字节清单或副本结果不一致，或全部 A/B 复核之后的末次源指纹发生变化 |
 | Git/环境卫生 | release 内建 | 跟踪环境文件为 FAIL；未提交工作树为 WARN |
