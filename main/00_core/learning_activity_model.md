@@ -44,7 +44,7 @@ Course
   `book/` 域并由 `problems.md` 以 registry artifact、路径、定位和 SHA 显式引用。
   路径解析后仍须位于本 Course `book/`，不得经过 symlink、junction 或 reparse point；
   problems、registry、题源 frontmatter 与原文档 path/SHA 必须形成同一身份链。
-  `working_pages/` 只是 Lesson 可清理缓存，不能作为 Exercise 的 active canonical。
+  `working_pages/` 路径已在 0.2.2 批 S3 退役，历史摘录见各课 `archive/`。
 
 ### 1.1 状态与默认路由矩阵
 
@@ -111,6 +111,52 @@ LearningActivity。
 地图不是理解确认。学生仍须对当前分支明确表示理解或继续，系统不能因已经展示全局
 结构就跨过确认门。
 
+### 2.3 消息记录路由
+
+本节是消息记录路由的**唯一 owner**。学生每发一条消息，教师按下列顺序判断成分并
+**当轮**落盘；一条消息可命中多行，每行独立写入。记录是追加，不是判断。
+
+Lesson 与 Exercise 共用同一判断骨架，但「哪几行改变课程真相源」不同，因此分两个变体表；
+模板与实例载体只保留指向本节的指针，不得复制表正文（防两份正文漂移）。
+
+#### Lesson 变体
+
+只有第 1 行改变课程真相源，须理解确认门真正闭合才写；第 2–6 行无需授权、不等课后。
+
+| # | 消息成分 | 去向 | 说明 |
+|---|---|---|---|
+| 1 | 理解确认的回答 | `progress.md` | 答对翻 checkpoint confirmed + 更新精确停点 + 教学记录一条（含答对要点）；答错不翻 checkpoint |
+| 2 | 学生原创表述（顿悟、自造模型、新得概念） | `lesson_thoughts.md` | 学生原话与教师回应分栏，不混写；有跨课价值再挂 `10_student/profile/reasoning_patterns.md` |
+| 3 | 疑问 | `question_bank.md` | 当场答完 → answered；推迟 → open + 备注 |
+| 4 | 知识性错误 | `mistake_bank.md` | 根因标签 + 迁移预警；判为回滑则在 `progress.md` 挂复核项 |
+| 5 | 学习感受（审美、卡点、状态、元认知） | 课堂原话进 `lesson_thoughts.md`；达提炼门上收 `10_student/profile/course_reflections.md`；哲学/人生/长期情绪进 `10_student/profile/profile.md` 个体性格基调节 | 提炼门见本契约 §三；纯「没问题」并入当轮闭合记录，不单列 |
+| 6 | 流程/系统问题或建议 | 课程层进 `progress.md` 教学记录；系统层进 `t2ag_problemlog.md` | |
+| 7 | 继续授权 | `progress.md` 精确停点 | 一次性，用后即失效 |
+| 8 | 闲聊/题外话 | 不记 | — |
+
+不另存：教师讲解正文（教材原文在 source assets，块覆盖状态在 lesson 主载体与
+`lesson_map.md`）；理解确认题干（在 checkpoint 表）。
+
+#### Exercise 变体
+
+只有第 1–2 行改变课程真相源，须按 Exercise 状态机真实发生后才写；第 3–7 行无需授权、
+不等课后。
+
+| # | 消息成分 | 去向 | 说明 |
+|---|---|---|---|
+| 1 | 正式作答 | `attempts/ATdddd/attempt.md` + exercise 主载体状态与精确停点 | 一次作答一份编号 Attempt；写入时机由结构定死 |
+| 2 | 作答后的教师反馈与判定 | `reviews/RVdddd.md` | 与 Attempt 一一对应 |
+| 3 | 学生原创表述（顿悟、自造模型、新得概念） | Attempt 内保留原话 + `exercises/exercise_thoughts.md` 索引 | 学生原话与教师回应分栏；有跨课价值再挂 `10_student/profile/reasoning_patterns.md` |
+| 4 | 疑问 / 概念提问 | `question_bank.md`；涉及当前 Exercise 的走提示闸门 | 当场答完 → answered；推迟 → open + 备注；提示级别按授权记入 Attempt frontmatter |
+| 5 | 知识性错误 | `mistake_bank.md` | 根因标签 + 迁移预警；进入复测周期 |
+| 6 | 学习感受（审美、卡点、状态、元认知） | 原话进 Attempt / `exercise_thoughts.md`；达提炼门上收 `10_student/profile/course_reflections.md`；哲学/人生/长期情绪进 `10_student/profile/profile.md` 个体性格基调节 | 提炼门见本契约 §三；纯「没问题」并入当轮闭合记录，不单列 |
+| 7 | 流程/系统问题或建议 | 课程层进 `progress.md` 教学记录；系统层进 `t2ag_problemlog.md` | |
+| 8 | 继续授权 | exercise 主载体精确停点 | 一次性，用后即失效 |
+| 9 | 闲聊/题外话 | 不记 | — |
+
+不另存：教师讲解与提示正文（题面在 `problems.md`，证据指针在 exercise 主载体
+「证据索引」）。
+
 ## 三、想法复利回路
 
 学生在任一活动明确表达想法时才启动，不预造内容：
@@ -154,12 +200,13 @@ LearningActivity。
 | 内容 | 权威载体 |
 |---|---|
 | Lesson / Exercise 对象与共同回路 | `00_core/learning_activity_model.md` |
+| 消息记录路由（Lesson / Exercise 两个变体表） | `00_core/learning_activity_model.md` §2.3 |
 | 课程稳定教学约束 | `40_course/<COURSE_ID>/course.md` |
 | ContentGroup 与活动关系 | `40_course/<COURSE_ID>/activity_map.md` |
 | 当前活动与精确停点 | `40_course/<COURSE_ID>/progress.md` |
 | Lesson 正文 | `lessons/lessonNN/lessonNN.md` |
 | Exercise 正文 | `exercises/exerciseNN/exercise.md` |
-| 教材题源 | Course `book/` 内持久 verified excerpt；不得放在 `working_pages/` |
+| 教材题源 | Course `book/` 内持久 verified excerpt；不得放在临时缓存路径 |
 | 题目、提交与反馈 | `problems.md` / `attempts/` / `reviews/` |
 | 初始化材料 | `40_course/_templates/course/` |
 | 运行步骤 | `50_playbook/new_course_init.md`、`lesson_recover.md`、`exercise_evidence.md`、`session_close.md` |

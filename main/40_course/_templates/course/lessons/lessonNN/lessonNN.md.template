@@ -27,3 +27,8 @@ lessonNN
 ## 教学记录
 
 - 真实教学开始后追加；不得预造学生确认。
+
+## 消息记录路由
+
+本节只是指针：路由表的唯一 owner 是 `00_core/learning_activity_model.md` §2.3
+（本 Lesson 用其中的 **Lesson 变体**）。模板与实例不得复制表正文，防止两份正文漂移。

@@ -20,3 +20,8 @@ created: YYYY-MM-DD
 ## 学习记录
 
 - 保存做题推进、提示、确认门与证据指针；原始作答以 Attempt 为准。
+
+## 消息记录路由
+
+本节只是指针：路由表的唯一 owner 是 `00_core/learning_activity_model.md` §2.3
+（本 Exercise 用其中的 **Exercise 变体**）。模板与实例不得复制表正文，防止两份正文漂移。
