@@ -625,3 +625,28 @@ F-DEEP 见工单 §1；archived 仅表示决定+实现+实例迁移+技术审计
 - `main/50_playbook/journal_management.md`
 - `docs/adr/README.md`
 - `main/70_tools/decision_record_contract.py`
+
+---
+
+### EV-0015｜Skeleton 0.2.3 发行卫生（host egress 单元 + memory 版本守卫）
+
+- **ID**：EV-0015
+- **日期**：2026-08-07
+- **状态**：`archived`
+- **decision_class**：`implementation`
+- **adr_exception**：发行卫生修补，不另立 ADR（宿主 egress 契约仍归 ADR-0002 / EV-0013）
+- **batch_id**：`WO-SKELETON-0203-DISTRIBUTION-HYGIENE`
+- **落地指向**：changelog [2026-08-07] 批次「Skeleton 0.2.3 发行卫生」
+
+#### 裁决
+
+1. G1 **B-补**：`host_teaching_egress.py` + 测试整单元同步进 Skeleton（通用契约，非个人实例）。
+2. G2：C1 修正 memory 手写 0.2.2→0.2.3；并在 `runtime.version_profile` 增加 memory 当前版本散文守卫。
+3. G4：**本单跳过**插图 WebP（D 批延后）；偏好记录为 WebP q85@~1300px。
+4. G3（Skeleton 全量再生纪律）未在本单实施。
+
+#### 关联文件
+
+- `main/70_tools/host_teaching_egress.py`、`test_host_teaching_egress.py`
+- `main/00_core/t2ag_memory.md`（Skeleton）
+- `main/70_tools/t2ag_doctor.py`（`extract_runtime_version` / `check_memory_version_prose`）

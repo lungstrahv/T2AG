@@ -374,15 +374,76 @@ def check_structure() -> None:
             report("FAIL", f"旧学生档案顶层文件仍存在：main/10_student/{filename}")
 
 
+def extract_runtime_version(constitution_text: str) -> str | None:
+    """Parse the declared runtime version from t2ag.md prose/heading."""
+    patterns = (
+        r"当前运行版本[：:]\s*`?(0\.\d+\.\d+)`?",
+        r"-\s*当前版本[：:]\s*`?(0\.\d+\.\d+)`?",
+        r"^#\s+T2AG\s+(0\.\d+\.\d+)\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, constitution_text, re.MULTILINE)
+        if match:
+            return match.group(1)
+    return None
+
+
+def check_memory_version_prose(memory_text: str, runtime_version: str) -> None:
+    """Fail when hand-written current-version markers disagree with t2ag.md.
+
+    Historical mentions of older releases (e.g. 0.2.1 收口) are allowed; only
+    title-line and '当前版本为 …' markers are treated as live identity.
+    """
+    title = re.search(r"^#\s+T2AG\s+(0\.\d+\.\d+)\b", memory_text, re.MULTILINE)
+    if title and title.group(1) != runtime_version:
+        report(
+            "FAIL",
+            f"t2ag_memory.md 标题版本 {title.group(1)} 与运行版本 "
+            f"{runtime_version} 不一致",
+        )
+    # blockquote / bullet "版本：0.x.y" near file head (Main style)
+    head = "\n".join(memory_text.splitlines()[:12])
+    for match in re.finditer(r"版本[：:]\s*`?(0\.\d+\.\d+)`?", head):
+        if match.group(1) != runtime_version:
+            report(
+                "FAIL",
+                f"t2ag_memory.md 文首版本 {match.group(1)} 与运行版本 "
+                f"{runtime_version} 不一致",
+            )
+    for match in re.finditer(r"当前版本为\s*(0\.\d+\.\d+)", memory_text):
+        if match.group(1) != runtime_version:
+            report(
+                "FAIL",
+                f"t2ag_memory.md 手写「当前版本为 {match.group(1)}」与运行版本 "
+                f"{runtime_version} 不一致",
+            )
+
+
 def check_version_and_profile() -> None:
     constitution = MAIN / "t2ag.md"
     memory = MAIN / "00_core/t2ag_memory.md"
+    if not constitution.exists():
+        report("FAIL", "缺少 main/t2ag.md")
+        return
+    constitution_text = read(constitution)
+    runtime_version = extract_runtime_version(constitution_text)
+    if not runtime_version:
+        report("FAIL", "main/t2ag.md 无法解析当前运行版本")
+        return
     for path in (constitution, memory):
-        if path.exists() and "0.2.3" not in read(path):
-            report("FAIL", f"版本未更新为 0.2.3：{rel(path)}")
+        if path.exists() and runtime_version not in read(path):
+            report(
+                "FAIL",
+                f"版本未更新为 {runtime_version}：{rel(path)}",
+            )
     for path in (ROOT / "README.md", ROOT / "AGENTS.md", MAIN / "bin/t2ag"):
-        if not path.exists() or "0.2.3" not in read(path):
-            report("FAIL", f"发行入口版本未更新为 0.2.3：{rel(path)}")
+        if not path.exists() or runtime_version not in read(path):
+            report(
+                "FAIL",
+                f"发行入口版本未更新为 {runtime_version}：{rel(path)}",
+            )
+    if memory.exists():
+        check_memory_version_prose(read(memory), runtime_version)
     launcher = MAIN / "bin/t2ag"
     if launcher.exists():
         content = read(launcher)
