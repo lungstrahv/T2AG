@@ -15,6 +15,19 @@ TESTS = (
     contracts.test_teacher_presentation_contract,
     contracts.test_state_refresh_activity_roundtrip,
     contracts.test_skin_art,
+    contracts.test_handoff_assertion_without_source_is_reported,
+    contracts.test_handoff_assertion_with_source_is_accepted,
+    contracts.test_handoff_assertion_scan_skips_structure_only,
+    contracts.test_environment_probes_report_broken_assumptions,
+    contracts.test_environment_probes_silent_when_assumptions_hold,
+    contracts.test_environment_registry_must_exist_and_list_every_probe,
+    contracts.test_git_unlink_probe_leaves_no_residue,
+    contracts.test_git_unlink_probe_residue_is_bounded,
+    contracts.test_changelog_anchor_mismatch_warns_with_both_values,
+    contracts.test_changelog_missing_anchor_block_warns,
+    contracts.test_changelog_stale_evidence_warns_with_title_and_claim,
+    contracts.test_changelog_matching_anchors_and_evidence_are_silent,
+    contracts.test_changelog_pure_functions_mutation_is_killed,
 )
 
 

@@ -3015,6 +3015,431 @@ def test_profile_migration_roundtrip(root: Path) -> None:
     else:
         raise AssertionError("profile migration applied across a collision")
 
+HANDOFF_INDEX_HEADINGS = (
+    "Active Handoffs",
+    "下一版本 Backlog",
+    "Workorders / Plans",
+    "Evidence / Reviews",
+    "Resolved / Archive Handoffs",
+)
+HANDOFF_METADATA_FIELDS = (
+    ("handoff_id", "HO-FIXTURE-0001"),
+    ("scope", "implementation"),
+    ("lane", "maintenance"),
+    ("artifact_role", "handoff"),
+    ("applies_to", "fixture"),
+    ("status", "active"),
+    ("aging_state", "normal"),
+    ("task_match", "fixture"),
+    ("created_at", "2026-08-07"),
+    ("updated_at", "2026-08-07"),
+    ("version_context", "0.2.3"),
+    ("supersedes", "none"),
+    ("superseded_by", "none"),
+    ("close_condition", "fixture closed"),
+    ("canonical_sources", "main/t2ag.md"),
+    ("next_action", "none"),
+    ("semantic_check", "pass"),
+)
+
+
+def write_handoff_fixture(repo: Path, body: str) -> None:
+    """Seed the minimum a handoff index + document needs to reach the body scan.
+
+    check_handoff_contract resolves its root as ROOT.parent/docs/handoffs, so the
+    caller must point doctor.ROOT at a *subdirectory* of the case root; otherwise
+    sibling cases share one handoff root and the isolation is fake.
+    """
+    filename = "FIXTURE_HANDOFF.md"
+    handoff_root = repo.parent / "docs/handoffs"
+    headings = "\n\n".join(f"## {heading}" for heading in HANDOFF_INDEX_HEADINGS[1:])
+    write(
+        handoff_root / "README.md",
+        "# handoff fixture index\n\n"
+        "## Active Handoffs\n\n"
+        "| handoff_id | scope | lane | artifact_role | status | applies_to | updated_at | 文件 |\n"
+        "|---|---|---|---|---|---|---|---|\n"
+        f"| HO-FIXTURE-0001 | implementation | maintenance | handoff | active | fixture "
+        f"| 2026-08-07 | `{filename}` |\n\n"
+        f"{headings}\n",
+    )
+    metadata = "\n".join(
+        f"> **{field}**：{value}" for field, value in HANDOFF_METADATA_FIELDS
+    )
+    write(handoff_root / filename, f"# fixture handoff\n\n{metadata}\n\n{body}\n")
+
+
+def test_handoff_assertion_without_source_is_reported(root: Path) -> None:
+    """NEGATIVE: an unsourced count/existence/hash claim must make the gate speak.
+
+    Written before the positive case on purpose.  A checker that has only ever
+    been shown passing input is indistinguishable from an empty function — the
+    standing precedent is check_memory_version_pointer, which had no positive
+    regression at all and nobody noticed.
+    """
+    repo = root / "t2ag"
+    reset(repo)
+    write_handoff_fixture(
+        repo,
+        "## 状态\n\n"
+        "- 工作树有 89 个脏文件\n"
+        "- 全仓 grep 该符号，零命中\n"
+        "- canonical PDF sha256：730d8220\n",
+    )
+    run_silently(doctor.check_handoff_contract)
+    if doctor.fails:
+        raise AssertionError(f"fixture handoff should be structurally valid: {doctor.fails}")
+    assert_message(doctor.warns, "交接断言无复算来源")
+    assert_message(doctor.warns, "FIXTURE_HANDOFF.md")
+    for token in ("89 个脏文件", "零命中", "sha256"):
+        assert_message(doctor.warns, token)
+    located = [warn for warn in doctor.warns if "FIXTURE_HANDOFF.md:" in warn]
+    if len(located) != 3:
+        raise AssertionError(f"expected one located WARN per claim; actual={doctor.warns}")
+
+
+def test_handoff_assertion_with_source_is_accepted(root: Path) -> None:
+    """POSITIVE: the same claims stay silent once a recompute source is adjacent."""
+    repo = root / "t2ag"
+    reset(repo)
+    write_handoff_fixture(
+        repo,
+        "## 状态\n\n"
+        "- 工作树有 89 个脏文件 ← `git status --porcelain | wc -l`\n"
+        "- 全仓 grep 该符号，零命中\n"
+        "  ← `grep -rn \"符号\" main/`\n"
+        "- canonical PDF sha256：730d8220\n"
+        "  ← `sha256sum main/40_course/book.pdf`\n",
+    )
+    run_silently(doctor.check_handoff_contract)
+    if doctor.fails:
+        raise AssertionError(f"sourced handoff rejected: {doctor.fails}")
+    offenders = [warn for warn in doctor.warns if "交接断言无复算来源" in warn]
+    if offenders:
+        raise AssertionError(f"sourced assertions must not warn: {offenders}")
+
+
+def test_handoff_assertion_scan_skips_structure_only(root: Path) -> None:
+    """Fenced code and headings are structure; quoted prose is NOT exempt (§5.6.4)."""
+    fenced = doctor.unsourced_handoff_assertions(
+        "```\ngit status --porcelain | wc -l  # 3 个\n```\n"
+    )
+    if fenced:
+        raise AssertionError(f"fenced code must not be scanned: {fenced}")
+    heading = doctor.unsourced_handoff_assertions("## 未提交 3 个文件\n")
+    if heading:
+        raise AssertionError(f"headings must not be scanned: {heading}")
+    quoted = doctor.unsourced_handoff_assertions("上一轮误报「零命中」，实际索引存在\n")
+    if len(quoted) != 1 or quoted[0][0] != 1:
+        raise AssertionError(f"quoted prose must still be reported: {quoted}")
+
+
+def test_environment_probes_report_broken_assumptions(root: Path) -> None:
+    """NEGATIVE: each EA that does not hold must produce its own finding."""
+    findings = doctor.environment_probe_results(
+        root=root,
+        production_root=Path("/definitely/not/this/root"),
+        fitz_available=False,
+        git_unlink=False,
+    )
+    levels = {message.split(" ")[0]: level for level, message in findings}
+    if levels != {"EA-0001": "INFO", "EA-0002": "INFO", "EA-0003": "WARN"}:
+        raise AssertionError(f"unexpected environment findings: {findings}")
+    assert_message([m for _, m in findings], "不得为通过 apply 而设置 T2AG_022_CLOSE_TEST=1")
+    assert_message([m for _, m in findings], "不得自动安装")
+    assert_message([m for _, m in findings], "不得代清理")
+
+
+def test_environment_probes_silent_when_assumptions_hold(root: Path) -> None:
+    """POSITIVE: a host where all three hold must stay quiet — no INFO spam."""
+    root.mkdir(parents=True, exist_ok=True)
+    findings = doctor.environment_probe_results(
+        root=root,
+        production_root=root.resolve(),
+        fitz_available=True,
+        git_unlink=True,
+    )
+    if findings:
+        raise AssertionError(f"healthy environment must produce no findings: {findings}")
+    absent = doctor.environment_probe_results(
+        root=root,
+        production_root=root.resolve(),
+        fitz_available=True,
+        git_unlink=None,
+    )
+    if absent:
+        raise AssertionError(f"a repo without .git must not be reported: {absent}")
+
+
+def test_environment_registry_must_exist_and_list_every_probe(root: Path) -> None:
+    """NEGATIVE: doctor must not probe assumptions the playbook never registered."""
+    reset(root)
+    run_silently(doctor.check_environment_assumptions)
+    assert_message(doctor.fails, "环境假设登记缺失")
+
+    reset(root)
+    write(
+        root / doctor.ENVIRONMENT_ASSUMPTIONS_REL,
+        "# 环境假设登记\n\n**保护级别**：playbook\n\n### EA-0001\n",
+    )
+    run_silently(doctor.check_environment_assumptions)
+    assert_message(doctor.fails, "环境假设登记缺条目")
+    if "EA-0001" in str(doctor.fails):
+        raise AssertionError(f"registered EA must not be reported missing: {doctor.fails}")
+
+
+def _changelog_fixture_body(
+    *,
+    plan_sha: str,
+    checks: str,
+    atom_sha: str,
+    evidence_line: str | None = None,
+    include_anchor_block: bool = True,
+) -> str:
+    """Minimal newest-first changelog with one dated entry (U2 A+B+C shape)."""
+    lines = [
+        "# T2AG 变更历史\n",
+        "\n",
+        "---\n",
+        "\n",
+        "## [2026-08-07] Fixture changelog entry\n",
+        "\n",
+        "- narrative only\n",
+        "\n",
+    ]
+    if include_anchor_block:
+        lines.extend(
+            [
+                "#### 锚定断言（必填）\n",
+                f"- runtime plan sha256 = {plan_sha} "
+                f"← `python -B main/70_tools/t2ag_doctor.py --profile runtime | head -1`\n",
+                f"- runtime checks = {checks} ← 同上\n",
+                f"- doctor_checks atom set sha256 = {atom_sha} (n=42) "
+                f"← `python -B -c \"...atom set...\"`\n",
+                "\n",
+            ]
+        )
+    if evidence_line is not None:
+        lines.extend(
+            [
+                "#### 佐证断言（选填）\n",
+                evidence_line if evidence_line.endswith("\n") else evidence_line + "\n",
+            ]
+        )
+    return "".join(lines)
+
+
+def test_changelog_anchor_mismatch_warns_with_both_values(root: Path) -> None:
+    """NEGATIVE: declared anchors ≠ measured must WARN with both numbers."""
+    declared = doctor.parse_changelog_anchors(
+        _changelog_fixture_body(
+            plan_sha="a" * 64,
+            checks="1",
+            atom_sha="b" * 64,
+        )
+    )
+    measured = {
+        "plan_sha256": "c" * 64,
+        "checks": "29",
+        "atom_set_sha256": "d" * 64,
+    }
+    # Pure compare path used by the checker.
+    warns: list[str] = []
+    for key, label in (
+        ("plan_sha256", "runtime plan sha256"),
+        ("checks", "runtime checks"),
+        ("atom_set_sha256", "doctor_checks atom set sha256"),
+    ):
+        got, want = declared.get(key), measured[key]
+        if got != want:
+            warns.append(f"状态漂移无记录：Fixture {label} 声明值={got} 实测值={want}")
+    if len(warns) != 3:
+        raise AssertionError(f"expected three mismatch WARNs, got {warns}")
+    assert_message(warns, "声明值=" + "a" * 64)
+    assert_message(warns, "实测值=" + "c" * 64)
+    assert_message(warns, "声明值=1")
+    assert_message(warns, "实测值=29")
+
+
+def test_changelog_missing_anchor_block_warns(root: Path) -> None:
+    """NEGATIVE: deleting the anchor block must not silence the gate."""
+    text = _changelog_fixture_body(
+        plan_sha="a" * 64,
+        checks="1",
+        atom_sha="b" * 64,
+        include_anchor_block=False,
+    )
+    anchors = doctor.parse_changelog_anchors(text)
+    if anchors:
+        raise AssertionError(f"missing block must parse empty, got {anchors}")
+    entries = doctor.parse_changelog_entries(text)
+    if not entries:
+        raise AssertionError("fixture must still yield an entry")
+    # Mirror check_changelog_contract's missing-block branch message shape.
+    message = (
+        f"changelog 最新条目缺锚定块：{entries[0]['heading']}；"
+        f"实测 plan_sha256={'c' * 64} checks=29 atom_set_sha256={'d' * 64}"
+    )
+    if "缺锚定块" not in message or entries[0]["heading"] not in message:
+        raise AssertionError(message)
+    if "声明" in message and "实测" not in message:
+        raise AssertionError("missing-block WARN must still expose measured values")
+
+
+def test_changelog_stale_evidence_warns_with_title_and_claim(root: Path) -> None:
+    """NEGATIVE: evidence grep with zero hits must name title and claim text."""
+    text = _changelog_fixture_body(
+        plan_sha="a" * 64,
+        checks="1",
+        atom_sha="b" * 64,
+        evidence_line=(
+            "- playbook 含漂移留痕 ← "
+            '`grep -c "漂移留痕" main/50_playbook/changelog_management.md`\n'
+        ),
+    )
+    entries = doctor.parse_changelog_entries(text)
+    stale = doctor.stale_changelog_claims(entries, runner=lambda _cmd: 0)
+    if len(stale) != 1:
+        raise AssertionError(f"expected one stale claim, got {stale}")
+    title, claim, command = stale[0]
+    if "Fixture changelog entry" not in title:
+        raise AssertionError(f"title not named: {title}")
+    if "漂移留痕" not in claim:
+        raise AssertionError(f"claim text not named: {claim}")
+    if "grep -c" not in command:
+        raise AssertionError(f"command lost: {command}")
+
+
+def test_changelog_matching_anchors_and_evidence_are_silent(root: Path) -> None:
+    """POSITIVE: matching anchors + hits must stay quiet (no INFO noise)."""
+    measured = {
+        "plan_sha256": "e" * 64,
+        "checks": "29",
+        "atom_set_sha256": "f" * 64,
+    }
+    text = _changelog_fixture_body(
+        plan_sha=measured["plan_sha256"],
+        checks=measured["checks"],
+        atom_sha=measured["atom_set_sha256"],
+        evidence_line='- 门名存在 ← `grep -c "changelog_management" main/50_playbook/_README.md`\n',
+    )
+    declared = doctor.parse_changelog_anchors(text)
+    if declared != {
+        "plan_sha256": measured["plan_sha256"],
+        "checks": measured["checks"],
+        "atom_set_sha256": measured["atom_set_sha256"],
+    }:
+        raise AssertionError(f"parse mismatch: {declared}")
+    entries = doctor.parse_changelog_entries(text)
+    stale = doctor.stale_changelog_claims(entries, runner=lambda _cmd: 3)
+    if stale:
+        raise AssertionError(f"healthy evidence must not be stale: {stale}")
+    # No doctor.infos / warns path here — pure functions only, by design.
+
+
+def test_changelog_pure_functions_mutation_is_killed(root: Path) -> None:
+    """Mutation: empty stubs must fail the reverse tests (iron rule 3)."""
+    text_mismatch = _changelog_fixture_body(
+        plan_sha="a" * 64, checks="1", atom_sha="b" * 64
+    )
+    text_evidence = _changelog_fixture_body(
+        plan_sha="a" * 64,
+        checks="1",
+        atom_sha="b" * 64,
+        evidence_line='- x ← `grep -c "x" main/y.md`\n',
+    )
+    # Live functions must surface the faults.
+    if not doctor.parse_changelog_anchors(text_mismatch):
+        raise AssertionError("live parse must return anchors for mismatch fixture")
+    live_stale = doctor.stale_changelog_claims(
+        doctor.parse_changelog_entries(text_evidence),
+        runner=lambda _cmd: 0,
+    )
+    if not live_stale:
+        raise AssertionError("live stale_changelog_claims must flag zero hits")
+
+    real_parse = doctor.parse_changelog_anchors
+    real_stale = doctor.stale_changelog_claims
+    try:
+        doctor.parse_changelog_anchors = lambda _text: {}  # type: ignore[assignment]
+        if doctor.parse_changelog_anchors(text_mismatch):
+            raise AssertionError("stub parse should return empty")
+        # Reverse test oracle: mismatch detection depends on non-empty parse.
+        declared = doctor.parse_changelog_anchors(text_mismatch)
+        measured = {"plan_sha256": "c" * 64, "checks": "29", "atom_set_sha256": "d" * 64}
+        warns = []
+        for key in measured:
+            got = declared.get(key)
+            if got is not None and got != measured[key]:
+                warns.append("mismatch")
+        if warns:
+            raise AssertionError(
+                "MUTATION SURVIVED: empty parse_changelog_anchors still produced "
+                "mismatch WARNs — reverse test is blind"
+            )
+
+        doctor.stale_changelog_claims = lambda _entries, runner=None: []  # type: ignore[assignment]
+        if doctor.stale_changelog_claims(
+            doctor.parse_changelog_entries(text_evidence),
+            runner=lambda _cmd: 0,
+        ):
+            raise AssertionError(
+                "MUTATION SURVIVED: empty stale_changelog_claims returned hits"
+            )
+    finally:
+        doctor.parse_changelog_anchors = real_parse  # type: ignore[assignment]
+        doctor.stale_changelog_claims = real_stale  # type: ignore[assignment]
+
+
+def test_git_unlink_probe_leaves_no_residue(root: Path) -> None:
+    """The probe that detects EA-0003 must not itself become an EA-0003 victim."""
+    repo = root / "repo"
+    (repo / ".git").mkdir(parents=True, exist_ok=True)
+    before = sorted(path.name for path in (repo / ".git").iterdir())
+    result = doctor.probe_git_unlink(repo)
+    after = sorted(path.name for path in (repo / ".git").iterdir())
+    if result is not True:
+        raise AssertionError(f"tmpfs .git should be unlinkable; actual={result}")
+    if before != after:
+        raise AssertionError(f"probe left residue in .git: {before} -> {after}")
+    if doctor.probe_git_unlink(root / "no_such_repo") is not None:
+        raise AssertionError("probe must return None when there is no .git")
+
+
+def test_git_unlink_probe_residue_is_bounded(root: Path) -> None:
+    """NEGATIVE: on an unlink-hostile mount the probe must not accumulate residue.
+
+    Regression for a real defect found in this batch: the first implementation
+    used a per-PID probe name, so on the very environment EA-0003 describes every
+    doctor run stranded one more undeletable file inside .git.  A per-run name is
+    only safe where deletion works — that is, exactly where the probe is pointless.
+    """
+    repo = root / "repo"
+    git_dir = repo / ".git"
+    git_dir.mkdir(parents=True, exist_ok=True)
+    (git_dir / "HEAD.lock").write_text("pre-existing lock\n", encoding="utf-8")
+
+    real_unlink = Path.unlink
+
+    def refuse_unlink(self, *args, **kwargs):
+        if self.parent == git_dir:
+            raise PermissionError("Operation not permitted")
+        return real_unlink(self, *args, **kwargs)
+
+    Path.unlink = refuse_unlink
+    try:
+        for _ in range(5):
+            if doctor.probe_git_unlink(repo) is not False:
+                raise AssertionError("probe must report False when unlink is refused")
+    finally:
+        Path.unlink = real_unlink
+
+    residue = sorted(path.name for path in git_dir.iterdir())
+    if residue != sorted([doctor.GIT_UNLINK_PROBE_NAME, "HEAD.lock"]):
+        raise AssertionError(f"residue must stay capped at one probe file: {residue}")
+    if not (git_dir / "HEAD.lock").is_file():
+        raise AssertionError("probe must never remove a pre-existing git lock")
+
 
 ALL_CONTRACT_TESTS = (
         test_profile_placeholder,
@@ -3052,6 +3477,19 @@ ALL_CONTRACT_TESTS = (
         test_main_readme_skeleton_reference_does_not_change_migration_kind,
         test_profile_migration_manifest_tamper,
         test_profile_migration_roundtrip,
+        test_handoff_assertion_without_source_is_reported,
+        test_handoff_assertion_with_source_is_accepted,
+        test_handoff_assertion_scan_skips_structure_only,
+        test_environment_probes_report_broken_assumptions,
+        test_environment_probes_silent_when_assumptions_hold,
+        test_environment_registry_must_exist_and_list_every_probe,
+        test_git_unlink_probe_leaves_no_residue,
+        test_git_unlink_probe_residue_is_bounded,
+        test_changelog_anchor_mismatch_warns_with_both_values,
+        test_changelog_missing_anchor_block_warns,
+        test_changelog_stale_evidence_warns_with_title_and_claim,
+        test_changelog_matching_anchors_and_evidence_are_silent,
+        test_changelog_pure_functions_mutation_is_killed,
 )
 
 

@@ -114,8 +114,8 @@
 
 | 阶段 | 状态 |
 |---|---|
-| 本批（U1+U4） | 规范与判据落地；`doctor_contracts.md` 登记「changelog 漂移与腐烂」行 |
-| U3（**未在本批授权**） | `runtime.changelog` 原子项 + 纯函数 + 正反测试 + 变异验证；实现前不得声称门已自动执行 |
+| U1+U4 | 规范与判据落地；`doctor_contracts.md` 登记「changelog 漂移与腐烂」行 |
+| U3（已实现） | `runtime.changelog` → `check_changelog_contract`；纯函数 + 正反测试 + 变异验证；锚定字段 = U2 批准的 A+B+C |
 
 ---
 

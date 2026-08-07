@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib.util
 import json
 import hashlib
 import os
@@ -136,12 +137,15 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_activity_ledgers", "check_engagements_and_activities",
     "check_question_banks", "check_knowledge_ledgers", "check_project_verification",
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
-    "check_registry", "check_textbook_preparation", "check_checkpoint_block_routing",
+    "check_registry", "check_textbook_preparation", "check_scope_page_cache",
+    "check_checkpoint_block_routing",
     "check_trading_boundary",
     "check_legacy_references", "check_retired_instance_ids", "check_cloud_pause",
     "check_context_packet_contract", "check_test_management_contract",
     "check_decision_records",
-    "check_course_activity_templates", "check_flow_and_guide", "check_handoff_contract",
+    "check_course_activity_templates", "check_environment_assumptions",
+    "check_changelog_contract",
+    "check_flow_and_guide", "check_handoff_contract",
     "check_cloud_contract", "check_derived_tools", "check_migration_evidence",
     "check_migration_021_evidence", "check_activity_migration_021_evidence",
     "check_reading_bridge_contract", "check_core_playbooks",
@@ -2445,6 +2449,57 @@ def check_textbook_preparation(courses: dict[str, tuple[Path, dict[str, str]]]) 
         )
 
 
+def check_scope_page_cache(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
+    """SCOPE-CACHE-001: warn when the current Scope's page images are not prewarmed.
+
+    The textbook visual scan requires actually opening every Scope page image.
+    A cold cache does not make teaching wrong, but it forces live rendering at
+    lesson start and has repeatedly delayed the first block. This check is
+    read-only: it reports the gap and the prewarm command, and never renders.
+    Snapshot shape problems are left to check_textbook_preparation.
+    """
+    for course_id, (folder, meta) in courses.items():
+        if (
+            meta.get("current_activity") != "lesson"
+            or meta.get("course_driver") != "textbook"
+        ):
+            continue
+        lesson = meta.get("current_activity_id", "")
+        if not re.fullmatch(r"lesson\d+", lesson):
+            continue
+        pointer_path = (
+            folder / "lessons" / lesson / "preparation" / "current_snapshot.json"
+        )
+        if not pointer_path.is_file():
+            continue
+        try:
+            pointer = json.loads(read(pointer_path))
+            snap_id = str(pointer.get("snapshot_id") or "")
+            payload = json.loads(read(pointer_path.parent / f"{snap_id}.json"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        cache_root = folder / "book" / ".cache" / "source_pages"
+        missing: list[int] = []
+        for key in payload.get("page_keys") or []:
+            if not isinstance(key, dict) or key.get("pdf_page_index") is None:
+                continue
+            sha = str(key.get("source_document_sha256") or "")
+            profile = str(key.get("render_profile") or "pdf-300dpi-rgb-v1")
+            index = int(key["pdf_page_index"])
+            if not sha:
+                continue
+            if not (cache_root / sha / profile / f"page_{index}.png").is_file():
+                missing.append(index)
+        if missing:
+            report(
+                "WARN",
+                f"SCOPE-CACHE-001 Scope 页图未预热：{course_id}/{lesson} "
+                f"缺页 {sorted(missing)}；本轮视觉扫描前须现场渲染。预热："
+                f"python -B main/70_tools/t2ag_source_pages.py prewarm "
+                f"--course {course_id} --lesson {lesson} --render",
+            )
+
+
 def check_checkpoint_block_routing(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
     """CKP-SCOPE-002: verify active checkpoint block_id appears in LessonMap.
 
@@ -2745,6 +2800,44 @@ def check_flow_and_guide() -> None:
         report("FAIL", "离线指南流程图缺受控滚动视窗")
 
 
+RECOMPUTE_SOURCE_MARKER = "←"
+VERIFIABLE_ASSERTION_PATTERNS = (
+    re.compile(r"\d+\s*个"),
+    re.compile(r"零命中"),
+    re.compile(r"sha256\s*[:：]"),
+)
+
+
+def unsourced_handoff_assertions(content: str) -> list[tuple[int, str]]:
+    """Return (1-based line, text) for quantity/existence/hash assertions with no source.
+
+    handoff_management.md §5.6 requires that a taker can *replay* the number, not
+    merely that the writer once saw it.  The gate therefore proves one thing only:
+    a recompute command is adjacent to the claim.  Which command forms count is
+    declared in §5.6.2, not here — this function does not judge command quality.
+
+    Deliberately mechanical: fenced code and ATX headings are skipped because they
+    are structure rather than claims, but quoted or retrospective prose is NOT
+    exempt (§5.6.4).  A gate that guesses at tone is a gate nobody can predict.
+    """
+    lines = content.splitlines()
+    fenced = False
+    hits: list[tuple[int, str]] = []
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced or re.match(r"^#{1,6}\s", line):
+            continue
+        if not any(pattern.search(line) for pattern in VERIFIABLE_ASSERTION_PATTERNS):
+            continue
+        following = lines[index + 1] if index + 1 < len(lines) else ""
+        if RECOMPUTE_SOURCE_MARKER in line or RECOMPUTE_SOURCE_MARKER in following:
+            continue
+        hits.append((index + 1, line.strip()))
+    return hits
+
+
 def check_handoff_contract() -> None:
     if FLAVOR != "main":
         return
@@ -2834,6 +2927,12 @@ def check_handoff_contract() -> None:
             report(
                 "FAIL",
                 f"handoff aging_state 漂移：{filename} expected={expected_aging} actual={metadata['aging_state']}",
+            )
+        for line_number, text in unsourced_handoff_assertions(content):
+            excerpt = text if len(text) <= 80 else f"{text[:80]}…"
+            report(
+                "WARN",
+                f"交接断言无复算来源（handoff_management.md §5.6）：{filename}:{line_number} -> {excerpt}",
             )
 
     backlog_rows = table_after_heading(index_content, "下一版本 Backlog")
@@ -4303,6 +4402,388 @@ def check_gitattributes_policy() -> None:
         )
 
 
+ENVIRONMENT_ASSUMPTIONS_REL = "main/50_playbook/environment_assumptions.md"
+REQUIRED_ENVIRONMENT_ASSUMPTION_IDS = ("EA-0001", "EA-0002", "EA-0003")
+CHANGELOG_REL = "main/00_core/t2ag_changelog.md"
+CHANGELOG_ENTRY_HEADING = re.compile(
+    r"^## \[(\d{4}-\d{2}-\d{2})\]\s*(.+?)\s*$",
+    re.MULTILINE,
+)
+CHANGELOG_ANCHOR_HEADING = re.compile(
+    r"^#{2,4}\s*锚定断言[^\n]*$",
+    re.MULTILINE,
+)
+CHANGELOG_EVIDENCE_HEADING = re.compile(
+    r"^#{2,4}\s*佐证断言[^\n]*$",
+    re.MULTILINE,
+)
+CHANGELOG_EVIDENCE_LINE = re.compile(
+    r"^[-*]\s*(.+?)\s*←\s*`([^`]+)`\s*$",
+    re.MULTILINE,
+)
+# Student-approved U2 set: A plan sha, B checks, C atom-set sha (keys only).
+# Order matters: "doctor_checks …" must not be captured by the checks key.
+CHANGELOG_ANCHOR_SPECS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("plan_sha256", re.compile(r"runtime\s*plan\s*sha256|plan\s*sha256", re.I)),
+    (
+        "atom_set_sha256",
+        re.compile(
+            r"doctor_checks\s*atom\s*set|atom\s*set\s*sha|原子项(?:集合)?\s*sha",
+            re.I,
+        ),
+    ),
+    # Intentionally narrow — bare "checks" would also match "doctor_checks".
+    ("checks", re.compile(r"runtime\s*checks\b|^\s*checks(?:\s*数|\s*count)?\s*$", re.I)),
+)
+
+
+def parse_changelog_entries(text: str) -> list[dict[str, str]]:
+    """Split changelog into dated entries.
+
+    Convention: after the main title ``# T2AG 变更历史``, entries are newest-first.
+    Entries that appear only above that title (legacy front-matter notes) are ignored
+    when the title is present, so "latest" means the first body entry.
+    """
+    body = text
+    title_at = text.find("# T2AG 变更历史")
+    if title_at >= 0:
+        body = text[title_at:]
+    matches = list(CHANGELOG_ENTRY_HEADING.finditer(body))
+    entries: list[dict[str, str]] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
+        entries.append(
+            {
+                "date": match.group(1),
+                "title": match.group(2).strip(),
+                "heading": match.group(0).strip(),
+                "body": body[match.end() : end],
+            }
+        )
+    return entries
+
+
+def _section_after(heading_re: re.Pattern[str], body: str) -> str | None:
+    match = heading_re.search(body)
+    if not match:
+        return None
+    rest = body[match.end() :]
+    next_heading = re.search(r"^#{2,4}\s+\S", rest, re.MULTILINE)
+    if next_heading:
+        rest = rest[: next_heading.start()]
+    return rest
+
+
+def parse_changelog_anchors(text: str) -> dict[str, str]:
+    """Parse the latest entry's 锚定断言 block into normalized keys.
+
+    Pure: text in, dict out. Missing block or missing fields yield a partial/empty
+    dict so the caller can WARN with both declared and measured values.
+    """
+    entries = parse_changelog_entries(text)
+    if not entries:
+        return {}
+    section = _section_after(CHANGELOG_ANCHOR_HEADING, entries[0]["body"])
+    if section is None:
+        return {}
+    found: dict[str, str] = {}
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        # "- key = value ← cmd" or "- key = value"
+        payload = re.sub(r"^[-*]\s*", "", stripped)
+        payload = re.split(r"\s*←\s*", payload, maxsplit=1)[0].strip()
+        if "=" not in payload and "：" not in payload and ":" not in payload:
+            continue
+        if "=" in payload:
+            label, raw_value = payload.split("=", 1)
+        elif "：" in payload:
+            label, raw_value = payload.split("：", 1)
+        else:
+            label, raw_value = payload.split(":", 1)
+        label = label.strip()
+        value = raw_value.strip().strip("`").strip()
+        # Drop trailing ellipsis truncations used in prose; require full tokens later.
+        value = value.rstrip("…").rstrip(".")
+        for key, pattern in CHANGELOG_ANCHOR_SPECS:
+            if pattern.search(label):
+                # Prefer first full-looking token on the line.
+                token = re.search(r"([a-fA-F0-9]{16,64}|\d+)", value)
+                if token:
+                    found[key] = token.group(1).lower() if key != "checks" else token.group(1)
+                break
+    return found
+
+
+def extract_evidence_claims(entry_body: str) -> list[tuple[str, str]]:
+    """Return (claim_text, command) pairs from an explicit 佐证断言 section only.
+
+    Anchoring lines also use ``←``; scanning the whole entry would false-stale
+    them. No 佐证 section means no evidence claims (not an error by itself).
+    """
+    section = _section_after(CHANGELOG_EVIDENCE_HEADING, entry_body)
+    if section is None:
+        return []
+    claims: list[tuple[str, str]] = []
+    for match in CHANGELOG_EVIDENCE_LINE.finditer(section):
+        claims.append((match.group(1).strip(), match.group(2).strip()))
+    return claims
+
+
+def stale_changelog_claims(
+    entries: list[dict[str, str]],
+    runner,
+) -> list[tuple[str, str, str]]:
+    """Recompute evidence claims; runner(command) -> hit_count | None.
+
+    Pure w.r.t. filesystem: all I/O goes through ``runner``. A claim is stale when
+    the runner returns an int that is <= 0. None means "skip / not evaluable".
+    Returns (entry_title, claim_text, command) for each stale claim.
+    """
+    stale: list[tuple[str, str, str]] = []
+    for entry in entries:
+        title = entry.get("heading") or entry.get("title") or "(untitled)"
+        for claim_text, command in extract_evidence_claims(entry.get("body", "")):
+            # Only claims that sit under an explicit 佐证 heading, or any claim
+            # when the section exists: extract already scoped when section present.
+            hits = runner(command)
+            if hits is None:
+                continue
+            if int(hits) <= 0:
+                stale.append((title, claim_text, command))
+    return stale
+
+
+def measure_runtime_changelog_anchors(
+    workflow_path: Path | None = None,
+) -> dict[str, str]:
+    """Repo+python recompute of the student-approved U2 anchor set (A+B+C)."""
+    path = workflow_path or validation_control.DEFAULT_WORKFLOW
+    workflow = validation_control.load_workflow(path)
+    plan = validation_control.build_doctor_plan(
+        workflow,
+        profile="runtime",
+        requested_checks=[],
+    )
+    keys = sorted(workflow["doctor_checks"])
+    atom_blob = "\n".join(keys).encode("utf-8")
+    return {
+        "plan_sha256": str(plan["plan_sha256"]),
+        "checks": str(len(plan["checks"])),
+        "atom_set_sha256": hashlib.sha256(atom_blob).hexdigest(),
+        "atom_n": str(len(keys)),
+    }
+
+
+def default_changelog_evidence_runner(command: str, *, root: Path) -> int | None:
+    """Evaluate a narrow class of evidence commands (grep -c / path existence)."""
+    cmd = command.strip().strip("`").strip()
+    # grep -c 'pat' path   or  grep -c "pat" path
+    match = re.match(
+        r"""^grep\s+-c\s+(?P<q>['"])(?P<pat>.+?)(?P=q)\s+(?P<path>\S+)\s*$""",
+        cmd,
+    )
+    if match:
+        path = root / match.group("path")
+        if not path.is_file():
+            return 0
+        try:
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:
+            return 0
+        return len(re.findall(match.group("pat"), text))
+    match = re.match(
+        r"""^grep\s+-n\s+(?P<q>['"])(?P<pat>.+?)(?P=q)\s+(?P<path>\S+)\s*$""",
+        cmd,
+    )
+    if match:
+        path = root / match.group("path")
+        if not path.is_file():
+            return 0
+        try:
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:
+            return 0
+        return len(re.findall(match.group("pat"), text, flags=re.MULTILINE))
+    return None
+
+
+def check_changelog_contract() -> None:
+    """Runtime: drift trail + non-rot for the latest changelog entry (A+B+C).
+
+    Measures anchors via validation_control (no git). Evidence claims use an
+    injected-style runner over grep -c/-n only. Does not prove completeness.
+    """
+    path = ROOT / CHANGELOG_REL
+    if not path.is_file():
+        report("WARN", f"changelog 缺失：{CHANGELOG_REL}（无法核对锚定/佐证）")
+        return
+    text = read(path)
+    entries = parse_changelog_entries(text)
+    if not entries:
+        report("WARN", f"changelog 无日期条目：{CHANGELOG_REL}")
+        return
+    latest = entries[0]
+    latest_title = latest["heading"]
+    declared = parse_changelog_anchors(text)
+    measured = measure_runtime_changelog_anchors()
+    if not declared:
+        report(
+            "WARN",
+            f"changelog 最新条目缺锚定块：{latest_title}；"
+            f"实测 plan_sha256={measured['plan_sha256']} checks={measured['checks']} "
+            f"atom_set_sha256={measured['atom_set_sha256']}",
+        )
+    else:
+        for key, label in (
+            ("plan_sha256", "runtime plan sha256"),
+            ("checks", "runtime checks"),
+            ("atom_set_sha256", "doctor_checks atom set sha256"),
+        ):
+            want = measured[key]
+            got = declared.get(key)
+            if got is None:
+                report(
+                    "WARN",
+                    f"状态漂移无记录：{latest_title} 缺锚定字段 {label}；"
+                    f"声明值=(missing) 实测值={want}",
+                )
+            elif got != want:
+                report(
+                    "WARN",
+                    f"状态漂移无记录：{latest_title} {label} "
+                    f"声明值={got} 实测值={want}",
+                )
+    # Evidence: only the latest entry is required to stay non-rot for this gate;
+    # older entries are historical and must not be rewritten (hard rule 4).
+    def runner(command: str):
+        return default_changelog_evidence_runner(command, root=ROOT)
+
+    for title, claim_text, command in stale_changelog_claims([latest], runner):
+        report(
+            "WARN",
+            f"条目已腐烂：{title}；断言原文={claim_text}；复算命令=`{command}` 命中为零",
+        )
+
+
+def module_available(name: str) -> bool:
+    """Read-only import probe: does not import, does not install (EA-0002)."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+GIT_UNLINK_PROBE_NAME = ".t2ag_env_probe"
+
+
+def probe_git_unlink(root: Path) -> bool | None:
+    """Can this mount delete a file it just created under .git/?
+
+    Returns None when there is no .git to probe.  Git's lock protocol assumes
+    create-then-delete; a mount that only honours the create half lets `git
+    commit` report success while stranding HEAD.lock, which breaks the *host's*
+    next ref update.
+
+    The probe name is FIXED, not per-PID.  A per-PID name looks tidier but is
+    wrong here: on exactly the environment this probe exists to detect, the
+    residue cannot be removed, so every doctor run would strand one more file
+    inside .git — the check would become the disease.  With a fixed name the
+    residue is capped at one, and an existing residue is itself evidence, so the
+    probe retries deleting it before writing anything new.
+
+    Never touches a pre-existing git lock: EA-0003 requires that clearing
+    HEAD.lock stay a deliberate human act on a healthy repo, not a doctor habit.
+    """
+    git_dir = root / ".git"
+    if not git_dir.is_dir():
+        return None
+    probe = git_dir / GIT_UNLINK_PROBE_NAME
+    if probe.exists():
+        try:
+            probe.unlink()
+        except OSError:
+            return False
+    try:
+        probe.write_text("t2ag environment probe\n", encoding="utf-8")
+    except OSError:
+        return False
+    try:
+        probe.unlink()
+    except OSError:
+        return False
+    return True
+
+
+def environment_probe_results(
+    *,
+    root: Path,
+    production_root: Path,
+    fitz_available: bool,
+    git_unlink: bool | None,
+) -> list[tuple[str, str]]:
+    """Turn three environment facts into doctor findings.
+
+    Pure: every input is injected, so both the holds and the does-not-hold branch
+    of each assumption are reachable from a fixture.  Reports facts only — never
+    installs, never cleans up, never rewrites a path (environment_assumptions.md §一).
+    """
+    findings: list[tuple[str, str]] = []
+    if root.resolve() != production_root:
+        findings.append((
+            "INFO",
+            f"EA-0001 生产根路径不匹配：当前 {root.resolve()}；"
+            "期望值见 grep -n \"PRODUCTION_ROOT\" main/70_tools/activity_close.py"
+            "（该常量是 Windows 字面量，在非 Windows 宿主上 resolve 后不可读，故不复制）。"
+            "activity_close 的直接用户授权闸门在本环境不生效，"
+            "且不得为通过 apply 而设置 T2AG_022_CLOSE_TEST=1",
+        ))
+    if not fitz_available:
+        findings.append((
+            "INFO",
+            "EA-0002 PyMuPDF (fitz) 不可用：t2ag_source_pages.py 的 PPI 反算路径"
+            "（source_pages prepare）在本环境失败，请在有 .venv 的宿主机执行；不得自动安装",
+        ))
+    if git_unlink is False:
+        findings.append((
+            "WARN",
+            "EA-0003 本环境可在 .git 下建文件但不能 unlink："
+            "本环境不得执行 git 写操作（commit/add/tag/gc），请在宿主机提交；"
+            "已遗留的 HEAD.lock 等锁文件由用户手动删除，探测方不得代清理；"
+            f"本探测自身的残留固定为 .git/{GIT_UNLINK_PROBE_NAME}（至多一个，可安全删除）",
+        ))
+    return findings
+
+
+def check_environment_assumptions() -> None:
+    """Runtime: read-only probes for the host assumptions registered as EA-XXXX.
+
+    These assumptions used to travel by handoff prose only, which is why each of
+    them bit a taker at least once.  The check proves the assumption is *visible*,
+    not that the environment is correct — a wrong environment stays wrong and
+    stays reported (see environment_assumptions.md §一).
+    """
+    registry = ROOT / ENVIRONMENT_ASSUMPTIONS_REL
+    if not registry.is_file():
+        report("FAIL", f"环境假设登记缺失：{ENVIRONMENT_ASSUMPTIONS_REL}")
+        return
+    registry_text = read(registry)
+    missing = [
+        ea_id for ea_id in REQUIRED_ENVIRONMENT_ASSUMPTION_IDS
+        if ea_id not in registry_text
+    ]
+    if missing:
+        report("FAIL", f"环境假设登记缺条目：{missing}")
+    for level, message in environment_probe_results(
+        root=ROOT,
+        production_root=activity_close_contract.PRODUCTION_ROOT,
+        fitz_available=module_available("fitz"),
+        git_unlink=probe_git_unlink(ROOT),
+    ):
+        report(level, message)
+
+
 def check_line_endings() -> None:
     """Runtime: bounded CRLF scan over control files and teaching-state core.
 
@@ -4546,6 +5027,8 @@ def execute_doctor_checks(
         "check_retired_instance_ids": check_retired_instance_ids,
         "check_cloud_pause": check_cloud_pause,
         "check_decision_records": check_decision_records,
+        "check_environment_assumptions": check_environment_assumptions,
+        "check_changelog_contract": check_changelog_contract,
         "check_flow_and_guide": check_flow_and_guide,
         "check_handoff_contract": check_handoff_contract,
         "check_cloud_contract": check_cloud_contract,
@@ -4569,6 +5052,7 @@ def execute_doctor_checks(
         "check_project_verification": check_project_verification,
         "check_exercises": check_exercises,
         "check_textbook_preparation": check_textbook_preparation,
+        "check_scope_page_cache": check_scope_page_cache,
         "check_checkpoint_block_routing": check_checkpoint_block_routing,
     }
     for row in rows:
