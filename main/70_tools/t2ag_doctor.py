@@ -419,6 +419,33 @@ def check_memory_version_prose(memory_text: str, runtime_version: str) -> None:
             )
 
 
+def check_memory_version_pointer(memory_text: str, runtime_version: str) -> None:
+    """Fail when the GENERATED state-pointer row disagrees with t2ag.md.
+
+    EV-0015 memory 版本守卫.  The row is produced by t2ag_state_refresh; if that
+    generator ever hardcodes a literal again, ``state_refresh --check`` cannot
+    see the drift because it compares its own constant with itself.  Doctor is
+    the independent observer, so the guard belongs here.
+    """
+    matches = list(
+        re.finditer(r"^\|\s*T2AG 版本\s*\|\s*(\S+)\s*\|", memory_text, re.MULTILINE)
+    )
+    if not matches and "T2AG_GENERATED:STATE_POINTERS" in memory_text:
+        # Guarding only the value would be a false negative: a generator that
+        # stopped emitting the row entirely would slip through silently, and
+        # state_refresh --check cannot see it either (it would omit the row on
+        # both sides).  Require the row whenever the block itself exists.
+        report("FAIL", "t2ag_memory.md STATE_POINTERS 块缺 T2AG 版本行")
+    for match in matches:
+        if match.group(1) != runtime_version:
+            report(
+                "FAIL",
+                f"t2ag_memory.md GENERATED 状态指针版本 {match.group(1)} 与运行版本 "
+                f"{runtime_version} 不一致（先修 t2ag_state_refresh 的版本来源，"
+                f"再跑 --write）",
+            )
+
+
 def check_version_and_profile() -> None:
     constitution = MAIN / "t2ag.md"
     memory = MAIN / "00_core/t2ag_memory.md"
@@ -443,7 +470,9 @@ def check_version_and_profile() -> None:
                 f"发行入口版本未更新为 {runtime_version}：{rel(path)}",
             )
     if memory.exists():
-        check_memory_version_prose(read(memory), runtime_version)
+        memory_text = read(memory)
+        check_memory_version_prose(memory_text, runtime_version)
+        check_memory_version_pointer(memory_text, runtime_version)
     launcher = MAIN / "bin/t2ag"
     if launcher.exists():
         content = read(launcher)
@@ -2678,10 +2707,11 @@ def check_flow_and_guide() -> None:
     forbidden = ("cdn.jsdelivr.net/npm/mermaid", "mermaid.initialize(", 'class="mermaid"')
     if any(token in html_text for token in forbidden):
         report("FAIL", "离线指南仍依赖 Mermaid 外部运行时")
-    if html_text.count('<svg class="flow-svg"') != mermaid_count:
+    static_svg_count = html_text.count('<svg class="flow-svg"')
+    if static_svg_count != mermaid_count:
         report(
             "FAIL",
-            f"离线指南静态 SVG 数量漂移：expected={mermaid_count} actual={html_text.count('<svg class=\"flow-svg\"')}",
+            f"离线指南静态 SVG 数量漂移：expected={mermaid_count} actual={static_svg_count}",
         )
     if mermaid_count and html_text.count('<details class="flow-source"') != mermaid_count:
         report("FAIL", "离线指南 Mermaid 文本回退数量漂移")
@@ -4153,17 +4183,60 @@ def check_authorization_governance(*, include_external_handoffs: bool = True) ->
     ledger_path = MAIN / "40_course/MATH1607H/activity_ledger.md"
     if ledger_path.is_file():
         doc = activity_ledger_contract.load_ledger(ledger_path)
-        if any(
-            activity_ledger_contract.is_known_invalid_legacy_delegated_close(
+        for close in doc.closes:
+            if not activity_ledger_contract.is_known_invalid_legacy_delegated_close(
                 doc.course_id, close
-            )
-            for close in doc.closes
-        ):
-            report(
-                "WARN",
-                "0.2.2 历史 CLR-0001 保留 invalid legacy delegation；"
-                "不得作为新授权模板，真实状态处置须另获 RT3",
-            )
+            ):
+                continue
+            settled = direct_user_reconfirmation_event(doc, close)
+            if settled is None:
+                report(
+                    "WARN",
+                    "0.2.2 历史 CLR-0001 保留 invalid legacy delegation；"
+                    "不得作为新授权模板，真实状态处置须另获 RT3",
+                )
+            else:
+                report(
+                    "INFO",
+                    f"{close.get('close_id')} invalid legacy delegation 已由 "
+                    f"{settled.get('event_id')} 直接用户补确认；原记录按 §1.7 永久保留，"
+                    "仍不得作为新授权模板",
+                )
+
+
+def direct_user_reconfirmation_event(doc, close) -> dict | None:
+    """Return the correction that closes a known-invalid legacy delegated close.
+
+    §6.2 only accepts a re-confirmation made after the exact object, body, ID,
+    SHA and result were presented to the user in-turn.  The durable proof of
+    that presentation is a user-triggered ``activity_correction`` whose summary
+    actually carries those exact values, so the predicate is on the values —
+    not on a hand-maintained event id, and not on a correction that merely
+    asserts consent without showing what was consented to.
+
+    A matching correction downgrades the finding to INFO.  It never rewrites
+    the close: the invalid authorization fields stay in the ledger forever
+    (§1.7) and the record must never be reused as an authorization template.
+    Remove the correction and the WARN comes back on the next run.
+    """
+    required = (
+        str(close.get("body_sha256") or ""),
+        str(close.get("pending_event_id") or ""),
+        str(close.get("result") or ""),
+    )
+    if not all(required):
+        return None
+    for event in doc.events:
+        if event.get("corrects_close_id") != close.get("close_id"):
+            continue
+        if event.get("triggered_by") != "user":
+            continue
+        if event.get("trigger") != "activity_correction":
+            continue
+        summary = str(event.get("correction_summary") or "")
+        if all(token in summary for token in required):
+            return event
+    return None
 
 
 def check_activity_ledgers(

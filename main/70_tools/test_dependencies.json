@@ -40,6 +40,10 @@
       "sources": ["main/70_tools/t2ag_doctor.py", "main/70_tools/validation_control.py", "main/70_tools/validation_workflow.json", "main/70_tools/test_022_doctor_postcheck.py", "main/50_playbook/doctor_contracts.md", "main/50_playbook/validation_flow.md"],
       "tests": ["doctor.postcheck", "contracts.runtime"]
     },
+    "state_refresh": {
+      "sources": ["main/70_tools/t2ag_state_refresh.py"],
+      "tests": ["contracts.runtime", "doctor.postcheck"]
+    },
     "context": {
       "sources": ["main/70_tools/t2ag_context.py", "main/70_tools/t2ag_activity.py", "main/50_playbook/context_packet.md"],
       "tests": ["context.packet"]

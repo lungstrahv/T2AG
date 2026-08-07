@@ -301,6 +301,34 @@ def teacher_template(
     return f"TR01 → {resolved[0]}" if resolved else "—"
 
 
+# Keep in sync with t2ag_doctor.extract_runtime_version: main/t2ag.md §7 is the
+# single truth source for the running version.  Never hardcode a literal here —
+# a hardcoded value would be written and re-checked from the same constant, so
+# `--check` could never observe the drift.
+RUNTIME_VERSION_PATTERNS = (
+    r"当前运行版本[：:]\s*`?(0\.\d+\.\d+)`?",
+    r"-\s*当前版本[：:]\s*`?(0\.\d+\.\d+)`?",
+    r"^#\s+T2AG\s+(0\.\d+\.\d+)\b",
+)
+
+
+def runtime_version(
+    main: Path,
+    *,
+    reader: Callable[[Path], str] = read,
+) -> str:
+    """Parse the declared runtime version from main/t2ag.md, else '—'."""
+    constitution = main / "t2ag.md"
+    if not constitution.exists():
+        return "—"
+    text = reader(constitution)
+    for pattern in RUNTIME_VERSION_PATTERNS:
+        match = re.search(pattern, text, re.MULTILINE)
+        if match:
+            return match.group(1)
+    return "—"
+
+
 def render_state_pointers(
     group: Group | None,
     course: Course | None,
@@ -358,7 +386,7 @@ def render_state_pointers(
         f"| 当前教师 | {teacher_template(course, teacher_mapping)} | `main/20_teacher/overlay.md` |",
         f"| 学生档案 | {profile_status} | `main/10_student/profile/profile.md` |",
         f"| active binding | {binding_value} | {binding_path} |",
-        "| T2AG 版本 | 0.2.2 | `main/t2ag.md` |",
+        f"| T2AG 版本 | {runtime_version(main, reader=reader)} | `main/t2ag.md` |",
         f"| Cloud bridge | {cloud} | `cloud/cloud_sync_state.md` |",
     ))
 

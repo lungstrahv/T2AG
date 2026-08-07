@@ -54,6 +54,18 @@ assert migration_021_spec and migration_021_spec.loader
 migration_021_spec.loader.exec_module(migration_021)
 
 
+# Doctor parses the running version out of main/t2ag.md.  A bare version string
+# is NOT parseable by extract_runtime_version, and check_version_and_profile
+# bails out early when parsing fails — which silently skips every assertion that
+# comes after it in the same check.  Fixture constitutions must therefore use a
+# shape the parser can actually read, otherwise a green-looking fixture hides the
+# behaviour under test.
+FIXTURE_VERSION = "0.2.2"
+FIXTURE_CONSTITUTION = (
+    f"# T2AG {FIXTURE_VERSION}\n\n- 当前运行版本：`{FIXTURE_VERSION}`\n"
+)
+
+
 def write(path: Path, content: str = "") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8", newline="\n")
@@ -336,11 +348,11 @@ def assert_message(collection: list[str], token: str) -> None:
 
 def test_profile_placeholder(root: Path) -> None:
     reset(root)
-    write(root / "README.md", "0.2.2\n")
-    write(root / "AGENTS.md", "0.2.2\n")
-    write(root / "main/bin/t2ag", "0.2.2\n")
-    write(root / "main/t2ag.md", "0.2.2\n")
-    write(root / "main/00_core/t2ag_memory.md", "0.2.2\n")
+    write(root / "README.md", f"{FIXTURE_VERSION}\n")
+    write(root / "AGENTS.md", f"{FIXTURE_VERSION}\n")
+    write(root / "main/bin/t2ag", f"{FIXTURE_VERSION}\n")
+    write(root / "main/t2ag.md", FIXTURE_CONSTITUTION)
+    write(root / "main/00_core/t2ag_memory.md", f"{FIXTURE_VERSION}\n")
     write(
         root / "main/10_student/profile/profile.md",
         "---\ninitialization_status: initialized\n---\n"
@@ -359,7 +371,7 @@ def test_profile_container_contract(root: Path) -> None:
         for domain in doctor.EXPECTED_DOMAINS:
             (case_root / "main" / domain).mkdir(parents=True, exist_ok=True)
         write_validation_foundation_fixture(case_root)
-        write(case_root / "main/t2ag.md", "0.2.2\n")
+        write(case_root / "main/t2ag.md", FIXTURE_CONSTITUTION)
         write(case_root / "main/80_interface/fable_snail.png", "fixture\n")
         for name in ("profile.md", "learning_path.md", "course_reflections.md", "reasoning_patterns.md"):
             write(case_root / "main/10_student/profile" / name, f"# {name}\n")
