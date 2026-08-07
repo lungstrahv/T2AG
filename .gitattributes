@@ -1,0 +1,51 @@
+# Line-ending policy for T2AG
+#
+# WHY THIS FILE EXISTS
+#
+# On 2026-08-06 a Windows tool rewrote 83 tracked files from LF to CRLF.
+# `git diff HEAD` showed 83 files / ~25,000 lines changed; `git diff -w` showed
+# zero. Nothing semantic had changed. Committing that would have poisoned
+# `git log -S`, blame, and every piece of evidence bound to a file hash.
+#
+# This was a RECURRENCE. During the 0.2.2 campaign a `git clone` on Windows
+# rewrote historical evidence files the same way and invalidated frozen
+# manifest SHAs, which cost a full re-run of the exact-plan shadow.
+#
+# T2AG binds evidence to SHA-256 of file bytes (frozen plans, executor
+# manifests, LessonPreparationSnapshot, receipt chains). Bytes therefore must
+# not depend on which host performed the checkout. `eol=lf` is deliberate and
+# stronger than `text=auto` alone: it pins the WORKING TREE, not just the blob,
+# so a hash computed on Windows equals one computed anywhere else.
+#
+# Do not relax this to `text=auto` without `eol=lf`. Do not add `eol=crlf` for
+# convenience: any file whose bytes are hashed must stay host-independent.
+
+* text=auto eol=lf
+
+# Shell entry points must be LF or they will not execute.
+bin/t2ag        text eol=lf
+*.sh            text eol=lf
+
+# Delivered PowerShell is written ASCII-only and LF-safe on purpose; see
+# tmp/clr0001/apply_clr0001_correction.ps1 for why (Windows PowerShell 5.1
+# decodes .ps1 with the system ANSI codepage, so non-ASCII bytes corrupt the
+# parse). Keep it LF like everything else.
+*.ps1           text eol=lf
+
+# Binary assets: never transformed, never diffed as text.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.pdf           binary
+*.zip           binary
+*.exe           binary
+*.dll           binary
+*.traineddata   binary
+*.xlsx          binary
+*.docx          binary
+*.pptx          binary
+*.ttf           binary
+*.woff          binary
+*.woff2         binary

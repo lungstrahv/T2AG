@@ -164,7 +164,8 @@ git commit -m "恢复 <文件> 到 <提交> 的已确认版本"
 |---|---|
 | `Please tell me who you are` | 设置当前仓库的 `user.name` 与 `user.email` |
 | `rejected ... fetch first` | 查看远端差异；可快进时 `git pull --ff-only` |
-| CRLF/LF warning | 通常无害；不要为消除提示批量改写全仓库 |
+| CRLF/LF warning | **不是无害**，按 §十一 处理：核对 `git diff -w` 是否为空，是则还原而非提交 |
+| `hash binding mismatch` 且提示 `LINE ENDING DRIFT` | 宿主改写了行尾；还原文件，**不要**重新生成 plan 或重跑证据矩阵 |
 | push 认证失败 | 使用系统认证或 token，不把凭据写进文件 |
 | 中文路径显示转义 | 可设置 `git config core.quotepath false` |
 | 工作区已有不明改动 | 不暂存、不还原；只处理本次明确拥有的文件 |
@@ -264,3 +265,65 @@ python -B main/70_tools/t2ag_candidate_replay.py `
 - core-playbook、doctor、目录结构或云端协议变化后，维护结束必须生成“待快照清单”并提示 `WARN`。
 - 只有存在可恢复的本地快照，正式发布或 handoff 强制换代验收才能宣称“可发布”。
 - 没有快照时可以如实报告“教学可继续，发布快照未完成”，不得把工作树状态冒充已发布版本。
+
+## 十一、字节稳定性（canonical owner）
+
+本节是**宿主相关字节漂移**的唯一现行 owner。
+
+### 11.1 为什么这不是格式洁癖
+
+T2AG 把证据绑定到**文件字节**的 SHA-256：冻结 plan、executor manifest、
+`LessonPreparationSnapshot`、receipt chain 全部如此。宿主换一次行尾，所有下游证据静默
+失效，而报错只说 `hash mismatch`。已复发三次：
+
+1. 0.2.2 campaign — Windows `git clone` 重写历史证据换行 → 冻结 manifest SHA 失配 → 重跑 shadow；
+2. 2026-08-06 — 某 Windows 工具把 83 个已跟踪文件 LF→CRLF（`git diff` 2.5 万行，`git diff -w` 为 0）；
+3. 2026-08-06 — 交付的 `.ps1` 存为 UTF-8 无 BOM，PowerShell 5.1 按系统 codepage 解码 → 解析错乱。
+
+前两条是行尾，第三条是字符编码，根因同一个：**交付物的字节依赖了宿主的解释默认值**。
+
+### 11.2 仓库行尾
+
+`.gitattributes` 是执行点，Main 与 Skeleton 必须字节一致：
+
+```
+* text=auto eol=lf
+```
+
+必须写 `eol=lf`，不能只写 `text=auto`。后者只规范化 blob，**工作树仍随宿主变**，
+而被哈希的正是工作树文件。二进制类型需显式声明，不依赖自动探测。
+
+### 11.3 发现漂移时
+
+```
+git diff HEAD --numstat | wc -l      # 有差异的文件数
+git diff HEAD -w --numstat | wc -l   # 忽略空白后仍有差异的文件数
+```
+
+第二个为 `0` 即纯行尾噪音：**还原，不要提交**。提交它会污染 `git log -S`、blame 与全部
+SHA 绑定证据。还原后确认全仓无 CRLF 残留——扫描要用可靠实现，嵌套引号的 shell 单行
+命令曾静默返回空并被误读为“干净”。
+
+### 11.4 跨宿主交付脚本
+
+任何要在别的宿主上执行的交付脚本（`.ps1`、`.sh`、`.bat`）：
+
+1. **纯 ASCII**，不含任何非 ASCII 字节——比“记得加 BOM”更彻底，宿主 codepage 就无从介入；
+2. **LF 换行**；
+3. 文件哈希类参数**运行时实算**，不硬编码（内容指纹如 payload SHA 可以硬编码，那不随宿主变）；
+4. 取值后**断言非空**再传给下游命令，否则空串会被当成缺参数，错误信息指向错误的地方。
+
+### 11.5 消费者
+
+- `activity_close.line_ending_drift()` — SHA 失配时判别是否仅行尾差异，并在错误信息里
+  直接写明 `LINE ENDING DRIFT`，指向本节而不是让人重跑矩阵。挂载点：plan 绑定、授权
+  收据、post-close 哈希、plan 内容哈希四处。
+- 待批准的 L1/L2 doctor 扫描见
+  `docs/handoffs/T2AG_HOST_BYTE_DRIFT_PREVENTION_PLAN_2026-08-06.md`。
+
+> **rule_migration**（§6.3）：§八「CRLF/LF warning｜通常无害；不要为消除提示批量改写全
+> 仓库」判定为 `retire + replace`。旧表述的前半句（“通常无害”）是本类事故的放行条件，
+> 已被证伪；后半句（“不要批量改写全仓库”）语义**保留并强化**为 §11.3 的“还原，不要提交”
+> ——两者都反对把行尾差异写进历史，区别只在处置方向。新 owner 为本节 §十一，消费方为
+> `activity_close.line_ending_drift()` 与 §八报错表的两行指针，验证为该函数的正负例
+> 断言（真实内容改动不得被判为漂移）。

@@ -155,6 +155,41 @@ def sha256_file(path: Path) -> str | None:
     return txn.sha256_file(path)
 
 
+def line_ending_drift(raw: bytes | None, expected_sha: str) -> str:
+    """Name the line-ending variant that would satisfy ``expected_sha``.
+
+    T2AG binds evidence to the SHA-256 of file bytes: frozen plans, executor
+    manifests, preparation snapshots and receipt chains.  A host that rewrites
+    LF to CRLF therefore invalidates all of it while changing nothing that
+    matters.  A bare "hash mismatch" does not say so, and during the 0.2.2
+    campaign that ambiguity cost a full exact-plan shadow re-run before the
+    cause was identified.
+
+    This does not prevent the drift -- ``.gitattributes`` does.  It converts a
+    two-hour misdiagnosis into one line of output.  Returns "" when the bytes
+    differ for any reason other than line endings, so a real content change is
+    never explained away as a formatting artifact.
+    """
+    if not raw or not expected_sha:
+        return ""
+    lf = raw.replace(b"\r\n", b"\n")
+    for label, data in (("LF", lf), ("CRLF", lf.replace(b"\n", b"\r\n"))):
+        if data != raw and sha256_bytes(data) == expected_sha:
+            return (
+                f" -- LINE ENDING DRIFT, not a content change: the bytes match"
+                f" once normalised to {label}. A host rewrote line endings and"
+                f" T2AG hashes file bytes. Restore the file (.gitattributes"
+                f" pins '* text=auto eol=lf'); do NOT regenerate the plan or"
+                f" re-run the evidence matrices."
+            )
+    return ""
+
+
+def text_line_ending_drift(content: str, expected_sha: str) -> str:
+    """``line_ending_drift`` for content already decoded to str."""
+    return line_ending_drift(content.encode("utf-8"), expected_sha)
+
+
 def now_tz() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -812,7 +847,6 @@ def update_progress(
             "resume_path": "none",
             "activity_position": "between_activities",
             "textbook_page": "none",
-            "working_pages_window": "[]",
             "current_completion_node": "none",
             "current_checkpoint": "none",
             "checkpoint_state": "none",
@@ -988,8 +1022,12 @@ def load_plan(path: Path) -> tuple[dict[str, Any], str]:
     for rel, content in (plan.get("files") or {}).items():
         if Path(rel).is_absolute() or ".." in Path(rel).parts or "\\" in rel:
             raise CloseError(f"unsafe close plan path: {rel}")
-        if plan["post_sha256"].get(rel) != sha256_text(content):
-            raise CloseError(f"close plan content hash mismatch: {rel}")
+        want = plan["post_sha256"].get(rel)
+        if want != sha256_text(content):
+            raise CloseError(
+                f"close plan content hash mismatch: {rel}"
+                + text_line_ending_drift(content, want or "")
+            )
     return plan, sha256_bytes(raw)
 
 
@@ -1538,7 +1576,10 @@ def validate_authorization(
     raw = auth_path.read_bytes()
     got = sha256_bytes(raw)
     if got != expect_auth_sha:
-        raise CloseError("close authorization file SHA mismatch")
+        raise CloseError(
+            "close authorization file SHA mismatch"
+            + line_ending_drift(raw, expect_auth_sha)
+        )
     auth = json.loads(raw.decode("utf-8"))
     required = {
         "campaign_id": CAMPAIGN_ID,
@@ -1587,7 +1628,12 @@ def run_postchecks(root: Path, plan: dict[str, Any]) -> None:
     for rel, want in plan["post_sha256"].items():
         got = sha256_file(root / rel)
         if got != want:
-            raise CloseError(f"post-close hash mismatch: {rel}")
+            target = root / rel
+            raw = target.read_bytes() if target.is_file() else None
+            raise CloseError(
+                f"post-close hash mismatch: {rel}"
+                + line_ending_drift(raw, want)
+            )
     if root.resolve() == PRODUCTION_ROOT:
         commands = [
             [sys.executable, "-B", str(root / "main/70_tools/t2ag_doctor.py")],
@@ -1629,7 +1675,10 @@ def apply_close_plan(
 ) -> dict[str, Any]:
     plan, file_sha = load_plan(plan_path)
     if file_sha != expect_file_sha or plan["payload_sha256"] != expect_payload_sha:
-        raise CloseError("close plan hash binding mismatch")
+        raise CloseError(
+            "close plan hash binding mismatch"
+            + line_ending_drift(plan_path.read_bytes(), expect_file_sha)
+        )
     validate_authorization(
         root,
         plan,
