@@ -4276,7 +4276,16 @@ def crlf_offenders(paths) -> list[str]:
 
 
 def check_gitattributes_policy() -> None:
-    """Fail when the line-ending pin is missing or too weak."""
+    """Fail when the line-ending pin is missing or too weak.
+
+    Only meaningful where Git manages the working tree. Lite is a derived
+    read-only projection with no repository of its own -- its byte integrity is
+    proven by sync_lite's direct hash comparison against Main, not by an
+    attributes file that nothing would apply. Requiring one there would be a
+    check that cannot be satisfied, which is worse than no check.
+    """
+    if not (ROOT / ".git").is_dir():
+        return
     policy = ROOT / ".gitattributes"
     if not policy.is_file():
         report(
