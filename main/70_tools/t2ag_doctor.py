@@ -147,6 +147,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
     "check_skeleton_textbook",
+    "check_line_endings", "check_release_line_endings",
 }
 LEGACY_DOMAINS = {
     "10_case", "12_activity_records", "15_curricula", "20_groups",
@@ -4239,6 +4240,102 @@ def direct_user_reconfirmation_event(doc, close) -> dict | None:
     return None
 
 
+LINE_ENDING_BINARY_SUFFIXES = frozenset({
+    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".exe", ".dll",
+    ".traineddata", ".xlsx", ".docx", ".pptx", ".ttf", ".woff", ".woff2",
+})
+
+# Bounded on purpose: control files, entry points and the teaching-state core.
+# The ordinary budget forbids scanning .venv, Lite, retired staging, textbooks
+# and images (section 6.1); the exhaustive sweep belongs to the release profile.
+LINE_ENDING_RUNTIME_GLOBS = (
+    "t2ag.md",
+    "00_core/*.md",
+    "50_playbook/*.md",
+    "70_tools/*.py",
+    "70_tools/*.json",
+)
+LINE_ENDING_RUNTIME_ROOT_FILES = ("AGENTS.md", "README.md")
+
+
+def crlf_offenders(paths) -> list[str]:
+    """Return repo-relative paths of text files containing CRLF."""
+    hits: list[str] = []
+    for path in sorted(set(paths)):
+        if not path.is_file() or path.suffix.lower() in LINE_ENDING_BINARY_SUFFIXES:
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        if b"\x00" in data[:8000]:
+            continue
+        if b"\r\n" in data:
+            hits.append(rel(path))
+    return hits
+
+
+def check_gitattributes_policy() -> None:
+    """Fail when the line-ending pin is missing or too weak."""
+    policy = ROOT / ".gitattributes"
+    if not policy.is_file():
+        report(
+            "FAIL",
+            "缺少 .gitattributes：行尾未钉死，证据哈希会随宿主漂移"
+            "（见 50_playbook/git_workflow.md §11）",
+        )
+        return
+    text = read(policy)
+    if "eol=lf" not in text:
+        report(
+            "FAIL",
+            ".gitattributes 未写 eol=lf：text=auto 只规范化 blob，"
+            "工作树仍随宿主变，而被哈希的正是工作树",
+        )
+
+
+def check_line_endings() -> None:
+    """Runtime: bounded CRLF scan over control files and teaching-state core.
+
+    T2AG binds evidence to the SHA-256 of file bytes, so a host that rewrites
+    line endings silently invalidates frozen plans and receipt chains while
+    changing nothing semantic. .gitattributes removes the source; this check
+    proves it actually held, because a policy nobody verifies is not a control.
+    """
+    check_gitattributes_policy()
+    targets = [ROOT / name for name in LINE_ENDING_RUNTIME_ROOT_FILES]
+    targets.extend(ROOT / relative for relative in BASE_VALIDATION_FILES)
+    for pattern in LINE_ENDING_RUNTIME_GLOBS:
+        targets.extend(MAIN.glob(pattern))
+    offenders = crlf_offenders(targets)
+    for path in offenders[:20]:
+        report("FAIL", f"CRLF 行尾：{path}（git_workflow.md §11.3：还原，不要提交）")
+    if len(offenders) > 20:
+        report("FAIL", f"另有 {len(offenders) - 20} 个 CRLF 文件未逐一列出")
+
+
+def check_release_line_endings() -> None:
+    """Release: exhaustive CRLF sweep over every tracked text file."""
+    if not (ROOT / ".git").exists():
+        report("WARN", "非 Git 仓库，跳过全量行尾核对")
+        return
+    proc = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=ROOT, text=True,
+        capture_output=True, encoding="utf-8", errors="replace",
+    )
+    if proc.returncode != 0:
+        report("WARN", "无法枚举 tracked 文件，跳过全量行尾核对")
+        return
+    targets = [ROOT / name for name in proc.stdout.split("\0") if name]
+    offenders = crlf_offenders(targets)
+    for path in offenders[:20]:
+        report("FAIL", f"CRLF 行尾（tracked）：{path}")
+    if len(offenders) > 20:
+        report("FAIL", f"另有 {len(offenders) - 20} 个 tracked CRLF 文件未逐一列出")
+    if not offenders:
+        report("INFO", f"tracked 文本文件行尾一致：{len(targets)} 个已核对")
+
+
 def check_activity_ledgers(
     courses: dict[str, tuple[Path, dict[str, str]]],
 ) -> None:
@@ -4452,6 +4549,8 @@ def execute_doctor_checks(
         "check_tracked_environment": check_tracked_environment,
         "check_dirty_tree": check_dirty_tree,
         "check_skeleton_textbook": check_skeleton_textbook_gate,
+        "check_line_endings": check_line_endings,
+        "check_release_line_endings": check_release_line_endings,
     }
     course_handlers = {
         "check_groups": check_groups,
