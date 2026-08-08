@@ -1160,9 +1160,10 @@ class ScanEvidenceSpecTests(unittest.TestCase):
     The two cross-form reverse cases the workorder asks for -- submitting a
     subprocess digest, and delivering only a page asset's frontmatter -- cannot be
     exercised here: this repository *emits* the scan payload and never receives or
-    adjudicates evidence.  That adjudication belongs to the host Scan Orchestrator,
-    which does not exist (P-0056).  Until it does, the guard is the normative text,
-    so these assertions fail if the clauses are edited away.
+    adjudicates evidence.  Under ADR-0003 (EV-0019) completion is certified
+    in-session by the Prefetcher after observable delivery; the host Scan
+    Orchestrator is a future state.  The guard is the normative text, so these
+    assertions fail if the clauses are edited away.
 
     Anchors deliberately include the **negating** half of each clause.  An earlier
     revision asserted only that the term "子进程摘要" appeared somewhere in the
@@ -1177,6 +1178,24 @@ class ScanEvidenceSpecTests(unittest.TestCase):
     def test_admission_criterion_is_stated(self) -> None:
         body = self.PLAYBOOK.read_text(encoding="utf-8")
         self.assertIn("宿主能观察到内容本体进入本轮模型上下文这一事件本身", body)
+
+    def test_adr0003_self_certification_is_stated(self) -> None:
+        """EV-0019: completion = in-session observable delivery, not host signing."""
+        body = self.PLAYBOOK.read_text(encoding="utf-8")
+        self.assertIn(
+            normalise_spec_text("A1–A5 经**宿主可观察投递**在本会话内证成"),
+            normalise_spec_text(body),
+        )
+        # Pending must survive until certification -- the boot invariant.
+        self.assertIn("等 pending 状态**不得清除**", body)
+        # The user-preserved anti-impersonation clause must survive verbatim.
+        self.assertIn("（§3.1.3 A 层「不得冒充」条款原样有效）", body)
+
+    def test_host_signing_monopoly_is_retired(self) -> None:
+        """The old 'only the host signs' clause must not resurface (ADR-0003)."""
+        body = self.PLAYBOOK.read_text(encoding="utf-8")
+        self.assertNotIn("仅由宿主签发", body)
+        self.assertNotIn("完成由**宿主签发**", body)
 
     def test_subprocess_digest_is_excluded(self) -> None:
         block = b_layer_exclusions(self.PLAYBOOK.read_text(encoding="utf-8"))

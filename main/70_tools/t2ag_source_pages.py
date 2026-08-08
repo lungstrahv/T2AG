@@ -9,7 +9,10 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -955,6 +958,124 @@ def validate_snapshot_closure(
     return fails
 
 
+def scope_cache_gaps(
+    course: Path, snapshot: dict[str, Any]
+) -> tuple[list[PageKey], list[PageKey]]:
+    """Split a Snapshot's page_keys into (present, missing) cache entries."""
+    present: list[PageKey] = []
+    missing: list[PageKey] = []
+    for raw in snapshot.get("page_keys") or []:
+        if not isinstance(raw, dict) or raw.get("pdf_page_index") is None:
+            continue
+        key = PageKey(
+            str(raw.get("source_document_sha256") or ""),
+            int(raw["pdf_page_index"]),
+            str(raw.get("render_profile") or RENDER_PROFILE_DEFAULT),
+        )
+        (present if key.cache_path(course).is_file() else missing).append(key)
+    return present, missing
+
+
+def render_page_png(pdf: Path, key: PageKey, out: Path) -> None:
+    """Render one page with poppler `pdftoppm`.
+
+    PyMuPDF is the primary renderer, but it is absent on some hosts (Doctor
+    EA-0002). Poppler covers the prewarm path so a cold cache never has to be
+    filled live at lesson start. This writes pixels only; it does not mint
+    LoadReceipts, PPI evidence, or Snapshots, and it never implies a scan.
+    """
+    ppi = ppi_from_profile(key.render_profile)
+    binary = shutil.which("pdftoppm")
+    if not binary:
+        raise PrepareError(
+            "no renderer available: install PyMuPDF on the host or poppler "
+            "(pdftoppm) in the sandbox"
+        )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        stem = Path(tmp) / f"page_{key.pdf_page_index}"
+        proc = subprocess.run(
+            [
+                binary,
+                "-r", str(ppi),
+                "-png",
+                "-f", str(key.pdf_page_index),
+                "-l", str(key.pdf_page_index),
+                str(pdf),
+                str(stem),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            raise PrepareError(
+                f"pdftoppm failed on page {key.pdf_page_index}: "
+                f"{proc.stderr.strip() or proc.returncode}"
+            )
+        produced = sorted(Path(tmp).glob(f"page_{key.pdf_page_index}*.png"))
+        if len(produced) != 1:
+            raise PrepareError(
+                f"pdftoppm produced {len(produced)} files for page "
+                f"{key.pdf_page_index}"
+            )
+        out.write_bytes(produced[0].read_bytes())
+
+
+def cmd_prewarm(args: argparse.Namespace) -> int:
+    """Report — and optionally fill — cache gaps in the current Scope.
+
+    Read-only by default. `--render` only writes PNGs under the course's own
+    book/.cache; it changes no Snapshot, receipt, or course truth source.
+    """
+    course = course_dir(args.course)
+    snapshot = load_current_snapshot(course, args.lesson)
+    document_id = str(snapshot.get("document_id") or "")
+    expected_sha = str(snapshot.get("source_document_sha256") or "").lower()
+    present, missing = scope_cache_gaps(course, snapshot)
+
+    result: dict[str, Any] = {
+        "schema": "t2ag.scope_page_cache_status.v1",
+        "course": args.course,
+        "lesson": args.lesson,
+        "snapshot_id": snapshot.get("snapshot_id"),
+        "document_id": document_id,
+        "scope_pages": sorted(k.pdf_page_index for k in present + missing),
+        "cached_pages": sorted(k.pdf_page_index for k in present),
+        "missing_pages": sorted(k.pdf_page_index for k in missing),
+        "rendered_pages": [],
+        "renderer": None,
+        "scan_authorization": "none — prewarm never counts as a visual scan",
+    }
+
+    if missing and args.render:
+        manifest = load_manifest(course, document_id)
+        pdf = resolve_pdf_path(course, manifest)
+        if not pdf.is_file():
+            raise PrepareError(f"SourceDocument PDF missing: {pdf}")
+        actual_sha = sha256_file(pdf).lower()
+        if expected_sha and actual_sha != expected_sha:
+            raise PrepareError(
+                "SourceDocument SHA does not match the current Snapshot; "
+                "refusing to render a different document"
+            )
+        for key in missing:
+            if expected_sha and key.source_document_sha256.lower() != expected_sha:
+                raise PrepareError(
+                    f"page_key SHA mismatch on page {key.pdf_page_index}"
+                )
+            out = key.cache_path(course)
+            assert_path_under_course_cache(args.course, out)
+            render_page_png(pdf, key, out)
+            result["rendered_pages"].append(key.pdf_page_index)
+        result["renderer"] = "poppler:pdftoppm"
+        _, still_missing = scope_cache_gaps(course, snapshot)
+        result["missing_pages"] = sorted(k.pdf_page_index for k in still_missing)
+
+    result["status"] = "complete" if not result["missing_pages"] else "gaps"
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result["status"] == "complete" else 1
+
+
 def cmd_scope(args: argparse.Namespace) -> int:
     pages = [int(x) for x in args.available.split(",")]
     window, short = continuous_scope(args.current, pages, target=args.target)
@@ -1327,6 +1448,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         "snapshot": snap,
         "source_document_sha256": expected_sha,
         "pdf_path": str(pdf_path),
+        "layout_critical_advisory": layout_critical_advisory(manifest, window),
     }
 
     if args.write:
@@ -1395,6 +1517,22 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--available", required=True, help="comma-separated pdf page indices")
     s.add_argument("--target", type=int, default=5)
     s.set_defaults(func=cmd_scope)
+
+    pw = sub.add_parser(
+        "prewarm",
+        help="Report (and optionally render) missing Scope page images",
+    )
+    pw.add_argument("--course", required=True)
+    pw.add_argument("--lesson", required=True)
+    pw.add_argument(
+        "--render",
+        action="store_true",
+        help=(
+            "render the missing pages into book/.cache via poppler; still not a "
+            "visual scan and never mints receipts or Snapshots"
+        ),
+    )
+    pw.set_defaults(func=cmd_prewarm)
 
     g = sub.add_parser("cache-gc", help="CacheEviction dry-run or apply")
     g.add_argument("--course", required=True)
@@ -1478,7 +1616,264 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--prepared-by", default="t2ag_source_pages")
     pr.add_argument("--write", action="store_true")
     pr.set_defaults(func=cmd_prepare)
+
+    ls = sub.add_parser(
+        "layout-scan",
+        help="C5 deterministic layout_critical detector (read-only unless --write)",
+    )
+    ls.add_argument("--course", required=True)
+    ls.add_argument("--document-id", required=True)
+    ls.add_argument("--render-profile", default=RENDER_PROFILE_DEFAULT)
+    ls.add_argument(
+        "--threshold",
+        type=float,
+        default=LAYOUT_CRITICAL_THRESHOLD,
+        help="tallest-ink-run / median-line-height ratio above which a page is figure-bearing",
+    )
+    ls.add_argument("--write", action="store_true")
+    ls.set_defaults(func=cmd_layout_scan)
     return p
+
+
+# --- C5 layout_critical detector (T2AG_LAYOUT_CRITICAL_CRITERION_REPORT §7.4) -------
+#
+# Deterministic raster criterion: a figure occupies a contiguous vertical ink block
+# far taller than a text line, so `tallest ink run / median text-line height` cleanly
+# separates figure pages from text pages.  Chosen because this corpus is a pure scan
+# (no text layer, no vector objects, exactly one full-page JPEG per page), which kills
+# every PDF-object-based criterion -- see that report §1-§3.
+#
+# Measured on MATH1607H-B001-CHEN-VOL1 pages 25-30:
+#   p25 1.1x  p26 1.1x  p27 7.5x (figure 1.1.2)  p28 1.5x  p29 1.1x  p30 1.3x
+# Threshold 2.2 sits in the empty band between 1.5 and 7.5.
+
+LAYOUT_CRITICAL_THRESHOLD = 2.2
+LAYOUT_INK_LEVEL = 128          # 8-bit grey below this counts as ink
+LAYOUT_MIN_ROW_INK = 15         # px of ink per row before the row counts (kills scan speckle)
+LAYOUT_MIN_LINE_PX = 8          # runs shorter than this are noise, not text lines
+LAYOUT_SOURCE_KEY = "layout_critical_source"
+
+# `hline` / `vline`: longest straight ink run inside the tallest block, in units of
+# median text-line height.  **Reported only -- they do not affect the verdict.**
+#
+# They were built as a second discriminator to separate figures from the displayed
+# formulas that dominate this corpus's false positives, and two designs were tried
+# and rejected on measurement:
+#
+#   block-local (this one)  a standalone thin rule -- exactly the small inline figure
+#                           it was meant to catch -- forms its own short row span and
+#                           is discarded by LAYOUT_MIN_LINE_PX before it is ever
+#                           measured.  It only sees runs that happen to sit inside the
+#                           tallest block.
+#   page-wide               picks up scan edges and decorative rules: p375's index
+#                           heading scored v=56.8 on a printer's bar, p320 h=55.5 on a
+#                           page edge -- far above any real figure.
+#
+# A working version needs edge masking or connected-component analysis, not a
+# threshold.  Until then the verdict stays on `ratio` alone, whose error is
+# false-positive (cost) rather than false-negative (content), and C4 override is the
+# safety net.  These two numbers are recorded on every scan so that a future attempt
+# has labelled data instead of starting from zero.
+
+
+def _row_spans(flags) -> list[tuple[int, int]]:
+    """Half-open [start, end) spans of consecutive True rows."""
+    spans: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, inked in enumerate(flags):
+        if inked and start is None:
+            start = index
+        elif not inked and start is not None:
+            spans.append((start, index))
+            start = None
+    if start is not None:
+        spans.append((start, len(flags)))
+    return spans
+
+
+def layout_critical_advisory(
+    manifest: dict[str, Any],
+    scope_pages: Iterable[int],
+) -> dict[str, Any]:
+    """Report Scope pages that still lack `layout_critical`.  Read-only.
+
+    Deliberately advisory rather than auto-writing.  ``prepare`` validates the
+    Snapshot *against* the manifest; letting it also write the manifest would make
+    it validate against something it just produced, and would widen a write surface
+    that is otherwise exactly two files (Snapshot + current pointer, exclusive
+    create, refuses to overwrite a differing body).  Same shape as doctor's
+    SCOPE-CACHE-001, which reports a cold page cache and prints the prewarm command
+    instead of rendering.
+
+    A missing flag is not an error: it fail-closes to a rendering form (§3.1.4).
+    It only costs tokens, so this reports the gap and the command that closes it.
+    """
+    document_id = str(manifest.get("document_id") or "")
+    course_id = str(manifest.get("course_id") or "")
+    entries = {
+        int(entry["pdf_page_index"]): entry
+        for entry in (manifest.get("pages") or [])
+        if isinstance(entry, dict) and entry.get("pdf_page_index") is not None
+    }
+    pending = [
+        page
+        for page in scope_pages
+        if entries.get(page, {}).get("verification_status") == "verified"
+        and "layout_critical" not in entries.get(page, {})
+    ]
+    advisory: dict[str, Any] = {
+        "pending_pages": pending,
+        "effect": (
+            "缺该字段的页 fail-closed 回落渲染形式；不影响正确性，只多付页图 token"
+            if pending
+            else "Scope 内已核验页均已判定"
+        ),
+    }
+    if pending:
+        advisory["command"] = (
+            "python -B main/70_tools/t2ag_source_pages.py layout-scan "
+            f"--course {course_id} --document-id {document_id} --write"
+        )
+    return advisory
+
+
+def layout_metrics(png: Path) -> dict[str, Any]:
+    """Row-profile metrics for one page image.  Pure apart from reading the file."""
+    try:
+        from PIL import Image  # noqa: PLC0415 — optional, only this subcommand needs it
+        import numpy as np  # noqa: PLC0415
+    except ImportError as exc:  # pragma: no cover - environment dependent
+        raise PrepareError(
+            "layout-scan 需要 Pillow 与 numpy；本环境缺失。"
+            "不得自动安装——按 environment_assumptions.md 先报告包名与用途。"
+        ) from exc
+
+    grey = np.array(Image.open(png).convert("L"))
+    rows = (grey < LAYOUT_INK_LEVEL).sum(axis=1) >= LAYOUT_MIN_ROW_INK
+    spans = [(s, e) for s, e in _row_spans(rows) if e - s > LAYOUT_MIN_LINE_PX]
+    if not spans:
+        raise PrepareError(f"页图无可识别文本行，拒绝判定：{png}")
+    heights = sorted(e - s for s, e in spans)
+    median = heights[len(heights) // 2]
+    top, bottom = max(spans, key=lambda span: span[1] - span[0])
+
+    block = (grey[top:bottom] < LAYOUT_INK_LEVEL)
+    used = np.where(block.any(axis=0))[0]
+    block = block[:, used[0] : used[-1] + 1] if len(used) else block
+
+    def longest_run(vector) -> int:
+        best = current = 0
+        for cell in vector:
+            current = current + 1 if cell else 0
+            if current > best:
+                best = current
+        return best
+
+    hline = max((longest_run(block[r]) for r in range(block.shape[0])), default=0)
+    vline = max((longest_run(block[:, c]) for c in range(block.shape[1])), default=0)
+
+    return {
+        "text_lines": len(spans),
+        "median_line_px": int(median),
+        "tallest_ink_run_px": int(bottom - top),
+        "ratio": round((bottom - top) / median, 2),
+        "hline": round(hline / median, 1),
+        "vline": round(vline / median, 1),
+    }
+
+
+def layout_critical_verdict(
+    metrics: dict[str, Any],
+    threshold: float = LAYOUT_CRITICAL_THRESHOLD,
+) -> bool:
+    """True when the page carries a block too tall to be a text line.
+
+    Single term on purpose.  `hline` / `vline` are measured and recorded but are not
+    consulted -- see their comment above for the two designs that failed measurement.
+
+    This term's error is **false positive** (a displayed formula read as a figure):
+    the page is served as a rendering form, costing tokens but losing no content.
+    Any change that could turn a `true` into a `false` -- a higher threshold, an
+    added conjunct -- converts that into a content error and must not be made on
+    unvalidated evidence.
+    """
+    return float(metrics["ratio"]) > threshold
+
+
+def cmd_layout_scan(args: argparse.Namespace) -> int:
+    """C5 detector.  Default is read-only; --write updates manifest page entries.
+
+    Precedence follows the A2 decision (criterion report §7.1): C5 is the primary
+    judge, C4 may override it in either direction.  A machine pass must therefore
+    never clobber a human override -- entries whose ``layout_critical_source``
+    starts with ``C4:`` are reported and skipped.  That is also why this writes
+    provenance alongside the boolean: with bare booleans a later run cannot tell a
+    C5 verdict from a C4 override from an unevaluated page.
+    """
+    course = course_dir(args.course)
+    manifest_path = (
+        course / "book/primary/source_assets" / args.document_id / "manifest.json"
+    )
+    manifest = load_manifest(course, args.document_id)
+    sha = str(manifest.get("source_document_sha256") or "")
+    profile = args.render_profile
+    cache = cache_root(args.course) / "source_pages" / sha / profile
+
+    rows: list[dict[str, Any]] = []
+    changed = 0
+    for entry in manifest.get("pages") or []:
+        index = entry.get("pdf_page_index")
+        record: dict[str, Any] = {"pdf_page_index": index}
+        if entry.get("verification_status") != "verified":
+            record["skipped"] = "unverified"          # 未核验页本就回落渲染
+            rows.append(record)
+            continue
+        source = str(entry.get(LAYOUT_SOURCE_KEY) or "")
+        if source.startswith("C4:"):
+            record["skipped"] = f"C4 override preserved ({source})"
+            rows.append(record)
+            continue
+        png = cache / f"page_{index}.png"
+        if not png.is_file():
+            record["skipped"] = "page image not cached; left unset (fail-closed)"
+            rows.append(record)
+            continue
+        metrics = layout_metrics(png)
+        verdict = layout_critical_verdict(metrics, args.threshold)
+        record.update(metrics)
+        record["layout_critical"] = verdict
+        rows.append(record)
+        # Carry hline/vline even though they do not decide: a future discriminator
+        # needs labelled measurements, and re-deriving them means re-rendering.
+        stamp = (
+            f"C5:ratio_{metrics['ratio']}_thr_{args.threshold}"
+            f"|h_{metrics['hline']}|v_{metrics['vline']}"
+        )
+        if entry.get("layout_critical") != verdict or entry.get(LAYOUT_SOURCE_KEY) != stamp:
+            changed += 1
+            if args.write:
+                entry["layout_critical"] = verdict
+                entry[LAYOUT_SOURCE_KEY] = stamp
+
+    if args.write and changed:
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    print(json.dumps(
+        {
+            "document_id": args.document_id,
+            "render_profile": profile,
+            "threshold": args.threshold,
+            "changed": changed,
+            "written": bool(args.write and changed),
+            "pages": rows,
+        },
+        ensure_ascii=False,
+        indent=2,
+    ))
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

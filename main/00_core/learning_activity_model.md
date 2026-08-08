@@ -157,6 +157,70 @@ Lesson 与 Exercise 共用同一判断骨架，但「哪几行改变课程真相
 不另存：教师讲解与提示正文（题面在 `problems.md`，证据指针在 exercise 主载体
 「证据索引」）。
 
+### 2.4 门台账（教学门留痕）
+
+> 起源：P-0054「宣布不等于交接」与三次同门失效（P-0014/P-0041/P-0054）。对话层的门
+> 此前只活在散文里，跳过不留痕；本节把**过门**变成**落行**，使 doctor
+> （`runtime.gate_ledger`，WARN 级）第一次够得着教学门。GL-1 施工单：
+> `docs/design/T2AG_GATE_LEDGER_WORKORDER_DRAFT_2026-08-08.md`。
+
+**边界（先说清它不是什么）**：门台账是**留痕投影，不是第二真相源**。块/活动生命周期
+真相仍归 `progress.md` checkpoint 表与 `activity_ledger.md`（§1.2 分权不变）；台账与
+真相源冲突时以真相源为准，台账缺行 = 留痕违规，不 = 状态错误。它与 §2.3 行 7/8
+（继续授权 → 精确停点，一次性用后即失效）的关系：停点记**当前授权态**，台账记**历史行**。
+
+**载体与锚**：Lesson / Exercise 主载体各持有一节 `## 门台账`，首行锚：
+
+```
+ledger_since: <ISO 日期> | 起算块: <checkpoint ID>        （Lesson）
+ledger_since: <ISO 日期> | 起算证据: RVdddd/ATdddd        （Exercise）
+```
+
+锚用 ID 不用日期做 join（checkpoint 表无日期列）；doctor 只对锚**之后**的
+confirmed 行 / 新证据生效——**向前生效，历史不补写、不检查**。
+
+**行式**（七列，追加式，历史行不改，写错追加更正行并指向被更正行 ID）：
+
+```
+| 行ID | 块ID | 门类型 | 闭合依据 | 感受回应 | 授权原文 | 消费于 |
+```
+
+- `行ID`：`GT-NNNN`，载体内单调递增，不跨载体编号。
+- `授权原文`：**学生逐字引语 + 时刻**（如 `"继续"(21:14)`）。留痕不防捏造，防的是
+  发现延迟：配合课堂 footer，伪造引语 = 当轮当面撒谎；偷懒不写行 = 文件层可查缺行。
+- 纯「没问题」类回应照 §2.3 既有约定并入当轮行，不单列。
+
+**落件义务（门类型枚举）**：
+
+| 变体 | 门类型 | 何时落行 | `消费于` 写什么 |
+|---|---|---|---|
+| Lesson | `开场确认` | 概览 + 知识树 + 路线感受后，学生授权进入第一块 | 第一块 checkpoint ID |
+| Lesson | `块过渡` | §1.6 三门闭合、学生授权进入下一块 | 下一块 checkpoint ID |
+| Lesson | `翻页` | 旧页清单 → 宣布「PDF N / 书内 M」→ 新页树 → 单独授权 | 新页首块 ID（`块ID` 列写 `PDF N→N+1`） |
+| Lesson | `结课确认` | session close 学生确认 | `close` |
+| Exercise | `开题` | 只给题面、保留独立尝试 | 题号（如 `Q005`） |
+| Exercise | `提示授权(级别)` | 学生显式授权某级提示（§2.1） | 对应 `ATdddd`；`闭合依据` 填学生逐字请求 |
+| Exercise | `题目闭环` | 讲解/复盘后感受与疑问门闭合 | 对应 `RVdddd` |
+| Exercise | `下一题授权` | 学生授权进入下一题 | 下一题号 |
+| Exercise | `结课确认` | 同 Lesson | `close` |
+
+**课堂 footer（派生规则）**：每轮教学回复末尾固定一行，内容必须可从台账末行 +
+progress 停点派生，不得凭空声称：
+
+```
+⛩ 块: <当前块> | 门: <开着的门/等待什么> | 本轮授权: <未消费/已消费于X> | 页: PDF N/书内 M
+```
+
+Exercise 变体：`块`→`题`，`页`→`提示: 当前已授出级别`。行首符号与字段顺序学生可改；
+改样式属 V0。
+
+**doctor 检查范围（如实声明）**：`runtime.gate_ledger` 只实现确定性子集——
+`000` 表损坏 fail-closed、`001` 锚后相邻 confirmed 块缺块过渡行、`002` 页码变化处缺
+翻页行、`003` 授权原文空/占位、`004` 行ID 重复或非递增、`005` 锚后新 RV 缺题目闭环行、
+`006` Attempt frontmatter 高级提示缺提示授权行。`开场确认`/`结课确认`/`下一题授权`
+目前只是契约义务，机器未检查；载体无本节 → 跳过（部署过渡期）。WARN 逐条指名载体与
+块/题 ID。升 FAIL 需学生在试运行后另裁。
+
 ## 三、想法复利回路
 
 学生在任一活动明确表达想法时才启动，不预造内容：
@@ -201,6 +265,7 @@ Lesson 与 Exercise 共用同一判断骨架，但「哪几行改变课程真相
 |---|---|
 | Lesson / Exercise 对象与共同回路 | `00_core/learning_activity_model.md` |
 | 消息记录路由（Lesson / Exercise 两个变体表） | `00_core/learning_activity_model.md` §2.3 |
+| 门台账留痕与课堂 footer（Lesson / Exercise 两个变体） | `00_core/learning_activity_model.md` §2.4；检查 `runtime.gate_ledger` |
 | 课程稳定教学约束 | `40_course/<COURSE_ID>/course.md` |
 | ContentGroup 与活动关系 | `40_course/<COURSE_ID>/activity_map.md` |
 | 当前活动与精确停点 | `40_course/<COURSE_ID>/progress.md` |

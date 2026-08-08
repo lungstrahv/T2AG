@@ -138,12 +138,13 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_question_banks", "check_knowledge_ledgers", "check_project_verification",
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
     "check_registry", "check_textbook_preparation", "check_scope_page_cache",
-    "check_checkpoint_block_routing",
+    "check_checkpoint_block_routing", "check_gate_ledger",
     "check_trading_boundary",
     "check_legacy_references", "check_retired_instance_ids", "check_cloud_pause",
     "check_context_packet_contract", "check_test_management_contract",
     "check_decision_records",
     "check_course_activity_templates", "check_environment_assumptions",
+    "check_memory_budget",
     "check_changelog_contract",
     "check_flow_and_guide", "check_handoff_contract",
     "check_cloud_contract", "check_derived_tools", "check_migration_evidence",
@@ -2500,6 +2501,218 @@ def check_scope_page_cache(courses: dict[str, tuple[Path, dict[str, str]]]) -> N
             )
 
 
+GATE_LEDGER_SECTION = "## 门台账"
+GATE_LEDGER_PLACEHOLDERS = {"", "-", "—", "待填", "无", "?", "？"}
+GATE_LEDGER_HINT_LEVELS = {"direction_hint", "specified_reference", "full_solution"}
+
+
+def parse_gate_ledger(text: str) -> dict[str, object] | None:
+    """Parse one carrier's 门台账 section; None when the section is absent.
+
+    A present section with an unreadable anchor line or a row of wrong arity is
+    malformed — fail-closed, surfaced as GATE-LEDGER-000
+    (learning_activity_model.md §2.4).  Deterministic parse only.
+    """
+    marker = text.find(GATE_LEDGER_SECTION)
+    if marker == -1:
+        return None
+    section = text[marker:]
+    nxt = section.find("\n## ", 1)
+    if nxt != -1:
+        section = section[:nxt]
+    errors: list[str] = []
+    anchor = None
+    match = re.search(
+        r"^ledger_since:.*?(?:起算块|起算证据):\s*(\S+)", section, re.MULTILINE
+    )
+    if match:
+        anchor = match.group(1).strip()
+    else:
+        errors.append("锚行缺失或不可读（须含 起算块/起算证据）")
+    rows: list[dict[str, str]] = []
+    for line in section.splitlines():
+        if not line.lstrip().startswith("| GT-"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) != 7:
+            errors.append(f"行列数异常（{len(cells)} ≠ 7）：{line.strip()[:60]}")
+            continue
+        rows.append({
+            "gid": cells[0], "block": cells[1], "gate": cells[2],
+            "closure": cells[3], "feeling": cells[4],
+            "authorization": cells[5], "consumed": cells[6],
+        })
+    return {"anchor": anchor, "rows": rows, "errors": errors}
+
+
+def checkpoint_rows_from(progress_text: str, anchor_id: str) -> list[tuple[str, str, str]] | None:
+    """Ordered (id, page, status) checkpoint rows from the anchor row on.
+
+    Anchor-inclusive: the anchor block itself needs no incoming transition, but
+    the crossing anchor→next is in scope.  None when the anchor is not in the
+    table (the ledger then fails closed, not open).
+    """
+    rows: list[tuple[str, str, str]] = []
+    for line in progress_text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if len(cells) < 6 or not re.fullmatch(r"[A-Za-z0-9]+-B\d+-P\d+-N\d+", cells[0]):
+            continue
+        rows.append((cells[0], cells[2], cells[5]))
+    ids = [row[0] for row in rows]
+    if anchor_id not in ids:
+        return None
+    return rows[ids.index(anchor_id):]
+
+
+def gate_ledger_findings(
+    ledger: dict[str, object],
+    checkpoints: list[tuple[str, str, str]] | None,
+    *,
+    carrier: str,
+    rv_ids: tuple[str, ...] = (),
+    attempt_hints: tuple[tuple[str, str], ...] = (),
+) -> list[tuple[str, str]]:
+    """Pure verdicts for one ledger — codes 000–006 of §2.4, deterministic only.
+
+    The teaching protocol's semantics stay in main/t2ag.md; this function only
+    answers whether gate crossings left their rows.  `checkpoints` is the
+    anchor-inclusive slice for Lesson carriers (None = anchor unresolved);
+    `rv_ids` / `attempt_hints` are the post-anchor evidence for Exercise ones.
+    """
+    findings: list[tuple[str, str]] = []
+    errors = list(ledger.get("errors") or [])
+    if errors:
+        for issue in errors:
+            findings.append(("GATE-LEDGER-000", f"{carrier} 门台账损坏（fail-closed）：{issue}"))
+        return findings
+    rows = list(ledger.get("rows") or [])
+
+    numbers: list[int] = []
+    for row in rows:
+        gid = re.fullmatch(r"GT-(\d+)", row["gid"])
+        if not gid:
+            findings.append(("GATE-LEDGER-004", f"{carrier} 行ID 非法：{row['gid']}"))
+            continue
+        numbers.append(int(gid.group(1)))
+    if numbers != sorted(numbers) or len(set(numbers)) != len(numbers):
+        findings.append(("GATE-LEDGER-004", f"{carrier} 行ID 未单调递增或重复"))
+
+    for row in rows:
+        if row["authorization"].strip("*` ") in GATE_LEDGER_PLACEHOLDERS:
+            findings.append((
+                "GATE-LEDGER-003",
+                f"{carrier} {row['gid']}（{row['block']}）授权原文为空或占位：须学生逐字引语",
+            ))
+
+    if checkpoints is None:
+        findings.append(("GATE-LEDGER-000", f"{carrier} 起算块在 progress checkpoint 表中不存在"))
+        return findings
+
+    confirmed = [(cid, page) for cid, page, status in checkpoints if status == "confirmed"]
+    transitions = {(r["block"], r["consumed"]) for r in rows if r["gate"] == "块过渡"}
+    pageturns = {r["consumed"] for r in rows if r["gate"] == "翻页"}
+    for (a_id, a_page), (b_id, b_page) in zip(confirmed, confirmed[1:]):
+        if (a_id, b_id) not in transitions:
+            findings.append((
+                "GATE-LEDGER-001",
+                f"{carrier} 相邻 confirmed 块 {a_id} → {b_id} 缺块过渡行",
+            ))
+        if a_page != b_page and b_id not in pageturns:
+            findings.append((
+                "GATE-LEDGER-002",
+                f"{carrier} 页码 {a_page}→{b_page} 变化处（{b_id}）缺翻页行",
+            ))
+
+    closure_text = " ".join(
+        f"{r['consumed']} {r['closure']}" for r in rows if r["gate"] == "题目闭环"
+    )
+    for rv in rv_ids:
+        if rv not in closure_text:
+            findings.append(("GATE-LEDGER-005", f"{carrier} 新评审 {rv} 缺题目闭环行"))
+    hint_text = " ".join(
+        f"{r['consumed']} {r['closure']}" for r in rows if r["gate"].startswith("提示授权")
+    )
+    for attempt_id, level in attempt_hints:
+        if level in GATE_LEDGER_HINT_LEVELS and attempt_id not in hint_text:
+            findings.append((
+                "GATE-LEDGER-006",
+                f"{carrier} {attempt_id} 记录了 {level} 级提示但缺提示授权行",
+            ))
+    return findings
+
+
+def check_gate_ledger(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
+    """GATE-LEDGER-000..006: teaching-gate ledger completeness (WARN, §2.4).
+
+    Scans every Lesson/Exercise carrier that HAS a 门台账 section; carriers
+    without one are skipped (deployment transition — sections arrive with the
+    ledger_since anchor, history before the anchor is exempt by design).
+    Read-only and WARN-only: an incomplete ledger is a record-keeping breach,
+    not a state error, and must not block a lesson mid-session.
+    """
+    for course_id, (folder, _meta) in courses.items():
+        progress_text = ""
+        progress_path = folder / "progress.md"
+        if progress_path.is_file():
+            try:
+                progress_text = read(progress_path)
+            except OSError:
+                progress_text = ""
+        for carrier_path in sorted(folder.glob("lessons/lesson*/lesson*.md")):
+            if not re.fullmatch(r"lesson\d+\.md", carrier_path.name):
+                continue
+            try:
+                ledger = parse_gate_ledger(read(carrier_path))
+            except OSError:
+                continue
+            if ledger is None:
+                continue
+            checkpoints = None
+            anchor = ledger.get("anchor")
+            if anchor and progress_text:
+                checkpoints = checkpoint_rows_from(progress_text, str(anchor))
+            carrier = f"{course_id}/{carrier_path.parent.name}"
+            for code, message in gate_ledger_findings(ledger, checkpoints, carrier=carrier):
+                report("WARN", f"{code} {message}")
+        for carrier_path in sorted(folder.glob("exercises/exercise*/exercise.md")):
+            try:
+                ledger = parse_gate_ledger(read(carrier_path))
+            except OSError:
+                continue
+            if ledger is None:
+                continue
+            exercise_dir = carrier_path.parent
+            anchor = str(ledger.get("anchor") or "")
+            rv_floor = at_floor = 0
+            span = re.fullmatch(r"RV(\d+)/AT(\d+)", anchor)
+            if span:
+                rv_floor, at_floor = int(span.group(1)), int(span.group(2))
+            rv_ids = tuple(
+                p.stem for p in sorted(exercise_dir.glob("reviews/RV*.md"))
+                if re.fullmatch(r"RV\d+", p.stem) and int(p.stem[2:]) > rv_floor
+            )
+            hints: list[tuple[str, str]] = []
+            for attempt in sorted(exercise_dir.glob("attempts/AT*/attempt.md")):
+                attempt_id = attempt.parent.name
+                if not re.fullmatch(r"AT\d+", attempt_id) or int(attempt_id[2:]) <= at_floor:
+                    continue
+                try:
+                    head = read(attempt)[:2000]
+                except OSError:
+                    continue
+                hint = re.search(r"^hint_level:\s*(\S+)", head, re.MULTILINE)
+                if hint:
+                    hints.append((attempt_id, hint.group(1)))
+            carrier = f"{course_id}/{exercise_dir.name}"
+            for code, message in gate_ledger_findings(
+                ledger, [], carrier=carrier, rv_ids=rv_ids, attempt_hints=tuple(hints),
+            ):
+                report("WARN", f"{code} {message}")
+
+
 def check_checkpoint_block_routing(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
     """CKP-SCOPE-002: verify active checkpoint block_id appears in LessonMap.
 
@@ -4576,15 +4789,47 @@ def measure_runtime_changelog_anchors(
     }
 
 
+def count_grep_matching_lines(pattern: str, text: str) -> int | None:
+    """Count lines matching `pattern`, the way grep does. None = pattern unusable.
+
+    Two properties of grep that a naive re.findall over the whole file does not
+    reproduce, and both of them silently mislabel healthy claims as rotten:
+
+    1. grep is **line oriented**, so `^` and `$` bind to line boundaries.  Scanning
+       the joined text without re.MULTILINE makes every `^`-anchored claim return
+       zero — the claim looks rotten while the same command passes in a shell.
+    2. grep -c counts **matching lines**, not matches.  re.findall counts matches,
+       so a line hit twice inflates the count.  That direction hides rot instead of
+       inventing it, which is worse.
+
+    Regression: on 2026-08-07 this gate flagged a freshly written, correct claim
+    (`grep -c "^27\\. ..."`) as 已腐烂.  A gate that punishes precise patterns
+    trains people to write loose ones — destroying what it exists to protect.
+    """
+    try:
+        regex = re.compile(pattern)
+    except re.error:
+        return None
+    return sum(1 for line in text.splitlines() if regex.search(line))
+
+
 def default_changelog_evidence_runner(command: str, *, root: Path) -> int | None:
-    """Evaluate a narrow class of evidence commands (grep -c / path existence)."""
+    """Evaluate a narrow class of evidence commands (grep -c / grep -n).
+
+    Accepts a *subset* of grep syntax: the pattern is handed to Python `re`, so
+    BRE-only constructs (`\\|`, `\\+`, `\\{n\\}`) are not translated.  Patterns that
+    do not compile return None (not evaluable) rather than 0, because "unusable
+    command" and "claim no longer true" are different findings and only the second
+    one should read as rot.
+    """
     cmd = command.strip().strip("`").strip()
-    # grep -c 'pat' path   or  grep -c "pat" path
-    match = re.match(
-        r"""^grep\s+-c\s+(?P<q>['"])(?P<pat>.+?)(?P=q)\s+(?P<path>\S+)\s*$""",
-        cmd,
-    )
-    if match:
+    for flag in ("-c", "-n"):
+        match = re.match(
+            rf"""^grep\s+{flag}\s+(?P<q>['"])(?P<pat>.+?)(?P=q)\s+(?P<path>\S+)\s*$""",
+            cmd,
+        )
+        if not match:
+            continue
         path = root / match.group("path")
         if not path.is_file():
             return 0
@@ -4592,20 +4837,7 @@ def default_changelog_evidence_runner(command: str, *, root: Path) -> int | None
             text = path.read_text(encoding="utf-8-sig", errors="replace")
         except OSError:
             return 0
-        return len(re.findall(match.group("pat"), text))
-    match = re.match(
-        r"""^grep\s+-n\s+(?P<q>['"])(?P<pat>.+?)(?P=q)\s+(?P<path>\S+)\s*$""",
-        cmd,
-    )
-    if match:
-        path = root / match.group("path")
-        if not path.is_file():
-            return 0
-        try:
-            text = path.read_text(encoding="utf-8-sig", errors="replace")
-        except OSError:
-            return 0
-        return len(re.findall(match.group("pat"), text, flags=re.MULTILINE))
+        return count_grep_matching_lines(match.group("pat"), text)
     return None
 
 
@@ -4665,6 +4897,65 @@ def check_changelog_contract() -> None:
             "WARN",
             f"条目已腐烂：{title}；断言原文={claim_text}；复算命令=`{command}` 命中为零",
         )
+
+
+MEMORY_BUDGET_MARKER = re.compile(r"^##\s+(?P<title>.+?)\s+\[max\s+(?P<cap>\d+)\]\s*$")
+
+
+def memory_section_budgets(text: str) -> list[tuple[str, int, int]]:
+    """Return (title, budget, actual_lines) for every `## …  [max N]` section.
+
+    The numbers live in t2ag_memory.md, not here.  If a budget lived in this
+    module, adjusting it would cost a batch + three-release sync + tests; that
+    price is high enough that people stop writing entries instead of raising the
+    budget — which destroys exactly what the budget exists to protect.  This gate
+    owns the *mechanism*; the student owns the numbers.
+
+    A section spans its own heading line through the line before the next `## `
+    heading (or EOF), so the count matches what `sed -n '/^## X/,/^## /p | wc -l`
+    would report.
+
+    Precedent: v0.1.2 had inline `[max N]` in t2ag.md plus
+    check_constitution_budget(); both were lost in 4e72556 (0.2.0 snapshot
+    migration) and the surviving prose reference became an unenforceable slogan.
+    """
+    lines = text.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
+    bounds = starts + [len(lines)]
+    out: list[tuple[str, int, int]] = []
+    for index, start in enumerate(starts):
+        match = MEMORY_BUDGET_MARKER.match(lines[start])
+        if not match:
+            continue
+        out.append((
+            match.group("title").strip(),
+            int(match.group("cap")),
+            bounds[index + 1] - start,
+        ))
+    return out
+
+
+def check_memory_budget() -> None:
+    """Runtime: memory section line budgets, read from the file's own markers.
+
+    WARN, not FAIL: memory is a summary index, not the constitution.  An oversized
+    summary is a hygiene problem that must stay visible; it must not block a lesson
+    mid-session.  (v0.1.2 used FAIL for t2ag.md — correct there, wrong here.)
+    """
+    path = MAIN / "00_core/t2ag_memory.md"
+    if not path.is_file():
+        return
+    budgets = memory_section_budgets(read(path))
+    if not budgets:
+        report("WARN", "t2ag_memory.md 无任何 [max N] 节预算标记：节预算机制未生效")
+        return
+    for title, cap, actual in budgets:
+        if actual > cap:
+            report(
+                "WARN",
+                f"memory 节超预算：「{title}」实测 {actual} 行 > 预算 {cap} 行；"
+                f"按 t2ag_memory.md §节预算与下沉 下沉最旧条目并留墓碑",
+            )
 
 
 def module_available(name: str) -> bool:
@@ -5028,6 +5319,7 @@ def execute_doctor_checks(
         "check_cloud_pause": check_cloud_pause,
         "check_decision_records": check_decision_records,
         "check_environment_assumptions": check_environment_assumptions,
+        "check_memory_budget": check_memory_budget,
         "check_changelog_contract": check_changelog_contract,
         "check_flow_and_guide": check_flow_and_guide,
         "check_handoff_contract": check_handoff_contract,
@@ -5054,6 +5346,7 @@ def execute_doctor_checks(
         "check_textbook_preparation": check_textbook_preparation,
         "check_scope_page_cache": check_scope_page_cache,
         "check_checkpoint_block_routing": check_checkpoint_block_routing,
+        "check_gate_ledger": check_gate_ledger,
     }
     for row in rows:
         handler = str(row["handler"])

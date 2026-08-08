@@ -1046,9 +1046,10 @@ def textbook_scope_scan_manifest(
         "preparation_snapshot_id": snap.get("snapshot_id"),
         "lesson_scope_version": snap.get("lesson_scope_version"),
         "completion_semantics": (
-            "完整 Scope 扫描与 complete 只能由宿主 Scan Orchestrator 在聚合本轮全部"
-            "内容本体投递事件后签发（事件名按证据形式而定，见 source_page_assets.md "
-            "§3.2）；Agent/Prefetcher 自报 opened、read 或 complete 均不构成授权。"
+            "完成判据（ADR-0003）：Scope 全部页的内容本体经宿主可观察投递在本会话内"
+            "证成（A1–A5，见 source_page_assets.md §3.1）即为 session scan complete；"
+            "无投递的自报 opened、read 或 complete 不构成证成。宿主 Scan Orchestrator "
+            "签发保留为未来态，落地后回收签发权。"
             "Snapshot/content_consumed/备课 LoadReceipt/哈希核对均不得冒充本轮扫描。"
         ),
         "agent_self_report_is_not_authorization": True,
@@ -1063,7 +1064,9 @@ def textbook_scope_scan_manifest(
     return payload
 
 
-# Critical textbook statuses before host TeachingAdmissionCapability (observability only).
+# Critical textbook statuses. Boot-time compiler cannot see session state, so a
+# textbook packet always starts pending; completion is certified in-session by the
+# Prefetcher after observable delivery of A1–A5 (ADR-0003). Host capability = future.
 CRITICAL_STATUS_ROUTE_READY = "route_ready"
 CRITICAL_STATUS_SCAN_PENDING = "scan_pending"
 CRITICAL_STATUS_SCAN_ATTESTED = "scan_attested"
@@ -1109,7 +1112,8 @@ def scope_scan_pending(action_payload: dict[str, object]) -> bool:
     status = str(scan.get("status") or "").strip()
     if status in SCOPE_SCAN_PENDING_STATUSES or not status:
         return True
-    # Context compiler never issues host complete; only explicit host statuses pass.
+    # Context compiler never issues complete: it runs at boot, before any delivery.
+    # Completion is certified in-session after observable delivery (ADR-0003).
     return status not in {
         "complete",
         "complete_for_same_snapshot",
@@ -1121,18 +1125,18 @@ def scope_scan_pending(action_payload: dict[str, object]) -> bool:
 def withhold_pending_scope_scan_teaching_payload(
     action_payload: dict[str, object],
 ) -> dict[str, object]:
-    """Strip copy-ready teaching prose while scope scan admission is unavailable.
+    """Strip copy-ready teaching prose until the session-local scan is certified.
 
-    Defense-in-depth only: reduces accidental policy bypass by models that treat the
-    packet as a script. Does **not** establish a structural teaching-output gate;
-    host-runtime enforcement remains required (see ADR-0002).
+    ADR-0003: Prefetcher self-certification after observable delivery is the formal
+    completion path; the withhold here keeps packet fields from being replayed as a
+    script before that happens. Host-runtime enforcement (ADR-0002) is future state.
     """
     if not scope_scan_pending(action_payload):
         return action_payload
     withheld = dict(action_payload)
     body_note = {
         "withheld": True,
-        "reason": "scope_scan_admission_unavailable",
+        "reason": "scope_scan_pending_this_session",
         "authorization": "packet_fields_do_not_authorize_emission",
     }
     for key in WITHHELD_TEACHING_BODY_KEYS:
@@ -1151,7 +1155,7 @@ def withhold_pending_scope_scan_teaching_payload(
             if key in opening_out:
                 del opening_out[key]
         opening_out["body_withheld"] = True
-        opening_out["body_withheld_reason"] = "scope_scan_admission_unavailable"
+        opening_out["body_withheld_reason"] = "scope_scan_pending_this_session"
         withheld["lesson_opening_contract"] = opening_out
     resume = withheld.get("resume_contract")
     if isinstance(resume, dict):
@@ -1160,11 +1164,11 @@ def withhold_pending_scope_scan_teaching_payload(
         if "prompt" in resume_out:
             resume_out["prompt"] = None
             resume_out["prompt_withheld"] = True
-            resume_out["prompt_withheld_reason"] = "scope_scan_admission_unavailable"
+            resume_out["prompt_withheld_reason"] = "scope_scan_pending_this_session"
         withheld["resume_contract"] = resume_out
     # page_teaching_contract keeps structural gates/block labels only (no page prose).
     withheld["teaching_payload_withheld"] = True
-    withheld["teaching_payload_withheld_reason"] = "scope_scan_admission_unavailable"
+    withheld["teaching_payload_withheld_reason"] = "scope_scan_pending_this_session"
     withheld["packet_fields_do_not_authorize_emission"] = True
     return withheld
 
@@ -1705,8 +1709,9 @@ def build_critical_packet(
         "teacher_overlay": overlay_path,
     }
     # Textbook Scope scan pending: withhold copy-ready teaching body and never
-    # advertise status=ready / blocking_teach=false (mixed signal). This is
-    # defense-in-depth only — host-runtime enforcement remains required.
+    # advertise status=ready / blocking_teach=false (mixed signal). Boot invariant
+    # under ADR-0003: every fresh session starts pending until the Prefetcher
+    # certifies A1–A5 via observable delivery; host enforcement is future state.
     scan_pending = (
         isinstance(action_payload, dict) and scope_scan_pending(action_payload)
     )

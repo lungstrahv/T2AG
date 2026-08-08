@@ -109,13 +109,13 @@ python -B main/70_tools/t2ag_state_refresh.py --check
   立即回交；随后以同一 snapshot 运行完整 Markdown L0，完成后再回交
   `background-settled`。若当前活动为 textbook Lesson，还须按 `50_playbook/source_page_assets.md`
   §3.1 的 A1–A5 在本会话逐页消费 Scope 的完整内容本体（宿主可观察投递；现行默认可观察
-  路径见同节 §3.1.4），并满足 A6 的宿主签发语义；不得直接向学生发言。
+  路径见同节 §3.1.4），并按 A6（ADR-0003：宿主可观察投递证成）完成；不得直接向学生发言。
 
 Main Conductor 是唯一用户界面和默认写者。启动分成两个可观察状态：
 
 - `learning-ready`：Context Prefetcher 已给出来源未变、route 唯一的 L0-critical 停点、
   next action 与本轮必要内容，并且已返回的报告没有教学阻断。textbook Lesson 还必须收到
-  同 snapshot 的完整 Scope 会话扫描结果（A1–A5 成立；完成声明仅宿主签发，A6）。Snapshot 的
+  同 snapshot 的完整 Scope 会话扫描结果（A1–A5 成立即按 A6/ADR-0003 证成完成）。Snapshot 的
   `content_consumed`、哈希核对或历史 load receipt 均不能替代本轮扫描。满足后才允许释放
   只读讲解或提问；非 textbook 路由仍可在 critical 后先行。
 - `recovery-settled`：Doctor `0 FAIL`、state 无漂移、完整来源核对均已完成。任何进度写入、
@@ -204,7 +204,7 @@ textbook 首条可执行内容 ≤15 秒、textbook Scope 扫描与 `recovery-se
   进入的页，也不得原地修改旧 Snapshot。
 - 每次新对话首次恢复 textbook Lesson 时，还须完成一次会话内 Scope 扫描：证明目标为
   `source_page_assets.md` §3.1 的 A1–A6（本会话完整内容本体、逐页、来源身份链、并集=Scope、
-  当前页一致、宿主签发）。准备快照证明历史 `prepared`，会话扫描证明本轮已消费；两者不得
+  当前页一致、宿主可观察投递证成/ADR-0003）。准备快照证明历史 `prepared`，会话扫描证明本轮已消费；两者不得
   互相冒充。A3 可由已核验资产持久承担（身份未漂移时），A1 仍须每会话投递。`pdf_page_index`
   与书内 `printed_page_label` 必须分字段报告，禁止把二者都简称为“第 N 页”。
 - textbook Lesson 开始或进入新页时，先显示字符形式的课堂树与当前页覆盖清单；清单以

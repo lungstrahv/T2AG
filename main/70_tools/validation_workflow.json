@@ -125,6 +125,13 @@
         "runtime.course_discovery"
       ]
     },
+    "runtime.gate_ledger": {
+      "phase": "runtime",
+      "handler": "check_gate_ledger",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
     "runtime.trading_boundary": {
       "phase": "runtime",
       "handler": "check_trading_boundary",
@@ -299,6 +306,13 @@
       "depends_on": [
         "runtime.line_endings"
       ]
+    },
+    "runtime.memory_budget": {
+      "phase": "runtime",
+      "handler": "check_memory_budget",
+      "depends_on": [
+        "runtime.structure"
+      ]
     }
   },
   "profiles": {
@@ -325,6 +339,7 @@
         "runtime.textbook_preparation",
         "runtime.scope_page_cache",
         "runtime.checkpoint_block_routing",
+        "runtime.gate_ledger",
         "runtime.trading_boundary",
         "runtime.legacy_references",
         "runtime.retired_instance_ids",
@@ -335,6 +350,7 @@
         "runtime.course_templates",
         "runtime.environment",
         "runtime.changelog",
+        "runtime.memory_budget",
         "runtime.line_endings"
       ]
     },

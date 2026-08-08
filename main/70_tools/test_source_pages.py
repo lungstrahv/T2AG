@@ -853,5 +853,158 @@ class SourcePagesTests(unittest.TestCase):
                 )
 
 
+class LayoutCriticalDetectorTests(unittest.TestCase):
+    """C5 detector contracts (criterion report §7.4, A2 decision §7.1).
+
+    Images are synthesised rather than taken from the corpus so the thresholds are
+    tested, not the textbook.
+    """
+
+    @staticmethod
+    def _text_line(draw, top: int) -> None:
+        """Glyph-like marks with gaps -- never a solid bar.
+
+        A solid 360px rule would read as a figure axis to the straight-run term,
+        which is exactly what real text does not contain.
+        """
+        for left in range(20, 380, 24):
+            draw.rectangle([left, top, left + 16, top + 20], fill=0)
+
+    @classmethod
+    def _page(cls, figure: bool) -> "object":
+        from PIL import Image, ImageDraw
+
+        img = Image.new("L", (400, 800), 255)
+        draw = ImageDraw.Draw(img)
+        for top in range(20, 700, 40):          # 20px text lines, 40px pitch
+            cls._text_line(draw, top)
+        if figure:                               # one block ~7x a text line
+            draw.rectangle([60, 720, 340, 860], fill=0)
+        return img
+
+    def _scan(self, figure: bool) -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            png = Path(td) / "page_1.png"
+            self._page(figure).save(png)
+            return sp.layout_metrics(png)
+
+    def test_figure_page_exceeds_threshold(self) -> None:
+        metrics = self._scan(figure=True)
+        self.assertGreater(metrics["ratio"], sp.LAYOUT_CRITICAL_THRESHOLD)
+        self.assertTrue(sp.layout_critical_verdict(metrics))
+
+    def test_text_only_page_stays_below_threshold(self) -> None:
+        metrics = self._scan(figure=False)
+        self.assertLessEqual(metrics["ratio"], sp.LAYOUT_CRITICAL_THRESHOLD)
+        self.assertFalse(sp.layout_critical_verdict(metrics))
+
+    def test_threshold_actually_discriminates(self) -> None:
+        """Mutation guard: a verdict that ignores the ratio must fail these."""
+        figure = self._scan(figure=True)
+        text = self._scan(figure=False)
+        self.assertNotEqual(
+            sp.layout_critical_verdict(figure),
+            sp.layout_critical_verdict(text),
+            "detector returns the same verdict for figure and text pages",
+        )
+        # Raising the bar above the figure ratio must flip it -- proves the
+        # threshold is read rather than hard-coded.
+        self.assertFalse(
+            sp.layout_critical_verdict(figure, threshold=figure["ratio"] + 1)
+        )
+
+    @staticmethod
+    def _flat_figure() -> "object":
+        """A wide, short figure: too short to trip `ratio`, but it has an axis.
+
+        This is the p200 case -- a circle-and-polygon inset beside body text.  Its
+        block is not tall relative to a text line, so the tallest-block metric alone
+        would miss it; the long horizontal rule is the only signal.
+        """
+        from PIL import Image, ImageDraw
+
+        img = Image.new("L", (400, 800), 255)
+        draw = ImageDraw.Draw(img)
+        for top in range(20, 700, 40):
+            LayoutCriticalDetectorTests._text_line(draw, top)
+        draw.line([30, 730, 370, 730], fill=0, width=3)   # 340px axis, ~17x line height
+        return img
+
+    def _metrics_of(self, image) -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            png = Path(td) / "page_1.png"
+            image.save(png)
+            return sp.layout_metrics(png)
+
+    def test_thin_standalone_rule_is_a_known_blind_spot(self) -> None:
+        """Documents the miss rather than pretending it is covered.
+
+        A 3px axis under the text forms its own short row span and is filtered by
+        LAYOUT_MIN_LINE_PX, so neither `ratio` nor the block-local straight-run
+        metrics see it.  This is the small-inline-figure case; it is currently a
+        false negative and C4 override is the only backstop.  If a future
+        discriminator fixes it, this test should start failing -- update it then.
+        """
+        metrics = self._metrics_of(self._flat_figure())
+        self.assertLessEqual(metrics["ratio"], sp.LAYOUT_CRITICAL_THRESHOLD)
+        self.assertFalse(
+            sp.layout_critical_verdict(metrics),
+            "blind spot closed -- revisit this test and the C5 definition",
+        )
+
+    def test_line_metrics_are_reported_but_do_not_decide(self) -> None:
+        """`hline`/`vline` must stay out of the verdict until validated."""
+        metrics = self._metrics_of(self._page(figure=True))
+        for key in ("hline", "vline"):
+            self.assertIn(key, metrics)
+        loud = {"ratio": 1.0, "hline": 99.0, "vline": 99.0}
+        self.assertFalse(
+            sp.layout_critical_verdict(loud),
+            "straight-run metrics must not decide: both designs failed measurement",
+        )
+
+    MANIFEST = {
+        "document_id": "DOC1",
+        "course_id": "C1",
+        "pages": [
+            {"pdf_page_index": 1, "verification_status": "unverified"},
+            {"pdf_page_index": 2, "verification_status": "verified",
+             "layout_critical": False},
+            {"pdf_page_index": 3, "verification_status": "verified"},
+        ],
+    }
+
+    def test_advisory_lists_only_verified_pages_missing_the_flag(self) -> None:
+        advisory = sp.layout_critical_advisory(self.MANIFEST, [1, 2, 3])
+        self.assertEqual(advisory["pending_pages"], [3])
+        self.assertIn("layout-scan", advisory["command"])
+        self.assertIn("--course C1", advisory["command"])
+
+    def test_advisory_ignores_unverified_and_stays_silent_when_complete(self) -> None:
+        # Page 1 is unverified: it always falls back to rendering, so a missing
+        # flag there is not a gap.
+        self.assertEqual(sp.layout_critical_advisory(self.MANIFEST, [1])["pending_pages"], [])
+        done = sp.layout_critical_advisory(self.MANIFEST, [2])
+        self.assertEqual(done["pending_pages"], [])
+        self.assertNotIn("command", done)
+
+    def test_advisory_treats_false_as_decided(self) -> None:
+        """A decided `false` must not be re-reported as pending.
+
+        `false` and 'absent' are different states (§3.1.4 fail-closed); conflating
+        them would make the advisory fire forever on correctly-decided pages.
+        """
+        self.assertEqual(sp.layout_critical_advisory(self.MANIFEST, [2])["pending_pages"], [])
+
+    def test_blank_page_fails_closed(self) -> None:
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as td:
+            png = Path(td) / "page_1.png"
+            Image.new("L", (400, 800), 255).save(png)
+            with self.assertRaises(sp.PrepareError):
+                sp.layout_metrics(png)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

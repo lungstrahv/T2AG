@@ -18,6 +18,7 @@
   manifest.json
   pages/page_<pdf_index>.md      # 核验文本 + 元数据
   raw_ocr/page_<pdf_index>_raw.txt
+  illustrations/<章>_<节>_<图号>_<描述>.{tex,html}   # 教材插图重建物（§1.3）
 
 40_course/<COURSE_ID>/book/.cache/source_pages/
   <document_sha>/<render_profile>/page_<pdf_index>.png
@@ -66,6 +67,31 @@ python -B main/70_tools/t2ag_source_pages.py verify-ppi --course <ID> --document
   `t2ag.lesson_preparation_snapshot.v2`。每份 load receipt 都携带内容寻址的
   `ppi_evidence`（page key、MediaBox、理论/实际像素、PNG SHA 与 evidence SHA），并进入 receipt ID、
   Snapshot ID 与 body SHA。既有 v1 Snapshot 仅作兼容读取，不得冒充新收据的 PPI 证据。
+
+### 1.3 教材插图重建（恢复自 P-0059）
+
+**本节是 2026-07-04 学生制定、在 0.2.0 重构中随旧课程配置载体一并净丢失的规则的恢复落点。**
+历史锚点：`grep -n "教材插图生成与命名规则" main/40_course/MATH1607H/lessons/lesson01/lesson01.md`
+（现 :496）。丢失经过、旧 owner 路径与完整 `rule_migration` 表见 `00_core/t2ag_problemlog.md` P-0059。
+
+- **触发**：核验教材页时识别到图号（如「图 1.1.1」），**应尽可能根据上下文重建对应插图**。
+  「尽可能」是实话：扫描件的图无法无损还原，重建物是**教学替代品**，不是原图摹本。
+- **产出格式**：`LaTeX/TikZ` 源码 与 `HTML/SVG` **两种**。
+  **不生成 PDF**（学生 2026-07-04 明确要求，并据此删除过已生成的 PDF）。
+- **命名**：`<章号>_<节号>_<图号>_<描述>`，如 `1_1_1_venn_diagram`。
+- **位置**：`book/primary/source_assets/<document_id>/illustrations/`。
+  **不放 `lessons/lessonNN/`**——图形是**页/文档**的属性而非 lesson 的属性，
+  放 lesson 会在跨 lesson 复用时重复，且与 §1「Lesson 只持有 lesson_map 与 Snapshot」
+  的定位相悖。lesson 侧如需引用，用指针不用副本。
+- **用途**：课堂参考资料，由学生自行打开 HTML/SVG。**不入对话上下文**，
+  因此不计入任何 token 账，也不参与 §3 的 A1 消费证明。
+- **与 `layout_critical` 的关系**：两者管**不同的一侧**，不得互相替代。
+  `layout_critical` 决定**教师**能否拿到页图（§3.2.4）；本节决定**学生**能否拿到图形。
+  一页可以同时需要两者：`layout_critical: true` 让教师看见图，本节让学生看见图。
+
+> **既有欠账**：`MATH1607H-B001-CHEN-VOL1` 的图 1.1.1 已有重建物但仍在旧位置
+> `lessons/lesson01/illustration/`；图 1.1.2（pdf 27）**无重建物**。
+> 迁移与补做范围见 P-0059。
 
 ## 2. LessonScope 构造
 
@@ -120,7 +146,7 @@ Snapshot 的 `content_consumed=true` 与 load receipt 只证明 prepare 当时�
 | **A3** | 所消费内容的来源身份可**逐环追溯**至 manifest 中的 canonical `SourceDocument`，链上每一环均有 SHA 绑定，且 canonical 文件的实际 SHA 与 manifest 逐位相符 |
 | **A4** | 实际消费的页集合与 snapshot Scope **完全相等**；混合证据形式下按各形式覆盖页集合之**并集**判定。**遗漏为 FAIL；重复只报 WARN（成本提示），不判失败** |
 | **A5** | 当前页一致，无来源冲突 |
-| **A6** | 完成由**宿主签发**；agent / Prefetcher 自报 `opened` 或 complete **不构成授权** |
+| **A6** | 完成判据（ADR-0003）：A1–A5 经**宿主可观察投递**在本会话内证成即为 session scan complete；**无投递的**自报 `opened` / complete **不构成完成**。宿主 orchestrator 签发保留为未来态，落地后回收签发权 |
 
 该结果只在当前会话内有效，不写成第二真相源。
 
@@ -196,16 +222,37 @@ prepare / 首次核验成本，与每会话 A1 证明分离。
 |---|---|---|
 | 字段存在且为 `false` | `EF-VERIFIED-ASSET` | 最便宜路径 |
 | 字段存在且为 `true` | `EF-PDF-DIRECT` 或 `EF-RENDER-PNG` | 文本资产丢版式 |
-| **字段缺失（当前全仓状态）** | **回落渲染形式** | **fail-closed**，见下 |
+| **字段缺失** | **回落渲染形式** | **fail-closed**，见下 |
 
-**fail-closed 声明（重要）**：`layout_critical` 的确定性判据尚未裁决（见施工单步骤 6 差异
-报告），因此当前**没有任何页条目携带该字段**。按 fail-closed，字段缺失一律视为「未知 →
-不适用文本资产」，故 **`EF-VERIFIED-ASSET` 当前处于惰性**，实际路径仍是文本 + 整页画面。
-**判据裁决并由 prepare 写入该字段之前，本单声明的开销下降不会兑现。** 这是刻意的：
-宁可暂不省，也不让图形页在无判据情况下走纯文本路径。
+**fail-closed 声明（重要）**：字段缺失一律视为「未知 → 不适用文本资产」，
+**不得**解释为 `false`。这是刻意的：宁可多付渲染成本，也不让图形页在无判据的情况下
+走纯文本路径。判定实现见 `t2ag_context.py` 的 `admissible_scan_form()`
+（用 `is False` 严格判等，字符串 `"false"` 与 `0` 均不放行）。
 
-**A6**：session scan complete **仅由宿主签发**；Prefetcher/Agent 自报不构成授权。
-本节不宣称、也不实现清除 `pending_visual_scan`。
+**判据已裁并已落地（2026-08-07，更正本节旧口径）**：本节此前写有「判据尚未裁决」
+「没有任何页条目携带该字段」「`EF-VERIFIED-ASSET` 当前处于惰性」「开销下降不会兑现」
+四句，**均已过期**：
+
+| 旧口径 | 现状 | 复算 |
+|---|---|---|
+| 判据尚未裁决 | 已裁：**C5 主判 + C4 双向覆盖**，见 §3.2.5 | 判据报告 §7.1 |
+| 无页条目携带该字段 | `MATH1607H-B001-CHEN-VOL1` 已核验 6 页全部携带 | `grep -c layout_critical_source <manifest>` → 6 |
+| `EF-VERIFIED-ASSET` 惰性 | 已激活：Scope 25–30 中 5 页走该形式，仅 p27 回落 | `t2ag_context.py --format critical` 的 `scan_forms` |
+| 开销下降不会兑现 | 已兑现：页图 `6×4760 → 1×4760`，每次启动省 **23 800** | 同上 |
+
+**仍然成立、不受上述更正影响的两条**：
+
+1. **尚未写入该字段的文档/页一律 fail-closed 回落渲染**——`prepare` 尚未自动调用判据，
+   新页、新 Scope、其它教材都需先跑 `layout-scan`（§3.2.5）。
+2. **成本下降 ≠ 教学解锁**，见下 A6。
+
+**A6（ADR-0003，2026-08-08 改判）**：session scan complete 的正式判据＝A1–A5 经**宿主可
+观察投递**在本会话内证成。证成前 `pending_visual_scan` 等 pending 状态**不得清除**；
+**无投递的**自报 `opened` / complete、Snapshot、历史 receipt、哈希核对均不构成证成
+（§3.1.3 A 层「不得冒充」条款原样有效）。宿主 Scan Orchestrator 签发保留为**未来态**：
+宿主具备该能力后回收签发权，届时本段按 ADR-0003 的 supersede 条款更新。
+**上表的开销下降发生在证成之前的工作里**；证成后教学按本判据解锁，不再以
+「宿主组件缺席」为由永久阻断（P-0056 的结构性成因即此，EV-0019 关闭）。
 
 ---
 
@@ -259,6 +306,97 @@ prepare / 首次核验成本，与每会话 A1 证明分离。
 > 因此「只读 frontmatter」能满足全部前置而**正文一字未投递**——这不是理论漏洞，是当前
 > 文件结构下现成可走的路径。故 A1 要求**完整正文段**投递，宿主观察事件须能区分
 > 「正文投递」与「仅 frontmatter 投递」。同型判例见 P-0058（元数据满足检查、内容从未到场）。
+
+#### 3.2.5 `layout_critical` 的判据（C5 主判 + C4 双向覆盖）
+
+学生 2026-08-07 裁决（依据 `docs/handoffs/T2AG_LAYOUT_CRITICAL_CRITERION_REPORT_2026-08-07.md`）：
+
+```
+layout_critical(page) := C5(page)            ← 默认值，机器产出，覆盖全部已核验页
+                         C4 可双向覆盖 C5     ← false→true 与 true→false 均可
+                                               须记录理由，且不得由当轮教学 agent 行使
+```
+
+**为何不是 PDF 对象检查**：本类教材为纯扫描件——每页恰好一个整页 300dpi 灰度 JPEG、
+无字体、无文本层，含插图页与纯文字页在 PDF 对象层**逐字段同形**。因此
+「含任何图像对象即为真」「图像面积阈值」「图像+表格对象」三类判据在扫描件上**全部退化**
+（会把全书每一页判为 true，使 `EF-VERIFIED-ASSET` 永不激活）。复算见该报告 §1–§3。
+
+**C5 正式定义（确定性栅格判据）**：
+
+| 项 | 值 |
+|---|---|
+| 度量 | `最高连续墨块高度 ÷ 文本行高中位数` |
+| 判定 | 比值 **> 2.2** 即 `layout_critical: true` |
+| 墨阈 | 灰度 `< 128` 计为墨；每行墨量 `≥ 15 px` 才算有效行（滤扫描噪点） |
+| 行阈 | 连续墨行段 `> 8 px` 才计为文本行 |
+| 依赖 | `PIL` + `numpy`。**不依赖 `fitz`**（EA-0002 作用域仅限 PPI 反算路径） |
+| 实现 | `python -B main/70_tools/t2ag_source_pages.py layout-scan --course <ID> --document-id <DOC> [--write]` |
+
+**⚠ 阈值 `2.2` 尚未通过全书验证，已知有系统性误报源。不得当作已定标的判据使用。**
+
+初始依据是第 25–30 页实测（`1.08 / 1.08 / 1.14 / 1.26 / 1.54` 纯文字 vs `7.45` 含图 1.1.2），
+2.2 看似落在空档中部。**该空档是第一章内容造成的假象。**
+
+全书 14 页抽样（第 40–375 页，300dpi 现渲）实测分布：
+
+```
+1.09  1.15  1.21  1.34  1.84  1.85  2.00  2.16 │ 2.32  2.33  2.73  2.81  2.94   14.53
+                                       阈值 2.2 ┘  余量仅 0.16，落在密集连续带中部
+```
+
+14 页中 6 页（43%）超阈值。目视核对跨阈值两页的最高墨块：
+
+| 页 | ratio | 最高墨块实际是什么 | 判定 |
+|---|---|---|---|
+| 70 | 2.32 | 大型行间公式 `lim(1/(n+1)+…+1/(2n)) = ln 2` | **误报**（判 true，实为公式） |
+| 375 | 2.16 | 「索引」大字标题 | 判 false 正确，但因为它是标题而非图 |
+
+**根因：本判据度量的是「高于常规行高的排版块」，无法区分图形、行间公式与大字标题。**
+而大型行间公式是数学教材最常见的特征——**误报方向被系统性触发**。
+
+**当前后果与应对**：误报不损害正确性（多走页图，fail-safe 方向），但会让 C5 主判产出大量
+需人工下调的 `true`，正是 C5 本应消除的工作量。在补入第二判别器之前：
+
+- **不得据本判据单独推广到新文档**；已判定的 6 页有目视核对背书，可继续使用；
+- 新文档建议先跑 `layout-scan`（不加 `--write`）看分布，再由 C4 逐页确认；
+- 阈值可用 `--threshold` 覆盖，但**改动后须对该文档全书复算**——阈值不是每页属性，
+  混用会让同一本书出现两套判据。
+- **上调阈值以躲开公式是错误方向**：它会同时漏掉体量较小的真实插图，
+  而漏报是唯一会损害正确性的方向。
+
+**第二判别器：已尝试两种设计，均经实测否决，当前不参与判定。**
+
+`layout-scan` 现在会额外测量并记录 `hline` / `vline`（最长连续直行/直列游程 ÷ 行高中位），
+写进溯源戳如 `C5:ratio_7.45_thr_2.2|h_11.8|v_7.5`。**它们只记录，不决定。**
+
+| 设计 | 否决理由（实测） |
+|---|---|
+| **块内测量** | 一条独立的细坐标轴自成矮 row span，被 `LAYOUT_MIN_LINE_PX` 当噪点滤掉——**它恰恰是本判别器要抓的小插图**。只能看到碰巧落在最高块内的线段 |
+| **全页测量** | 收进扫描边缘与装饰线：p375 索引页的印刷竖条给出 `v=56.8`、p320 页边缘 `h=55.5`，都远超任何真实插图 |
+
+**可用的方向**：需要边缘遮罩或连通域分析，不是调阈值能解决的。属未完成项，
+见 `T2AG_OUTSTANDING_WORK_PLAN_2026-08-07.md`。
+
+**在它落地前的已知漏报**：体量小到不产生高墨块的独立插图会被判 `false`。
+`test_source_pages.py::test_thin_standalone_rule_is_a_known_blind_spot` 把这个盲点**钉成测试**
+——判别器补上后该测试会开始失败，届时应同时更新测试与本节。**当前唯一兜底是 C4 覆盖。**
+
+**溯源字段（双向覆盖的前置，已实现）**：写入 `layout_critical` 的同时必须写
+`layout_critical_source`：
+
+- `C5:ratio_<r>x_thr_<t>` —— 机器判定；
+- `C4:override:<理由>` —— 人工覆盖。
+
+`layout-scan` **跳过**任何 `layout_critical_source` 以 `C4:` 开头的页条目并报告，
+机器不得覆盖人工裁量。没有该字段时裸布尔值不可审计——无法区分「C5 判的 false」
+「C4 覆盖成的 false」「尚未评估的 false」。
+
+**fail-closed 三条**：未核验页跳过（本就回落渲染）；页图未缓存则**不写值**
+（字段缺失 = 未知 → 回落，见 §3.1.4）；页图无可识别文本行则报错而非默认 false。
+
+**尚未落地**：`prepare` 未自动调用本判据，新页/新 Scope/其它教材仍需手工跑 `layout-scan`，
+在此之前它们一律 fail-closed 回落渲染。
 
 ### 会话扫描不等于课堂覆盖
 

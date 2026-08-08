@@ -3464,6 +3464,127 @@ def test_changelog_stale_evidence_warns_with_title_and_claim(root: Path) -> None
         raise AssertionError(f"command lost: {command}")
 
 
+def _memory_budget_fixture(sections: str) -> str:
+    return "# T2AG 跨会话记忆索引\n\n> 版本：0.2.3\n\n" + sections
+
+
+def test_memory_budget_over_limit_warns_with_both_numbers(root: Path) -> None:
+    """NEGATIVE: an over-budget section must be named with actual AND cap.
+
+    "WARN 不指名等于没报" — a bare "memory too long" leaves the reader to go
+    measure it themselves, which is how a WARN becomes background noise.
+    """
+    reset(root)
+    body = _memory_budget_fixture(
+        "## 最近关键决策  [max 3]\n" + "".join(f"- entry {i}\n" for i in range(10))
+    )
+    write(root / "main/00_core/t2ag_memory.md", body)
+    run_silently(doctor.check_memory_budget)
+    assert_message(doctor.warns, "最近关键决策")
+    assert_message(doctor.warns, "预算 3 行")
+    if not any("实测 11 行" in w for w in doctor.warns):
+        raise AssertionError(f"actual line count not named: {doctor.warns}")
+
+
+def test_memory_budget_missing_markers_warns(root: Path) -> None:
+    """NEGATIVE: no [max N] anywhere means the mechanism is silently off.
+
+    This is the failure mode that actually happened: v0.1.2's markers vanished in
+    the 0.2.0 snapshot migration and only the prose reference survived, so the
+    rule looked alive for months while enforcing nothing.
+    """
+    reset(root)
+    write(
+        root / "main/00_core/t2ag_memory.md",
+        _memory_budget_fixture("## 最近关键决策\n- entry\n"),
+    )
+    run_silently(doctor.check_memory_budget)
+    assert_message(doctor.warns, "无任何 [max N] 节预算标记")
+
+
+def test_memory_budget_within_limit_is_silent(root: Path) -> None:
+    """POSITIVE: a section under budget must produce no output at all."""
+    reset(root)
+    write(
+        root / "main/00_core/t2ag_memory.md",
+        _memory_budget_fixture("## 最近关键决策  [max 50]\n- entry\n"),
+    )
+    run_silently(doctor.check_memory_budget)
+    if doctor.warns or doctor.fails:
+        raise AssertionError(f"healthy budget must stay quiet: {doctor.warns}")
+
+
+def test_memory_budget_counts_only_its_own_section(root: Path) -> None:
+    """Section spans to the NEXT `## `, so a long neighbour must not spill in."""
+    body = _memory_budget_fixture(
+        "## 短节  [max 5]\n- a\n- b\n\n"
+        "## 长节\n" + "".join(f"- x{i}\n" for i in range(40))
+    )
+    budgets = doctor.memory_section_budgets(body)
+    if len(budgets) != 1:
+        raise AssertionError(f"only marked sections count: {budgets}")
+    title, cap, actual = budgets[0]
+    if title != "短节" or cap != 5 or actual != 4:
+        raise AssertionError(f"boundary wrong: {budgets[0]}")
+
+
+def test_changelog_runner_matches_grep_line_semantics(root: Path) -> None:
+    """NEGATIVE: the runner must reproduce grep, not re.findall over the file.
+
+    Regression for a live false positive (2026-08-07): a correct, freshly written
+    claim `grep -c "^27\\. ..."` was reported 已腐烂 because the runner scanned the
+    joined text without MULTILINE, so every `^`-anchored pattern returned zero.
+    A gate that punishes precise patterns teaches people to write loose ones.
+    """
+    target = root / "sample.md"
+    write(
+        target,
+        "27. alpha beta\n"
+        "not 27. this line does not start with it\n"
+        "gamma gamma\n",
+    )
+
+    anchored = doctor.default_changelog_evidence_runner(
+        'grep -c "^27\\. alpha" sample.md', root=root
+    )
+    if anchored != 1:
+        raise AssertionError(f"^-anchored grep -c must find the line; got {anchored}")
+
+    # grep counts matching LINES; re.findall would count 2 for this pattern.
+    repeated = doctor.default_changelog_evidence_runner(
+        'grep -c "gamma" sample.md', root=root
+    )
+    if repeated != 1:
+        raise AssertionError(f"grep -c counts lines, not matches; got {repeated}")
+
+    dollar = doctor.default_changelog_evidence_runner(
+        'grep -c "beta$" sample.md', root=root
+    )
+    if dollar != 1:
+        raise AssertionError(f"$ must bind to line end; got {dollar}")
+
+    absent = doctor.default_changelog_evidence_runner(
+        'grep -c "^nope" sample.md', root=root
+    )
+    if absent != 0:
+        raise AssertionError(f"genuinely absent pattern must be 0; got {absent}")
+
+
+def test_changelog_runner_reports_unusable_pattern_as_not_evaluable(root: Path) -> None:
+    """NEGATIVE: a pattern that will not compile is not the same as 'no hits'.
+
+    Returning 0 would label the entry 已腐烂 — wrong finding, wrong fix. None means
+    'not evaluable' so the claim is skipped rather than slandered.
+    """
+    target = root / "sample.md"
+    write(target, "anything\n")
+    result = doctor.default_changelog_evidence_runner(
+        'grep -c "unclosed(" sample.md', root=root
+    )
+    if result is not None:
+        raise AssertionError(f"unusable pattern must be None, got {result}")
+
+
 def test_changelog_matching_anchors_and_evidence_are_silent(root: Path) -> None:
     """POSITIVE: matching anchors + hits must stay quiet (no INFO noise)."""
     measured = {
@@ -3595,6 +3716,180 @@ def test_git_unlink_probe_residue_is_bounded(root: Path) -> None:
         raise AssertionError("probe must never remove a pre-existing git lock")
 
 
+def _gate_ledger_fixture(
+    *,
+    anchor: str = "C1-B001-P029-N01",
+    anchor_label: str = "起算块",
+    rows: str = "",
+) -> str:
+    return (
+        "# lesson01\n\n## 门台账\n\n"
+        f"ledger_since: 2026-08-08 | {anchor_label}: {anchor}\n\n"
+        "| 行ID | 块ID | 门类型 | 闭合依据 | 感受回应 | 授权原文 | 消费于 |\n"
+        "|---|---|---|---|---|---|---|\n" + rows
+    )
+
+
+_GATE_CKPT = (
+    "| C1-B001-P029-N01 | G | 29 | A | d | confirmed |\n"
+    "| C1-B001-P029-N02 | G | 29 | A | d | confirmed |\n"
+    "| C1-B001-P030-N01 | G | 30 | A | d | confirmed |\n"
+)
+
+_GATE_OK_ROWS = (
+    "| GT-0001 | C1-B001-P029-N01 | 块过渡 | 答对确认题 | \"没问题\" | \"继续\"(10:00) | C1-B001-P029-N02 |\n"
+    "| GT-0002 | C1-B001-P029-N02 | 块过渡 | 答对确认题 | \"没问题\" | \"继续\"(10:05) | C1-B001-P030-N01 |\n"
+    "| GT-0003 | PDF 29→30 | 翻页 | 旧页清单已报 | \"好\" | \"进入\"(10:06) | C1-B001-P030-N01 |\n"
+)
+
+
+def test_gate_ledger_missing_transition_row_warns(root: Path) -> None:
+    """NEGATIVE: a confirmed crossing without its 块过渡 row must be named.
+
+    P-0054 made mechanical: 宣布不等于交接 — from now on a skipped gate is a
+    missing row in file space, not a memory-reconstruction exercise a week later.
+    """
+    reset(root)
+    course = root / "main/40_course/C1"
+    write(course / "progress.md", "# p\n\n" + _GATE_CKPT)
+    write(course / "lessons/lesson01/lesson01.md", _gate_ledger_fixture())
+    run_silently(lambda: doctor.check_gate_ledger({"C1": (course, {})}))
+    assert_message(doctor.warns, "GATE-LEDGER-001")
+    assert_message(doctor.warns, "C1-B001-P029-N01 → C1-B001-P029-N02")
+
+
+def test_gate_ledger_missing_pageturn_row_warns(root: Path) -> None:
+    """NEGATIVE: page change covered by transitions but no 翻页 row → 002 only."""
+    ledger = doctor.parse_gate_ledger(_gate_ledger_fixture(rows=(
+        "| GT-0001 | C1-B001-P029-N01 | 块过渡 | ok | ok | \"继续\"(10:00) | C1-B001-P029-N02 |\n"
+        "| GT-0002 | C1-B001-P029-N02 | 块过渡 | ok | ok | \"继续\"(10:05) | C1-B001-P030-N01 |\n"
+    )))
+    checkpoints = doctor.checkpoint_rows_from("x\n" + _GATE_CKPT, "C1-B001-P029-N01")
+    findings = doctor.gate_ledger_findings(ledger, checkpoints, carrier="C1/lesson01")
+    codes = [code for code, _ in findings]
+    if "GATE-LEDGER-002" not in codes or "GATE-LEDGER-001" in codes:
+        raise AssertionError(f"want exactly the pageturn gap: {findings}")
+
+
+def test_gate_ledger_placeholder_authorization_warns(root: Path) -> None:
+    """NEGATIVE: 授权原文 must be a verbatim quote, not a placeholder token."""
+    ledger = doctor.parse_gate_ledger(_gate_ledger_fixture(rows=(
+        "| GT-0001 | C1-B001-P029-N01 | 块过渡 | ok | ok | 待填 | C1-B001-P029-N02 |\n"
+    )))
+    checkpoints = doctor.checkpoint_rows_from("x\n" + _GATE_CKPT, "C1-B001-P029-N01")
+    findings = doctor.gate_ledger_findings(ledger, checkpoints, carrier="C1/lesson01")
+    if not any(code == "GATE-LEDGER-003" for code, _ in findings):
+        raise AssertionError(f"placeholder authorization not flagged: {findings}")
+
+
+def test_gate_ledger_duplicate_row_id_warns(root: Path) -> None:
+    """NEGATIVE: GT ids must be strictly increasing and unique → 004."""
+    ledger = doctor.parse_gate_ledger(_gate_ledger_fixture(rows=(
+        "| GT-0002 | a | 块过渡 | ok | ok | \"继续\"(10:00) | b |\n"
+        "| GT-0002 | b | 块过渡 | ok | ok | \"继续\"(10:05) | c |\n"
+    )))
+    findings = doctor.gate_ledger_findings(ledger, [], carrier="C1/lesson01")
+    if not any(code == "GATE-LEDGER-004" for code, _ in findings):
+        raise AssertionError(f"duplicate row id not flagged: {findings}")
+
+
+def test_gate_ledger_missing_review_closure_warns(root: Path) -> None:
+    """NEGATIVE (Exercise): a post-anchor RV without its 题目闭环 row → 005."""
+    ledger = doctor.parse_gate_ledger(
+        _gate_ledger_fixture(anchor="RV0001/AT0001", anchor_label="起算证据")
+    )
+    findings = doctor.gate_ledger_findings(
+        ledger, [], carrier="C1/exercise01", rv_ids=("RV0002",)
+    )
+    if not any(code == "GATE-LEDGER-005" for code, _ in findings):
+        raise AssertionError(f"missing closure row not flagged: {findings}")
+
+
+def test_gate_ledger_hint_without_authorization_row_warns(root: Path) -> None:
+    """NEGATIVE (Exercise): a recorded direction_hint without its row → 006."""
+    ledger = doctor.parse_gate_ledger(
+        _gate_ledger_fixture(anchor="RV0001/AT0001", anchor_label="起算证据")
+    )
+    findings = doctor.gate_ledger_findings(
+        ledger, [], carrier="C1/exercise01",
+        attempt_hints=(("AT0002", "direction_hint"),),
+    )
+    if not any(code == "GATE-LEDGER-006" for code, _ in findings):
+        raise AssertionError(f"unauthorized hint not flagged: {findings}")
+
+
+def test_gate_ledger_malformed_table_fail_closed(root: Path) -> None:
+    """NEGATIVE: wrong arity or a missing anchor line is 000, nothing else.
+
+    Fail-closed means a broken ledger never silently passes as an empty one.
+    """
+    bad_row = doctor.parse_gate_ledger(_gate_ledger_fixture(rows=(
+        "| GT-0001 | a | 块过渡 | ok | \"继续\"(10:00) | b |\n"
+    )))
+    findings = doctor.gate_ledger_findings(bad_row, [], carrier="C1/lesson01")
+    if [code for code, _ in findings] != ["GATE-LEDGER-000"]:
+        raise AssertionError(f"malformed row must be 000 only: {findings}")
+    no_anchor = doctor.parse_gate_ledger(
+        "# lesson01\n\n## 门台账\n\n| 行ID |\n"
+    )
+    findings = doctor.gate_ledger_findings(no_anchor, [], carrier="C1/lesson01")
+    if not any(code == "GATE-LEDGER-000" for code, _ in findings):
+        raise AssertionError(f"missing anchor must be 000: {findings}")
+
+
+def test_gate_ledger_complete_ledger_is_silent(root: Path) -> None:
+    """POSITIVE: a fully-logged crossing sequence must produce no findings."""
+    ledger = doctor.parse_gate_ledger(_gate_ledger_fixture(rows=_GATE_OK_ROWS))
+    checkpoints = doctor.checkpoint_rows_from("x\n" + _GATE_CKPT, "C1-B001-P029-N01")
+    findings = doctor.gate_ledger_findings(ledger, checkpoints, carrier="C1/lesson01")
+    if findings:
+        raise AssertionError(f"complete ledger must stay quiet: {findings}")
+
+
+def test_gate_ledger_carrier_without_section_is_skipped(root: Path) -> None:
+    """POSITIVE: no 门台账 section means no check — deployment stays gradual."""
+    reset(root)
+    course = root / "main/40_course/C1"
+    write(course / "progress.md", "# p\n\n" + _GATE_CKPT)
+    write(course / "lessons/lesson01/lesson01.md", "# lesson01\n\n## 教学记录\n")
+    run_silently(lambda: doctor.check_gate_ledger({"C1": (course, {})}))
+    if doctor.warns or doctor.fails:
+        raise AssertionError(f"carrier without section must be skipped: {doctor.warns}")
+
+
+def test_gate_ledger_blocks_before_anchor_are_exempt(root: Path) -> None:
+    """POSITIVE: crossings before ledger_since are history — never checked."""
+    ledger = doctor.parse_gate_ledger(_gate_ledger_fixture(
+        anchor="C1-B001-P029-N02",
+        rows=(
+            "| GT-0001 | C1-B001-P029-N02 | 块过渡 | ok | ok | \"继续\"(10:05) | C1-B001-P030-N01 |\n"
+            "| GT-0002 | PDF 29→30 | 翻页 | 旧页清单已报 | \"好\" | \"进入\"(10:06) | C1-B001-P030-N01 |\n"
+        ),
+    ))
+    checkpoints = doctor.checkpoint_rows_from("x\n" + _GATE_CKPT, "C1-B001-P029-N02")
+    findings = doctor.gate_ledger_findings(ledger, checkpoints, carrier="C1/lesson01")
+    if findings:
+        raise AssertionError(f"pre-anchor history must be exempt: {findings}")
+
+
+def test_gate_ledger_pure_functions_mutation_is_killed(root: Path) -> None:
+    """Mutation: an always-empty verdict function must blind the reverse tests."""
+    ledger = doctor.parse_gate_ledger(_gate_ledger_fixture())
+    checkpoints = doctor.checkpoint_rows_from("x\n" + _GATE_CKPT, "C1-B001-P029-N01")
+    live = doctor.gate_ledger_findings(ledger, checkpoints, carrier="C1/lesson01")
+    if not any(code == "GATE-LEDGER-001" for code, _ in live):
+        raise AssertionError("live findings must flag the missing transition")
+    real = doctor.gate_ledger_findings
+    try:
+        doctor.gate_ledger_findings = (  # type: ignore[assignment]
+            lambda *args, **kwargs: []
+        )
+        if doctor.gate_ledger_findings(ledger, checkpoints, carrier="C1/lesson01"):
+            raise AssertionError("MUTATION SURVIVED: stub still produced findings")
+    finally:
+        doctor.gate_ledger_findings = real  # type: ignore[assignment]
+
+
 ALL_CONTRACT_TESTS = (
         test_profile_placeholder,
         test_profile_container_contract,
@@ -3642,8 +3937,25 @@ ALL_CONTRACT_TESTS = (
         test_changelog_anchor_mismatch_warns_with_both_values,
         test_changelog_missing_anchor_block_warns,
         test_changelog_stale_evidence_warns_with_title_and_claim,
+        test_memory_budget_over_limit_warns_with_both_numbers,
+        test_memory_budget_missing_markers_warns,
+        test_memory_budget_within_limit_is_silent,
+        test_memory_budget_counts_only_its_own_section,
+        test_changelog_runner_matches_grep_line_semantics,
+        test_changelog_runner_reports_unusable_pattern_as_not_evaluable,
         test_changelog_matching_anchors_and_evidence_are_silent,
         test_changelog_pure_functions_mutation_is_killed,
+        test_gate_ledger_missing_transition_row_warns,
+        test_gate_ledger_missing_pageturn_row_warns,
+        test_gate_ledger_placeholder_authorization_warns,
+        test_gate_ledger_duplicate_row_id_warns,
+        test_gate_ledger_missing_review_closure_warns,
+        test_gate_ledger_hint_without_authorization_row_warns,
+        test_gate_ledger_malformed_table_fail_closed,
+        test_gate_ledger_complete_ledger_is_silent,
+        test_gate_ledger_carrier_without_section_is_skipped,
+        test_gate_ledger_blocks_before_anchor_are_exempt,
+        test_gate_ledger_pure_functions_mutation_is_killed,
 )
 
 

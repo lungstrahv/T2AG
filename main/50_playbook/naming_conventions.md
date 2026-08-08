@@ -13,9 +13,13 @@
     `book/primary/source_assets/<document_id>/raw_ocr/page_<pdf_index>_raw.txt` 等；
   - 可重建 PNG 缓存：
     `book/.cache/source_pages/<source_document_sha256>/<render_profile>/page_<pdf_index>.png`；
+  - 教材插图重建物（P-0059 恢复；owner 为 `source_page_assets.md` §1.3）：
+    `book/primary/source_assets/<document_id>/illustrations/<章号>_<节号>_<图号>_<描述>.{tex,html}`，
+    如 `1_1_1_venn_diagram.tex` / `.html`。**只出 TikZ 源与 HTML/SVG 两种，不出 PDF。**
+    图形是文档/页的属性，**不放 `lessons/lessonNN/`**；lesson 侧如需引用用指针不用副本；
   - Lesson 只持有 `lesson_map.md`、不可变 preparation Snapshot（`preparation/PREP-*.json`）
     与 current pointer（`preparation/current_snapshot.json`），不复制页图/OCR 正文。
-- **Legacy 兼容输入**（仅未迁移实例）：`lessons/lessonNN/working_pages/**`
+- **已退役**（历史摘录见归档位）：原 `lessons/lessonNN/working_pages/**`
   （含历史 `pages/pageNN.png`、`raw_ocr/page_NN_raw.txt`、`source_excerpt.md`）。
   **不得**作为新课程、新 Lesson 或新备课的 canonical 输出；retained
   `source_excerpt.md` **不是**新建教材权威。

@@ -200,9 +200,16 @@ SHA 与旧意图立即失效，必须重新展示修订后的完整正文。
 ### 步骤 5：验证落盘结果
 
 ```powershell
+python -B main/70_tools/t2ag_state_refresh.py --write
 python -B main/70_tools/t2ag_state_refresh.py --check
 python -B main/70_tools/t2ag_doctor.py --profile runtime
 ```
+
+`--write` 不可省，且必须在 `--check` 之前——顺序与 `progress_tracking.md` §三「执行顺序
+固定为 `progress.md → --write → --check → doctor`」一致。P-0058 之后 `--check` 覆盖了
+`progress.md` frontmatter 的 checkpoint 投影，本次会话若新增或闭合任何 checkpoint，
+跳过 `--write` 会使本步骤必然报 `[FAIL] generated cache drift`，而本步骤的判据正是
+「state 无 drift」。
 
 随后重新读取 progress、`activity_write_target`、命令输出中的
 `mandatory_write_targets`，以及本次实际变化的 `conditional_write_targets`。只有全部
@@ -241,6 +248,9 @@ Micro close 不生成欠账、不写 deferred marker。若因信息或权限不�
 2. 跨题重复模式达到证据门槛后才更新 `reasoning_patterns.md`。
 3. 组合层频率、时间偏差与欠债处置写 group `review.md`，不复制单课掌握度。
 4. Cloud bridge 为 `paused` 时跳过移动端投影；云端 handoff 不能覆盖本地 progress。
+5. **学习日归属按 04:00 边界，不按自然日**：本地凌晨 04:00 之前收尾的进度归前一学习日。
+   canonical 规则与作用域切割（学习进度走 04:00 学习日；系统日志/月志/发行取证走自然日期）
+   见 `progress_tracking.md` §三·五。本节只是消费方指针，**不重复正文**。
 
 ## 五、手动存档
 

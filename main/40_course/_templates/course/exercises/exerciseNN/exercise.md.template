@@ -25,3 +25,13 @@ created: YYYY-MM-DD
 
 本节只是指针：路由表的唯一 owner 是 `00_core/learning_activity_model.md` §2.3
 （本 Exercise 用其中的 **Exercise 变体**）。模板与实例不得复制表正文，防止两份正文漂移。
+
+## 门台账
+
+ledger_since: YYYY-MM-DD | 起算证据: RV0000/AT0000
+
+规则的唯一 owner 是 `00_core/learning_activity_model.md` §2.4（本 Exercise 用其中的
+**Exercise 变体**）；本节只持有锚与留痕表，不复制规则正文。
+
+| 行ID | 块ID | 门类型 | 闭合依据 | 感受回应 | 授权原文 | 消费于 |
+|---|---|---|---|---|---|---|

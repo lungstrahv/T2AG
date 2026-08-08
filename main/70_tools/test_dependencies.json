@@ -60,6 +60,18 @@
       ],
       "tests": ["contracts.runtime"]
     },
+    "gate_ledger": {
+      "sources": [
+        "main/00_core/learning_activity_model.md",
+        "main/40_course/_templates/course/lessons/lessonNN/lessonNN.md.template",
+        "main/40_course/_templates/course/exercises/exerciseNN/exercise.md.template",
+        "main/70_tools/t2ag_doctor.py",
+        "main/70_tools/validation_workflow.json",
+        "main/70_tools/contract_test_support.py",
+        "main/70_tools/test_runtime_contracts.py"
+      ],
+      "tests": ["contracts.runtime"]
+    },
     "state_refresh": {
       "sources": ["main/70_tools/t2ag_state_refresh.py"],
       "tests": ["contracts.runtime", "doctor.postcheck"]

@@ -102,8 +102,8 @@ background-settled。textbook Lesson 的 critical 只是 `route-ready`，不得�
 Prefetcher 必须按 `action_payload.scope_scan` 与 `source_page_assets.md` §3.1（A1–A6）在本会话
 逐页消费整个 Scope 的完整内容本体（宿主可观察投递）。**现行默认可观察路径**（U2 形式清单
 冻结前）见 `source_page_assets.md` §3.1.4：L0 消费已核验正文 + 按 manifest/profile 投递整页
-画面并回报页索引与 `printed_page_label`。完成声明仅宿主签发（A6）；不得以 Snapshot
-`content_consumed` 或历史 receipt 冒充本轮。任务说明直接嵌入字段契约，不继承完整历史，
+画面并回报页索引与 `printed_page_label`。完成按 A6（ADR-0003）由宿主可观察投递证成；
+不得以 Snapshot `content_consumed` 或历史 receipt 冒充本轮。任务说明直接嵌入字段契约，不继承完整历史，
 不重读本文件或 `context_packet.md`，也不在 route 前消费课程反思、非当前错题和成本账。
 handoff 包含：
 
@@ -118,9 +118,9 @@ handoff 包含：
 - `sources_unchanged` 结论。
 - textbook 时还须回交 `scope_scan`：snapshot、PDF SHA、全部 `pdf_page_index`、每页消费
   证据（现行路径下含 `opened=true` / 书内页码/标题）、当前页、发现的页码或内容冲突；
-  相对 Scope **缺一页即不 complete**（A4 遗漏 FAIL；重复只 WARN）。**注意**：Prefetcher
-  文本声明 `opened=true` / complete **不是**宿主签发（A6）；完整 receipt 只能由宿主
-  Scan Orchestrator 签发。
+  相对 Scope **缺一页即不 complete**（A4 遗漏 FAIL；重复只 WARN）。**注意**：**无投递的**
+  文本声明 `opened=true` / complete 不构成证成；证成＝逐页内容本体的宿主可观察投递
+  （A6/ADR-0003）。宿主 Scan Orchestrator receipt 保留为未来态，落地后回收签发权。
 - textbook 时还须回交 `page_teaching_contract`：当前 PDF/书内页、字符课堂树要求、页内
   覆盖寄存器，以及理解确认、感受反馈、单次继续授权和翻页通知四类门。不得把本轮入口的
   “继续学习”解释成整节课持续授权。
@@ -151,14 +151,16 @@ AND route / source identity 无冲突
 AND current activity / next action / 必要内容齐备
 AND 已返回报告中没有 blocking_teach == true   # textbook pending 时 blocking_teach 仍为 true → 不可释放
 AND （非 textbook OR scope_text_status == complete_in_current_packet）
-AND （非 textbook OR scope_visual_scan == complete_for_same_snapshot）  # 须宿主 receipt，非 Agent 自报
+AND （非 textbook OR scope_visual_scan == complete_for_same_snapshot）  # A1–A5 经宿主可观察投递在本会话证成（ADR-0003），非无投递自报
 AND （非 textbook OR page_teaching_contract 完整且已向学生显示当前课堂树）
-AND （非 textbook OR host TeachingAdmissionCapability 已签发且 lesson_emit 可用）
-  # 最后一项在宿主未落地前无法强制；playbook 仍要求，仓库层仅 defense-in-depth
 ```
 
+宿主 TeachingAdmissionCapability / `lesson_emit` 为未来态（ADR-0002/ADR-0003）：宿主落地后
+该能力回收签发权并恢复为释放条件；落地前按 ADR-0003 以上式为正式判据，不再作为
+永不满足的 defense-in-depth 挂账。
+
 `LessonPreparationSnapshot.content_consumed=true`、历史 receipt、manifest/文件哈希一致只证明
-准备与身份（A3 链上的部分环节），**不**满足本会话 A1 消费，也不满足 A6 宿主签发。
+准备与身份（A3 链上的部分环节），**不**满足本会话 A1 消费，也不构成 A6 证成（ADR-0003）。
 route、progress 精确停点、action payload、当前页路径、Scope manifest 任一冲突时停止
 （A5）；禁止 Main 自选一个版本继续。
 学习动作释放只允许一个教学块。学生答题、复述或说“是”只闭合理解门；推导/总结后的感受门
