@@ -609,11 +609,10 @@ def add_selection(
 
 
 def _textbook_lesson_ids(route: object) -> tuple[str, str]:
-    """Return (course_id, lesson_id) from resume/working_pages route paths."""
+    """Return (course_id, lesson_id) from resume route path."""
     activity_id = str(getattr(route, "activity_id", "") or "").strip()
     candidates = [
         str(getattr(route, "resume_path", "") or ""),
-        str(getattr(route, "working_pages_path", "") or ""),
     ]
     course_id = ""
     lesson_id = activity_id if re.fullmatch(r"lesson\d+", activity_id) else ""
@@ -942,13 +941,58 @@ def classroom_creativity_policy() -> dict[str, object]:
     }
 
 
+SCAN_FORM_RENDER_PNG = "EF-RENDER-PNG"
+SCAN_FORM_PDF_DIRECT = "EF-PDF-DIRECT"
+SCAN_FORM_VERIFIED_ASSET = "EF-VERIFIED-ASSET"
+SCAN_FORMS_REQUIRING_RENDER = frozenset({SCAN_FORM_RENDER_PNG, SCAN_FORM_PDF_DIRECT})
+SCAN_FORM_PENDING_STATUS = {
+    SCAN_FORM_RENDER_PNG: "pending_visual_scan",
+    SCAN_FORM_PDF_DIRECT: "pending_source_read",
+    SCAN_FORM_VERIFIED_ASSET: "pending_asset_read",
+}
+
+
+def admissible_scan_form(page_entry: dict[str, object]) -> str:
+    """Cheapest admissible evidence form for one page — fail closed.
+
+    source_page_assets.md §3.2.4 lets a page use EF-VERIFIED-ASSET only when it is
+    `verified` AND `layout_critical` is present and false.
+
+    A *missing* layout_critical is deliberately not treated as false.  The
+    deterministic prepare-stage detector that would set the flag has not been
+    adjudicated yet (workorder step 6), so absence means "unknown", and routing an
+    unknown page through a text-only form would silently strip figures, arrows and
+    tables from a page the teacher is about to teach from.  Falling back to a
+    rendering form costs tokens; guessing costs correctness.
+    """
+    if page_entry.get("verification_status") != "verified":
+        return SCAN_FORM_RENDER_PNG
+    if page_entry.get("layout_critical") is False:
+        return SCAN_FORM_VERIFIED_ASSET
+    return SCAN_FORM_RENDER_PNG
+
+
+def scope_scan_pending_status(forms) -> str:
+    """Scope-level pending status for a possibly mixed set of per-page forms.
+
+    Mixed Scopes report the status of the *most* demanding form present, so a
+    single page that fell back to rendering cannot be hidden behind the cheap
+    status of its neighbours.
+    """
+    present = set(forms)
+    for form in (SCAN_FORM_RENDER_PNG, SCAN_FORM_PDF_DIRECT, SCAN_FORM_VERIFIED_ASSET):
+        if form in present:
+            return SCAN_FORM_PENDING_STATUS[form]
+    return "pending_visual_scan"
+
+
 def textbook_scope_scan_manifest(
     cache: SourceCache,
     course_id: str,
     snap: dict[str, object],
     current_page: int,
 ) -> dict[str, object]:
-    """Return exact inputs for a session-local full-Scope visual scan."""
+    """Return exact inputs for a session-local full-Scope scan (any admissible form)."""
     pages = _snapshot_scope_pages(snap)
     if current_page not in pages:
         raise ContextPacketError("textbook_page 不在 current Snapshot Scope 内")
@@ -981,21 +1025,214 @@ def textbook_scope_scan_manifest(
     }
     if not set(pages).issubset(manifest_pages):
         raise ContextPacketError("SourceDocument manifest 未 verified 覆盖整个 Scope")
-    return {
+    entries = {
+        int(item["pdf_page_index"]): item
+        for item in (manifest.get("pages") or [])
+        if isinstance(item, dict) and item.get("pdf_page_index") is not None
+    }
+    forms = {page: admissible_scan_form(entries.get(page) or {}) for page in pages}
+    needs_render = any(
+        form in SCAN_FORMS_REQUIRING_RENDER for form in forms.values()
+    )
+    payload = {
         "required_this_session": True,
-        "status": "pending_visual_scan",
+        "status": scope_scan_pending_status(forms.values()),
         "source_document": cache.relative(source_path),
         "source_document_sha256": snap.get("source_document_sha256"),
         "document_id": document_id,
         "pdf_page_indices": pages,
         "current_pdf_page_index": current_page,
-        "render_profile": (snap.get("page_keys") or [{}])[0].get("render_profile"),
+        "scan_forms": {str(page): form for page, form in sorted(forms.items())},
         "preparation_snapshot_id": snap.get("snapshot_id"),
         "lesson_scope_version": snap.get("lesson_scope_version"),
         "completion_semantics": (
-            "只有本轮实际打开全部页图并逐页核对后，外部 Prefetcher 才可改报 complete；"
-            "Snapshot/content_consumed/哈希核对均不得冒充本轮视觉扫描。"
+            "完整 Scope 扫描与 complete 只能由宿主 Scan Orchestrator 在聚合本轮全部"
+            "内容本体投递事件后签发（事件名按证据形式而定，见 source_page_assets.md "
+            "§3.2）；Agent/Prefetcher 自报 opened、read 或 complete 均不构成授权。"
+            "Snapshot/content_consumed/备课 LoadReceipt/哈希核对均不得冒充本轮扫描。"
         ),
+        "agent_self_report_is_not_authorization": True,
+    }
+    if needs_render:
+        # §3.2: render_profile is a property of the rendering forms only.  Emitting
+        # it unconditionally is what made "render a PNG" look like part of the
+        # proof target rather than one admissible way to meet it.
+        payload["render_profile"] = (
+            (snap.get("page_keys") or [{}])[0].get("render_profile")
+        )
+    return payload
+
+
+# Critical textbook statuses before host TeachingAdmissionCapability (observability only).
+CRITICAL_STATUS_ROUTE_READY = "route_ready"
+CRITICAL_STATUS_SCAN_PENDING = "scan_pending"
+CRITICAL_STATUS_SCAN_ATTESTED = "scan_attested"
+CRITICAL_STATUS_READY = "ready"
+SCOPE_SCAN_PENDING_STATUSES = frozenset(
+    {
+        "pending_visual_scan",
+        "pending_source_read",
+        "pending_asset_read",
+        "pending",
+        "scan_pending",
+    }
+)
+# Copy-ready teaching keys withheld while scope scan / admission is unavailable.
+WITHHELD_TEACHING_BODY_KEYS = frozenset(
+    {
+        "textbook_excerpt",
+        "first_teaching_candidate",
+        "first_confirmation_question",
+    }
+)
+WITHHELD_OPENING_BODY_KEYS = frozenset(
+    {
+        "overview_markdown",
+        "knowledge_tree_markdown",
+        "learning_range",
+    }
+)
+
+
+def scope_scan_required(action_payload: dict[str, object]) -> bool:
+    """True when action_payload declares a session-local scope visual scan."""
+    scan = action_payload.get("scope_scan")
+    return isinstance(scan, dict) and bool(scan.get("required_this_session"))
+
+
+def scope_scan_pending(action_payload: dict[str, object]) -> bool:
+    """True when a required scope scan is not host-attested complete."""
+    if not scope_scan_required(action_payload):
+        return False
+    scan = action_payload["scope_scan"]
+    assert isinstance(scan, dict)
+    status = str(scan.get("status") or "").strip()
+    if status in SCOPE_SCAN_PENDING_STATUSES or not status:
+        return True
+    # Context compiler never issues host complete; only explicit host statuses pass.
+    return status not in {
+        "complete",
+        "complete_for_same_snapshot",
+        "scan_attested",
+        "attested",
+    }
+
+
+def withhold_pending_scope_scan_teaching_payload(
+    action_payload: dict[str, object],
+) -> dict[str, object]:
+    """Strip copy-ready teaching prose while scope scan admission is unavailable.
+
+    Defense-in-depth only: reduces accidental policy bypass by models that treat the
+    packet as a script. Does **not** establish a structural teaching-output gate;
+    host-runtime enforcement remains required (see ADR-0002).
+    """
+    if not scope_scan_pending(action_payload):
+        return action_payload
+    withheld = dict(action_payload)
+    body_note = {
+        "withheld": True,
+        "reason": "scope_scan_admission_unavailable",
+        "authorization": "packet_fields_do_not_authorize_emission",
+    }
+    for key in WITHHELD_TEACHING_BODY_KEYS:
+        if key in withheld:
+            del withheld[key]
+    if "source" in withheld or "source_sha256" in withheld:
+        withheld["teaching_body_ref"] = {
+            **body_note,
+            "source": withheld.get("source"),
+            "source_sha256": withheld.get("source_sha256"),
+        }
+    opening = withheld.get("lesson_opening_contract")
+    if isinstance(opening, dict):
+        opening_out = dict(opening)
+        for key in WITHHELD_OPENING_BODY_KEYS:
+            if key in opening_out:
+                del opening_out[key]
+        opening_out["body_withheld"] = True
+        opening_out["body_withheld_reason"] = "scope_scan_admission_unavailable"
+        withheld["lesson_opening_contract"] = opening_out
+    resume = withheld.get("resume_contract")
+    if isinstance(resume, dict):
+        resume_out = dict(resume)
+        # Keep stop identity; drop the copy-ready prompt field.
+        if "prompt" in resume_out:
+            resume_out["prompt"] = None
+            resume_out["prompt_withheld"] = True
+            resume_out["prompt_withheld_reason"] = "scope_scan_admission_unavailable"
+        withheld["resume_contract"] = resume_out
+    # page_teaching_contract keeps structural gates/block labels only (no page prose).
+    withheld["teaching_payload_withheld"] = True
+    withheld["teaching_payload_withheld_reason"] = "scope_scan_admission_unavailable"
+    withheld["packet_fields_do_not_authorize_emission"] = True
+    return withheld
+
+
+def admission_era_key(packet: dict[str, object]) -> tuple[object, ...]:
+    """Identity tuple that must match for a pending scan era to remain valid."""
+    payload = packet.get("action_payload")
+    scan: dict[str, object] = {}
+    if isinstance(payload, dict) and isinstance(payload.get("scope_scan"), dict):
+        scan = payload["scope_scan"]  # type: ignore[assignment]
+    return (
+        packet.get("snapshot_id"),
+        scan.get("preparation_snapshot_id"),
+        scan.get("lesson_scope_version"),
+        scan.get("source_document_sha256"),
+        tuple(scan.get("pdf_page_indices") or ()),
+    )
+
+
+def admission_eras_compatible(
+    left: dict[str, object],
+    right: dict[str, object],
+) -> bool:
+    """False when critical/prep/scope identity drifted between two packets."""
+    return admission_era_key(left) == admission_era_key(right)
+
+
+def build_teaching_gate(
+    action_payload: dict[str, object],
+    *,
+    scan_pending: bool,
+) -> dict[str, object]:
+    """Observability-only teaching gate; never grants emission authority."""
+    scope_required = scope_scan_required(action_payload)
+    scan_status = "not_required"
+    if scope_required:
+        scan = action_payload.get("scope_scan")
+        raw = (
+            str(scan.get("status") or "pending")
+            if isinstance(scan, dict)
+            else "pending"
+        )
+        if scan_pending:
+            scan_status = "pending"
+        elif raw in {"complete", "complete_for_same_snapshot", "scan_attested", "attested"}:
+            scan_status = "attested"
+        else:
+            scan_status = raw
+    return {
+        "route_payload_consistent": True,
+        "scope_scan_required": scope_required,
+        "scope_scan_status": scan_status,
+        "admission_status": "unavailable" if scan_pending else "not_managed_by_context",
+        "egress_mode": "status_only" if scan_pending else "unmanaged",
+        # Observability: context never authorizes release. False while scan pending;
+        # still not a host capability when true would be set by a future host path.
+        "may_release_action": False if scan_pending else (not scope_required),
+        "page_contract_required": bool(action_payload.get("page_teaching_contract")),
+        "explicit_continue_gate_required": bool(
+            action_payload.get("page_teaching_contract")
+        ),
+        "lesson_opening_required": bool(action_payload.get("lesson_opening_contract")),
+        "creative_supplements_allowed": bool(
+            isinstance(action_payload.get("resume_contract"), dict)
+            and action_payload["resume_contract"].get("creative_supplements_allowed")
+        ),
+        "packet_fields_do_not_authorize_emission": True,
+        "host_admission_required_for_textbook_teaching": scope_required,
     }
 
 
@@ -1057,47 +1294,6 @@ def _textbook_window_from_snapshot(
     return primary_path, join_exact((header, *page_sections))
 
 
-def _textbook_window_from_legacy(
-    cache: SourceCache,
-    progress_snapshot: ProgressSnapshot,
-    route: object,
-) -> tuple[Path, str]:
-    if not route.working_pages_path:
-        raise ContextPacketError("textbook Lesson 缺 canonical working pages 路由")
-    pages = parse_int_list(
-        progress_snapshot.meta.get("working_pages_window", "")
-    )
-    if not pages or len(pages) != len(set(pages)):
-        raise ContextPacketError(
-            "textbook Lesson 缺合法且不重复的 working_pages_window"
-        )
-    current_page_raw = progress_snapshot.meta.get("textbook_page", "").strip()
-    if not current_page_raw.isdigit() or int(current_page_raw) not in pages:
-        raise ContextPacketError(
-            "textbook Lesson 的 textbook_page 缺失或不在 working_pages_window"
-        )
-    working_path = cache.root / route.working_pages_path
-    working = cache.read(working_path)
-    page_sections: list[str] = []
-    for page in pages:
-        excerpt = section(
-            working,
-            f"第 {page} 页",
-            level=2,
-            required=False,
-        )
-        if not excerpt:
-            raise ContextPacketError(
-                "textbook Lesson 教材窗口缺页："
-                f"{cache.relative(working_path)}#第 {page} 页"
-            )
-        page_sections.append(excerpt)
-    return (
-        working_path,
-        join_exact((raw_frontmatter(working), *page_sections)),
-    )
-
-
 def textbook_lesson_window(
     cache: SourceCache,
     progress_snapshot: ProgressSnapshot,
@@ -1120,8 +1316,8 @@ def textbook_lesson_window(
             progress_snapshot,
             snap,
         )
-    # Only when the new path is completely absent may legacy working_pages be used.
-    return _textbook_window_from_legacy(cache, progress_snapshot, route)
+    # Legacy working_pages path retired in 0.2.2 S3.
+    return None
 
 
 def exercise_first_step_selections(
@@ -1204,10 +1400,9 @@ def conditional_reads(course_id: str, route: object, group_id: str) -> list[dict
             f"{course_root}/lessons/{route.activity_id}/"
             f"{route.activity_id}.md 中与当前停点直接相关的记录"
         )
-        if route.working_pages_path:
-            direct_evidence_read += (
-                f"；教材原文仅使用 {route.working_pages_path} 的当前窗口"
-            )
+        direct_evidence_read += (
+            "；教材原文通过 preparation Snapshot + source_assets 获取"
+        )
     return [
         {
             "trigger": "状态冲突、历史追问或进度审计",
@@ -1293,23 +1488,10 @@ def lesson_critical_payload(
                 int(current_page),
             )
         else:
-            window = textbook_lesson_window(cache, progress_snapshot, route)
-            if window is None:
-                raise ContextPacketError("textbook Lesson 无法构造教材窗口")
-            source_path, current_text = window
-            snap = None
-            scan_manifest = {
-                "required_this_session": True,
-                "status": "legacy_visual_scan_required",
-                "pdf_page_indices": parse_int_list(
-                    progress_snapshot.meta.get("working_pages_window", "")
-                ),
-                "current_pdf_page_index": int(current_page),
-            }
-            page_inventory = {
-                "active_boundary": "legacy_window_manual_boundary_required",
-                "teaching_blocks": ["full legacy current-page lesson segment"],
-            }
+            raise ContextPacketError(
+                "textbook Lesson 缺 preparation Snapshot，"
+                "legacy working_pages 路径已退役"
+            )
         page_contract = textbook_page_teaching_contract(
             current_text,
             int(current_page),
@@ -1522,8 +1704,21 @@ def build_critical_packet(
         "progress": progress_path,
         "teacher_overlay": overlay_path,
     }
+    # Textbook Scope scan pending: withhold copy-ready teaching body and never
+    # advertise status=ready / blocking_teach=false (mixed signal). This is
+    # defense-in-depth only — host-runtime enforcement remains required.
+    scan_pending = (
+        isinstance(action_payload, dict) and scope_scan_pending(action_payload)
+    )
+    if scan_pending:
+        action_payload = withhold_pending_scope_scan_teaching_payload(action_payload)
+        critical_status = CRITICAL_STATUS_ROUTE_READY
+        blocking_teach = True
+    else:
+        critical_status = CRITICAL_STATUS_READY
+        blocking_teach = False
     packet = {
-        "status": "ready",
+        "status": critical_status,
         "course_id": resolved_course,
         "snapshot_id": build_snapshot_id(
             cache,
@@ -1536,32 +1731,11 @@ def build_critical_packet(
             "activity_position": route.activity_position,
             **next_action,
         },
-        "blocking_teach": False,
-        "teaching_gate": {
-            "route_payload_consistent": True,
-            "scope_scan_required": bool(action_payload.get("scope_scan")),
-            "scope_scan_status": (
-                action_payload.get("scope_scan", {}).get("status")
-                if isinstance(action_payload.get("scope_scan"), dict)
-                else "not_required"
-            ),
-            "may_release_action": not bool(action_payload.get("scope_scan")),
-            "page_contract_required": bool(
-                action_payload.get("page_teaching_contract")
-            ),
-            "explicit_continue_gate_required": bool(
-                action_payload.get("page_teaching_contract")
-            ),
-            "lesson_opening_required": bool(
-                action_payload.get("lesson_opening_contract")
-            ),
-            "creative_supplements_allowed": bool(
-                isinstance(action_payload.get("resume_contract"), dict)
-                and action_payload["resume_contract"].get(
-                    "creative_supplements_allowed"
-                )
-            ),
-        },
+        "blocking_teach": blocking_teach,
+        "teaching_gate": build_teaching_gate(
+            action_payload if isinstance(action_payload, dict) else {},
+            scan_pending=scan_pending,
+        ),
         "classroom_creativity_policy": classroom_creativity_policy(),
         "sources_unchanged": True,
         "source_sha256": public_source_sha256(
@@ -1968,11 +2142,8 @@ def build_packet(
                 else:
                     source_consumption = {
                         "required": True,
-                        "scope_text_status": "complete_legacy_window",
-                        "scope_visual_status": "external_scan_required",
-                        "pdf_page_indices": parse_int_list(
-                            progress_snapshot.meta.get("working_pages_window", "")
-                        ),
+                        "scope_text_status": "unavailable_legacy_retired",
+                        "scope_visual_status": "unavailable_legacy_retired",
                     }
 
     course_root = main / "40_course" / resolved_course
@@ -2153,7 +2324,6 @@ def build_packet(
                 "kind": route.lesson_context_kind,
                 "id": route.lesson_context_id or None,
             },
-            "working_pages": route.working_pages_path or None,
             **next_action,
         },
         "teacher": {

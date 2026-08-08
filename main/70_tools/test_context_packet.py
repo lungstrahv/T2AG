@@ -514,8 +514,26 @@ class CriticalPacketTests(unittest.TestCase):
         if packet["status"] == "first_run_required":
             self.assertEqual(packet["action_payload"]["kind"], "first_run")
             return
-        self.assertEqual(packet["status"], "ready")
-        self.assertFalse(packet["blocking_teach"])
+        self.assertIn(
+            packet["status"],
+            {
+                context.CRITICAL_STATUS_READY,
+                context.CRITICAL_STATUS_ROUTE_READY,
+                context.CRITICAL_STATUS_SCAN_PENDING,
+                context.CRITICAL_STATUS_SCAN_ATTESTED,
+            },
+        )
+        gate = packet["teaching_gate"]
+        self.assertTrue(gate["packet_fields_do_not_authorize_emission"])
+        if gate.get("scope_scan_required") and gate.get("scope_scan_status") == "pending":
+            self.assertEqual(packet["status"], context.CRITICAL_STATUS_ROUTE_READY)
+            self.assertTrue(packet["blocking_teach"])
+            self.assertEqual(gate["admission_status"], "unavailable")
+            self.assertEqual(gate["egress_mode"], "status_only")
+            self.assertFalse(gate["may_release_action"])
+        else:
+            self.assertEqual(packet["status"], context.CRITICAL_STATUS_READY)
+            self.assertFalse(packet["blocking_teach"])
         self.assertIn(packet["route"]["next_action_kind"], context.NEXT_ACTION_KINDS)
         self.assertEqual(
             set(packet["source_sha256"]),
@@ -544,7 +562,17 @@ class CriticalPacketTests(unittest.TestCase):
             self.assertTrue(
                 opening["reaction_and_continue_required_before_first_block"]
             )
-            if resume["checkpoint_state"] == "pending":
+            scan_pending = context.scope_scan_pending(payload)
+            if scan_pending:
+                self.assertNotIn("textbook_excerpt", payload)
+                self.assertNotIn("first_teaching_candidate", payload)
+                self.assertNotIn("first_confirmation_question", payload)
+                self.assertTrue(payload.get("teaching_payload_withheld"))
+                self.assertTrue(opening.get("body_withheld"))
+                for key in context.WITHHELD_OPENING_BODY_KEYS:
+                    self.assertNotIn(key, opening)
+                self.assertIsNone(resume.get("prompt"))
+            elif resume["checkpoint_state"] == "pending":
                 self.assertEqual(
                     payload["first_confirmation_question"],
                     resume["exact_stop"],
@@ -612,7 +640,14 @@ class CriticalPacketTests(unittest.TestCase):
             side_effect=AssertionError("full L0 must not run"),
         ):
             packet = context.build_critical_packet(context.ROOT)
-        self.assertIn(packet["status"], {"ready", "first_run_required"})
+        self.assertIn(
+            packet["status"],
+            {
+                context.CRITICAL_STATUS_READY,
+                context.CRITICAL_STATUS_ROUTE_READY,
+                "first_run_required",
+            },
+        )
 
     def test_background_snapshot_matches_and_mismatch_is_rejected(self) -> None:
         critical = context.build_critical_packet(context.ROOT)
@@ -874,6 +909,331 @@ class LiveReleaseTests(unittest.TestCase):
             "not a member of active group",
         ):
             context.build_packet(context.ROOT, course_id="CS1953")
+
+
+class PendingScopeScanWithholdTests(unittest.TestCase):
+    """Repo-level contracts for pending Scope scan payloads.
+
+    These tests fix defense-in-depth only. They do **not** prove host egress
+    interception or structural teaching-output gates (ADR-0002).
+    """
+
+    def _pending_payload(self) -> dict[str, object]:
+        return {
+            "kind": "lesson",
+            "source": "main/40_course/MATH1607H/book/primary/source_assets/X/pages/page_26.md",
+            "source_sha256": "a" * 64,
+            "textbook_excerpt": "定理 2.1 的完整正文，可直接照发。",
+            "first_teaching_candidate": "先讲定义，再举例。",
+            "first_confirmation_question": "请复述刚才的定义。",
+            "resume_contract": {
+                "kind": "next_action",
+                "checkpoint_state": "none",
+                "exact_stop": "PDF 26 / 书内 22",
+                "next_plan": "继续覆盖块 B1",
+                "prompt": "可直接照发的下一问",
+                "authoritative_prompt_must_remain_exact": True,
+                "creative_supplements_allowed": True,
+            },
+            "scope_scan": {
+                "required_this_session": True,
+                "status": "pending_visual_scan",
+                "source_document_sha256": "b" * 64,
+                "pdf_page_indices": [25, 26, 27],
+                "preparation_snapshot_id": "PREP-1",
+                "lesson_scope_version": "lsv-1",
+            },
+            "lesson_opening_contract": {
+                "schema": "t2ag.lesson_opening_contract.v1",
+                "overview_required": True,
+                "knowledge_tree_required": True,
+                "knowledge_tree_format": "ascii_text",
+                "overview_markdown": "整段开场概览，可直接发给学生。",
+                "knowledge_tree_markdown": "```text\n树\n```",
+                "learning_range": "第 2 章全部可照发范围。",
+                "creative_composition_allowed": True,
+                "creative_opening_questions_allowed": True,
+                "reaction_and_continue_required_before_first_block": True,
+            },
+            "page_teaching_contract": {
+                "schema": "t2ag.page_teaching_contract.v1",
+                "active_boundary": "B1-B3",
+                "teaching_blocks": ["B1 定义", "B2 例题"],
+                "classroom_tree_required": True,
+            },
+            "source_page": {
+                "document_id": "DOC",
+                "pdf_page_index": 26,
+                "printed_page_label": "22",
+            },
+            "preparation_snapshot_id": "PREP-1",
+            "lesson_scope_version": "lsv-1",
+        }
+
+    def test_pending_scope_scan_withholds_teaching_payload(self) -> None:
+        raw = self._pending_payload()
+        out = context.withhold_pending_scope_scan_teaching_payload(raw)
+        self.assertTrue(out["teaching_payload_withheld"])
+        self.assertNotIn("textbook_excerpt", out)
+        self.assertNotIn("first_teaching_candidate", out)
+        self.assertNotIn("first_confirmation_question", out)
+        opening = out["lesson_opening_contract"]
+        self.assertTrue(opening["body_withheld"])
+        self.assertNotIn("overview_markdown", opening)
+        self.assertNotIn("knowledge_tree_markdown", opening)
+        self.assertNotIn("learning_range", opening)
+        # Structural identities remain for route / host scan inputs.
+        self.assertEqual(out["source_page"]["pdf_page_index"], 26)
+        self.assertEqual(out["scope_scan"]["status"], "pending_visual_scan")
+        self.assertIsNone(out["resume_contract"]["prompt"])
+        self.assertEqual(out["resume_contract"]["exact_stop"], "PDF 26 / 书内 22")
+
+    def test_route_ready_does_not_imply_teaching_admission(self) -> None:
+        payload = context.withhold_pending_scope_scan_teaching_payload(
+            self._pending_payload()
+        )
+        gate = context.build_teaching_gate(payload, scan_pending=True)
+        # Simulated critical top-level shape used by build_critical_packet.
+        status = context.CRITICAL_STATUS_ROUTE_READY
+        blocking_teach = True
+        self.assertEqual(status, "route_ready")
+        self.assertTrue(blocking_teach)
+        self.assertEqual(gate["scope_scan_status"], "pending")
+        self.assertEqual(gate["admission_status"], "unavailable")
+        self.assertEqual(gate["egress_mode"], "status_only")
+        self.assertFalse(gate["may_release_action"])
+        # Mixed signal forbidden: ready + pending scan must not co-occur.
+        self.assertNotEqual(status, context.CRITICAL_STATUS_READY)
+
+    def test_agent_visible_fields_do_not_authorize_emission(self) -> None:
+        payload = context.withhold_pending_scope_scan_teaching_payload(
+            self._pending_payload()
+        )
+        gate = context.build_teaching_gate(payload, scan_pending=True)
+        self.assertTrue(gate["packet_fields_do_not_authorize_emission"])
+        self.assertTrue(payload["packet_fields_do_not_authorize_emission"])
+        self.assertTrue(gate["host_admission_required_for_textbook_teaching"])
+        # No field path may claim release while scan is pending.
+        self.assertFalse(gate["may_release_action"])
+        self.assertNotEqual(gate["admission_status"], "issued")
+        self.assertNotEqual(gate["admission_status"], "available")
+
+    def test_snapshot_change_invalidates_pending_scan_state(self) -> None:
+        base_payload = self._pending_payload()
+        left = {
+            "snapshot_id": "CTX-MATH1607H-" + ("1" * 64),
+            "action_payload": base_payload,
+        }
+        right_same = {
+            "snapshot_id": left["snapshot_id"],
+            "action_payload": dict(base_payload),
+        }
+        right_snapshot = {
+            "snapshot_id": "CTX-MATH1607H-" + ("2" * 64),
+            "action_payload": dict(base_payload),
+        }
+        drifted_scan = dict(base_payload)
+        drifted_scan["scope_scan"] = dict(base_payload["scope_scan"])
+        drifted_scan["scope_scan"]["preparation_snapshot_id"] = "PREP-OTHER"
+        right_prep = {
+            "snapshot_id": left["snapshot_id"],
+            "action_payload": drifted_scan,
+        }
+        self.assertTrue(context.admission_eras_compatible(left, right_same))
+        self.assertFalse(context.admission_eras_compatible(left, right_snapshot))
+        self.assertFalse(context.admission_eras_compatible(left, right_prep))
+
+    def test_live_textbook_critical_uses_route_ready_when_scan_pending(self) -> None:
+        """When live route is textbook+scope_scan, mixed ready signal is gone."""
+        packet = context.build_critical_packet(context.ROOT)
+        if packet.get("status") == "first_run_required":
+            self.skipTest("uninitialized instance")
+        payload = packet.get("action_payload") or {}
+        if not isinstance(payload, dict) or not context.scope_scan_required(payload):
+            self.skipTest("current critical route is not textbook scope_scan")
+        self.assertTrue(context.scope_scan_pending(payload))
+        self.assertEqual(packet["status"], context.CRITICAL_STATUS_ROUTE_READY)
+        self.assertTrue(packet["blocking_teach"])
+        self.assertNotIn("textbook_excerpt", payload)
+        self.assertNotIn("first_teaching_candidate", payload)
+        gate = packet["teaching_gate"]
+        self.assertEqual(gate["admission_status"], "unavailable")
+        self.assertEqual(gate["egress_mode"], "status_only")
+        self.assertFalse(gate["may_release_action"])
+
+
+class ScanEvidenceFormTests(unittest.TestCase):
+    """source_page_assets.md §3.2 — which evidence forms count, per page.
+
+    Negative cases first: the fail-closed branches are the ones that keep a
+    figure-heavy page off the text-only path, so a stubbed-out selector must
+    break these before it breaks anything else.
+    """
+
+    def test_missing_layout_critical_falls_back_to_rendering(self) -> None:
+        """NEGATIVE: absent flag means unknown, never 'false'."""
+        entry = {"pdf_page_index": 29, "verification_status": "verified"}
+        self.assertEqual(
+            context.admissible_scan_form(entry), context.SCAN_FORM_RENDER_PNG
+        )
+
+    def test_layout_critical_true_falls_back_to_rendering(self) -> None:
+        """NEGATIVE: a figure page must not be served as text only."""
+        entry = {
+            "pdf_page_index": 29,
+            "verification_status": "verified",
+            "layout_critical": True,
+        }
+        self.assertEqual(
+            context.admissible_scan_form(entry), context.SCAN_FORM_RENDER_PNG
+        )
+
+    def test_unverified_page_falls_back_to_rendering(self) -> None:
+        """NEGATIVE: unverified asset text is machine OCR, which does not count."""
+        entry = {
+            "pdf_page_index": 21,
+            "verification_status": "unverified",
+            "layout_critical": False,
+        }
+        self.assertEqual(
+            context.admissible_scan_form(entry), context.SCAN_FORM_RENDER_PNG
+        )
+
+    def test_verified_non_layout_critical_uses_asset(self) -> None:
+        """POSITIVE: both preconditions present -> cheapest admissible form."""
+        entry = {
+            "pdf_page_index": 29,
+            "verification_status": "verified",
+            "layout_critical": False,
+        }
+        self.assertEqual(
+            context.admissible_scan_form(entry), context.SCAN_FORM_VERIFIED_ASSET
+        )
+
+    def test_mixed_scope_reports_most_demanding_status(self) -> None:
+        """One fallback page must not hide behind its neighbours' cheap status."""
+        self.assertEqual(
+            context.scope_scan_pending_status(
+                [context.SCAN_FORM_VERIFIED_ASSET, context.SCAN_FORM_RENDER_PNG]
+            ),
+            "pending_visual_scan",
+        )
+        self.assertEqual(
+            context.scope_scan_pending_status([context.SCAN_FORM_VERIFIED_ASSET]),
+            "pending_asset_read",
+        )
+
+    def test_every_form_has_a_distinct_pending_status(self) -> None:
+        statuses = set(context.SCAN_FORM_PENDING_STATUS.values())
+        self.assertEqual(len(statuses), len(context.SCAN_FORM_PENDING_STATUS))
+        self.assertTrue(statuses <= context.SCOPE_SCAN_PENDING_STATUSES)
+
+
+def normalise_spec_text(text: str) -> str:
+    """Collapse line wrapping and blockquote markers so anchors can span lines.
+
+    Pure function: the assertions below run it over the real playbook, and a
+    mutation check can run it over a doctored string without touching the file.
+    """
+    return "".join(
+        line.lstrip().lstrip(">").strip() for line in text.splitlines()
+    )
+
+
+def b_layer_exclusions(body: str) -> str:
+    """The `B 层不算数` block only, normalised.
+
+    Scoping matters: an anchor matched against the whole document would still
+    pass if a clause were *moved out* of the exclusion list into the admissible
+    one.  Matching inside this block means relocation fails the test too.
+    """
+    start = body.find("**B 层不算数")
+    if start == -1:
+        raise AssertionError("source_page_assets.md 缺少「B 层不算数」小节")
+    end = body.find("####", start)
+    return normalise_spec_text(body[start : end if end != -1 else len(body)])
+
+
+class ScanEvidenceSpecTests(unittest.TestCase):
+    """The clauses U5 cannot test behaviourally must at least be present in text.
+
+    The two cross-form reverse cases the workorder asks for -- submitting a
+    subprocess digest, and delivering only a page asset's frontmatter -- cannot be
+    exercised here: this repository *emits* the scan payload and never receives or
+    adjudicates evidence.  That adjudication belongs to the host Scan Orchestrator,
+    which does not exist (P-0056).  Until it does, the guard is the normative text,
+    so these assertions fail if the clauses are edited away.
+
+    Anchors deliberately include the **negating** half of each clause.  An earlier
+    revision asserted only that the term "子进程摘要" appeared somewhere in the
+    file, which would have passed unchanged had the clause been inverted to say a
+    subprocess digest *does* count -- the test name promised an exclusion while the
+    assertion only proved a mention.  Per workorder step 13 a guard whose mutation
+    survives is an empty guard.
+    """
+
+    PLAYBOOK = Path(__file__).resolve().parents[2] / "main/50_playbook/source_page_assets.md"
+
+    def test_admission_criterion_is_stated(self) -> None:
+        body = self.PLAYBOOK.read_text(encoding="utf-8")
+        self.assertIn("宿主能观察到内容本体进入本轮模型上下文这一事件本身", body)
+
+    def test_subprocess_digest_is_excluded(self) -> None:
+        block = b_layer_exclusions(self.PLAYBOOK.read_text(encoding="utf-8"))
+        self.assertIn("**子进程摘要**", block)
+        # The negation is the rule; without it the term alone proves nothing.
+        self.assertIn(
+            normalise_spec_text("证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体"),
+            block,
+        )
+
+    def test_frontmatter_trap_is_named(self) -> None:
+        body = normalise_spec_text(self.PLAYBOOK.read_text(encoding="utf-8"))
+        self.assertIn(
+            normalise_spec_text("因此「只读 frontmatter」能满足全部前置而**正文一字未投递**"),
+            body,
+        )
+        # Naming the trap is not enough; the countermeasure must survive too.
+        self.assertIn(
+            normalise_spec_text(
+                "故 A1 要求**完整正文段**投递，宿主观察事件须能区分"
+                "「正文投递」与「仅 frontmatter 投递」"
+            ),
+            body,
+        )
+
+    def test_assurance_downgrade_is_not_flattened(self) -> None:
+        body = self.PLAYBOOK.read_text(encoding="utf-8")
+        self.assertIn("弱于另两种", body)
+
+    def test_spec_anchors_are_mutation_sensitive(self) -> None:
+        """Step 13 in-repo: doctoring the clauses must break the anchors above.
+
+        Runs the same pure helpers over mutated copies, so the guard is proven
+        rather than asserted.  No file is written.
+        """
+        body = self.PLAYBOOK.read_text(encoding="utf-8")
+
+        inverted = body.replace(
+            "证明脚本读过文件，\n  **不**证明本轮模型上下文收到了内容本体",
+            "证明脚本读过文件，\n  **即**证明本轮模型上下文收到了内容本体",
+        )
+        self.assertNotEqual(inverted, body, "变异未生效：子进程摘要子句锚点已漂移")
+        self.assertNotIn(
+            normalise_spec_text("证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体"),
+            b_layer_exclusions(inverted),
+        )
+
+        relocated = body.replace("**B 层不算数", "**B 层算数")
+        with self.assertRaises(AssertionError):
+            b_layer_exclusions(relocated)
+
+        dropped = body.replace("正文一字未投递", "正文已投递")
+        self.assertNotEqual(dropped, body, "变异未生效：frontmatter 陷阱锚点已漂移")
+        self.assertNotIn(
+            normalise_spec_text("能满足全部前置而**正文一字未投递**"),
+            normalise_spec_text(dropped),
+        )
 
 
 if __name__ == "__main__":
