@@ -841,7 +841,6 @@ class ClosePureContractTests(unittest.TestCase):
             "resume_path: main/40_course/DEMO/lessons/lesson01/lesson01.md\n"
             "activity_position: page 28\n"
             "textbook_page: 28\n"
-            "working_pages_window: [25, 26, 27, 28]\n"
             "current_completion_node: DEMO-N01\n"
             "current_checkpoint: DEMO-P01\n"
             "checkpoint_state: confirmed\n"
@@ -874,7 +873,6 @@ class ClosePureContractTests(unittest.TestCase):
         ):
             self.assertEqual(meta[key], "none")
         self.assertEqual(meta["activity_position"], "between_activities")
-        self.assertEqual(meta["working_pages_window"], "[]")
         self.assertIn(
             "- **Lesson 上下文**：无；当前处于活动之间，尚未创建或激活下一 Lesson。",
             updated,

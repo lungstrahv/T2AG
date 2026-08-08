@@ -336,7 +336,6 @@ class ActivityRoute:
     lesson_context_kind: str
     lesson_context_id: str
     lesson_context_path: str
-    working_pages_path: str
     source_path: str
 
     @property
@@ -372,7 +371,6 @@ class ActivityRoute:
                 else self.resume_path
             ),
             "activity_read_targets": activity_reads,
-            "working_pages": self.working_pages_path or None,
             "lesson_context": {
                 "kind": self.lesson_context_kind,
                 "id": self.lesson_context_id or None,
@@ -406,7 +404,6 @@ class ActivityRoute:
                 f"{course_root}/mistake_bank.md",
             ],
             "illustration_root": illustration_root,
-            "working_pages": self.working_pages_path or None,
             "lesson_context": {
                 "kind": self.lesson_context_kind,
                 "id": self.lesson_context_id or None,
@@ -605,12 +602,6 @@ def resolve_activity(
     if errors:
         raise ActivityContractError(errors)
 
-    working_pages = ""
-    if activity_type == "lesson" and course_driver == "textbook":
-        working_pages = (
-            f"main/40_course/{course_id}/lessons/{activity_id}/"
-            "working_pages/source_excerpt.md"
-        )
     return ActivityRoute(
         course_id=course_id,
         course_driver=course_driver,
@@ -623,7 +614,6 @@ def resolve_activity(
         lesson_context_kind=lesson_kind,
         lesson_context_id=lesson_id,
         lesson_context_path=lesson_path,
-        working_pages_path=working_pages,
         source_path=source_path,
     )
 

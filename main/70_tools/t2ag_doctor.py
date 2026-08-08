@@ -139,7 +139,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
     "check_registry", "check_textbook_preparation", "check_scope_page_cache",
     "check_checkpoint_block_routing", "check_gate_ledger",
-    "check_trading_boundary",
+    "check_trading_boundary", "check_external_references",
     "check_legacy_references", "check_retired_instance_ids", "check_cloud_pause",
     "check_context_packet_contract", "check_test_management_contract",
     "check_decision_records",
@@ -152,7 +152,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_migration_021_evidence", "check_activity_migration_021_evidence",
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
-    "check_skeleton_textbook",
+    "check_skeleton_textbook", "check_distribution_parity",
     "check_line_endings", "check_release_line_endings",
 }
 LEGACY_DOMAINS = {
@@ -2841,14 +2841,108 @@ def check_trading_boundary() -> None:
         return
     content = read(carrier) + "\n" + read(journal)
     required = (
-        "C:/Users/MikeChen/Documents/操作复盘系统/01-宪法层/交易纪律.md",
-        "C:/Users/MikeChen/Documents/操作复盘系统/04-数据层/交易事件台账.csv",
+        "external_refs.json#trading_os.discipline_constitution",
+        "external_refs.json#trading_os.trade_event_ledger",
     )
     for pointer in required:
         if pointer not in content:
-            report("FAIL", f"Trading-OS 权威指针缺失：{pointer}")
+            report("FAIL", f"Trading-OS 权威指针缺失（应指向引用合同）：{pointer}")
+    if "C:/Users" in content or "C:\\Users" in content:
+        report("FAIL", "Engagement 正文出现宿主绝对路径；仓外路径只许存在于 external_refs.json")
     if "交易行为唯一真相源" in content or "纪律唯一真相源" in content:
         report("FAIL", "T2AG Engagement 越权自称 Trading-OS 真相源")
+
+
+EXTERNAL_REFERENCE_SCHEMA = "t2ag.external_reference.v1"
+EXTERNAL_REFERENCE_KINDS = {"frozen_version", "living_data"}
+
+
+def resolve_external_peer_root(hint: str) -> Path | None:
+    """Resolve a peer-repo root from its host hint; fall back to sandbox mounts by basename."""
+    direct = Path(hint)
+    if direct.is_dir():
+        return direct
+    basename = hint.rstrip("/").rsplit("/", 1)[-1]
+    if basename:
+        for candidate in sorted(Path("/sessions").glob(f"*/mnt/{basename}")):
+            if candidate.is_dir():
+                return candidate
+    return None
+
+
+def check_external_references() -> None:
+    """T1 引用合同（cross_repo_reference.md）：断链=FAIL，pinned 漂移=WARN。"""
+    sidecars = sorted(MAIN.rglob("external_refs.json"))
+    for sidecar in sidecars:
+        try:
+            payload = json.loads(read(sidecar))
+        except json.JSONDecodeError as error:
+            report("FAIL", f"外部引用 sidecar 无法解析：{rel(sidecar)}（{error}）")
+            continue
+        if not isinstance(payload, dict) or payload.get("schema") != EXTERNAL_REFERENCE_SCHEMA:
+            report("FAIL", f"外部引用 sidecar schema 不符：{rel(sidecar)}")
+            continue
+        hints = payload.get("peer_root_hints")
+        references = payload.get("references")
+        if not isinstance(hints, dict) or not hints or not isinstance(references, list) or not references:
+            report("FAIL", f"外部引用 sidecar 缺 peer_root_hints 或 references：{rel(sidecar)}")
+            continue
+        roots: dict[str, Path | None] = {}
+        for system, entry in hints.items():
+            hint = entry.get("windows_host") if isinstance(entry, dict) else None
+            roots[system] = (
+                resolve_external_peer_root(hint) if isinstance(hint, str) and hint else None
+            )
+        for reference in references:
+            if not isinstance(reference, dict):
+                report("FAIL", f"外部引用条目不是对象：{rel(sidecar)}")
+                continue
+            label = f"{rel(sidecar)}#{reference.get('reference_id', '<missing>')}"
+            peer_system = reference.get("peer_system")
+            relative = reference.get("peer_relative_path")
+            kind = reference.get("kind")
+            integrity = reference.get("integrity_mode")
+            if not isinstance(peer_system, str) or not isinstance(relative, str) or not relative:
+                report("FAIL", f"外部引用缺 peer_system/peer_relative_path：{label}")
+                continue
+            if "\\" in relative or ":" in relative or relative.startswith("/") or ".." in relative.split("/"):
+                report("FAIL", f"外部引用相对路径违反词法（盘符/反斜杠/../绝对路径）：{label}")
+                continue
+            if kind not in EXTERNAL_REFERENCE_KINDS:
+                report("FAIL", f"外部引用 kind 非法：{label}")
+                continue
+            if kind == "frozen_version" and (
+                integrity != "pinned"
+                or not reference.get("content_sha256")
+                or not reference.get("peer_version")
+            ):
+                report("FAIL", f"frozen_version 必须 pinned + content_sha256 + peer_version：{label}")
+                continue
+            if kind == "living_data" and (
+                integrity != "existence_only" or reference.get("usage_rule") != "copy_on_use"
+            ):
+                report("FAIL", f"living_data 必须 existence_only + copy_on_use：{label}")
+                continue
+            if peer_system not in roots:
+                report("FAIL", f"外部引用 peer_system 无对应 root hint：{label}")
+                continue
+            root = roots[peer_system]
+            if root is None:
+                report("FAIL", f"外部引用 root 不可达（对端仓搬家或未挂载）：{label}")
+                continue
+            target = root / relative
+            if not target.is_file():
+                report("FAIL", f"外部引用断链，目标不存在：{label} → {relative}")
+                continue
+            if integrity == "pinned":
+                digest = hashlib.sha256(target.read_bytes()).hexdigest()
+                pinned = str(reference.get("content_sha256"))
+                if digest != pinned:
+                    report(
+                        "WARN",
+                        f"外部引用漂移：{label} 绑定 {pinned[:12]}… 实际 {digest[:12]}…；"
+                        "对端可能已改版，需人工显式重绑（cross_repo_reference.md §四）",
+                    )
 
 
 def is_historical_lesson_body(path: Path) -> bool:
@@ -4397,6 +4491,83 @@ def check_cloud_pause() -> None:
         report("FAIL", "Cloud bridge 未保持 paused")
 
 
+# Files exempt from Main<->Skeleton byte parity, with the reason in the value.
+# The reason is mandatory: an exclusion list without reasons becomes a permanent
+# blind spot, which is the failure this check exists to prevent (P-0065).
+DISTRIBUTION_PARITY_EXEMPT = {
+    "main/70_tools/legacy_r_registry.json":
+        "Skeleton 版正文自述 entries empty by design；Main 版为主实例级兼容登记",
+    "main/70_tools/artifact_registry.json":
+        "Main 含真实 artifact 条目；强制同源等于把实例数据灌进 Skeleton",
+}
+DISTRIBUTION_PARITY_ROOTS = ("main/50_playbook", "main/70_tools")
+DISTRIBUTION_PARITY_SUFFIXES = (".md", ".py", ".json")
+
+
+def check_distribution_parity() -> None:
+    """Release profile: `50_playbook/` and `70_tools/` must be byte-identical in Skeleton.
+
+    That requirement has been stated in work orders since 0.2.2 but nothing enforced
+    it, and twelve files had silently diverged by 2026-08-08 (P-0065).  A declared
+    constraint with no checker is the `carrier_mismatch` pattern -- see
+    `remediation_governance.md` §七.
+
+    Release rather than runtime, per `t2ag.md` §3.2: distribution FAILs block the
+    release candidate, not the day's teaching.  Parity is a distribution property; a
+    Skeleton drift should never stop a lesson.
+
+    Exemptions are data, not silence: a file that is exempt but has become identical
+    is reported as a stale exemption, so the list cannot quietly grow into a hole.
+    """
+    if FLAVOR != "main":
+        return
+    skeleton = ROOT.parent / "t2ag-skeleton"
+    if not skeleton.is_dir():
+        report("INFO", "distribution parity: 未挂载 t2ag-skeleton，跳过同源比对")
+        return
+
+    drifted: list[str] = []
+    missing: list[str] = []
+    stale_exempt: list[str] = []
+    for root_rel in DISTRIBUTION_PARITY_ROOTS:
+        base = ROOT / root_rel
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or path.suffix not in DISTRIBUTION_PARITY_SUFFIXES:
+                continue
+            if "__pycache__" in path.parts:
+                continue
+            rel = path.relative_to(ROOT).as_posix()
+            other = skeleton / rel
+            if not other.is_file():
+                missing.append(rel)
+                continue
+            identical = path.read_bytes() == other.read_bytes()
+            if rel in DISTRIBUTION_PARITY_EXEMPT:
+                if identical:
+                    stale_exempt.append(rel)
+                continue
+            if not identical:
+                drifted.append(rel)
+
+    for rel in drifted:
+        report("FAIL", f"Main↔Skeleton 同源漂移：{rel}")
+    for rel in missing:
+        report("FAIL", f"Main↔Skeleton 同源缺失（Skeleton 无此文件）：{rel}")
+    for rel in stale_exempt:
+        report(
+            "WARN",
+            f"同源豁免已失效（两侧已一致，应从 DISTRIBUTION_PARITY_EXEMPT 移除）：{rel}",
+        )
+    if not (drifted or missing):
+        report(
+            "INFO",
+            "distribution parity: "
+            f"{len(DISTRIBUTION_PARITY_EXEMPT)} 项豁免，其余全部字节一致",
+        )
+
+
 def check_skeleton_textbook_gate() -> None:
     """Release profile: Skeleton 内 40_course/**/book/** 只允许模板骨架，不得含实际教材内容。"""
     if FLAVOR != "skeleton":
@@ -5347,6 +5518,7 @@ def execute_doctor_checks(
         "check_engagements_and_activities": check_engagements_and_activities,
         "check_registry": check_registry,
         "check_trading_boundary": check_trading_boundary,
+        "check_external_references": check_external_references,
         "check_legacy_references": check_legacy_references,
         "check_retired_instance_ids": check_retired_instance_ids,
         "check_cloud_pause": check_cloud_pause,
@@ -5367,6 +5539,7 @@ def execute_doctor_checks(
         "check_tracked_environment": check_tracked_environment,
         "check_dirty_tree": check_dirty_tree,
         "check_skeleton_textbook": check_skeleton_textbook_gate,
+        "check_distribution_parity": check_distribution_parity,
         "check_line_endings": check_line_endings,
         "check_release_line_endings": check_release_line_endings,
     }

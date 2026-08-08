@@ -3959,6 +3959,72 @@ ALL_CONTRACT_TESTS = (
 )
 
 
+def _genesis_ledger_text(first_event_lines: str) -> str:
+    """Minimal valid ledger whose only event is the parameterized first event (P-0062)."""
+    return (
+        "---\ntype: activity_ledger\ncourse_id: TESTG001\n"
+        "schema_version: activity_ledger.v1\ntruth_scope: activity_lifecycle\n"
+        "updated: 2026-08-08\n---\n# TESTG001 activity ledger\n\n"
+        "## Current index\n\n"
+        "| activity_type | activity_id | state | binding_status | last_event_id |\n"
+        "|---|---|---|---|---|\n"
+        "| lesson | lesson01 | ongoing | unbound | ALE-000001 |\n\n"
+        "## Course preferences\n\n"
+        "lesson_actual_review: inherit\nlesson_student_feedback: inherit\n"
+        "lesson_knowledge_absorption: inherit\nexercise_problem_review: inherit\n"
+        "exercise_knowledge_mastery: inherit\n\n"
+        "## Aliases\n\n_none_\n\n"
+        "## Stats\n\ncompleted_lessons: 0\ncompleted_exercises: 0\n"
+        "closed_incomplete_lessons: 0\nclosed_incomplete_exercises: 0\n\n"
+        "## Activity lifecycle events\n\n"
+        "### ALE-000001\n"
+        "event_id: ALE-000001\nevent_kind: transition\ncourse_id: TESTG001\n"
+        "activity_type: lesson\nactivity_id: lesson01\n"
+        f"{first_event_lines}"
+        "occurred_at: 2026-08-08T02:00:00-04:00\n"
+        "recorded_at: 2026-08-08T02:00:00-04:00\n"
+        "triggered_by: user\ntrigger: activity_created\n"
+        "transaction_id: MANUAL-GENESIS-testcase\n"
+        "evidence_refs: [main/40_course/TESTG001/lessons/lesson01/lesson01.md]\n\n"
+        "## Close records\n\n_none_\n"
+    )
+
+
+def test_activity_genesis_rejects_nonplanned_origin(root: Path) -> None:
+    """反向（P-0062）：出生只许从 planned 出发；其他起点与非法转换对保持 fail-closed。"""
+    doc = ledger_contract.parse_ledger_text(
+        _genesis_ledger_text("from_state: ongoing\nto_state: paused\n")
+    )
+    errors = doc.validate()
+    assert any("without prior state" in error for error in errors), errors
+    doc = ledger_contract.parse_ledger_text(
+        _genesis_ledger_text("from_state: planned\nto_state: paused\n")
+    )
+    errors = doc.validate()
+    assert any(
+        "illegal transition" in error or "without prior state" in error
+        for error in errors
+    ), errors
+
+
+def test_activity_genesis_transition_from_planned(root: Path) -> None:
+    """正向（P-0062）：post-migration 出生 = 首事件 transition planned→ongoing。
+
+    planned 是「存在之前」的默认态（不预造 planned 活动），首次离开它即出生；
+    迁移期之外不再需要 migration_snapshot（ALE-000011 型冒用自此无必要）。
+    """
+    doc = ledger_contract.parse_ledger_text(
+        _genesis_ledger_text("from_state: planned\nto_state: ongoing\n")
+    )
+    errors = doc.validate()
+    assert errors == [], errors
+    index = doc.rebuild_index()
+    entry = index.get("lesson:lesson01")
+    assert entry is not None and entry.state == "ongoing", index
+    assert entry.binding_status == "unbound", entry.binding_status
+    assert entry.last_event_id == "ALE-000001", entry.last_event_id
+
+
 def run_contract_tests(tests: tuple, *, suite_name: str) -> int:
     """Run a durable selection of atomic assertions in isolated fixture roots."""
     with tempfile.TemporaryDirectory(prefix=f"t2ag_{suite_name}_") as tmp:

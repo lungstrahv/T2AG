@@ -13,8 +13,8 @@
 > - 问题日志：`main/00_core/t2ag_problemlog.md`
 > - 课程命令：对应课程 `progress.md` →「常用命令」
 >
-> **过渡**：实例迁移完成前，既有 `lessonXX/working_pages/` 仍可 **legacy 读取**；
-> **新建** 校对不得再以“每 Lesson 复制后结课删除”为权威生命周期。
+> **已退役**：`lessonXX/working_pages/` 路径已在 0.2.2 批 S3 退役；历史摘录见各课 `archive/`。
+> **新建** 校对走 preparation Snapshot + source_assets，不复用 legacy 路径。
 
 ---
 
@@ -189,19 +189,12 @@ tesseract \
 - prepare / Context 对 LessonMap 与资产的校验使用**文件原始字节**（含 CRLF）；不得仅按
   `read_text` 规范化后的文本宣称 hash 一致。
 
-**Legacy Compatibility**（仅未迁移实例、兼容 Doctor；**不是**新建权威输出）：
+**Legacy Compatibility**（已退役，0.2.2 批 S3）：
 
-- 历史可读：`lessonXX/working_pages/source_excerpt.md` 及旧 `pages/` / `raw_ocr/`（若仍存在）
-- **新建核验禁止**向 `working_pages/pages`、`working_pages/raw_ocr` 或 `working_pages/scripts` 写入 PNG、raw OCR 或脚本；新输出只走 `source_assets` / `.cache`。
+- 历史可读：各课 `archive/` 中的 tombstone 归档文件。
+- **新建核验禁止**向 `working_pages` 路径写入；新输出只走 `source_assets` / `.cache`。
 - **结课不得删除**已提升为 Course `source_assets` 的持久证据。
-- legacy 目录清理须走迁移批次 **E 的 exact RT3**，不得与 CacheEviction 混淆；
-  Lesson close/switch **不得自动清理** working_pages。
-
-`progress.md` 可保留教学投影字段（**不是**资产写入路径）：
-
-```yaml
-textbook_page: 23
-working_pages_window: [22, 23, 24, 25]   # legacy 或 TeachingWindow 印刷页列表
+- `working_pages` 目录清理不再需要；历史摘录已归档。
 ```
 
 新字段（可选，工具可写）：`lesson_scope_version`、`preparation_snapshot_id`、`short_document`。

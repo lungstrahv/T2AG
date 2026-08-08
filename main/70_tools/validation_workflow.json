@@ -139,6 +139,13 @@
         "runtime.structure"
       ]
     },
+    "runtime.external_references": {
+      "phase": "runtime",
+      "handler": "check_external_references",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
     "runtime.legacy_references": {
       "phase": "runtime",
       "handler": "check_legacy_references",
@@ -300,6 +307,13 @@
         "runtime.structure"
       ]
     },
+    "release.distribution_parity": {
+      "phase": "release",
+      "handler": "check_distribution_parity",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
     "release.line_endings": {
       "phase": "release",
       "handler": "check_release_line_endings",
@@ -348,6 +362,7 @@
         "runtime.checkpoint_block_routing",
         "runtime.gate_ledger",
         "runtime.trading_boundary",
+        "runtime.external_references",
         "runtime.legacy_references",
         "runtime.retired_instance_ids",
         "runtime.cloud_pause",
@@ -357,7 +372,8 @@
         "runtime.course_templates",
         "runtime.environment",
         "runtime.changelog",
-        "runtime.memory_budget", "runtime.constitution_budget",
+        "runtime.memory_budget",
+        "runtime.constitution_budget",
         "runtime.line_endings"
       ]
     },
@@ -379,6 +395,7 @@
         "release.tracked_environment",
         "release.dirty_tree",
         "release.skeleton_textbook",
+        "release.distribution_parity",
         "release.line_endings"
       ]
     }

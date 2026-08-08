@@ -10,7 +10,7 @@ AI 不生成数学试题，只做下载、登记、按规则抽取。真题已�
 
 ## 二、题库建设
 
-- 位置：`main/40_course/<COURSE_ID>/_exam/`。working_pages 缓存规则照常适用。
+- 位置：`main/40_course/<COURSE_ID>/_exam/`。source 缓存规则照常适用。
 - 默认卷源范围：US News 相关学科大类排名前 30 高校；限中、日、新加坡、英、法、瑞士、美。学生执行参数可覆盖。
 - 语言规则：中英文卷直接入库；法/日/德语卷仅当附官方英文版或学校提供双语时收录，禁止让模型翻译数学题。
 - 登记表：卷级表为 `_exam/index.md`，题级表为 `_exam/papers/[卷ID]/meta.md`，字段见 `exam_bank_spec.md`。

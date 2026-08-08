@@ -57,7 +57,7 @@ main/40_course/<COURSE_ID>/
 6. 用模板创建 `book/`、`lessons/`、`exercises/`；空活动域用 `_README.md` 持久化。
    - 首次从讲授进入：建立 `lessons/lesson01/lesson01.md`；教材课同时初始化
      `book/primary/source_assets/`（manifest 模板）与 lesson `preparation/`、`lesson_map` 模板，
-     见 `source_page_assets.md`；**不要**把 Course 页资产建在仅有的 `working_pages` 里当权威。
+     见 `source_page_assets.md`；页资产走 preparation Snapshot，不使用 legacy 路径。
    - 首次从做题进入：建立 `exercises/exercise01/exercise.md`、`problems.md` 与空
      attempts/reviews 说明文件；教材驱动课程还须先在 Course `book/` 内建立持久
      校对题源并登记 artifact，`problems.md` 写入其路径、定位和 SHA。

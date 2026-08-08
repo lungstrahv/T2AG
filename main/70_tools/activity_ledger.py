@@ -39,6 +39,7 @@ EVENT_KINDS = frozenset(
         "foreground_switch",
         "learning_enter",
         "learning_exit",
+        "correction",
     }
 )
 LEGAL_TRANSITIONS = frozenset(
@@ -241,7 +242,7 @@ class LedgerDocument:
             kind = event.get("event_kind")
             if kind == "foreground_switch":
                 continue
-            if kind in {"learning_enter", "learning_exit", "pending_revision"}:
+            if kind in {"learning_enter", "learning_exit", "pending_revision", "correction"}:
                 key = f"{event.get('activity_type')}:{event.get('activity_id')}"
                 if key in index:
                     index[key].last_event_id = str(event.get("event_id") or "")
@@ -271,10 +272,27 @@ class LedgerDocument:
                 )
                 continue
             if kind == "transition":
-                if key not in index:
-                    raise LedgerError(f"transition without prior state for {key}")
                 frm = event.get("from_state")
                 to = event.get("to_state")
+                if key not in index:
+                    # Genesis (2026-08-08, P-0062): planned is the implicit
+                    # pre-existence state ("不预造 planned 活动"), so an activity's
+                    # first transition may depart from it — this is the only legal
+                    # post-migration birth. Any other origin still fails closed.
+                    if frm != "planned":
+                        raise LedgerError(f"transition without prior state for {key}")
+                    if (frm, to) not in LEGAL_TRANSITIONS:
+                        raise LedgerError(f"illegal transition {frm}->{to} for {key}")
+                    index[key] = ActivityIndexEntry(
+                        activity_type=a_type,
+                        activity_id=a_id,
+                        state=str(to),
+                        binding_status=str(event.get("binding_status") or "unbound"),
+                        binding_reason=str(event.get("binding_reason") or ""),
+                        content_group_ids=list(event.get("content_group_ids") or []),
+                        last_event_id=str(event.get("event_id") or ""),
+                    )
+                    continue
                 if index[key].state != frm:
                     raise LedgerError(
                         f"transition discontinuity for {key}: "
@@ -490,6 +508,37 @@ class LedgerDocument:
                                 errors.append(f"{eid}: {mode} duration requires nonnegative integer minutes")
                         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(event.get("learning_day") or "")):
                             errors.append(f"{eid}: learning_day missing or invalid")
+                if kind == "correction":
+                    # Non-state, append-only event. Must reference earlier event, same activity.
+                    if "correction_summary" not in event or not str(event.get("correction_summary", "")).strip():
+                        errors.append(f"{eid}: correction requires non-empty correction_summary")
+                    if not isinstance(event.get("evidence_refs"), list) or not event.get("evidence_refs"):
+                        errors.append(f"{eid}: correction requires evidence_refs")
+                    corrects = str(event.get("corrects_event_id") or "")
+                    prior = event_by_id.get(corrects)
+                    if not prior:
+                        errors.append(f"{eid}: corrects_event_id {corrects} not found")
+                    elif (
+                        prior.get("course_id") != self.course_id
+                        or prior.get("activity_type") != a_type
+                        or prior.get("activity_id") != a_id
+                    ):
+                        errors.append(f"{eid}: correction must target same Course/Activity")
+                    # Ensure correction doesn't claim state change
+                    if event.get("from_state") is not None or event.get("to_state") is not None:
+                        errors.append(f"{eid}: correction must have null from_state and to_state")
+                    corrects_close = event.get("corrects_close_id")
+                    if corrects_close:
+                        if str(corrects_close) not in {str(c.get("close_id") or c.get("_header_id") or "")
+                                                       for c in self.closes}:
+                            errors.append(f"{eid}: corrects_close_id {corrects_close} not found")
+                        # Must be same activity
+                        matching = [c for c in self.closes
+                                    if str(c.get("close_id") or c.get("_header_id") or "") == str(corrects_close)]
+                        if matching:
+                            close_act = (matching[0].get("activity_type"), matching[0].get("activity_id"))
+                            if close_act != (a_type, a_id):
+                                errors.append(f"{eid}: corrects_close_id must be same Activity")
                 if str(event.get("binding_status") or "bound") == "unbound":
                     if not str(event.get("binding_reason") or "").strip() or str(
                         event.get("binding_reason")

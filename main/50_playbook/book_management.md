@@ -102,8 +102,7 @@ book/
   `book/primary/source_assets/<document_id>/` **Course 持久**持有；可重建 PNG 在
   `book/.cache/source_pages/`（CacheEviction，见 `source_page_assets.md` 与
   `batch_workorder_spec` §1.2.1）。Lesson **不**长期复制教材二进制。
-- **Legacy**：未迁移实例可仍有 `lessons/lessonXX/working_pages/`；新建核验不得再以
-  "每课复制 + 结课删除核验文本"为权威。
+- **Legacy 已退役**：原 `lessons/lessonXX/working_pages/` 路径已在 0.2.2 批 S3 退役；历史摘录见各课 `archive/`。
 - Exercise 作答图片放对应 Attempt 的 `assets/`；可复用教学资料放
   `book/course_materials/supplements/`。确认长期跨课使用后再转入 `_shared/library/`。
 - **lite 审查快照**：不打包 PDF、教材、压缩包、环境、缓存、生成资产或

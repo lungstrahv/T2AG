@@ -39,6 +39,9 @@ def materialize_lifecycle_plan(
     duration_mode: str | None = None,
     duration_minutes: int | None = None,
     evidence_refs: list[str] | None = None,
+    corrects_event_id: str | None = None,
+    corrects_close_id: str | None = None,
+    correction_summary: str | None = None,
 ) -> dict[str, Any]:
     root = root.resolve()
     evidence_refs = evidence_refs or []
@@ -134,6 +137,22 @@ def materialize_lifecycle_plan(
                     ),
                 }
             )
+    elif event_kind == "correction":
+        # Non-state, append-only. from_state/to_state stay null; correction_effect mandatory.
+        if not corrects_event_id:
+            raise close.CloseError("correction requires --corrects-event-id")
+        if not correction_summary or not correction_summary.strip():
+            raise close.CloseError("correction requires non-empty --correction-summary")
+        if not fields.get("evidence_refs"):
+            raise close.CloseError("correction requires evidence_refs")
+        fields["from_state"] = None
+        fields["to_state"] = None
+        fields["corrects_event_id"] = corrects_event_id
+        fields["correction_summary"] = correction_summary
+        fields["correction_effect"] = "record_only_no_state_change"
+        if corrects_close_id:
+            fields["corrects_close_id"] = corrects_close_id
+        progress_mode = "none"
     else:
         raise close.CloseError(f"unsupported lifecycle event_kind: {event_kind}")
 
@@ -191,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     action.add_argument("--apply", action="store_true")
     parser.add_argument(
         "--event-kind",
-        choices=["transition", "foreground_switch", "learning_enter", "learning_exit"],
+        choices=["transition", "foreground_switch", "learning_enter", "learning_exit", "correction"],
     )
     parser.add_argument("--to-state")
     parser.add_argument("--target-activity-type")
@@ -200,6 +219,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--duration-mode", choices=["exact", "estimated", "unknown"])
     parser.add_argument("--duration-minutes", type=int)
     parser.add_argument("--evidence-ref", action="append", default=[])
+    parser.add_argument("--corrects-event-id")
+    parser.add_argument("--corrects-close-id")
+    parser.add_argument("--correction-summary")
     parser.add_argument("--plan-out", type=Path)
     parser.add_argument("--plan-file", type=Path)
     parser.add_argument("--expect-payload-sha")
@@ -225,6 +247,9 @@ def main(argv: list[str] | None = None) -> int:
                 duration_mode=args.duration_mode,
                 duration_minutes=args.duration_minutes,
                 evidence_refs=args.evidence_ref,
+                corrects_event_id=args.corrects_event_id,
+                corrects_close_id=args.corrects_close_id,
+                correction_summary=args.correction_summary,
             )
         else:
             required = (
