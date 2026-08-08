@@ -86,6 +86,39 @@ plan-only 聚合门，均属于基础结构 FAIL。
 | state/journal/migration/Lite | release 派生工具 | 缓存漂移、证据缺失、迁移非幂等或投影差异 |
 | 发布候选隔离 | `t2ag_candidate_replay.py` + `test_candidate_replay_isolation_contract` | 有效 sparse checkout/sparse index，Git 环境/拓扑污染，Main/Skeleton 安全配置无法 preflight，源/A/B 字节清单或副本结果不一致，或全部 A/B 复核之后的末次源指纹发生变化 |
 | Git/环境卫生 | release 内建 | 跟踪环境文件为 FAIL；未提交工作树为 WARN |
+| **Main↔Skeleton 批准同源面** | release `distribution_parity`（`check_distribution_parity`） | 同源面内文件字节不一致或 Skeleton 缺失为 **FAIL**；**豁免项两侧已一致为 WARN**（提示移除，防止名单长成盲区）。同源面定义见 §二·一 |
+
+### 二·一 「批准同源面」的定义（P-0065）
+
+§七 第 4 条自 0.2.x 起要求「Main/Skeleton 批准同源面逐文件一致」，
+但**该同源面从未被定义**——没有清单，也就没有任何检查够得到它，
+12 个文件因此静默分叉至 2026-08-08 才被发现。本节补上定义。
+
+**同源面** = Main 与 Skeleton 下列目录中扩展名为 `.md` / `.py` / `.json` 的全部文件
+（`__pycache__` 除外）：
+
+```
+main/50_playbook/
+main/70_tools/
+```
+
+**豁免名单**（写在 `t2ag_doctor.py` 的 `DISTRIBUTION_PARITY_EXEMPT`，**理由为必填值**）：
+
+| 文件 | 豁免理由 |
+|---|---|
+| `main/70_tools/legacy_r_registry.json` | Skeleton 版正文自述 entries empty by design；Main 版为主实例级兼容登记 |
+| `main/70_tools/artifact_registry.json` | Main 含真实 artifact 条目；强制同源等于把实例数据灌进 Skeleton |
+
+**三条纪律**：
+
+1. **豁免必须带理由**。无理由的豁免等于把检查挖空——那正是本条要防的失败。
+2. **豁免失效要报**。已豁免但两侧实际一致的项报 WARN 提示移除，名单不得只增不减。
+3. **同源不是单向覆盖**。修复漂移前须逐文件判断方向：「A 有 B 无」既可能 A 领先，
+   也可能 **B 保留了 A 已删除的退役内容**。2026-08-08 一次差点因行数方向读反而
+   把 Main 主动删除的退役字段当成 Skeleton 领先内容保留。
+
+**归 release 不归 runtime**：按 `t2ag.md` §3.2，发行属性的 FAIL 阻断候选与发布，
+不阻断日常教学。Skeleton 漂移不应停掉一节课。
 
 ## 三、人工检查
 
@@ -129,7 +162,8 @@ Doctor 只验证已登记且可机械复现的载体；通过 Doctor 不等于 `
 1. 数据完整性、稳定 ID、schema 与引用闭合；
 2. 活动入口、恢复路径与权威链唯一性；
 3. migration evidence、journal/index 和未完成 transaction；
-4. Main/Skeleton 批准同源面逐文件一致；
+4. Main/Skeleton 批准同源面逐文件一致（同源面与豁免名单的定义见 §二·一；
+   自 2026-08-08 起由 release `distribution_parity` 自动执行，不再只靠人工核对）；
 5. Main → Lite 投影无 missing/differ/orphan/guide drift；
 6. 最终源、候选 tree、index 与输入 docs manifest 指纹稳定。
 
