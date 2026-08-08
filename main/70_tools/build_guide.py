@@ -302,7 +302,7 @@ def build_preface_html(main_dir: Path) -> str:
         raise SystemExit("directory guide: missing authoritative main/t2ag.md")
     text = constitution.read_text(encoding="utf-8-sig", errors="replace")
     match = re.search(
-        r"^##\s+序\s*$\n(.*?)(?=^##\s+1\.)",
+        r"^##\s+序(?:\s+\[max\s+\d+\])?\s*$\n(.*?)(?=^##\s+1\.)",
         text,
         re.MULTILINE | re.DOTALL,
     )
