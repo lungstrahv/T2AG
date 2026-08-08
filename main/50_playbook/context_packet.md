@@ -234,3 +234,26 @@ tokenizer 无关的代理，不等于模型 Token 或账单。验收必须同时
 - `main/50_playbook/startup_orchestration.md`：三 Agent 启动、join 与降级。
 - `main/70_tools/t2ag_context.py`：只读上下文包生成器。
 - `main/70_tools/t2ag_activity.py`：唯一活动路由器。
+
+## Main 消费纪律与课程选择（canonical，自宪法 §3.2 下沉 2026-08-08/EV-0020）
+
+标准两段命令（critical 先行，markdown 兜底核对）：
+
+```powershell
+python -B main/70_tools/t2ag_context.py --course <ID> --format critical
+python -B main/70_tools/t2ag_context.py --course <ID> --format markdown
+```
+
+- 省略课程 ID 时只可使用 memory 的当前课程指针，不得扫描目录猜测；显式切换只允许
+  active Group 内课程，组外课程先切组。
+- Main 收到 critical 后 context 调用次数为 0：不得运行 Markdown L0、搜索 ledger、解码
+  pending、拼装结课确认或重读完整 L0。仅 critical 10 秒超时且分支已终止时，Main 可降级
+  运行一次 `--format critical`。
+- 同一 snapshot 不重复派发；后台 snapshot 不同则由 Prefetcher 丢弃候选并重跑一次；
+  同一对话内未变化的 L0 不重复读取。
+- critical 只恢复 route、停点、next action、必要来源 SHA 与首轮 action payload；包是逐字
+  摘录的只读投影，不是真相源，不得落盘后编辑；权威 pending prompt 必须逐字来自
+  `progress.md` 当前切片并标明来源，补充内容不得替换权威停点或绕过提示闸门。
+- 推进当前一步需要追加直接证据时用 `--include-l1`；只有状态冲突、复测/疑问回收、
+  排期/复盘、结课、历史追问或项目审计等明确触发器才进入 L2 全文读取。
+

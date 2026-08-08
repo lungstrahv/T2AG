@@ -6,6 +6,19 @@
 > 它把“可先进行只读教学”与“恢复检查已经收敛”分开，但不降低来源一致性、学生确认、
 > Activity 生命周期或写回标准。
 
+## 零、启动欢迎信息（canonical，自宪法 §3.0 下沉 2026-08-08/EV-0020）
+
+首次初始化与日常接管都必须展示一次欢迎信息，且与恢复分支并行、不互相等待：
+
+1. 读取 `80_interface/skin.yaml` 的 `active` 与对应 registry；
+2. 读取 active 皮肤目录内 `skin.yaml` 的 `welcome_msg` 与 `art_file`；
+3. 先输出 `welcome_msg`，再原样输出 `art_file` 指向的纯文本字符画，最后显示版本号；
+4. Main 与 Lite 按当前实例选择展示角色字符画；Skeleton 安装模板展示默认 `t2ag`
+   标识画。不得用 Skeleton 默认画覆盖 Main 的个人选择。
+
+本节拥有「何时展示」的启动规则；皮肤 metadata 拥有「展示什么」的真相。`bin/t2ag`
+只是同一规则的可选终端投影，不得硬编码另一份欢迎语或字符画。
+
 ## 一、目标与默认拓扑
 
 - 健康路径目标：critical route ≤10 秒；非 textbook 第一条可执行学习内容 ≤15 秒；

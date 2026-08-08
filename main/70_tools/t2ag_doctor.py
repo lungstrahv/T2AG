@@ -145,6 +145,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_decision_records",
     "check_course_activity_templates", "check_environment_assumptions",
     "check_memory_budget",
+    "check_constitution_budget",
     "check_changelog_contract",
     "check_flow_and_guide", "check_handoff_contract",
     "check_cloud_contract", "check_derived_tools", "check_migration_evidence",
@@ -3892,15 +3893,20 @@ def check_context_packet_contract(*, check_release_parity: bool = True) -> None:
 
     workflow_markers = {
         MAIN / "t2ag.md": (
-            "t2ag_context.py --course <ID> --format markdown",
-            "即时摘录 + 触发式展开",
-            "同一对话内未变化的 L0 不重复读取",
-            "--include-l1",
+            # EV-0020 Batch A：接管细则 sink 至 context_packet.md，宪法持指针锚
+            "context_packet.md",
             "完整序列化 Markdown",
             "t2ag_hint_gate.py",
             "learning-ready",
             "recovery-settled",
             "startup_orchestration.md",
+        ),
+        playbook: (
+            "t2ag_context.py --course <ID> --format markdown",
+            "即时摘录 + 触发式展开",
+            "同一对话内未变化的 L0 不重复读取",
+            "--include-l1",
+            "Main 消费纪律",
         ),
         startup: (
             "先建依赖树，再分配 Agent",
@@ -4958,6 +4964,33 @@ def check_memory_budget() -> None:
             )
 
 
+
+def check_constitution_budget() -> None:
+    """Runtime: constitution section line budgets (v0.1.2 mechanism, restored by EV-0020).
+
+    FAIL, not WARN: t2ag.md is the startup entry every session reads, so an
+    oversized section taxes every future conversation at boot.  Same division of
+    labour as check_memory_budget: this gate owns the mechanism, the student owns
+    the `[max N]` numbers inline in t2ag.md.  Precedent: v0.1.2 had this exact
+    gate; it died in 4e72556 with no replacement (see EV-0020).
+    """
+    path = MAIN / "t2ag.md"
+    if not path.is_file():
+        report("FAIL", "main/t2ag.md 缺失")
+        return
+    budgets = memory_section_budgets(read(path))
+    if not budgets:
+        report("FAIL", "t2ag.md 无任何 [max N] 节预算标记：宪法预算门未生效（EV-0020）")
+        return
+    for title, cap, actual in budgets:
+        if actual > cap:
+            report(
+                "FAIL",
+                f"宪法节超预算：「{title}」实测 {actual} 行 > 预算 {cap} 行；"
+                f"按 t2ag.md §6.3 rule_migration 下沉，或经学生裁决调整该节 [max N]",
+            )
+
+
 def module_available(name: str) -> bool:
     """Read-only import probe: does not import, does not install (EA-0002)."""
     try:
@@ -5320,6 +5353,7 @@ def execute_doctor_checks(
         "check_decision_records": check_decision_records,
         "check_environment_assumptions": check_environment_assumptions,
         "check_memory_budget": check_memory_budget,
+        "check_constitution_budget": check_constitution_budget,
         "check_changelog_contract": check_changelog_contract,
         "check_flow_and_guide": check_flow_and_guide,
         "check_handoff_contract": check_handoff_contract,

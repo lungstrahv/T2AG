@@ -43,7 +43,7 @@ Doctor
 │  │  ├─ knowledge_ledgers / project_verification / exercises
 │  │  ├─ teacher_contract
 │  │  │  └─ memory_pointers
-│  │  └─ working_pages
+│  │  └─ working_pages  （Snapshot-only，legacy 已退役）
 │  └─ engagements / registry / trading / legacy / cloud_pause
 │     └─ context_packet / test_management / course_templates
 └─ release（显式、继承 runtime）
@@ -101,3 +101,18 @@ python -B main/70_tools/t2ag_test.py --component release_suite --tier release_on
 
 任何工具修改上述默认档位、预算、release reason、plan-only 或 SHA 绑定规则，都必须同时
 修改控制文件、流程图和基础原子测试；三形态分叉在 release parity 中阻断。
+
+## 四、V 级细则与发布前提（canonical，自宪法 §6.1 下沉 2026-08-08/EV-0020）
+
+- finding 修复先做完整后续路径静态审查与针对性回归；不得每修一个小点就重跑完整矩阵。
+  SHA 未变且依赖未受影响的证据允许复用。完整独立复审只针对冻结候选执行一次，修复期
+  使用受影响项 delta review，最终候选再统一执行一次完整 V。
+- 普通验收不扫描 .venv、Lite、旧 recovery/staging、教材或图片。
+- 施工期 dirty/Lite 分叉只描述候选状态，不解除真正 FAIL；仅 G/FIN 可据三发行一致性
+  宣称正式发布。
+- runtime/release Doctor 分层、测试选择器、两个控制清单与流程树是 Main/Skeleton/Lite 的
+  共同基础内容；Main/Skeleton 可执行，Lite 只读携带；缺少 `BASE_VALIDATION_FILES` 任一项
+  即为结构 FAIL。定向 Doctor 与 release 执行必须绑定 plan SHA。
+- 发布前必须满足：Main/Skeleton release doctor `0 FAIL`、Lite 投影 parity 通过、迁移二次
+  检查零待办、journal index 零漂移、Skeleton 空实例再生通过、独立审查通过。
+

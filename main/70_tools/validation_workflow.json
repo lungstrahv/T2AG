@@ -313,6 +313,13 @@
       "depends_on": [
         "runtime.structure"
       ]
+    },
+    "runtime.constitution_budget": {
+      "phase": "runtime",
+      "handler": "check_constitution_budget",
+      "depends_on": [
+        "runtime.structure"
+      ]
     }
   },
   "profiles": {
@@ -350,7 +357,7 @@
         "runtime.course_templates",
         "runtime.environment",
         "runtime.changelog",
-        "runtime.memory_budget",
+        "runtime.memory_budget", "runtime.constitution_budget",
         "runtime.line_endings"
       ]
     },
