@@ -12,8 +12,10 @@ python -B main/70_tools/t2ag_state_refresh.py --check
 Context Prefetcher 同时运行 `python -B main/70_tools/t2ag_context.py --format critical`，立即
 回交后再以相同 snapshot 运行完整 Markdown L0。
 三路按 `main/50_playbook/startup_orchestration.md` 分两阶段汇合；L0-critical 可信且没有
-已知教学阻断时，非 textbook 可进入 `learning-ready`；textbook 必须再完成同 snapshot 的
-全 Scope 文本消费与本轮逐页视觉扫描。Snapshot、历史 receipt 或哈希不得冒充本轮扫描。
+已知教学阻断时，非 textbook 可进入 `learning-ready`；textbook 必须再完成本会话 Scope 扫描
+（`main/50_playbook/source_page_assets.md` §3.1 A1–A6：完整内容本体、逐页、来源身份链、
+并集=Scope、当前页一致、宿主签发）。Snapshot、历史 receipt、哈希、仅 frontmatter
+不得冒充本轮 A1 消费（现行默认可观察路径见 §3.1.4）。
 Lesson 权威 pending prompt 必须逐字来自 progress 精确停点并标明来源；模型可以附加明确
 标注的概括、暖场、类比或探索问题，但不得替换权威停点、掩盖冲突或绕过 Exercise 提示闸门。
 当前页 source 必须与 `pdf_page_index` 一致；冲突即停。每个 Lesson 首次开讲或尚未完成开场

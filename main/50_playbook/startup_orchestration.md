@@ -99,25 +99,35 @@ python -B main/70_tools/t2ag_context.py --format markdown --expect-snapshot <SNA
 
 第一条命令完成后立即发送 critical handoff，不等待完整 L0；随后继续核对并发送
 background-settled。textbook Lesson 的 critical 只是 `route-ready`，不得直接释放课堂动作；
-Prefetcher 必须按 `action_payload.scope_scan` 的精确 PDF、SHA、页索引与 render profile，
-在 `session_temp` 或合法 cache 中生成/定位页图，使用视觉工具逐页实际打开整个 Scope，
-再回交 session-local 扫描结果。任务说明直接嵌入字段契约，不继承完整历史，不重读本文件或
-`context_packet.md`，也不在 route 前消费课程反思、非当前错题和成本账。handoff 包含：
+Prefetcher 必须按 `action_payload.scope_scan` 与 `source_page_assets.md` §3.1（A1–A6）在本会话
+逐页消费整个 Scope 的完整内容本体（宿主可观察投递）。**现行默认可观察路径**（U2 形式清单
+冻结前）见 `source_page_assets.md` §3.1.4：L0 消费已核验正文 + 按 manifest/profile 投递整页
+画面并回报页索引与 `printed_page_label`。完成声明仅宿主签发（A6）；不得以 Snapshot
+`content_consumed` 或历史 receipt 冒充本轮。任务说明直接嵌入字段契约，不继承完整历史，
+不重读本文件或 `context_packet.md`，也不在 route 前消费课程反思、非当前错题和成本账。
+handoff 包含：
 
 - `status`、course、current activity、精确停点与 next action；
+  textbook scan pending 时 critical JSON 的 `status` 为 `route_ready`（不是 `ready`），
+  `blocking_teach=true`；字段不授权发送（见 ADR-0002）。
 - 本轮必需的学生约束与教师红线；
-- 第一条可执行学习内容候选；
-- Lesson 开场合同：学习内容概览、ASCII 知识树、是否已展示，以及进入第一块前的感受/
-  继续确认；缺失开场来源时允许由模型依据 Lesson 载体和 LessonMap 创造性编排。
+- 第一条可执行学习内容候选（scan pending 时由编译器 withhold 正文；身份与 manifest 仍在）；
+- Lesson 开场合同：结构门与是否已展示；scan pending 时概览/知识树**正文**由 critical
+  withhold。缺失开场来源时，admission 之后才允许创造性编排，不得把 withheld 当成已授权。
 - `snapshot_id` 与公开 `source_sha256`；
 - `sources_unchanged` 结论。
-- textbook 时还须回交 `scope_scan`：snapshot、PDF SHA、全部 `pdf_page_index`、每页
-  `opened=true`、实际书内页码/标题、当前页、发现的页码或正文冲突；缺一页即不 complete。
+- textbook 时还须回交 `scope_scan`：snapshot、PDF SHA、全部 `pdf_page_index`、每页消费
+  证据（现行路径下含 `opened=true` / 书内页码/标题）、当前页、发现的页码或内容冲突；
+  相对 Scope **缺一页即不 complete**（A4 遗漏 FAIL；重复只 WARN）。**注意**：Prefetcher
+  文本声明 `opened=true` / complete **不是**宿主签发（A6）；完整 receipt 只能由宿主
+  Scan Orchestrator 签发。
 - textbook 时还须回交 `page_teaching_contract`：当前 PDF/书内页、字符课堂树要求、页内
   覆盖寄存器，以及理解确认、感受反馈、单次继续授权和翻页通知四类门。不得把本轮入口的
   “继续学习”解释成整节课持续授权。
 
-候选在 Main 裁决前必须保持 withheld。`confirm_close` 的 latest pending 解码属于 critical
+候选在 Main 裁决前必须保持 withheld。宿主落地后，教材教学正文只经 `lesson_emit`；
+textbook gated 会话中普通 freeform assistant 出口关闭或仅宿主固定模板（见
+`docs/protocol/host-teaching-egress-api.md`）。`confirm_close` 的 latest pending 解码属于 critical
 生成器固定职责，一次返回完整学生版复盘 Markdown、presentation SHA、建议、ID、body SHA、
 系统绑定 tuple 与可接受的简短结课意图。Main 必须把完整 Markdown 直接发给学生；
 不得只展示 ID/SHA 让学生盲签；也不得要求学生抄写 tuple。
@@ -134,20 +144,23 @@ Lesson 的 action payload 必须逐字投影并标明 `progress.md` 当前切片
 满足以下条件即可释放第一条只读学习动作，不必等待 Runtime Sentinel 全部返回：
 
 ```text
-context_status == ready
+context_status ∈ { ready, route_ready }   # textbook scan pending 时为 route_ready
 AND sources_unchanged == true
 AND critical snapshot_id 尚未消费
 AND route / source identity 无冲突
 AND current activity / next action / 必要内容齐备
-AND 已返回报告中没有 blocking_teach == true
+AND 已返回报告中没有 blocking_teach == true   # textbook pending 时 blocking_teach 仍为 true → 不可释放
 AND （非 textbook OR scope_text_status == complete_in_current_packet）
-AND （非 textbook OR scope_visual_scan == complete_for_same_snapshot）
+AND （非 textbook OR scope_visual_scan == complete_for_same_snapshot）  # 须宿主 receipt，非 Agent 自报
 AND （非 textbook OR page_teaching_contract 完整且已向学生显示当前课堂树）
+AND （非 textbook OR host TeachingAdmissionCapability 已签发且 lesson_emit 可用）
+  # 最后一项在宿主未落地前无法强制；playbook 仍要求，仓库层仅 defense-in-depth
 ```
 
 `LessonPreparationSnapshot.content_consumed=true`、历史 receipt、manifest/文件哈希一致只证明
-准备与身份，不满足最后两项。route、progress 精确停点、action payload、当前页路径、Scope
-manifest 任一冲突时停止；禁止 Main 自选一个版本继续。
+准备与身份（A3 链上的部分环节），**不**满足本会话 A1 消费，也不满足 A6 宿主签发。
+route、progress 精确停点、action payload、当前页路径、Scope manifest 任一冲突时停止
+（A5）；禁止 Main 自选一个版本继续。
 学习动作释放只允许一个教学块。学生答题、复述或说“是”只闭合理解门；推导/总结后的感受门
 和下一块的一次性继续授权仍须分别取得。进入新页前还须通过页内覆盖门并先宣布页码。
 

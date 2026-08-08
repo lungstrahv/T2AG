@@ -26,10 +26,17 @@ CRLF / CR 统一为 LF，以固定跨平台序列化字符数，不改变摘要�
 L0-critical，再在同一轮后台生成完整 Markdown L0。critical 只读取 route 与首轮动作真正
 依赖的来源，不等待反思、非当前错题、Group 细节或成本账；Main 收到可信 handoff 后，
 非 textbook 可进入 `learning-ready`。textbook critical 只到 `route-ready`，还须等待同一
-snapshot 的 Scope 全文本消费与逐页视觉扫描。后台包必须回报同一个 `snapshot_id`，Doctor/state 与完整来源核对
+snapshot 的 Scope 会话扫描（`source_page_assets.md` §3.1 A1–A6）。后台包必须回报同一个 `snapshot_id`，Doctor/state 与完整来源核对
 也收敛后才进入 `recovery-settled`。handoff 不落盘；Main 收到 critical 后不得再次运行
 Markdown L0、搜索 ledger、解码 pending body 或拼装结课确认。完整后台超时仍为 45 秒；
 critical 目标不超过 10 秒；15 秒首条动作目标只适用于无需 Scope 视觉扫描的路由。
+
+> **Packet 不授权（2026-08-06）**：textbook 且 `scope_scan` pending 时，critical 顶层应为
+> `status=route_ready`、`blocking_teach=true`，`teaching_gate.admission_status=unavailable`、
+> `egress_mode=status_only`，并 withhold 可照发教材正文/开场正文。这些字段与
+> `may_release_action` **只用于可观察性**，不构成发送授权。结构性硬门依赖宿主
+> `lesson_emit`（见 `docs/adr/0002-host-controlled-textbook-teaching-egress.md` 与
+> `docs/protocol/host-teaching-egress-api.md`）。仓库层 withhold **不**等于已拦截对外输出。
 
 ## 二、三层读取模型
 
@@ -120,9 +127,7 @@ python -B main/70_tools/t2ag_context.py --course <COURSE_ID> --include-l1
 - Exercise：当前题面与人工校对题源已在 L0；若当前题已有提交，再追加与该题直接相关的
   Attempt/Review；
 - textbook Lesson：优先 current `LessonPreparationSnapshot` + LessonMap +
-  `source_assets`（连续 Scope 5–8，短书固定全书）；仅新路径完全不存在时才用 legacy
-  `working_pages` 窗口。新路径存在但无效必须失败，不得静默回退。窗口缺失、缺页或进度
-  未声明页码时不得返回 `ready`；
+  `source_assets`（连续 Scope 5–8，短书固定全书）；legacy `working_pages` 路径已在 0.2.2 批 S3 退役，无 preparation Snapshot 时不得返回 `ready`。
 - 当前疑问或复测：对应 question / mistake 条目及其回链；
 - 学生明确提出的想法：对应 thoughts 与已提炼反思。
 

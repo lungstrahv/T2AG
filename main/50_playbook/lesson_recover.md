@@ -123,8 +123,9 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
 2. L0 读取 canonical `resume_path` 的 frontmatter 与最近恢复胶囊；
 3. textbook Lesson 必须在 L0 拥有与 progress 页码一致、逐页完整的当前教材窗口；缺失时
    命令非零，不得以 `ready` 推进；
-4. 新对话本轮还必须按 critical 的 `scope_scan` manifest 实际打开 Scope 全部页图；已有
-   Snapshot、历史 load receipt 或 L0 文本不等于本轮视觉扫描；
+4. 新对话本轮还必须按 `source_page_assets.md` §3.1（A1–A6）与 critical 的 `scope_scan`
+   manifest 完成本会话 Scope 扫描；已有 Snapshot、历史 load receipt 或「仅路径/仅 SHA」
+   不等于本轮 A1 消费；
 5. L1 按当前停点读取 L0 尚未包含的必要教学记录、问答、错误尝试、
    completion node/checkpoint；
 6. 当前 Lesson 存在 `lesson_thoughts.md` 时，按需读取相关想法。
@@ -189,11 +190,13 @@ L0 从学生档案做逐段摘录，重点关注：
 3. 工具入口：`t2ag_source_pages.py prepare --course … --current …`（只读）与 critical 中的
    snapshot 字段。
 
-上述三项只证明 prepared 与文本来源。每个新对话首次进入 textbook Lesson 时，Prefetcher
-还必须使用 critical 的 `scope_scan` manifest 在本轮逐页打开全部 Scope 页图，并回报：
-snapshot、PDF SHA、完整 `pdf_page_index`、每页 `opened=true`、书内 `printed_page_label`
-与冲突。缺页或混用两种页码时停止教学。Main 不得把历史 `content_consumed=true`、receipt、
-文件哈希或辅助 Agent 的“无需额外读取”解释成自己/本轮已经扫描。
+上述三项只证明 prepared 与文本来源（不足 A1）。每个新对话首次进入 textbook Lesson 时，
+Prefetcher 还必须按 `source_page_assets.md` §3.1 与 critical 的 `scope_scan` manifest 在本会话
+逐页消费 Scope 完整内容本体（现行默认可观察路径见 §3.1.4），并回报：snapshot、PDF SHA、
+完整 `pdf_page_index`、每页消费证据（含书内 `printed_page_label`）与冲突。相对 Scope 缺页
+（A4 遗漏）或混用两种页码时停止教学。Main 不得把历史 `content_consumed=true`、receipt、
+文件哈希、仅 frontmatter、或辅助 Agent 的“无需额外读取”解释成自己/本轮已经满足 A1。
+完成声明仅宿主签发（A6）。
 
 **Legacy 路径已退役**：原 `lessons/<current_activity_id>/working_pages/` 路径已在 0.2.2 批 S3 退役。
 若 preparation 新路径不存在，上下文工具必须失败，**不得返回缺教材的 `ready`**。
