@@ -1,4 +1,4 @@
-# T2AG 0.2.2 Domain Model
+# T2AG 0.2.3 Domain Model
 
 ## 1. Student
 
@@ -39,6 +39,21 @@ Course 是课程定义和当前实例进度的唯一聚合根：
 `course.md` 不保存当前学生停点；`progress.md` 不复制全册课程方案，也不拥有
 LearningActivity 生命周期。Course 生命周期/前台/停点与 Activity 生命周期分别由
 `progress.md`、`activity_ledger.md` 拥有，不得用“最后写入者”覆盖冲突。
+
+### 2.0 两根正交轴：`course_type` 与 `default_driver`
+
+- **`course_type` = 完成语义**：什么证据能把这门课关到 completed（**停止条件**）。
+- **`default_driver` = 推进依据**：什么决定下一课教什么（**排序函数**）。两者回答不同问题，**正交、可独立取值**；四值定义与来源规则由 `book_management.md` §三 拥有。
+
+`course_type` 三值的区别在**裁判是谁**：
+
+| 值 | 裁判 | 可复现 | 关课证据 | 权威 |
+|---|---|---|---|---|
+| `mastery` | 系统内：师生确认门 | — | 逐块理解闭合、无悬空疑问 | 确认门机制（全课通用） |
+| `project` | 系统外，可复现判定 | 是 | 每个里程碑绑验证模式 A/B/B-K 并满足三机制 | `project_verification.md` §〇 |
+| `praxis` | 系统外，开放世界后果 | 否 | 真实行动入口 + 行为证据束 | `book_management.md` §三 |
+
+**「有产物」不是 `project` 的判据**——mastery 课也可有产物，产物是理解的证据；`project` 要求产物被**不听解释的外部裁判**判定（现实运行 / OJ 评测机 / Kaggle 私榜）。`praxis` 与 `project` 同在系统外，区别是其裁判**不可复现**，故须携带免责声明。
 
 ### 2.1 ContentGroup / Lesson / Exercise
 
@@ -130,6 +145,10 @@ Group 是容量组合，不是课程生命周期：
 `20_teacher/T00X.md` 是稳定模板，`20_teacher/overlay.md` 是当前学生和课程的
 显式覆盖。overlay 可以改变语气、入口、节奏和反馈频率，不得改变事实标准、
 课程必学内容或学生确认门。
+
+- **TR01**：由 `t2ag_state_refresh.py` 生成、`t2ag_doctor.py` 校验的教师身份
+  事实标准。语义定义：`overlay.md` §教师事实标准。GENERATED 字面量，不可手写。
+  格式：`"TR01 → {teacher_id}"`。
 
 ## 5. ActivityRecord
 
