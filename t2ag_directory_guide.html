@@ -97,10 +97,10 @@ h1 {
   right: max(-70px, calc((100vw - 1260px) / 2));
   transform: translateY(-48%);
   width: min(650px, 52vw);
-  mix-blend-mode: multiply;
-  filter: saturate(.84) contrast(.98);
-  -webkit-mask-image: radial-gradient(ellipse 68% 72% at 51% 53%, #000 56%, transparent 88%);
-  mask-image: radial-gradient(ellipse 68% 72% at 51% 53%, #000 56%, transparent 88%);
+  /* The PNG now carries real alpha, so none of the old camouflage is needed:
+     mix-blend-mode: multiply darkened the baked cream rectangle into a grey
+     halo, and the radial mask faded the snail out in an ellipse to hide that
+     rectangle's edges. Both were working around the asset, not styling it. */
   pointer-events: none;
 }
 .jump {
@@ -168,44 +168,22 @@ section { padding: 72px 0; border-bottom: 1px solid var(--line); }
   font-size: .88rem;
 }
 .preface-discipline strong { color: var(--clay); font-family: var(--mono); }
-.flow-diagram {
+/* One rule for every character block: the nine flow diagrams and the directory
+   tree share a single visual language, so they must share a single style. */
+.flow-ascii, .dir-tree {
   margin: 18px 0;
+  max-height: min(680px, 72vh);
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: 18px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
-  overflow: hidden;
+  font: .78rem/1.6 var(--mono);
+  white-space: pre;
+  tab-size: 2;
 }
-.flow-diagram > summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  padding: 14px 18px;
-  cursor: pointer;
-  color: var(--clay);
-  font: 700 .82rem/1.3 var(--mono);
-}
-.flow-diagram > summary small { color: var(--muted); font: .78rem/1.3 var(--sans); }
-.flow-diagram[open] > summary { border-bottom: 1px solid var(--line); }
-.flow-viewport {
-  width: 100%;
-  max-height: min(680px, 72vh);
-  overflow: auto;
-  padding: 18px;
-  background: #fbfaf7;
-}
-.flow-svg { display: block; width: auto; max-width: 100%; height: auto; margin: 0 auto; }
-.flow-source { padding: 12px 18px 16px; border-top: 1px solid var(--line); }
-.flow-source summary { cursor: pointer; color: var(--muted); font-size: .82rem; }
-.flow-source pre, .flow-ascii {
-  max-height: 520px;
-  overflow: auto;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
-  font: .76rem/1.55 var(--mono);
-}
+.dir-tree { font-size: .8rem; }
 .flow-card { padding: 24px 0; border-top: 1px solid var(--line); }
 .flow-card h3 { margin: 0 0 10px; font-size: 1.35rem; }
 .materialize {
@@ -342,7 +320,7 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
   .hero { min-height: 650px; }
   .hero-inner { min-height: 650px; justify-content: flex-start; padding-top: 64px; }
   h1 { font-size: 4rem; }
-  .snail { top: 48%; width: 620px; max-width: 110vw; right: -210px; opacity: .42; }
+  .snail { top: 48%; width: 620px; max-width: 110vw; right: -210px; opacity: .5; }
   .section-head { grid-template-columns: 1fr; gap: 8px; }
   .routes, .guardrails, .naming-grid, .student-prompts { grid-template-columns: 1fr; }
   .experience-flow, .feedback-grid { grid-template-columns: repeat(2, 1fr); }
@@ -359,8 +337,7 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
   .naming-row { grid-template-columns: 1fr; gap: 3px; }
   .preface-copy { padding: 26px 22px; }
   .preface-discipline { grid-template-columns: 1fr; gap: 4px; }
-  .flow-diagram > summary { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .flow-viewport { padding: 10px; }
+  .flow-ascii, .dir-tree { padding: 10px; font-size: .72rem; }
   .footer-inner { flex-direction: column; }
 }
 </style>
@@ -425,22 +402,25 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
     </div>
     <div class="matrix">
       <!-- T2AG_GENERATED:directory_map -->
-<table>
-<thead><tr><th>目录</th><th>这里放什么</th><th>权威文件</th></tr></thead>
-<tbody>
-<tr><td><code>main/00_core/</code></td><td>宪法依赖的领域模型、memory、changelog、problemlog</td><td><code>main/t2ag.md</code></td></tr>
-<tr><td><code>main/10_student/</code></td><td>当前学生档案、学习路径、活动与 Engagement</td><td><code>main/t2ag.md</code></td></tr>
-<tr><td><code>main/20_teacher/</code></td><td>教师模板与当前 overlay</td><td><code>main/t2ag.md</code></td></tr>
-<tr><td><code>main/30_group/</code></td><td>培养方案、课程组、日历、复盘和 bindings</td><td><code>main/t2ag.md</code></td></tr>
-<tr><td><code>main/40_course/</code></td><td>课程、进度、同级 Lesson/Exercise 活动、教材、题目与证据</td><td><code>main/t2ag.md</code></td></tr>
-<tr><td><code>main/50_playbook/</code></td><td>可执行流程与维护规则</td><td><code>main/50_playbook/_README.md</code></td></tr>
-<tr><td><code>main/60_journal/</code></td><td>只追加历史、施工报告与归档原文</td><td><code>main/60_journal/INDEX.md</code></td></tr>
-<tr><td><code>main/70_tools/</code></td><td>doctor、状态刷新、迁移、索引与派生工具</td><td><code>main/70_tools/_README.md</code></td></tr>
-<tr><td><code>main/80_interface/</code></td><td>皮肤、欢迎文本与界面资产</td><td><code>main/80_interface/README.md</code></td></tr>
-<tr><td><code>main/bin/</code></td><td>T2AG 命令入口</td><td><code>main/t2ag.md</code></td></tr>
-<tr><td><code>cloud/</code></td><td>本地和云端（手机/网页版）之间的桥接文件——提示词、同步状态、交接件。</td><td><code>cloud/README.md</code></td></tr>
-</tbody>
-</table>
+<pre class="dir-tree">main/   实例本体
+├─ 00_core/       宪法依赖的领域模型、memory、changelog、problemlog
+├─ 10_student/    当前学生档案、学习路径、活动与 Engagement
+├─ 20_teacher/    教师模板与当前 overlay
+├─ 30_group/      培养方案、课程组、日历、复盘和 bindings
+├─ 40_course/     课程、进度、同级 Lesson/Exercise 活动、教材、题目与证据
+├─ 50_playbook/   可执行流程与维护规则
+                  权威入口 main/50_playbook/_README.md
+├─ 60_journal/    只追加历史、施工报告与归档原文
+                  权威入口 main/60_journal/INDEX.md
+├─ 70_tools/      doctor、状态刷新、迁移、索引与派生工具
+                  权威入口 main/70_tools/_README.md
+├─ 80_interface/  皮肤、欢迎文本与界面资产
+                  权威入口 main/80_interface/README.md
+└─ bin/           T2AG 命令入口
+
+cloud/         本地和云端（手机/网页版）之间的桥接文件——提示词、同步状态、交接件。
+               权威入口 cloud/README.md
+</pre>
 <!-- /T2AG_GENERATED:directory_map -->
     </div>
   </div>
@@ -474,144 +454,30 @@ footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
     <div class="materialize">
       <h3>第一次打开时，你会经历什么</h3>
       <!-- T2AG_GENERATED:flow_first_run -->
-<details class="flow-diagram"><summary><span>展开查看流程图</span><small>图框内可滚动</small></summary>
-<div class="flow-viewport">
-<svg class="flow-svg" role="img" aria-label="图 0 · 首次启动" style="width:100%;height:auto;display:block" width="680" height="1830" viewBox="0 0 680 1830" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<marker id="arrow-first_run" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
-<path d="M0,0 L0,6 L9,3 z" fill="#52606d"/></marker>
-</defs>
-<path d="M340.0,96.0 C340.0,132.0 340.0,132.0 340.0,168.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,252.0 C340.0,288.0 340.0,288.0 340.0,324.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,390.0 C340.0,426.0 340.0,426.0 340.0,462.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,526.0 C340.0,562.0 200.0,562.0 200.0,598.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<text x="270.0" y="557.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,526.0 C340.0,562.0 480.0,562.0 480.0,598.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<text x="410.0" y="557.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M480.0,662.0 C480.0,698.0 340.0,698.0 340.0,734.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,800.0 C340.0,836.0 340.0,836.0 340.0,872.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,938.0 C340.0,974.0 340.0,974.0 340.0,1010.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,1074.0 C340.0,1115.0 200.0,1115.0 200.0,1156.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<text x="270.0" y="1110.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,1074.0 C340.0,1110.0 480.0,1110.0 480.0,1146.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<text x="410.0" y="1105.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M480.0,1230.0 C480.0,1266.0 340.0,1266.0 340.0,1302.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,1386.0 C340.0,1422.0 340.0,1422.0 340.0,1458.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,1524.0 C340.0,1560.0 340.0,1560.0 340.0,1596.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<path d="M340.0,1660.0 C340.0,1696.0 200.0,1696.0 200.0,1732.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<text x="270.0" y="1691.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,1660.0 C340.0,1696.0 480.0,1696.0 480.0,1732.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-first_run)"/>
-<text x="410.0" y="1691.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<rect x="217.0" y="32.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="69.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">打开目标实例</tspan>
-</text>
-<rect x="217.0" y="168.0" width="246" height="84.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="197.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">读取 active skin；显示</tspan>
-<tspan x="340.0" dy="18">welcome_msg + art_file +</tspan>
-<tspan x="340.0" dy="18">版本</tspan>
-</text>
-<rect x="217.0" y="324.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="353.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">doctor + state refresh</tspan>
-<tspan x="340.0" dy="18">--check</tspan>
-</text>
-<polygon points="340.0,462.0 463.0,494.0 340.0,526.0 217.0,494.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="499.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">首次启动判据成立？</tspan>
-</text>
-<rect x="77.0" y="598.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="200.0" y="635.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="200.0" dy="0">日常接管：进入图 1</tspan>
-</text>
-<rect x="357.0" y="598.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="480.0" y="635.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="480.0" dy="0">逐项确认身份、时区、目标、基础与偏好</tspan>
-</text>
-<rect x="217.0" y="734.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="763.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">把答案写成</tspan>
-<tspan x="340.0" dy="18">answers.json；缺项即拒绝，不代填</tspan>
-</text>
-<rect x="217.0" y="872.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="901.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">t2ag_init.py init：写</tspan>
-<tspan x="340.0" dy="18">profile 与发行身份</tspan>
-</text>
-<polygon points="340.0,1010.0 463.0,1042.0 340.0,1074.0 217.0,1042.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="1047.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">用户已确认首门 Course 与真实入口？</tspan>
-</text>
-<rect x="77.0" y="1156.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="200.0" y="1193.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="200.0" dy="0">等待确认；不代选课程与入口</tspan>
-</text>
-<rect x="357.0" y="1146.0" width="246" height="84.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="480.0" y="1175.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="480.0" dy="0">t2ag_init.py new-</tspan>
-<tspan x="480.0" dy="18">course：Course、首个活动与</tspan>
-<tspan x="480.0" dy="18">teacher 映射</tspan>
-</text>
-<rect x="217.0" y="1302.0" width="246" height="84.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1331.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">t2ag_init.py new-group：p</tspan>
-<tspan x="340.0" dy="18">lan/calendar/review/bind</tspan>
-<tspan x="340.0" dy="18">ings</tspan>
-</text>
-<rect x="217.0" y="1458.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1487.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">state refresh --write +</tspan>
-<tspan x="340.0" dy="18">--check</tspan>
-</text>
-<polygon points="340.0,1596.0 463.0,1628.0 340.0,1660.0 217.0,1628.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="1633.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">doctor 为 0 FAIL？</tspan>
-</text>
-<rect x="77.0" y="1732.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="200.0" y="1769.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="200.0" dy="0">修复状态，不开新内容</tspan>
-</text>
-<rect x="357.0" y="1732.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="480.0" y="1769.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="480.0" dy="0">进入图 1</tspan>
-</text>
-</svg>
-</div>
-<details class="flow-source"><summary>查看流程源码</summary><pre>flowchart TD
-A([&quot;打开目标实例&quot;])
-L[&quot;读取 active skin；显示 welcome_msg + art_file + 版本&quot;]
-B[&quot;doctor + state refresh --check&quot;]
-C{&quot;首次启动判据成立？&quot;}
-D[&quot;日常接管：进入图 1&quot;]
-E[&quot;逐项确认身份、时区、目标、基础与偏好&quot;]
-F[&quot;把答案写成 answers.json；缺项即拒绝，不代填&quot;]
-G[&quot;t2ag_init.py init：写 profile 与发行身份&quot;]
-H{&quot;用户已确认首门 Course 与真实入口？&quot;}
-I[&quot;等待确认；不代选课程与入口&quot;]
-J[&quot;t2ag_init.py new-course：Course、首个活动与 teacher 映射&quot;]
-K[&quot;t2ag_init.py new-group：plan/calendar/review/bindings&quot;]
-M[&quot;state refresh --write + --check&quot;]
-N{&quot;doctor 为 0 FAIL？&quot;}
-O[&quot;修复状态，不开新内容&quot;]
-P([&quot;进入图 1&quot;])
-A --&gt; L
-L --&gt; B
-B --&gt; C
-C -- &quot;否&quot; --&gt; D
-C -- &quot;是&quot; --&gt; E
-E --&gt; F
-F --&gt; G
-G --&gt; H
-H -- &quot;否&quot; --&gt; I
-H -- &quot;是&quot; --&gt; J
-J --&gt; K
-K --&gt; M
-M --&gt; N
-N -- &quot;否&quot; --&gt; O
-N -- &quot;是&quot; --&gt; P
-</pre></details>
-</details>
+<pre class="flow-ascii">● 打开目标实例
+│
+▼ 读取 active skin：welcome_msg + art_file + 版本号
+▼ doctor + state refresh --check
+│
+◇ 首次启动判据成立？
+│  └─ 否 ─→ 日常接管：进入图 1，不做任何初始化
+│
+▼ 逐项确认身份、时区、目标、已有基础与辅导偏好
+▼ 写 answers.json           · 缺任一必答项即拒绝，不代填默认值
+▼ t2ag_init.py init         · profile 与发行身份（云仍 paused）
+│
+◇ 用户已确认首门 Course 与真实入口？
+│  └─ 否 ─→ 等待确认；不代选课程，也不代选 Lesson / Exercise 入口
+│
+▼ t2ag_init.py new-course   · Course、首个活动、teacher 映射
+▼ t2ag_init.py new-group    · plan / calendar / review / bindings
+▼ state refresh --write + --check
+│
+◇ doctor 为 0 FAIL？
+│  └─ 否 ─→ 修复状态，不开新内容
+│
+◉ 进入图 1
+</pre>
 <!-- /T2AG_GENERATED:flow_first_run -->
       <p>你拿到的是一个极简的基础安装包。把它复制为自己的 <code>t2ag</code> 文件夹，在 AI 环境中打开并发送“T2AG”，然后回答昵称、课程、教材、当前进度和学习偏好。确认信息后，你会看到自己的档案与课程生成、欢迎信息出现，并得到一条可以直接开始的下一步。此后文件会随着使用和反馈继续变化，最终成为更贴近你习惯的个人学习系统。</p>
       <div class="chain"><span class="node">拿到基础安装包</span><span class="arrow">→</span><span class="node">复制为自己的 t2ag</span><span class="arrow">→</span><span class="node">回答 5 个问题</span><span class="arrow">→</span><span class="node">看到档案与课程生成</span><span class="arrow">→</span><span class="node">获得可直接执行的下一步</span><span class="arrow">→</span><span class="node">以后直接继续学</span></div>
@@ -630,164 +496,35 @@ N -- &quot;是&quot; --&gt; P
       <div><h2>一节课的完整循环</h2><p>读取很容易，真正决定系统是否可靠的是结课写回。</p></div>
     </div>
     <!-- T2AG_GENERATED:flow_panorama -->
-<details class="flow-diagram"><summary><span>展开查看流程图</span><small>图框内可滚动</small></summary>
-<div class="flow-viewport">
-<svg class="flow-svg" role="img" aria-label="图 1 · 一次教学会话" style="width:100%;height:auto;display:block" width="680" height="2184" viewBox="0 0 680 2184" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<marker id="arrow-panorama" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
-<path d="M0,0 L0,6 L9,3 z" fill="#52606d"/></marker>
-</defs>
-<path d="M340.0,96.0 C340.0,132.0 340.0,132.0 340.0,168.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,234.0 C340.0,270.0 340.0,270.0 340.0,306.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,370.0 C340.0,406.5 200.0,406.5 200.0,443.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<text x="270.0" y="401.5" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M340.0,370.0 C340.0,406.0 480.0,406.0 480.0,442.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<text x="410.0" y="401.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M480.0,508.0 C480.0,544.0 340.0,544.0 340.0,580.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,646.0 C340.0,682.0 340.0,682.0 340.0,718.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,782.0 C340.0,818.0 200.0,818.0 200.0,854.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<text x="270.0" y="813.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">lesson</text>
-<path d="M340.0,782.0 C340.0,818.0 480.0,818.0 480.0,854.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<text x="410.0" y="813.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">exercise</text>
-<path d="M200.0,920.0 C200.0,956.0 340.0,956.0 340.0,992.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M480.0,920.0 C480.0,956.0 340.0,956.0 340.0,992.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,1056.0 C340.0,1092.0 340.0,1092.0 340.0,1128.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,1192.0 C340.0,1228.0 340.0,1228.0 340.0,1264.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,1328.0 C340.0,1364.0 340.0,1364.0 340.0,1400.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<text x="340.0" y="1359.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">Micro</text>
-<path d="M340.0,1328.0 C340.0,1364.0 340.0,1364.0 340.0,1400.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<text x="340.0" y="1359.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">完整</text>
-<path d="M340.0,1466.0 C340.0,1502.0 340.0,1502.0 340.0,1538.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,1602.0 C340.0,1707.0 340.0,1707.0 340.0,1812.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<text x="340.0" y="1702.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,1602.0 C340.0,1638.0 340.0,1638.0 340.0,1674.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<text x="340.0" y="1633.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M340.0,1740.0 C340.0,1776.0 340.0,1776.0 340.0,1812.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,1878.0 C340.0,1914.0 340.0,1914.0 340.0,1950.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<path d="M340.0,2014.0 C340.0,2050.0 340.0,2050.0 340.0,2086.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-panorama)"/>
-<rect x="217.0" y="32.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="69.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">学生要求继续课程</tspan>
-</text>
-<rect x="217.0" y="168.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="197.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">doctor + state refresh</tspan>
-<tspan x="340.0" dy="18">--check</tspan>
-</text>
-<polygon points="340.0,306.0 463.0,338.0 340.0,370.0 217.0,338.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="343.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">有 FAIL？</tspan>
-</text>
-<rect x="77.0" y="443.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="200.0" y="480.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="200.0" dy="0">修复状态，不开新内容</tspan>
-</text>
-<rect x="357.0" y="442.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="480.0" y="471.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="480.0" dy="0">生成一次 L0：逐字摘录状态、教学契约及当前题面</tspan>
-<tspan x="480.0" dy="18">/必要教材窗口</tspan>
-</text>
-<rect x="217.0" y="580.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="609.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">同一原始字节缓存校验</tspan>
-<tspan x="340.0" dy="18">ProgressSnapshot、活动与教师路由</tspan>
-</text>
-<polygon points="340.0,718.0 463.0,750.0 340.0,782.0 217.0,750.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="755.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">current_activity</tspan>
-</text>
-<rect x="77.0" y="854.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="200.0" y="883.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="200.0" dy="0">Lesson L1：只追加 L0</tspan>
-<tspan x="200.0" dy="18">尚未包含的当前活动证据</tspan>
-</text>
-<rect x="357.0" y="854.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="480.0" y="883.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="480.0" dy="0">Exercise L1：当前题已有直接证据才追加</tspan>
-<tspan x="480.0" dy="18">Attempt/Review</tspan>
-</text>
-<rect x="217.0" y="992.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1029.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">L2 仅由冲突、复测、排期、历史追问或结课触发</tspan>
-</text>
-<rect x="217.0" y="1128.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1165.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">正课循环：见图 1b</tspan>
-</text>
-<polygon points="340.0,1264.0 463.0,1296.0 340.0,1328.0 217.0,1296.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="1301.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">结课类型</tspan>
-</text>
-<rect x="217.0" y="1400.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1429.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">共同强制事务：progress +</tspan>
-<tspan x="340.0" dy="18">当前活动主载体 + 真实台账</tspan>
-</text>
-<polygon points="340.0,1538.0 463.0,1570.0 340.0,1602.0 217.0,1570.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="1575.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">完整结课？</tspan>
-</text>
-<rect x="217.0" y="1674.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1703.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">按真实触发补 reflections /</tspan>
-<tspan x="340.0" dy="18">reasoning / Group review</tspan>
-</text>
-<rect x="217.0" y="1812.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1841.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">state refresh --write +</tspan>
-<tspan x="340.0" dy="18">--check</tspan>
-</text>
-<rect x="217.0" y="1950.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1987.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">完整 doctor；重读写入目标</tspan>
-</text>
-<rect x="217.0" y="2086.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="2123.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">会话闭合</tspan>
-</text>
-</svg>
-</div>
-<details class="flow-source"><summary>查看流程源码</summary><pre>flowchart TD
-A([&quot;学生要求继续课程&quot;])
-B[&quot;doctor + state refresh --check&quot;]
-C{&quot;有 FAIL？&quot;}
-D[&quot;修复状态，不开新内容&quot;]
-E[&quot;生成一次 L0：逐字摘录状态、教学契约及当前题面/必要教材窗口&quot;]
-  F[&quot;同一原始字节缓存校验 ProgressSnapshot、活动与教师路由&quot;]
-  G{&quot;current_activity&quot;}
-  H[&quot;Lesson L1：只追加 L0 尚未包含的当前活动证据&quot;]
-  I[&quot;Exercise L1：当前题已有直接证据才追加 Attempt/Review&quot;]
-  J[&quot;L2 仅由冲突、复测、排期、历史追问或结课触发&quot;]
-  K[&quot;正课循环：见图 1b&quot;]
-  L{&quot;结课类型&quot;}
-  M[&quot;共同强制事务：progress + 当前活动主载体 + 真实台账&quot;]
-  N{&quot;完整结课？&quot;}
-  O[&quot;按真实触发补 reflections / reasoning / Group review&quot;]
-  P[&quot;state refresh --write + --check&quot;]
-  Q[&quot;完整 doctor；重读写入目标&quot;]
-  R([&quot;会话闭合&quot;])
-A --&gt; B
-B --&gt; C
-C -- &quot;是&quot; --&gt; D
-C -- &quot;否&quot; --&gt; E
-E --&gt; F
-  F --&gt; G
-  G -- &quot;lesson&quot; --&gt; H
-  G -- &quot;exercise&quot; --&gt; I
-  H --&gt; J
-  I --&gt; J
-  J --&gt; K
-  K --&gt; L
-  L -- &quot;Micro&quot; --&gt; M
-  L -- &quot;完整&quot; --&gt; M
-  M --&gt; N
-  N -- &quot;否&quot; --&gt; P
-  N -- &quot;是&quot; --&gt; O
-  O --&gt; P
-  P --&gt; Q
-  Q --&gt; R
-</pre></details>
-</details>
+<pre class="flow-ascii">● 学生要求继续课程
+│
+▼ doctor + state refresh --check
+│
+◇ 有 FAIL？
+│  └─ 是 ─→ 修复状态，不开新内容
+│
+▼ 生成一次 L0        · 逐字摘录状态、教学契约、当前题面 / 必要教材窗口
+▼ 同一原始字节缓存    · 校验 ProgressSnapshot、活动路由与教师路由
+│
+◇ current_activity
+├─ lesson   ─→ L1：只追加 L0 尚未包含的当前活动证据
+└─ exercise ─→ L1：当前题已有直接证据才追加 Attempt / Review
+│
+▼ L2 只由冲突、复测、排期、历史追问或结课触发
+▼ 正课循环            · 见图 1b
+│
+◇ 结课类型（Micro 与完整走同一强制事务）
+│
+▼ 强制事务            · progress + 当前活动主载体 + 真实台账
+│
+◇ 完整结课？
+│  └─ 是 ─→ 按真实触发补 reflections / reasoning / Group review
+│
+▼ state refresh --write + --check
+▼ 完整 doctor；重读写入目标
+│
+◉ 会话闭合
+</pre>
 <!-- /T2AG_GENERATED:flow_panorama -->
     <div class="timeline">
       <article class="step"><div class="step-mark"></div><div class="step-body"><h3>运行 doctor</h3><p>FAIL 先修；skeleton 的首次启动提示和 lite 的无 Git 提示可以保留。</p><div class="step-files"><code>python main/70_tools/t2ag_doctor.py</code></div></div></article>
@@ -906,460 +643,95 @@ doctor：active、registry、目录、元数据、art_file、未登记皮肤、�
 </pre>
 </article>
 <article class="flow-card"><h3>图 6 · Git 工作流</h3>
-<details class="flow-diagram"><summary><span>展开查看流程图</span><small>图框内可滚动</small></summary>
-<div class="flow-viewport">
-<svg class="flow-svg" role="img" aria-label="图 6 · Git 工作流" style="width:100%;height:auto;display:block" width="680" height="2040" viewBox="0 0 680 2040" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<marker id="arrow-git" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
-<path d="M0,0 L0,6 L9,3 z" fill="#52606d"/></marker>
-</defs>
-<path d="M340.0,96.0 C340.0,132.0 340.0,132.0 340.0,168.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<path d="M340.0,234.0 C340.0,270.0 340.0,270.0 340.0,306.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<path d="M340.0,370.0 C340.0,406.0 340.0,406.0 340.0,442.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="340.0" y="401.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M340.0,370.0 C340.0,474.0 340.0,474.0 340.0,578.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="340.0" y="469.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,506.0 C340.0,542.0 340.0,542.0 340.0,578.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<path d="M340.0,642.0 C340.0,678.0 340.0,678.0 340.0,714.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<path d="M340.0,778.0 C340.0,814.0 200.0,814.0 200.0,850.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="270.0" y="809.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,778.0 C340.0,814.0 480.0,814.0 480.0,850.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="410.0" y="809.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M480.0,914.0 C480.0,950.5 200.0,950.5 200.0,987.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="340.0" y="945.5" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M480.0,914.0 C480.0,950.0 480.0,950.0 480.0,986.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="480.0" y="945.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M480.0,1052.0 C480.0,1088.0 340.0,1088.0 340.0,1124.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<path d="M340.0,1188.0 C340.0,1224.0 340.0,1224.0 340.0,1260.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="340.0" y="1219.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M340.0,1188.0 C340.0,1292.0 340.0,1292.0 340.0,1396.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="340.0" y="1287.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,1324.0 C340.0,1360.0 340.0,1360.0 340.0,1396.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<path d="M340.0,1462.0 C340.0,1498.0 340.0,1498.0 340.0,1534.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<path d="M340.0,1598.0 C340.0,1634.0 340.0,1634.0 340.0,1670.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="340.0" y="1629.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M340.0,1598.0 C340.0,1702.0 340.0,1702.0 340.0,1806.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="340.0" y="1697.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,1734.0 C340.0,1770.0 340.0,1770.0 340.0,1806.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<path d="M340.0,1870.0 C340.0,1906.0 480.0,1906.0 480.0,1942.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="410.0" y="1901.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M340.0,1870.0 C340.0,1906.0 200.0,1906.0 200.0,1942.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-git)"/>
-<text x="270.0" y="1901.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<rect x="217.0" y="32.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="69.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">触发：里程碑、发布或恢复</tspan>
-</text>
-<rect x="217.0" y="168.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="197.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">git status --short +</tspan>
-<tspan x="340.0" dy="18">diff --check</tspan>
-</text>
-<polygon points="340.0,306.0 463.0,338.0 340.0,370.0 217.0,338.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="343.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">存在不明改动？</tspan>
-</text>
-<rect x="217.0" y="442.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="479.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">只处理本次拥有的显式路径</tspan>
-</text>
-<rect x="217.0" y="578.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="615.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">审阅工作区 diff</tspan>
-</text>
-<polygon points="340.0,714.0 463.0,746.0 340.0,778.0 217.0,746.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="751.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">发布闸门与独立复审通过？</tspan>
-</text>
-<rect x="77.0" y="850.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="200.0" y="887.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="200.0" dy="0">禁止建立正式快照</tspan>
-</text>
-<polygon points="480.0,850.0 603.0,882.0 480.0,914.0 357.0,882.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="480.0" y="887.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="480.0" dy="0">用户明确授权 commit？</tspan>
-</text>
-<rect x="77.0" y="987.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="200.0" y="1024.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="200.0" dy="0">保持未提交；如实报告</tspan>
-</text>
-<rect x="357.0" y="986.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="480.0" y="1015.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="480.0" dy="0">显式 add → cached diff →</tspan>
-<tspan x="480.0" dy="18">commit</tspan>
-</text>
-<polygon points="340.0,1124.0 463.0,1156.0 340.0,1188.0 217.0,1156.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="1161.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">本批改了 Main/Skeleton 共享文件？</tspan>
-</text>
-<rect x="217.0" y="1260.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1297.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">cmp 核对两仓字节同源，再各自 commit</tspan>
-</text>
-<rect x="217.0" y="1396.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1425.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">sync_lite.py --write 从干净</tspan>
-<tspan x="340.0" dy="18">Main 再生 Lite</tspan>
-</text>
-<polygon points="340.0,1534.0 463.0,1566.0 340.0,1598.0 217.0,1566.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="1571.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">需要重打包发行物？</tspan>
-</text>
-<rect x="217.0" y="1670.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="340.0" y="1707.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">按最终 HEAD 重打包；旧包不可发</tspan>
-</text>
-<polygon points="340.0,1806.0 463.0,1838.0 340.0,1870.0 217.0,1838.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="340.0" y="1843.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="340.0" dy="0">需要 push？</tspan>
-</text>
-<rect x="77.0" y="1942.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="200.0" y="1979.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="200.0" dy="0">仅展示命令，等待另行授权</tspan>
-</text>
-<rect x="357.0" y="1942.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="480.0" y="1979.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="480.0" dy="0">本地快照完成</tspan>
-</text>
-</svg>
-</div>
-<details class="flow-source"><summary>查看流程源码</summary><pre>flowchart TD
-A([&quot;触发：里程碑、发布或恢复&quot;])
-B[&quot;git status --short + diff --check&quot;]
-C{&quot;存在不明改动？&quot;}
-D[&quot;只处理本次拥有的显式路径&quot;]
-E[&quot;审阅工作区 diff&quot;]
-F{&quot;发布闸门与独立复审通过？&quot;}
-G[&quot;禁止建立正式快照&quot;]
-H{&quot;用户明确授权 commit？&quot;}
-I[&quot;保持未提交；如实报告&quot;]
-J[&quot;显式 add → cached diff → commit&quot;]
-N{&quot;本批改了 Main/Skeleton 共享文件？&quot;}
-O[&quot;cmp 核对两仓字节同源，再各自 commit&quot;]
-P[&quot;sync_lite.py --write 从干净 Main 再生 Lite&quot;]
-Q{&quot;需要重打包发行物？&quot;}
-R[&quot;按最终 HEAD 重打包；旧包不可发&quot;]
-K{&quot;需要 push？&quot;}
-L[&quot;仅展示命令，等待另行授权&quot;]
-M([&quot;本地快照完成&quot;])
-A --&gt; B
-B --&gt; C
-C -- &quot;是&quot; --&gt; D
-C -- &quot;否&quot; --&gt; E
-D --&gt; E
-E --&gt; F
-F -- &quot;否&quot; --&gt; G
-F -- &quot;是&quot; --&gt; H
-H -- &quot;否&quot; --&gt; I
-H -- &quot;是&quot; --&gt; J
-J --&gt; N
-N -- &quot;是&quot; --&gt; O
-N -- &quot;否&quot; --&gt; P
-O --&gt; P
-P --&gt; Q
-Q -- &quot;是&quot; --&gt; R
-Q -- &quot;否&quot; --&gt; K
-R --&gt; K
-K -- &quot;否&quot; --&gt; M
-K -- &quot;是&quot; --&gt; L
-</pre></details>
-</details>
+<pre class="flow-ascii">● 触发：里程碑、发布或恢复
+│
+▼ git status --short + diff --check
+│
+◇ 存在不明改动？
+│  └─ 是 ─→ 只处理本次拥有的显式路径，其余原样留下
+│
+▼ 审阅工作区 diff
+│
+◇ 发布闸门与独立复审通过？
+│  └─ 否 ─→ 禁止建立正式快照
+│
+◇ 用户明确授权 commit？
+│  └─ 否 ─→ 保持未提交；如实报告
+│
+▼ 显式 add → cached diff → commit
+│
+◇ 本批改了 Main / Skeleton 共享文件？
+│  └─ 是 ─→ cmp 核对两仓字节同源，再各自 commit
+│
+▼ sync_lite.py --write     · 只从干净 Main 再生；脏树必被拒绝
+│
+◇ 需要重打包发行物？
+│  └─ 是 ─→ 按最终 HEAD 重打包，排除 .git；旧包不可发
+│
+◇ 需要 push？
+│  └─ 是 ─→ 仅展示命令，等待另行授权（RT3）
+│
+◉ 本地快照完成
+</pre>
 </article>
 <article class="flow-card"><h3>图 7 · 批次整改治理</h3>
-<details class="flow-diagram"><summary><span>展开查看流程图</span><small>图框内可滚动</small></summary>
-<div class="flow-viewport">
-<svg class="flow-svg" role="img" aria-label="图 7 · 批次整改治理" style="width:100%;height:auto;display:block" width="862" height="1220" viewBox="0 0 862 1220" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<marker id="arrow-batch" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
-<path d="M0,0 L0,6 L9,3 z" fill="#52606d"/></marker>
-</defs>
-<path d="M431.0,96.0 C431.0,132.0 431.0,132.0 431.0,168.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<path d="M431.0,234.0 C431.0,270.0 431.0,270.0 431.0,306.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<path d="M431.0,370.0 C431.0,542.0 291.0,542.0 291.0,714.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<text x="361.0" y="537.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M431.0,370.0 C431.0,406.0 431.0,406.0 431.0,442.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<text x="431.0" y="401.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M431.0,506.0 C431.0,542.0 431.0,542.0 431.0,578.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<path d="M431.0,642.0 C431.0,678.0 291.0,678.0 291.0,714.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<text x="361.0" y="673.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M431.0,642.0 C431.0,678.0 571.0,678.0 571.0,714.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<text x="501.0" y="673.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M571.0,778.0 C571.0,814.0 151.0,814.0 151.0,850.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<text x="361.0" y="809.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M151.0,914.0 C578.0,942.0 578.0,414.0 431.0,442.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<path d="M571.0,778.0 C571.0,814.0 431.0,814.0 431.0,850.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<text x="501.0" y="809.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M431.0,914.0 C431.0,950.0 291.0,950.0 291.0,986.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<path d="M291.0,778.0 C291.0,814.0 711.0,814.0 711.0,850.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<path d="M711.0,914.0 C711.0,950.0 571.0,950.0 571.0,986.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<path d="M571.0,1050.0 C571.0,1086.0 291.0,1086.0 291.0,1122.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<text x="431.0" y="1081.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M571.0,1050.0 C571.0,1086.0 571.0,1086.0 571.0,1122.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-batch)"/>
-<text x="571.0" y="1081.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<rect x="308.0" y="32.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="69.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">登记可复现事实与现行契约</tspan>
-</text>
-<rect x="308.0" y="168.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="197.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">分类：FAIL / REVIEW / WARN</tspan>
-<tspan x="431.0" dy="18">/ WAIVED</tspan>
-</text>
-<polygon points="431.0,306.0 554.0,338.0 431.0,370.0 308.0,338.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="431.0" y="343.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">需要整改？</tspan>
-</text>
-<rect x="308.0" y="442.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="479.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">一轮最多三次有实质差异的尝试</tspan>
-</text>
-<polygon points="431.0,578.0 554.0,610.0 431.0,642.0 308.0,610.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="431.0" y="615.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">本轮收敛？</tspan>
-</text>
-<rect x="168.0" y="714.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="291.0" y="751.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="291.0" dy="0">记录证据与验证结果</tspan>
-</text>
-<polygon points="571.0,714.0 694.0,746.0 571.0,778.0 448.0,746.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="571.0" y="751.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="571.0" dy="0">已完成三轮？</tspan>
-</text>
-<rect x="28.0" y="850.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="151.0" y="887.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="151.0" dy="0">依据新证据重新分类</tspan>
-</text>
-<rect x="308.0" y="850.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="887.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">停止硬凑；分离事实、推断、需求</tspan>
-</text>
-<rect x="168.0" y="986.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="291.0" y="1023.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="291.0" dy="0">与需求提出者讨论变更或撤回</tspan>
-</text>
-<rect x="588.0" y="850.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="711.0" y="887.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="711.0" dy="0">完整闸门 + 独立复审</tspan>
-</text>
-<polygon points="571.0,986.0 694.0,1018.0 571.0,1050.0 448.0,1018.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="571.0" y="1023.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="571.0" dy="0">通过？</tspan>
-</text>
-<rect x="168.0" y="1122.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="291.0" y="1159.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="291.0" dy="0">返回整改；严重度不自动上升</tspan>
-</text>
-<rect x="448.0" y="1122.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="571.0" y="1159.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="571.0" dy="0">等待用户授权快照</tspan>
-</text>
-</svg>
-</div>
-<details class="flow-source"><summary>查看流程源码</summary><pre>flowchart TD
-A([&quot;登记可复现事实与现行契约&quot;])
-B[&quot;分类：FAIL / REVIEW / WARN / WAIVED&quot;]
-C{&quot;需要整改？&quot;}
-D[&quot;一轮最多三次有实质差异的尝试&quot;]
-E{&quot;本轮收敛？&quot;}
-F[&quot;记录证据与验证结果&quot;]
-G{&quot;已完成三轮？&quot;}
-H[&quot;依据新证据重新分类&quot;]
-I[&quot;停止硬凑；分离事实、推断、需求&quot;]
-J[&quot;与需求提出者讨论变更或撤回&quot;]
-K[&quot;完整闸门 + 独立复审&quot;]
-L{&quot;通过？&quot;}
-M[&quot;返回整改；严重度不自动上升&quot;]
-N([&quot;等待用户授权快照&quot;])
-A --&gt; B
-B --&gt; C
-C -- &quot;否&quot; --&gt; F
-C -- &quot;是&quot; --&gt; D
-D --&gt; E
-E -- &quot;是&quot; --&gt; F
-E -- &quot;否&quot; --&gt; G
-G -- &quot;否&quot; --&gt; H
-H --&gt; D
-G -- &quot;是&quot; --&gt; I
-I --&gt; J
-F --&gt; K
-K --&gt; L
-L -- &quot;否&quot; --&gt; M
-L -- &quot;是&quot; --&gt; N
-</pre></details>
-</details>
+<pre class="flow-ascii">● 登记可复现事实与现行契约
+│
+▼ 分类：FAIL / REVIEW / WARN / WAIVED
+│
+◇ 需要整改？
+│  └─ 否 ─→ 直接进入「记录证据」
+│
+├─ 整改轮（一轮最多三次有实质差异的尝试）
+│  │
+│  ◇ 本轮收敛？
+│  │  └─ 是 ─→ 出环，记录证据
+│  │
+│  ◇ 已完成三轮？
+│  ├─ 否 ─→ 依据新证据重新分类 ─→ 回本轮开头
+│  └─ 是 ─→ 停止硬凑：分离事实、推断与需求
+│           └─→ 与需求提出者讨论变更或撤回（不再自行尝试）
+│
+▼ 记录证据与验证结果
+▼ 完整闸门 + 独立复审
+│
+◇ 通过？
+│  └─ 否 ─→ 返回整改；严重度不自动上升
+│
+◉ 等待用户授权快照
+</pre>
 </article>
 <article class="flow-card"><h3>图 8 · 习题证据闭环</h3>
-<details class="flow-diagram"><summary><span>展开查看流程图</span><small>图框内可滚动</small></summary>
-<div class="flow-viewport">
-<svg class="flow-svg" role="img" aria-label="图 8 · 习题证据闭环" style="width:100%;height:auto;display:block" width="862" height="2178" viewBox="0 0 862 2178" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<marker id="arrow-exercise_loop" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
-<path d="M0,0 L0,6 L9,3 z" fill="#52606d"/></marker>
-</defs>
-<path d="M431.0,98.0 C431.0,134.0 431.0,134.0 431.0,170.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,234.0 C431.0,270.0 431.0,270.0 431.0,306.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,372.0 C431.0,408.0 431.0,408.0 431.0,444.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,508.0 C431.0,544.0 431.0,544.0 431.0,580.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,644.0 C431.0,680.0 151.0,680.0 151.0,716.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<text x="291.0" y="675.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">text</text>
-<path d="M431.0,644.0 C431.0,680.0 431.0,680.0 431.0,716.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<text x="431.0" y="675.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">image</text>
-<path d="M431.0,644.0 C431.0,680.0 711.0,680.0 711.0,716.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<text x="571.0" y="675.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">mixed</text>
-<path d="M151.0,780.0 C151.0,816.0 431.0,816.0 431.0,852.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,780.0 C431.0,816.0 431.0,816.0 431.0,852.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M711.0,780.0 C711.0,816.0 431.0,816.0 431.0,852.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,916.0 C431.0,952.0 431.0,952.0 431.0,988.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,1052.0 C431.0,1088.0 431.0,1088.0 431.0,1124.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,1188.0 C431.0,1224.0 431.0,1224.0 431.0,1260.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,1324.0 C431.0,1360.5 151.0,1360.5 151.0,1397.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<text x="291.0" y="1355.5" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">correct</text>
-<path d="M431.0,1324.0 C431.0,1360.0 431.0,1360.0 431.0,1396.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<text x="431.0" y="1355.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">partial/incorrect</text>
-<path d="M431.0,1324.0 C431.0,1360.5 711.0,1360.5 711.0,1397.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<text x="571.0" y="1355.5" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">unresolved</text>
-<path d="M151.0,1461.0 C151.0,1497.5 431.0,1497.5 431.0,1534.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,1462.0 C431.0,1498.0 431.0,1498.0 431.0,1534.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M711.0,1461.0 C711.0,1497.5 431.0,1497.5 431.0,1534.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,1598.0 C431.0,1634.0 431.0,1634.0 431.0,1670.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,1734.0 C431.0,1770.0 431.0,1770.0 431.0,1806.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<text x="431.0" y="1765.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">是</text>
-<path d="M431.0,1734.0 C431.0,1838.0 431.0,1838.0 431.0,1942.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<text x="431.0" y="1833.0" text-anchor="middle" font-size="12" fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">否</text>
-<path d="M431.0,1870.0 C431.0,1906.0 431.0,1906.0 431.0,1942.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<path d="M431.0,2008.0 C431.0,2044.0 431.0,2044.0 431.0,2080.0" fill="none" stroke="#52606d" stroke-width="1.7" marker-end="url(#arrow-exercise_loop)"/>
-<rect x="308.0" y="32.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="61.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">activity_map：ContentGrou</tspan>
-<tspan x="431.0" dy="18">p 连接同级 Lesson / Exercise</tspan>
-</text>
-<rect x="308.0" y="170.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="207.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">problems.md：稳定题目与教材来源</tspan>
-</text>
-<rect x="308.0" y="306.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="335.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">创建/恢复 exerciseNN/exercis</tspan>
-<tspan x="431.0" dy="18">e.md；保存做题停点与证据指针</tspan>
-</text>
-<rect x="308.0" y="444.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="481.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">学生一次真实提交批次</tspan>
-</text>
-<polygon points="431.0,580.0 554.0,612.0 431.0,644.0 308.0,612.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="431.0" y="617.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">作答模式</tspan>
-</text>
-<rect x="28.0" y="716.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="151.0" y="753.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="151.0" dy="0">text：attempt.md 逐题正文</tspan>
-</text>
-<rect x="308.0" y="716.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="753.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">image：assets 保留原图</tspan>
-</text>
-<rect x="588.0" y="716.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="711.0" y="753.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="711.0" dy="0">mixed：正文 + 原图</tspan>
-</text>
-<rect x="308.0" y="852.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="889.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">创建 ATdddd；引用本单元题目</tspan>
-</text>
-<rect x="308.0" y="988.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="1025.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">逐题批改</tspan>
-</text>
-<rect x="308.0" y="1124.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="1161.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">创建 RVdddd；引用真实 Attempt</tspan>
-</text>
-<polygon points="431.0,1260.0 554.0,1292.0 431.0,1324.0 308.0,1292.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="431.0" y="1297.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">逐题结果</tspan>
-</text>
-<rect x="28.0" y="1397.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="151.0" y="1434.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="151.0" dy="0">correct：保留证据</tspan>
-</text>
-<rect x="308.0" y="1396.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="1425.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">partial/incorrect：写回</tspan>
-<tspan x="431.0" dy="18">mistake</tspan>
-</text>
-<rect x="588.0" y="1397.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="711.0" y="1434.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="711.0" dy="0">unresolved：写回 question</tspan>
-</text>
-<rect x="308.0" y="1534.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="1571.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">重复思路至少跨题两次</tspan>
-</text>
-<polygon points="431.0,1670.0 554.0,1702.0 431.0,1734.0 308.0,1702.0" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>
-<text x="431.0" y="1707.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">达到模式门槛？</tspan>
-</text>
-<rect x="308.0" y="1806.0" width="246" height="64.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="1843.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">更新 reasoning_patterns</tspan>
-</text>
-<rect x="308.0" y="1942.0" width="246" height="66.0" rx="10" fill="#ffffff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="1971.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">更新 problems、exercise.md</tspan>
-<tspan x="431.0" dy="18">与 progress；想法满足门槛则进入复利回路</tspan>
-</text>
-<rect x="308.0" y="2080.0" width="246" height="64.0" rx="24" fill="#eef6ff" stroke="#486581" stroke-width="1.8"/>
-<text x="431.0" y="2117.0" text-anchor="middle" font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">
-<tspan x="431.0" dy="0">session close + doctor</tspan>
-</text>
-</svg>
-</div>
-<details class="flow-source"><summary>查看流程源码</summary><pre>flowchart TD
-Z[&quot;activity_map：ContentGroup 连接同级 Lesson / Exercise&quot;]
-A[&quot;problems.md：稳定题目与教材来源&quot;]
-T[&quot;创建/恢复 exerciseNN/exercise.md；保存做题停点与证据指针&quot;]
-B[&quot;学生一次真实提交批次&quot;]
-C{&quot;作答模式&quot;}
-D[&quot;text：attempt.md 逐题正文&quot;]
-E[&quot;image：assets 保留原图&quot;]
-F[&quot;mixed：正文 + 原图&quot;]
-G[&quot;创建 ATdddd；引用本单元题目&quot;]
-H[&quot;逐题批改&quot;]
-I[&quot;创建 RVdddd；引用真实 Attempt&quot;]
-J{&quot;逐题结果&quot;}
-K[&quot;correct：保留证据&quot;]
-L[&quot;partial/incorrect：写回 mistake&quot;]
-M[&quot;unresolved：写回 question&quot;]
-N[&quot;重复思路至少跨题两次&quot;]
-O{&quot;达到模式门槛？&quot;}
-P[&quot;更新 reasoning_patterns&quot;]
-Q[&quot;更新 problems、exercise.md 与 progress；想法满足门槛则进入复利回路&quot;]
-R([&quot;session close + doctor&quot;])
-Z --&gt; A
-A --&gt; T
-T --&gt; B
-B --&gt; C
-C -- &quot;text&quot; --&gt; D
-C -- &quot;image&quot; --&gt; E
-C -- &quot;mixed&quot; --&gt; F
-D --&gt; G
-E --&gt; G
-F --&gt; G
-G --&gt; H
-H --&gt; I
-I --&gt; J
-J -- &quot;correct&quot; --&gt; K
-J -- &quot;partial/incorrect&quot; --&gt; L
-J -- &quot;unresolved&quot; --&gt; M
-K --&gt; N
-L --&gt; N
-M --&gt; N
-N --&gt; O
-O -- &quot;是&quot; --&gt; P
-O -- &quot;否&quot; --&gt; Q
-P --&gt; Q
-Q --&gt; R
-</pre></details>
-</details>
+<pre class="flow-ascii">● activity_map           · ContentGroup 连接同级 Lesson / Exercise
+│
+▼ problems.md            · 稳定题目与教材来源（含 artifact 路径与 SHA）
+▼ exerciseNN/exercise.md · 创建或恢复；保存做题停点与证据指针
+▼ 学生一次真实提交批次
+│
+◇ 作答模式
+├─ text  ─→ attempt.md 逐题正文
+├─ image ─→ assets 保留原图
+└─ mixed ─→ 正文 + 原图
+│
+▼ 创建 ATdddd            · 引用本单元题目，不新造题
+▼ 逐题批改
+▼ 创建 RVdddd            · 引用真实 Attempt
+│
+◇ 逐题结果
+├─ correct            ─→ 保留证据
+├─ partial/incorrect  ─→ 写回 mistake bank
+└─ unresolved         ─→ 写回 question bank
+│
+▼ 重复思路至少跨题两次
+│
+◇ 达到模式门槛？
+│  └─ 是 ─→ 更新 reasoning_patterns
+│
+▼ 更新 problems、exercise.md 与 progress
+▼ 想法满足门槛则进入复利回路
+│
+◉ session close + doctor
+</pre>
 </article>
 <!-- /T2AG_GENERATED:flow_catalog -->
   </div>

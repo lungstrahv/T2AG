@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import activity_close as activity_close_contract
@@ -3138,21 +3139,38 @@ def check_flow_and_guide() -> None:
     )
     if len(blocks) != len(EXPECTED_FLOWS):
         report("FAIL", f"FLOW 可解析块数量错误：{len(blocks)}")
-    mermaid_count = sum(1 for _, block in blocks if block.strip().startswith("```mermaid"))
-    html_text = read(guide)
-    forbidden = ("cdn.jsdelivr.net/npm/mermaid", "mermaid.initialize(", 'class="mermaid"')
-    if any(token in html_text for token in forbidden):
-        report("FAIL", "离线指南仍依赖 Mermaid 外部运行时")
-    static_svg_count = html_text.count('<svg class="flow-svg"')
-    if static_svg_count != mermaid_count:
+    # All nine figures are character diagrams. The previous rule counted Mermaid
+    # blocks and required a matching static-SVG count — which went vacuous the
+    # moment the count reached zero. Assert the intended state directly instead:
+    # every block is ```text, and no rendering scaffolding survives in the guide.
+    non_text = sorted(
+        flow_id
+        for flow_id, block in blocks
+        if not block.strip().startswith("```text")
+    )
+    if non_text:
         report(
             "FAIL",
-            f"离线指南静态 SVG 数量漂移：expected={mermaid_count} actual={static_svg_count}",
+            f"FLOW 块不是 ```text 字符图（指南侧已无渲染层）：{non_text}",
         )
-    if mermaid_count and html_text.count('<details class="flow-source"') != mermaid_count:
-        report("FAIL", "离线指南 Mermaid 文本回退数量漂移")
-    if mermaid_count and html_text.count('<details class="flow-diagram"') != mermaid_count:
-        report("FAIL", "离线指南 Mermaid 流程图未按需折叠")
+    html_text = read(guide)
+    forbidden = (
+        "cdn.jsdelivr.net/npm/mermaid",
+        "mermaid.initialize(",
+        'class="mermaid"',
+        '<svg class="flow-svg"',
+        '<details class="flow-diagram"',
+        '<details class="flow-source"',
+    )
+    present = [token for token in forbidden if token in html_text]
+    if present:
+        report("FAIL", f"离线指南仍残留 Mermaid/SVG 渲染层：{present}")
+    ascii_count = html_text.count('<pre class="flow-ascii"')
+    if ascii_count < len(EXPECTED_FLOWS):
+        report(
+            "FAIL",
+            f"离线指南字符图数量不足：expected>={len(EXPECTED_FLOWS)} actual={ascii_count}",
+        )
     for flow_id in EXPECTED_FLOWS:
         if f"FLOW:{flow_id}" not in content:
             report("FAIL", f"流程源缺 FLOW:{flow_id}")
@@ -3189,25 +3207,19 @@ def check_flow_and_guide() -> None:
             "FAIL",
             f"流程源标题版本漂移：flow={flow_title.group(1)} runtime={runtime_version}",
         )
-    responsive_inline = 'style="width:100%;height:auto;display:block"' in html_text
-    responsive_css = bool(
+    # Character diagrams are wide monospace blocks; on a phone they must scroll
+    # inside their own box rather than stretch the page.
+    # Selector-list tolerant on purpose: the flow diagrams and the directory tree
+    # share one rule, so the pattern must not assume `.flow-ascii` stands alone.
+    scrollable_ascii = bool(
         re.search(
-            r"\.flow-svg\s*\{[^}]*max-width\s*:\s*100%[^}]*height\s*:\s*auto",
+            r"\.flow-ascii[^{}]*\{[^}]*overflow-x\s*:\s*auto",
             html_text,
             re.DOTALL,
         )
     )
-    if '<svg class="flow-svg"' in html_text and not (responsive_inline or responsive_css):
-        report("FAIL", "离线指南静态 SVG 缺响应式尺寸")
-    capped_viewport = bool(
-        re.search(
-            r"\.flow-viewport\s*\{[^}]*max-height\s*:[^;}]+;[^}]*overflow\s*:\s*auto",
-            html_text,
-            re.DOTALL,
-        )
-    )
-    if mermaid_count and not capped_viewport:
-        report("FAIL", "离线指南流程图缺受控滚动视窗")
+    if ascii_count and not scrollable_ascii:
+        report("FAIL", "离线指南字符图缺横向受控滚动（.flow-ascii overflow-x: auto）")
 
 
 RECOMPUTE_SOURCE_MARKER = "←"
@@ -4898,6 +4910,49 @@ SKELETON_PRIVACY_EXEMPT = {
 # 撤销；历史条目今后一律脱敏或按版本裁剪，不再整文件豁免。
 
 
+def skeleton_package_findings(archive: Path) -> list[str]:
+    """Policy findings for one built Skeleton package. Pure; caller reports.
+
+    The tree scan below stops at the checked-out files, but what strangers
+    actually receive is the zip. The 2026-08-09 package shipped `.git/`, so every
+    pre-redaction blob stayed reachable via `git show` and the tree-level privacy
+    cleanup bought nothing: a guard narrower than its carrier, the same
+    `carrier_mismatch` family the tree scan was built to fix.
+    """
+    prefix = f"{archive.stem.split('-0.')[0]}/"
+    findings: list[str] = []
+    try:
+        with zipfile.ZipFile(archive) as bundle:
+            names = bundle.namelist()
+            if any(part in name for name in names for part in ("/.git/", "/__pycache__/", "/.cache/")):
+                # Subsumes the per-file scan: once history ships, every redacted
+                # blob is reachable, so listing each .git file adds noise only.
+                return [
+                    f"发行包携带 .git 或缓存目录，清洗前的 blob 仍可 git show 取回：{archive.name}"
+                ]
+            for name in names:
+                if name.endswith("/") or Path(name).suffix.lower() in {
+                    ".png", ".jpg", ".jpeg", ".pdf", ".zip",
+                }:
+                    continue
+                relative = name[len(prefix):] if name.startswith(prefix) else name
+                if relative in SKELETON_PRIVACY_EXEMPT:
+                    continue
+                try:
+                    text = bundle.read(name).decode("utf-8", errors="ignore")
+                except (OSError, KeyError, zipfile.BadZipFile):
+                    continue
+                for pattern, label in SKELETON_PRIVACY_PATTERNS:
+                    if re.search(pattern, text):
+                        findings.append(
+                            f"发行包含维护者个人信息：{archive.name}!{relative} -> {label}"
+                        )
+                        break
+    except (OSError, zipfile.BadZipFile) as error:
+        findings.append(f"发行包不可读，无法判定发行面清洁：{archive.name} {error}")
+    return findings
+
+
 def check_skeleton_privacy() -> None:
     """Skeleton must not ship the maintainer's identity or local paths.
 
@@ -4942,6 +4997,13 @@ def check_skeleton_privacy() -> None:
             "skeleton privacy: "
             f"{len(SKELETON_PRIVACY_EXEMPT)} 项豁免，其余全树无维护者标识",
         )
+    # WARN, not FAIL: a stale archive sitting in the workspace is a release-surface
+    # problem, not a state error, and must not block a lesson mid-session (same
+    # rule as check_gate_ledger). It still has to be visible — the whole point is
+    # that nobody notices the package until it is already in someone else's hands.
+    for archive in sorted(ROOT.parent.glob(f"{ROOT.name}*.zip")):
+        for finding in skeleton_package_findings(archive):
+            report("WARN", f"{finding}（该包不得对外分发）")
 
 
 def check_skeleton_textbook_gate() -> None:

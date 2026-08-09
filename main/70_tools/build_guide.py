@@ -23,7 +23,6 @@ import argparse
 import html
 import re
 import sys
-import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]  # edition root (…/t2ag)
@@ -92,178 +91,17 @@ def extract_flow_blocks(text: str) -> dict[str, str]:
     return blocks
 
 
-def _label_lines(label: str) -> list[str]:
-    raw_parts = re.split(r"<br\s*/?>|\n", label)
-    lines: list[str] = []
-    for part in raw_parts:
-        wrapped = textwrap.wrap(part.strip(), width=24) or [""]
-        lines.extend(wrapped)
-    return lines[:4]
-
-
-def mermaid_to_static_svg(code: str, flow_id: str) -> str:
-    """Render the deliberately small T2AG Mermaid subset as deterministic SVG."""
-    nodes: dict[str, tuple[str, str]] = {}
-    order: list[str] = []
-    edges: list[tuple[str, str, str]] = []
-    node_patterns = (
-        (re.compile(r'^([A-Za-z][A-Za-z0-9_]*)\(\["(.*)"\]\)$'), "terminal"),
-        (re.compile(r'^([A-Za-z][A-Za-z0-9_]*)\{"(.*)"\}$'), "decision"),
-        (re.compile(r'^([A-Za-z][A-Za-z0-9_]*)\["(.*)"\]$'), "box"),
-    )
-    edge_pattern = re.compile(
-        r'^([A-Za-z][A-Za-z0-9_]*)\s*(?:--\s*"([^"]+)"\s*)?-->\s*'
-        r'([A-Za-z][A-Za-z0-9_]*)$'
-    )
-    for raw in code.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("flowchart") or line.startswith("%%"):
-            continue
-        matched = False
-        for pattern, shape in node_patterns:
-            match = pattern.match(line)
-            if match:
-                node_id, label = match.groups()
-                if node_id not in nodes:
-                    order.append(node_id)
-                nodes[node_id] = (label, shape)
-                matched = True
-                break
-        if matched:
-            continue
-        edge = edge_pattern.match(line)
-        if edge:
-            source, edge_label, target = edge.groups()
-            edges.append((source, target, edge_label or ""))
-            continue
-        raise SystemExit(f"unsupported Mermaid line in FLOW:{flow_id}: {line}")
-
-    if not nodes:
-        raise SystemExit(f"FLOW:{flow_id} contains no Mermaid nodes")
-    unknown = sorted({item for edge in edges for item in edge[:2]} - set(nodes))
-    if unknown:
-        raise SystemExit(f"FLOW:{flow_id} edges reference unknown nodes: {unknown}")
-
-    ordinal = {node_id: index for index, node_id in enumerate(order)}
-    level = {node_id: 0 for node_id in order}
-    for _ in range(len(order)):
-        changed = False
-        for source, target, _ in edges:
-            if ordinal[source] >= ordinal[target]:
-                continue
-            candidate = level[source] + 1
-            if candidate > level[target]:
-                level[target] = candidate
-                changed = True
-        if not changed:
-            break
-
-    groups: dict[int, list[str]] = {}
-    for node_id in order:
-        groups.setdefault(level[node_id], []).append(node_id)
-    wrapped = {node_id: _label_lines(nodes[node_id][0]) for node_id in order}
-    node_width = 246
-    gap_x = 34
-    margin = 28
-    canvas_width = max(
-        680,
-        max(len(items) * node_width + max(0, len(items) - 1) * gap_x for items in groups.values())
-        + margin * 2,
-    )
-    positions: dict[str, tuple[float, float, float, float]] = {}
-    y = 32.0
-    for level_no in sorted(groups):
-        items = groups[level_no]
-        heights = [max(64, 30 + 18 * len(wrapped[item])) for item in items]
-        row_height = max(heights)
-        row_width = len(items) * node_width + max(0, len(items) - 1) * gap_x
-        x = (canvas_width - row_width) / 2
-        for node_id, height in zip(items, heights):
-            positions[node_id] = (x, y + (row_height - height) / 2, node_width, height)
-            x += node_width + gap_x
-        y += row_height + 72
-    canvas_height = y - 38
-    marker_id = f"arrow-{flow_id}"
-    parts = [
-        f'<svg class="flow-svg" role="img" aria-label="{html.escape(FLOW_TITLES[flow_id])}" '
-        f'style="width:100%;height:auto;display:block" '
-        f'width="{canvas_width:.0f}" height="{canvas_height:.0f}" '
-        f'viewBox="0 0 {canvas_width:.0f} {canvas_height:.0f}" xmlns="http://www.w3.org/2000/svg">',
-        "<defs>",
-        f'<marker id="{marker_id}" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">',
-        '<path d="M0,0 L0,6 L9,3 z" fill="#52606d"/></marker>',
-        "</defs>",
-    ]
-    for source, target, edge_label in edges:
-        sx, sy, sw, sh = positions[source]
-        tx, ty, tw, _ = positions[target]
-        x1, y1 = sx + sw / 2, sy + sh
-        x2, y2 = tx + tw / 2, ty
-        if y2 <= y1:
-            bend = max(sx + sw, tx + tw) + 24
-            path = f"M{x1:.1f},{y1:.1f} C{bend:.1f},{y1 + 28:.1f} {bend:.1f},{y2 - 28:.1f} {x2:.1f},{y2:.1f}"
-        else:
-            middle = (y1 + y2) / 2
-            path = f"M{x1:.1f},{y1:.1f} C{x1:.1f},{middle:.1f} {x2:.1f},{middle:.1f} {x2:.1f},{y2:.1f}"
-        parts.append(
-            f'<path d="{path}" fill="none" stroke="#52606d" stroke-width="1.7" '
-            f'marker-end="url(#{marker_id})"/>'
-        )
-        if edge_label:
-            lx, ly = (x1 + x2) / 2, (y1 + y2) / 2 - 5
-            parts.append(
-                f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" font-size="12" '
-                f'fill="#334e68" paint-order="stroke" stroke="#fff" stroke-width="5">'
-                f'{html.escape(edge_label)}</text>'
-            )
-    for node_id in order:
-        label, shape = nodes[node_id]
-        x, ny, width, height = positions[node_id]
-        if shape == "decision":
-            points = (
-                f"{x + width / 2:.1f},{ny:.1f} {x + width:.1f},{ny + height / 2:.1f} "
-                f"{x + width / 2:.1f},{ny + height:.1f} {x:.1f},{ny + height / 2:.1f}"
-            )
-            parts.append(f'<polygon points="{points}" fill="#fff7ed" stroke="#c2410c" stroke-width="1.8"/>')
-        else:
-            radius = 24 if shape == "terminal" else 10
-            fill = "#eef6ff" if shape == "terminal" else "#ffffff"
-            parts.append(
-                f'<rect x="{x:.1f}" y="{ny:.1f}" width="{width}" height="{height:.1f}" '
-                f'rx="{radius}" fill="{fill}" stroke="#486581" stroke-width="1.8"/>'
-            )
-        lines = wrapped[node_id]
-        first_y = ny + height / 2 - (len(lines) - 1) * 9 + 5
-        parts.append(
-            f'<text x="{x + width / 2:.1f}" y="{first_y:.1f}" text-anchor="middle" '
-            'font-size="14" fill="#102a43" font-family="system-ui,Segoe UI,sans-serif">'
-        )
-        for index, line in enumerate(lines):
-            dy = 0 if index == 0 else 18
-            parts.append(
-                f'<tspan x="{x + width / 2:.1f}" dy="{dy}">{html.escape(line)}</tspan>'
-            )
-        parts.append("</text>")
-    parts.append("</svg>")
-    return "\n".join(parts) + "\n"
-
-
 def flow_body_to_html(body: str, flow_id: str) -> str:
     """Convert a FLOW body into offline HTML with source fallback."""
     body = body.strip()
-    m = re.match(r"^```mermaid\s*\n(.*?)```\s*$", body, re.DOTALL)
-    if m:
-        code = m.group(1).rstrip() + "\n"
-        svg = mermaid_to_static_svg(code, flow_id)
-        fallback = (
-            '<details class="flow-source"><summary>查看流程源码</summary>'
-            f'<pre>{html.escape(code)}</pre></details>\n'
-        )
-        return (
-            '<details class="flow-diagram"><summary><span>展开查看流程图</span>'
-            '<small>图框内可滚动</small></summary>\n'
-            f'<div class="flow-viewport">\n{svg}</div>\n'
-            f'{fallback}</details>\n'
+    if re.match(r"^```mermaid\s*\n", body):
+        # No renderer on the guide side any more: the hand-rolled SVG layout engine
+        # was removed because Mermaid never delivered the reason it was adopted
+        # (auto-tracking structure changes) and its output looked worse than text.
+        # Failing loudly beats silently shipping an ugly diagram.
+        raise SystemExit(
+            f"FLOW:{flow_id} 使用了 ```mermaid；本文件统一用 ```text 字符图，"
+            "见 50_playbook/t2ag_flow.md 顶部排版约定"
         )
     m2 = re.match(r"^```(?:text)?\s*\n(.*?)```\s*$", body, re.DOTALL)
     if m2:
@@ -371,12 +209,17 @@ def _domain_metadata(main_dir: Path) -> dict[str, str]:
 
 
 def _directory_authority(entry: Path, main_dir: Path) -> str:
-    """Return an existing edition-relative authority path, never a directory echo."""
+    """Return the directory's own authority entry, or "" when it has none.
+
+    Previously this fell back to `main/t2ag.md`, so six of eleven rows repeated
+    the same path and the column carried no information. An empty string is the
+    honest answer: the constitution governs the domain, the directory adds nothing.
+    """
     for filename in ("_README.md", "README.md", "INDEX.md"):
         candidate = entry / filename
         if candidate.is_file():
             return candidate.relative_to(main_dir.parent).as_posix()
-    return "main/t2ag.md"
+    return ""
 
 
 def build_directory_map_html(main_dir: Path, cloud_dir: Path) -> str:
@@ -425,21 +268,43 @@ def build_directory_map_html(main_dir: Path, cloud_dir: Path) -> str:
             )
         )
 
-    lines = [
-        "<table>",
-        "<thead><tr><th>目录</th><th>这里放什么</th><th>权威文件</th></tr></thead>",
-        "<tbody>",
-    ]
-    for rel, blurb, auth in rows:
-        lines.append(
-            "<tr>"
-            f"<td><code>{html.escape(rel)}</code></td>"
-            f"<td>{html.escape(blurb)}</td>"
-            f"<td><code>{html.escape(auth)}</code></td>"
-            "</tr>"
-        )
-    lines.extend(["</tbody>", "</table>", ""])
-    return "\n".join(lines)
+    return _render_directory_tree(rows)
+
+
+def _render_directory_tree(rows: list[tuple[str, str, str]]) -> str:
+    """Render the directory map as one character tree, matching the flow diagrams.
+
+    A flat three-column table could not show nesting -- the one thing a reader
+    opens this section for -- and its third column was mostly a repeated echo of
+    the constitution. The tree is generated from the real filesystem on every
+    build, so a structural change tracks itself; only the flow diagrams stay hand
+    written, because they encode intent rather than layout.
+    """
+    main_rows = [row for row in rows if row[0].startswith("main/")]
+    other_rows = [row for row in rows if not row[0].startswith("main/")]
+    names = [row[0].split("/")[1] for row in main_rows]
+    names += [row[0].rstrip("/") for row in other_rows]
+    width = max((len(name) for name in names), default=0) + 1
+
+    body: list[str] = []
+
+    def emit(prefix: str, name: str, blurb: str, auth: str) -> None:
+        label = f"{name}/".ljust(width)
+        body.append(f"{prefix}{label}  {blurb}".rstrip())
+        if auth:
+            body.append(f"{' ' * (len(prefix) + width + 2)}权威入口 {auth}")
+
+    if main_rows:
+        body.append("main/   实例本体")
+        for index, (rel, blurb, auth) in enumerate(main_rows):
+            connector = "└─ " if index == len(main_rows) - 1 else "├─ "
+            emit(connector, rel.split("/")[1], blurb, auth)
+    for rel, blurb, auth in other_rows:
+        body.append("")
+        emit("", rel.rstrip("/"), blurb, auth)
+
+    escaped = "\n".join(html.escape(line) for line in body)
+    return f'<pre class="dir-tree">{escaped}\n</pre>\n'
 
 
 def remove_mermaid_runtime(html_text: str) -> str:

@@ -3,46 +3,47 @@
 **保护级别**：core-playbook
 
 > 本文件是 `t2ag.md`、domain model 与各 playbook 的派生视图，不单独立法。
-> 一般系统过程可使用 Mermaid；课堂交互流程必须使用学生可直接阅读的 ASCII 字符树，
-> 静态权威拓扑也使用 ASCII。
 > 每图的 `FLOW` 标记供离线 HTML 指南生成器提取，不能删除或复用。
+
+**全部图使用字符型（```text 围栏）。** 早期版本允许一般系统过程写 Mermaid，动机是希望图
+能自动跟着版本走；但流程图编码的是**意图**，不是能从目录结构推导出来的东西，所以那个好处
+从未兑现——图照样要手维护，还额外背了一个自制 SVG 布局器。两种视觉语言混排的结果是九张图
+里五张一个样、四张另一个样。现在统一为字符图：读者一致，diff 可读，离线指南不需要渲染层。
+Mermaid 作为一种格式没有问题，只是这份文件不用它。
+
+能从现实生成的东西才交给生成器：离线指南的**目录树**由 `build_guide.py` 扫真实文件系统产出，
+改了结构下次构建自动跟上；流程图不属于这一类，手写并承认它手写。
+
+字符图记号：`●` 起点 · `▼` 动作 · `◇` 判断 · `├─ └─` 分支出口 · `◉` 终点 ·
+`·` 后为该步的补充说明。
 
 ## 图 0 · 首次启动
 
 <!-- FLOW:first_run -->
-```mermaid
-flowchart TD
-A(["打开目标实例"])
-L["读取 active skin；显示 welcome_msg + art_file + 版本"]
-B["doctor + state refresh --check"]
-C{"首次启动判据成立？"}
-D["日常接管：进入图 1"]
-E["逐项确认身份、时区、目标、基础与偏好"]
-F["把答案写成 answers.json；缺项即拒绝，不代填"]
-G["t2ag_init.py init：写 profile 与发行身份"]
-H{"用户已确认首门 Course 与真实入口？"}
-I["等待确认；不代选课程与入口"]
-J["t2ag_init.py new-course：Course、首个活动与 teacher 映射"]
-K["t2ag_init.py new-group：plan/calendar/review/bindings"]
-M["state refresh --write + --check"]
-N{"doctor 为 0 FAIL？"}
-O["修复状态，不开新内容"]
-P(["进入图 1"])
-A --> L
-L --> B
-B --> C
-C -- "否" --> D
-C -- "是" --> E
-E --> F
-F --> G
-G --> H
-H -- "否" --> I
-H -- "是" --> J
-J --> K
-K --> M
-M --> N
-N -- "否" --> O
-N -- "是" --> P
+```text
+● 打开目标实例
+│
+▼ 读取 active skin：welcome_msg + art_file + 版本号
+▼ doctor + state refresh --check
+│
+◇ 首次启动判据成立？
+│  └─ 否 ─→ 日常接管：进入图 1，不做任何初始化
+│
+▼ 逐项确认身份、时区、目标、已有基础与辅导偏好
+▼ 写 answers.json           · 缺任一必答项即拒绝，不代填默认值
+▼ t2ag_init.py init         · profile 与发行身份（云仍 paused）
+│
+◇ 用户已确认首门 Course 与真实入口？
+│  └─ 否 ─→ 等待确认；不代选课程，也不代选 Lesson / Exercise 入口
+│
+▼ t2ag_init.py new-course   · Course、首个活动、teacher 映射
+▼ t2ag_init.py new-group    · plan / calendar / review / bindings
+▼ state refresh --write + --check
+│
+◇ doctor 为 0 FAIL？
+│  └─ 否 ─→ 修复状态，不开新内容
+│
+◉ 进入图 1
 ```
 <!-- /FLOW:first_run -->
 
@@ -57,46 +58,35 @@ N -- "是" --> P
 ## 图 1 · 一次教学会话
 
 <!-- FLOW:panorama -->
-```mermaid
-flowchart TD
-A(["学生要求继续课程"])
-B["doctor + state refresh --check"]
-C{"有 FAIL？"}
-D["修复状态，不开新内容"]
-E["生成一次 L0：逐字摘录状态、教学契约及当前题面/必要教材窗口"]
-  F["同一原始字节缓存校验 ProgressSnapshot、活动与教师路由"]
-  G{"current_activity"}
-  H["Lesson L1：只追加 L0 尚未包含的当前活动证据"]
-  I["Exercise L1：当前题已有直接证据才追加 Attempt/Review"]
-  J["L2 仅由冲突、复测、排期、历史追问或结课触发"]
-  K["正课循环：见图 1b"]
-  L{"结课类型"}
-  M["共同强制事务：progress + 当前活动主载体 + 真实台账"]
-  N{"完整结课？"}
-  O["按真实触发补 reflections / reasoning / Group review"]
-  P["state refresh --write + --check"]
-  Q["完整 doctor；重读写入目标"]
-  R(["会话闭合"])
-A --> B
-B --> C
-C -- "是" --> D
-C -- "否" --> E
-E --> F
-  F --> G
-  G -- "lesson" --> H
-  G -- "exercise" --> I
-  H --> J
-  I --> J
-  J --> K
-  K --> L
-  L -- "Micro" --> M
-  L -- "完整" --> M
-  M --> N
-  N -- "否" --> P
-  N -- "是" --> O
-  O --> P
-  P --> Q
-  Q --> R
+```text
+● 学生要求继续课程
+│
+▼ doctor + state refresh --check
+│
+◇ 有 FAIL？
+│  └─ 是 ─→ 修复状态，不开新内容
+│
+▼ 生成一次 L0        · 逐字摘录状态、教学契约、当前题面 / 必要教材窗口
+▼ 同一原始字节缓存    · 校验 ProgressSnapshot、活动路由与教师路由
+│
+◇ current_activity
+├─ lesson   ─→ L1：只追加 L0 尚未包含的当前活动证据
+└─ exercise ─→ L1：当前题已有直接证据才追加 Attempt / Review
+│
+▼ L2 只由冲突、复测、排期、历史追问或结课触发
+▼ 正课循环            · 见图 1b
+│
+◇ 结课类型（Micro 与完整走同一强制事务）
+│
+▼ 强制事务            · progress + 当前活动主载体 + 真实台账
+│
+◇ 完整结课？
+│  └─ 是 ─→ 按真实触发补 reflections / reasoning / Group review
+│
+▼ state refresh --write + --check
+▼ 完整 doctor；重读写入目标
+│
+◉ 会话闭合
 ```
 <!-- /FLOW:panorama -->
 
@@ -228,46 +218,36 @@ doctor：active、registry、目录、元数据、art_file、未登记皮肤、�
 ## 图 6 · Git 工作流
 
 <!-- FLOW:git -->
-```mermaid
-flowchart TD
-A(["触发：里程碑、发布或恢复"])
-B["git status --short + diff --check"]
-C{"存在不明改动？"}
-D["只处理本次拥有的显式路径"]
-E["审阅工作区 diff"]
-F{"发布闸门与独立复审通过？"}
-G["禁止建立正式快照"]
-H{"用户明确授权 commit？"}
-I["保持未提交；如实报告"]
-J["显式 add → cached diff → commit"]
-N{"本批改了 Main/Skeleton 共享文件？"}
-O["cmp 核对两仓字节同源，再各自 commit"]
-P["sync_lite.py --write 从干净 Main 再生 Lite"]
-Q{"需要重打包发行物？"}
-R["按最终 HEAD 重打包；旧包不可发"]
-K{"需要 push？"}
-L["仅展示命令，等待另行授权"]
-M(["本地快照完成"])
-A --> B
-B --> C
-C -- "是" --> D
-C -- "否" --> E
-D --> E
-E --> F
-F -- "否" --> G
-F -- "是" --> H
-H -- "否" --> I
-H -- "是" --> J
-J --> N
-N -- "是" --> O
-N -- "否" --> P
-O --> P
-P --> Q
-Q -- "是" --> R
-Q -- "否" --> K
-R --> K
-K -- "否" --> M
-K -- "是" --> L
+```text
+● 触发：里程碑、发布或恢复
+│
+▼ git status --short + diff --check
+│
+◇ 存在不明改动？
+│  └─ 是 ─→ 只处理本次拥有的显式路径，其余原样留下
+│
+▼ 审阅工作区 diff
+│
+◇ 发布闸门与独立复审通过？
+│  └─ 否 ─→ 禁止建立正式快照
+│
+◇ 用户明确授权 commit？
+│  └─ 否 ─→ 保持未提交；如实报告
+│
+▼ 显式 add → cached diff → commit
+│
+◇ 本批改了 Main / Skeleton 共享文件？
+│  └─ 是 ─→ cmp 核对两仓字节同源，再各自 commit
+│
+▼ sync_lite.py --write     · 只从干净 Main 再生；脏树必被拒绝
+│
+◇ 需要重打包发行物？
+│  └─ 是 ─→ 按最终 HEAD 重打包，排除 .git；旧包不可发
+│
+◇ 需要 push？
+│  └─ 是 ─→ 仅展示命令，等待另行授权（RT3）
+│
+◉ 本地快照完成
 ```
 <!-- /FLOW:git -->
 
@@ -300,37 +280,31 @@ migration apply、terminal lifecycle 和其他 RT3 不由普通 campaign Git 计
 ## 图 7 · 批次整改治理
 
 <!-- FLOW:batch -->
-```mermaid
-flowchart TD
-A(["登记可复现事实与现行契约"])
-B["分类：FAIL / REVIEW / WARN / WAIVED"]
-C{"需要整改？"}
-D["一轮最多三次有实质差异的尝试"]
-E{"本轮收敛？"}
-F["记录证据与验证结果"]
-G{"已完成三轮？"}
-H["依据新证据重新分类"]
-I["停止硬凑；分离事实、推断、需求"]
-J["与需求提出者讨论变更或撤回"]
-K["完整闸门 + 独立复审"]
-L{"通过？"}
-M["返回整改；严重度不自动上升"]
-N(["等待用户授权快照"])
-A --> B
-B --> C
-C -- "否" --> F
-C -- "是" --> D
-D --> E
-E -- "是" --> F
-E -- "否" --> G
-G -- "否" --> H
-H --> D
-G -- "是" --> I
-I --> J
-F --> K
-K --> L
-L -- "否" --> M
-L -- "是" --> N
+```text
+● 登记可复现事实与现行契约
+│
+▼ 分类：FAIL / REVIEW / WARN / WAIVED
+│
+◇ 需要整改？
+│  └─ 否 ─→ 直接进入「记录证据」
+│
+├─ 整改轮（一轮最多三次有实质差异的尝试）
+│  │
+│  ◇ 本轮收敛？
+│  │  └─ 是 ─→ 出环，记录证据
+│  │
+│  ◇ 已完成三轮？
+│  ├─ 否 ─→ 依据新证据重新分类 ─→ 回本轮开头
+│  └─ 是 ─→ 停止硬凑：分离事实、推断与需求
+│           └─→ 与需求提出者讨论变更或撤回（不再自行尝试）
+│
+▼ 记录证据与验证结果
+▼ 完整闸门 + 独立复审
+│
+◇ 通过？
+│  └─ 否 ─→ 返回整改；严重度不自动上升
+│
+◉ 等待用户授权快照
 ```
 <!-- /FLOW:batch -->
 
@@ -349,52 +323,36 @@ Lite 投影与最终源指纹等不可分割全局门。
 ## 图 8 · 习题证据闭环
 
 <!-- FLOW:exercise_loop -->
-```mermaid
-flowchart TD
-Z["activity_map：ContentGroup 连接同级 Lesson / Exercise"]
-A["problems.md：稳定题目与教材来源"]
-T["创建/恢复 exerciseNN/exercise.md；保存做题停点与证据指针"]
-B["学生一次真实提交批次"]
-C{"作答模式"}
-D["text：attempt.md 逐题正文"]
-E["image：assets 保留原图"]
-F["mixed：正文 + 原图"]
-G["创建 ATdddd；引用本单元题目"]
-H["逐题批改"]
-I["创建 RVdddd；引用真实 Attempt"]
-J{"逐题结果"}
-K["correct：保留证据"]
-L["partial/incorrect：写回 mistake"]
-M["unresolved：写回 question"]
-N["重复思路至少跨题两次"]
-O{"达到模式门槛？"}
-P["更新 reasoning_patterns"]
-Q["更新 problems、exercise.md 与 progress；想法满足门槛则进入复利回路"]
-R(["session close + doctor"])
-Z --> A
-A --> T
-T --> B
-B --> C
-C -- "text" --> D
-C -- "image" --> E
-C -- "mixed" --> F
-D --> G
-E --> G
-F --> G
-G --> H
-H --> I
-I --> J
-J -- "correct" --> K
-J -- "partial/incorrect" --> L
-J -- "unresolved" --> M
-K --> N
-L --> N
-M --> N
-N --> O
-O -- "是" --> P
-O -- "否" --> Q
-P --> Q
-Q --> R
+```text
+● activity_map           · ContentGroup 连接同级 Lesson / Exercise
+│
+▼ problems.md            · 稳定题目与教材来源（含 artifact 路径与 SHA）
+▼ exerciseNN/exercise.md · 创建或恢复；保存做题停点与证据指针
+▼ 学生一次真实提交批次
+│
+◇ 作答模式
+├─ text  ─→ attempt.md 逐题正文
+├─ image ─→ assets 保留原图
+└─ mixed ─→ 正文 + 原图
+│
+▼ 创建 ATdddd            · 引用本单元题目，不新造题
+▼ 逐题批改
+▼ 创建 RVdddd            · 引用真实 Attempt
+│
+◇ 逐题结果
+├─ correct            ─→ 保留证据
+├─ partial/incorrect  ─→ 写回 mistake bank
+└─ unresolved         ─→ 写回 question bank
+│
+▼ 重复思路至少跨题两次
+│
+◇ 达到模式门槛？
+│  └─ 是 ─→ 更新 reasoning_patterns
+│
+▼ 更新 problems、exercise.md 与 progress
+▼ 想法满足门槛则进入复利回路
+│
+◉ session close + doctor
 ```
 <!-- /FLOW:exercise_loop -->
 
@@ -405,8 +363,8 @@ Q --> R
 1. 本文件是视图；与权威冲突时修图。
 2. 九个 FLOW ID 必须唯一、开闭配对，并由 doctor 校验；改 ID 集合须同步
    `t2ag_doctor.py` 的 `EXPECTED_FLOWS`。
-3. Mermaid 只用离线渲染器支持的子集：`X(["终点"])`、`X{"判断"}`、`X["动作"]`，
-   边为 `A --> B` 或 `A -- "标签" --> B`。超出子集时 `build_guide.py` 直接报错退出。
+3. 每个 FLOW 块必须是 ```text 字符图。`build_guide.py` 遇到 ```mermaid 直接报错退出，
+   因为指南侧已无渲染层——报错比静默产出一张丑图好。
 4. HTML 指南由 `build_guide.py` 生成静态 SVG 与文本回退，不依赖公网 CDN；改完本文件
    必须在两仓各跑一次 `build_guide.py --write`，否则 doctor 会报 SVG 数量漂移。
 5. Main/Skeleton 内容一致；Lite 只从 Main 再生，且只从干净树再生。

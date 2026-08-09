@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import subprocess
+import zipfile
 import sys
 import tempfile
 from pathlib import Path
@@ -1433,10 +1434,11 @@ def test_flow_and_offline_guide(root: Path) -> None:
     )
     run_silently(doctor.check_flow_and_guide)
     assert_message(doctor.fails, "FLOW 集合")
-    assert_message(doctor.fails, "外部运行时")
-    assert_message(doctor.fails, "未按需折叠")
-    assert_message(doctor.fails, "缺响应式尺寸")
-    assert_message(doctor.fails, "缺受控滚动视窗")
+    # All nine figures are character diagrams now; the guide must carry no
+    # rendering scaffolding at all, and a Mermaid block is itself a failure.
+    assert_message(doctor.fails, "不是 ```text 字符图")
+    assert_message(doctor.fails, "仍残留 Mermaid/SVG 渲染层")
+    assert_message(doctor.fails, "字符图数量不足")
 
 
 def test_offline_guide_version_drift_is_enforced(root: Path) -> None:
@@ -1487,6 +1489,61 @@ def test_offline_guide_version_drift_is_enforced(root: Path) -> None:
     seed("0.2.3", "0.2.0")
     run_silently(doctor.check_flow_and_guide)
     assert_message(doctor.fails, "流程源标题版本漂移")
+
+
+def test_skeleton_package_surface_is_enforced(root: Path) -> None:
+    """NEGATIVE: what strangers receive is the zip, not the checked-out tree.
+
+    The 2026-08-09 package shipped `.git/`, so `git show e3f7632^:…changelog` still
+    returned the pre-redaction maintainer paths. The tree scan reported clean the
+    whole time — a guard narrower than its carrier.
+    """
+    def build(name: str, entries: dict[str, str]) -> Path:
+        archive = root / name
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(archive, "w") as bundle:
+            for relative, text in entries.items():
+                bundle.writestr(f"t2ag-skeleton/{relative}", text)
+        return archive
+
+    clean = build(
+        "t2ag-skeleton-0.9.9-abcdef1.zip",
+        {"README.md": "# skeleton\n", "main/t2ag.md": "# 宪法\n"},
+    )
+    findings = doctor.skeleton_package_findings(clean)
+    if findings:
+        raise AssertionError(f"clean package must produce no finding: {findings}")
+
+    with_history = build(
+        "t2ag-skeleton-history.zip",
+        {"README.md": "# skeleton\n", ".git/config": "user = anyone\n"},
+    )
+    findings = doctor.skeleton_package_findings(with_history)
+    if not any(".git" in item for item in findings):
+        raise AssertionError(f"shipping .git must be reported: {findings}")
+    if len(findings) != 1:
+        raise AssertionError(f"the .git finding must subsume the file scan: {findings}")
+
+    leaky = build(
+        "t2ag-skeleton-leak.zip",
+        {"main/50_playbook/x.md": "见 C:\\Users\\someone\\T2AC\n"},
+    )
+    findings = doctor.skeleton_package_findings(leaky)
+    if not any("维护者个人信息" in item for item in findings):
+        raise AssertionError(f"packaged local path must be reported: {findings}")
+
+    exempt = build(
+        "t2ag-skeleton-exempt.zip",
+        {"main/70_tools/t2ag_doctor.py": r"(r'[A-Za-z]:[\\/]Users[\\/]', 'x')" + "\n"},
+    )
+    if doctor.skeleton_package_findings(exempt):
+        raise AssertionError("the detector's own literals must stay exempt inside packages")
+
+    broken = root / "t2ag-skeleton-broken.zip"
+    broken.parent.mkdir(parents=True, exist_ok=True)
+    broken.write_bytes(b"not a zip")
+    if not any("不可读" in item for item in doctor.skeleton_package_findings(broken)):
+        raise AssertionError("an unreadable package must fail closed, not pass silently")
 
 
 def test_hint_gate_contract(root: Path) -> None:
@@ -3967,6 +4024,7 @@ ALL_CONTRACT_TESTS = (
         test_course_activity_templates,
         test_flow_and_offline_guide,
         test_offline_guide_version_drift_is_enforced,
+        test_skeleton_package_surface_is_enforced,
         test_hint_gate_contract,
         test_exercise_evidence,
         test_exercise_activity_links,
