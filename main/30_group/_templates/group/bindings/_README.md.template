@@ -1,0 +1,8 @@
+# GROUP_ID bindings
+
+当前无弹性执行绑定。课程成员仍由 `../plan.md` 管理。
+
+> binding 只保存弹性执行安排（临时换线、补课窗口、跨成员联动），
+> 不保存课程正文、课程进度或掌握度。真正出现绑定时按
+> `main/50_playbook/course_group_rules.md` 在本目录新建 `Rddd_COURSE_ID.md`，
+> 并保留本说明文件。

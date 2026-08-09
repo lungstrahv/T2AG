@@ -192,6 +192,57 @@ class SkeletonFlavorTests(unittest.TestCase):
             self.assertTrue(any("missing source_evolution" in e for e in errors), errors)
 
 
+class InstanceFreshRegisterTests(unittest.TestCase):
+    """A generated instance is `main` flavor but still ships a cleared register.
+
+    Keying the EV-0023 exemption on `flavor == "skeleton"` alone broke the very
+    first thing a user does: `t2ag_init.py init` flips the flavor to `main`, and
+    the fresh instance then reported ~30 dangling EV citations it could not fix.
+    The exemption must follow the *cleared register*, and must not extend to a
+    partially populated one — that is real drift.
+    """
+
+    def _cleared_register(self, root: Path) -> None:
+        _minimal_tree(root)
+        _write(root / drc.REGISTER_REL, "# Register\n\n_本发行面不携带 EV 记录_\n")
+
+    def test_cleared_register_exempts_ev_linkage_for_main_flavor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cleared_register(root)
+            self.assertTrue(drc.register_is_instance_fresh(root))
+            errors = drc.validate_decision_records(root, "main")
+            self.assertFalse(any("dangling ADR→EV" in e for e in errors), errors)
+            _write(
+                root / "AGENTS.md", "见 EV-0021 与 ADR-0001。\n"
+            )
+            citations = drc.validate_decision_citations(root, "main")
+            self.assertFalse(any("EV-0021" in e for e in citations), citations)
+
+    def test_partially_populated_register_stays_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _minimal_tree(root)
+            self.assertFalse(drc.register_is_instance_fresh(root))
+            adr = (root / "docs/adr/0001-x.md").read_text(encoding="utf-8")
+            (root / "docs/adr/0001-x.md").write_text(
+                adr.replace("EV-0012", "EV-0099"), encoding="utf-8"
+            )
+            errors = drc.validate_decision_records(root, "main")
+            self.assertTrue(any("dangling ADR→EV" in e for e in errors), errors)
+            _write(root / "AGENTS.md", "见 EV-0099。\n")
+            citations = drc.validate_decision_citations(root, "main")
+            self.assertTrue(any("EV-0099" in e for e in citations), citations)
+
+    def test_adr_citations_never_exempt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._cleared_register(root)
+            _write(root / "AGENTS.md", "见 ADR-0404。\n")
+            citations = drc.validate_decision_citations(root, "main")
+            self.assertTrue(any("ADR-0404" in e for e in citations), citations)
+
+
 class DecisionCitationTests(unittest.TestCase):
     """P-0067: live normative prose must not cite nonexistent ADR/EV records."""
 

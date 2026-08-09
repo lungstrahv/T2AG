@@ -202,6 +202,17 @@ Prefetcher 还必须按 `source_page_assets.md` §3.1 与 critical 的 `scope_sc
 若 preparation 新路径不存在，上下文工具必须失败，**不得返回缺教材的 `ready`**。
 按 `ocr_correct_flow.md` + `source_page_assets.md` 补齐后重跑。
 
+**恢复期只读纪律**：
+
+- 恢复链路对 `book/.cache/`、`preparation/` 与 `source_assets/` 一律只读。超配额、疑似陈旧
+  或指针不一致时报告并停止，**不得自动清理**、驱逐、重命名或重建这些目录；当前 Scope 的
+  P0 页更不得驱逐。清理是独立的维护动作，须由用户在明确知道删什么的前提下授权。
+- 恢复过程中若发现需要写回（补页、改 Snapshot 指针、修真相源），那是另一笔动作：
+  取得 **exact RT3** 授权后才执行，且授权只覆盖当轮点名的对象。恢复本身不携带写入授权，
+  也不得把"为了继续上课"当作免授权理由。
+- 尚未进入学习的 Lesson（ledger 无 `learning_enter`）没有 Snapshot 是正常状态，
+  报告"尚未备页"即可，不得为通过检查而预造空 Snapshot 或伪造 receipt。
+
 ### 步骤 6：确认健康检查仍有效并执行开课抽查
 
 若本会话入口已经依次通过 `t2ag_state_refresh.py --check` 与 doctor，且生成 L0 后没有

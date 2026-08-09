@@ -8,6 +8,20 @@
 - profile 仍含必填占位符；或
 - memory 上次课摘要日期为 `—`。
 
+## 生成入口
+
+实例由 `main/70_tools/t2ag_init.py` 生成，不由模型照本文手抄文件：
+
+```powershell
+python -B main/70_tools/t2ag_init.py init --answers answers.json
+python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称> ... --date YYYY-MM-DD
+python -B main/70_tools/t2ag_init.py new-group --group-id G01 --members <ID> --status active --date YYYY-MM-DD
+```
+
+`answers.json` 保存第 3 步逐项确认的结果。工具缺任一必答项即拒绝执行，不代填默认值；
+也不创建 `.venv`、不装依赖、不下教材、不生成 Engagement、不做 git 写入。
+模型的职责是提问、把答案写成 `answers.json`、调用工具、复核输出，而不是发明 schema。
+
 ## 步骤
 
 1. 按 `main/t2ag.md`「3.0 启动欢迎信息」展示当前发行版的 `welcome_msg`、
@@ -23,16 +37,18 @@
    多块长篇讲解是否沿用默认的“先地图、后逐支”，以及学生希望怎样确认后再继续。同时让
    学生选择 `exercise_hint_gate: enabled | disabled`，不得由模型代选。
    当前困难与特殊要求是可选信息；未提供时明确写“未提供”，不得保留“待填写”。
-4. 将 profile 从模板改为 `initialization_status: initialized`，并写入
+4. 运行 `t2ag_init.py init`（对应本步与第 8 步）。它将 profile 从模板改为
+   `initialization_status: initialized`，并写入
    `agent_collaboration_preferences.v1`、`agent_pool_limit`、`agent_max_active`、`agent_parallel_startup`、
    `agent_startup_readiness`、`agent_background_reporting`、
    `activity_close_preferences.v1`、五项全局结课偏好、学习时区/cutoff、
    `activity_close_preferences_initialized_at`。首次结课提示 marker 初始化为
    `pending` / `none`；真正展示一次后才原子改为 `shown` / 带时区时间。
-5. 与用户确认首门课程及真实入口（先进入 Lesson 还是 Exercise）；从
-   `40_course/_templates/course/` 按 `new_course_init.md` 创建 Course 和首个学习活动。
-6. 与用户确认第一个 group 的成员、预算和日历，建立 plan/calendar/review，
-   并用 `bindings/_README.md` 持久化空 binding 域。
+5. 与用户确认首门课程及真实入口（先进入 Lesson 还是 Exercise）；用
+   `t2ag_init.py new-course` 按 `new_course_init.md` 创建 Course 和首个学习活动。
+6. 与用户确认第一个 group 的成员、预算和日历；用 `t2ag_init.py new-group` 建立
+   plan/calendar/review，并用 `bindings/_README.md` 持久化空 binding 域。
+   多成员 active 组必须由用户指定 `--current-course`。
 7. 在 `20_teacher/overlay.md` 唯一的“课程—教师映射”表中建课程到教师模板的
    显式行；模板单元使用精确 `` `main/20_teacher/Tddd.md` `` 路径。
 8. 完成发行身份切换，但不启动云同步：

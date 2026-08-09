@@ -143,6 +143,14 @@ class HandoffClassificationTests(unittest.TestCase):
 > **canonical_sources**：fixture source
 > **next_action**：fixture action
 > **semantic_check**：PASS
+
+## 最小状态摘要
+
+fixture state
+
+## 连续性摘要
+
+无需要恢复的额外主线。
 """,
                 encoding="utf-8",
             )

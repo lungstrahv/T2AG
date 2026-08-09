@@ -2237,6 +2237,28 @@ def check_registry() -> None:
             report("FAIL", f"多个 active artifact 共用 canonical：{canonical} -> {ids}")
 
 
+def activity_has_been_entered(folder: Path, activity_type: str, activity_id: str) -> bool:
+    """True once the ledger records a learning_enter for this activity.
+
+    Used to separate "created" from "taught". Reading the ledger keeps the answer
+    on the lifecycle authority instead of guessing from carrier file contents,
+    which a generator could accidentally satisfy.
+    """
+    ledger_path = folder / "activity_ledger.md"
+    if not ledger_path.is_file():
+        return False
+    try:
+        doc = activity_ledger_contract.load_ledger(ledger_path)
+    except Exception:  # a broken ledger is reported by its own check
+        return True
+    return any(
+        event.get("event_kind") == "learning_enter"
+        and event.get("activity_type") == activity_type
+        and event.get("activity_id") == activity_id
+        for event in doc.events
+    )
+
+
 def check_textbook_preparation(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
     """Textbook lesson evidence: EV-0012 current Snapshot path (legacy working_pages retired in 0.2.2)."""
     for course_id, (folder, meta) in courses.items():
@@ -2442,6 +2464,17 @@ def check_textbook_preparation(courses: dict[str, tuple[Path, dict[str, str]]]) 
                     f"cache 超过配额：{course_id} cache_n={cache_n} quota_n={quota_n} "
                     f"scope_n={scope_n}（P0={scope_n} 页不得驱逐）",
                 )
+            continue
+        if not activity_has_been_entered(folder, "lesson", lesson):
+            # Created but never taught. A Snapshot asserts prepared pages, load
+            # receipts and complete scope coverage, so demanding one here forced a
+            # freshly generated Lesson into a state no honest tool could produce:
+            # fabricate evidence, or fail Doctor on the user's first run. Entering
+            # learning is the point where a Snapshot becomes mandatory.
+            report(
+                "INFO",
+                f"textbook lesson 尚未备页（ledger 无 learning_enter）：{course_id}/{lesson}",
+            )
             continue
         # Legacy working_pages window retired in 0.2.2 S3.
         # Textbook lessons must use preparation Snapshots exclusively.
@@ -3193,6 +3226,24 @@ def check_handoff_contract() -> None:
     if not index.is_file():
         return
     index_content = read(index)
+    shadow_index = ROOT / "docs/handoffs/README.md"
+    if shadow_index.is_file() and shadow_index.resolve() != index.resolve():
+        shadow_content = read(shadow_index)
+        if re.search(r"^##\s+Active Handoffs\s*$", shadow_content, re.MULTILINE):
+            report(
+                "FAIL",
+                "实例内 docs/handoffs/README.md 复制了 Active Handoffs；"
+                "工作区已登记唯一 runtime 索引，实例内只能保留非运行时定位页",
+            )
+    declared_version = re.search(r"当前版本为\s*`?([0-9]+(?:\.[0-9]+)+)`?", index_content)
+    constitution = ROOT / "main/t2ag.md"
+    runtime_version = extract_runtime_version(read(constitution)) if constitution.is_file() else None
+    if declared_version and runtime_version and declared_version.group(1) != runtime_version:
+        report(
+            "FAIL",
+            "handoff 索引版本漂移："
+            f"index={declared_version.group(1)} runtime={runtime_version}",
+        )
     required_headings = (
         "Active Handoffs",
         "下一版本 Backlog",
@@ -3204,6 +3255,10 @@ def check_handoff_contract() -> None:
         if not re.search(rf"^##\s+{re.escape(heading)}\s*$", index_content, re.MULTILINE):
             report("FAIL", f"handoff 索引缺分类区：{heading}")
     rows = table_after_heading(index_content, "Active Handoffs")
+    active_lanes = {row.get("lane", "") for row in rows}
+    for absent_lane in re.findall(r"当前没有 active\s+`([^`]+)`", index_content):
+        if absent_lane in active_lanes:
+            report("FAIL", f"handoff 索引自相矛盾：{absent_lane} 同时登记 active 又声明不存在")
     seen_ids: set[str] = set()
     seen_files: set[str] = set()
     seen_scopes: set[tuple[str, str]] = set()
@@ -3256,6 +3311,12 @@ def check_handoff_contract() -> None:
             report("FAIL", f"active 索引指向非 handoff 角色：{filename}")
         if metadata["lane"] not in allowed_lanes:
             report("FAIL", f"active handoff lane 非法：{filename} -> {metadata['lane']}")
+        if metadata["scope"] == "course_session" and metadata["lane"] != "learning":
+            report("FAIL", f"course_session handoff 必须属于 learning lane：{filename}")
+        if not re.search(r"^##+\s+.*最小状态摘要", content, re.MULTILINE):
+            report("FAIL", f"active handoff 缺最小状态摘要层：{filename}")
+        if not re.search(r"^##+\s+.*连续性摘要", content, re.MULTILINE):
+            report("FAIL", f"active handoff 缺连续性摘要层：{filename}")
         for field in (
             "handoff_id", "scope", "lane", "artifact_role", "status", "applies_to", "updated_at"
         ):
@@ -4506,7 +4567,11 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
     required = {
         "README.md", "course.md.template", "progress.md.template",
         "activity_map.md.template", "activity_ledger.md.template",
+        "question_bank.md.template", "mistake_bank.md.template",
+        "book/README.md.template",
         "lessons/lessonNN/lessonNN.md.template",
+        "lessons/lessonNN/lesson_thoughts.md.template",
+        "exercises/exercise_thoughts.md.template",
         "exercises/exerciseNN/exercise.md.template",
         "exercises/exerciseNN/problems.md.template",
         "book/primary/verified_excerpts/source.md.template",
@@ -4517,6 +4582,27 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
     missing = sorted(path for path in required if not (template_root / path).is_file())
     if missing:
         report("FAIL", f"Course/Lesson/Exercise 系统模板缺失：{missing}")
+    question_bank_template = template_root / "question_bank.md.template"
+    if (
+        question_bank_template.is_file()
+        and "QUESTION_BANK_TEMPLATE_V2" not in read(question_bank_template)
+    ):
+        report("FAIL", "question bank 模板未带 V2 版本标记，实例化后会被判为未升级")
+    group_required = {
+        "README.md", "plan.md.template", "calendar.md.template",
+        "review.md.template", "bindings/_README.md.template",
+    }
+    group_template_root = MAIN / "30_group/_templates/group"
+    missing_group = sorted(
+        path for path in group_required if not (group_template_root / path).is_file()
+    )
+    if missing_group:
+        report("FAIL", f"Group 系统模板缺失：{missing_group}")
+    group_plan_template = group_template_root / "plan.md.template"
+    if group_plan_template.is_file():
+        plan_meta = frontmatter(group_plan_template)
+        if plan_meta.get("status") != "planned":
+            report("FAIL", "Group plan 模板默认状态必须是 planned，不得预置 active")
     core_contract = MAIN / "00_core/learning_activity_model.md"
     if not core_contract.is_file():
         report("FAIL", "缺课程学习活动 Core 契约：main/00_core/learning_activity_model.md")
@@ -4908,6 +4994,11 @@ def check_authorization_governance(*, include_external_handoffs: bool = True) ->
         MAIN / "50_playbook/remediation_governance.md": (
             "stopped_budget",
             "默认最多两轮 finding 整改",
+        ),
+        MAIN / "50_playbook/handoff_management.md": (
+            "恢复后动作授权门",
+            "概括性认可只覆盖当轮已具体列出的动作",
+            "不构成当轮许可",
         ),
     }
     for path, markers in playbook_markers.items():

@@ -223,13 +223,34 @@ def _supersedes_cycle(adrs: dict[str, AdrRecord]) -> list[str]:
     return errors
 
 
+def register_is_instance_fresh(root: Path) -> bool:
+    """True when the local Evolution Register holds no EV records at all.
+
+    EV-0023 clears the register on the release surface, so every EV token in
+    shipped prose is maintainer provenance rather than a locally resolvable
+    record. Keying the exemption on `flavor == "skeleton"` alone broke the first
+    thing a real user does: `t2ag_init.py init` flips the flavor to `main`, and
+    the freshly generated instance then reported ~30 dangling EV citations it had
+    no way to fix. A *cleared* register is the honest signal; a *partially*
+    populated one still means drift and stays strict.
+    """
+    register_path = root / REGISTER_REL
+    if not register_path.is_file():
+        return True
+    return not parse_evolution_register(register_path.read_text(encoding="utf-8"))
+
+
+def ev_linkage_is_exempt(root: Path, flavor: str) -> bool:
+    return flavor == "skeleton" or register_is_instance_fresh(root)
+
+
 def validate_decision_records(root: Path, flavor: str = "main") -> list[str]:
     """Return human-readable FAIL messages (empty = pass).
 
-    flavor="skeleton": the local register is instance-fresh (EV-0023) and
-    EV references in ADR frontmatter are provenance annotations pointing at
-    the maintainer's register, never locally resolvable — EV linkage checks
-    are skipped; ADR file integrity checks still apply.
+    EV linkage is skipped when the local register is instance-fresh (EV-0023):
+    EV references in ADR frontmatter are then provenance annotations pointing at
+    the maintainer's register and are never locally resolvable. ADR file
+    integrity checks always apply. See `register_is_instance_fresh`.
     """
     errors: list[str] = []
     errors.extend(validate_redirect(root))
@@ -263,8 +284,9 @@ def validate_decision_records(root: Path, flavor: str = "main") -> list[str]:
 
     errors.extend(_supersedes_cycle(by_adr))
 
+    ev_exempt = ev_linkage_is_exempt(root, flavor)
     for adr in adrs:
-        if flavor != "skeleton":
+        if not ev_exempt:
             for ev_id in adr.source_evolution:
                 if ev_id not in by_ev:
                     errors.append(f"dangling ADR→EV: {adr.adr_id} -> {ev_id}")
@@ -342,15 +364,17 @@ CITATION_SURFACE_GLOBS = (
 def validate_decision_citations(root: Path, flavor: str = "main") -> list[str]:
     """ADR/EV tokens cited by live normative prose must name real records.
 
-    flavor="skeleton": ADR citations must still resolve (ADRs are portable and
-    ship with the distribution); EV citations are maintainer provenance
-    annotations and are exempt (EV-0023).
+    ADR citations must always resolve (ADRs are portable and ship with the
+    distribution). EV citations are maintainer provenance annotations and are
+    exempt whenever the local register is instance-fresh (EV-0023) — see
+    `register_is_instance_fresh` for why this is not keyed on flavor alone.
     """
     errors: list[str] = []
     adrs = {a.adr_id for a in load_adrs(root)}
     evs: set[str] = set()
+    ev_exempt = ev_linkage_is_exempt(root, flavor)
     register_path = root / REGISTER_REL
-    if flavor != "skeleton" and register_path.is_file():
+    if not ev_exempt and register_path.is_file():
         evs = {
             e.ev_id
             for e in parse_evolution_register(
@@ -373,7 +397,7 @@ def validate_decision_citations(root: Path, flavor: str = "main") -> list[str]:
         for token in sorted(set(ADR_TOKEN_RE.findall(text))):
             if token not in adrs:
                 errors.append(f"dangling citation: {rel} 引用不存在的 {token}")
-        if flavor == "skeleton":
+        if ev_exempt:
             continue
         for token in sorted(set(EV_TOKEN_RE.findall(text))):
             if token not in evs:

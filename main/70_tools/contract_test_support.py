@@ -1322,6 +1322,40 @@ def test_textbook_preparation_activity_matrix(root: Path) -> None:
         ),
     }
     reset(root)
+    # Created but never entered: no ledger learning_enter, so a Snapshot cannot
+    # exist honestly and Doctor must not demand one. Without this the first thing
+    # a real user does — generate a Course — fails runtime Doctor.
+    run_silently(doctor.check_textbook_preparation, courses)
+    if any("LESS1001" in message for message in doctor.fails):
+        raise AssertionError(
+            f"never-entered Lesson must not require a Snapshot: {doctor.fails}"
+        )
+
+    # Once learning was entered, the Snapshot becomes mandatory again.
+    write(
+        lesson / "activity_ledger.md",
+        ledger_contract.build_ledger_with_events(
+            "LESS1001",
+            "### ALE-000001\n"
+            "event_id: ALE-000001\nevent_kind: transition\ncourse_id: LESS1001\n"
+            "activity_type: lesson\nactivity_id: lesson01\n"
+            "from_state: planned\nto_state: ongoing\n"
+            "occurred_at: 2026-07-26T00:00:00Z\nrecorded_at: 2026-07-26T00:00:00Z\n"
+            "triggered_by: user\ntrigger: activity_created\n"
+            "transaction_id: INIT-LESS1001-lesson01\n"
+            "evidence_refs: [main/40_course/LESS1001/lessons/lesson01/lesson01.md]\n\n"
+            "### ALE-000002\n"
+            "event_id: ALE-000002\nevent_kind: learning_enter\ncourse_id: LESS1001\n"
+            "activity_type: lesson\nactivity_id: lesson01\n"
+            "from_state: ongoing\nto_state: ongoing\n"
+            "learning_span_id: LS-LESS1001-0001\n"
+            "occurred_at: 2026-07-26T01:00:00Z\nrecorded_at: 2026-07-26T01:00:00Z\n"
+            "triggered_by: user\ntrigger: lesson_start\n"
+            "transaction_id: ENTER-LESS1001-lesson01\n"
+            "evidence_refs: [main/40_course/LESS1001/lessons/lesson01/lesson01.md]\n",
+        ),
+    )
+    reset(root)
     run_silently(doctor.check_textbook_preparation, courses)
     if any("EXER1001" in message for message in doctor.fails):
         raise AssertionError(f"Exercise inherited working-pages validation: {doctor.fails}")
@@ -2325,286 +2359,108 @@ def copy_release_without_links(source: Path, fixture: Path) -> None:
             shutil.copy2(source_path, target)
 
 
-def materialize_synthetic_exercise_first(fixture: Path) -> str:
+SYNTHETIC_INIT_ANSWERS = {
+    "nickname": "synthetic student",
+    "school": "synthetic institute",
+    "stage": "synthetic stage",
+    "direction": "synthetic direction",
+    "weekly_time": "1 小时",
+    "goals": ["验证公开生成路径的 Exercise-first 往返"],
+    "tutoring_preference": "逐步确认",
+    "long_explanation_mode": "map-first",
+    "branch_confirmation": "每支讲完确认",
+    "cycle_structure": "synthetic cycle",
+    "small_adjustment": "每循环一次",
+    "big_adjustment": "每三循环",
+    "aged_review_mode": "suggest",
+    "existing_basis": "合成测试",
+    "current_difficulty": "未提供",
+    "teaching_notes": "未提供",
+    "exercise_hint_gate": "enabled",
+    "learning_timezone": "Asia/Singapore",
+    "learning_day_cutoff": "04:00",
+    "lesson_actual_review": "on",
+    "lesson_student_feedback": "on",
+    "lesson_knowledge_absorption": "on",
+    "exercise_problem_review": "on",
+    "exercise_knowledge_mastery": "on",
+    "updated": "2026-07-26",
+}
+
+
+def generate_synthetic_exercise_first(fixture: Path, cli) -> str:
+    """Build the roundtrip instance through the PUBLIC generation path only.
+
+    The previous helper wrote profile, Course, verified excerpt, ledger and Group
+    from hardcoded strings. That proved the runtime kernel could process a
+    complete instance and nothing else: a missing release template or a drifted
+    schema left the test green, because the test *was* the schema. Everything
+    below goes through `t2ag_init.py`, so the same three failures a real user
+    would hit — absent template, unfilled placeholder, contract-invalid ledger —
+    now fail here first.
+
+    Inputs stay synthetic (a one-line source document, a trivial problem); only
+    the *path* is real. The tool still refuses to invent any of them.
+    """
     course_id = "TEST1001"
-    exercise_id = "exercise01"
-    content_group = "TEST1001-B001-C01-S01"
-    source_relative = (
-        "main/40_course/TEST1001/book/primary/verified_excerpts/"
-        "test1001_b001_c01_s01.md"
+    scratch = fixture.parent
+    answers_path = scratch / "synthetic_answers.json"
+    answers_path.write_text(
+        json.dumps(SYNTHETIC_INIT_ANSWERS, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
-    source = fixture / source_relative
+    document = scratch / "synthetic_source_document.txt"
+    document.write_text(
+        "synthetic Exercise-first source document\n", encoding="utf-8", newline="\n"
+    )
+
     profile = fixture / "main/10_student/profile/profile.md"
-    profile_before = profile.read_bytes()
-    profile_before_text = profile_before.decode("utf-8-sig")
-    profile_was_initialized = bool(re.search(
-        r"^initialization_status:\s*initialized\s*$",
-        profile_before_text,
-        re.MULTILINE,
-    ))
-    if not profile_was_initialized and not re.search(
-        r"^initialization_status:\s*uninitialized\s*$",
-        profile_before_text,
-        re.MULTILINE,
-    ):
+    profile_text = profile.read_text(encoding="utf-8-sig")
+    if re.search(r"^initialization_status:\s*initialized\s*$", profile_text, re.MULTILINE):
+        pass  # already a personal instance; init would (correctly) refuse
+    elif re.search(r"^initialization_status:\s*uninitialized\s*$", profile_text, re.MULTILINE):
+        cli("t2ag_init.py", "--root", str(fixture), "init", "--answers", str(answers_path))
+    else:
         raise AssertionError("profile has no recognized initialization_status")
 
-    def write_synthetic_profile(path: Path, content: str) -> None:
-        if not profile_was_initialized:
-            write(path, content)
-
-    write_synthetic_profile(
-        profile,
-        "---\ntype: student_profile\ninitialization_status: initialized\n"
-        "exercise_hint_gate: enabled\n"
-        "agent_collaboration_schema: agent_collaboration_preferences.v1\n"
-        "agent_pool_limit: 6\nagent_max_active: 3\n"
-        "agent_parallel_startup: enabled\n"
-        "agent_startup_readiness: learning_ready_first\n"
-        "agent_background_reporting: blockers_only\n"
-        "activity_close_preference_schema: activity_close_preferences.v1\n"
-        "activity_close_first_prompt_status: pending\n"
-        "activity_close_first_prompt_at: none\n"
-        "learning_timezone: Asia/Singapore\nlearning_day_cutoff: 04:00\n"
-        "lesson_actual_review: on\nlesson_student_feedback: on\n"
-        "lesson_knowledge_absorption: on\nexercise_problem_review: on\n"
-        "exercise_knowledge_mastery: on\nupdated: 2026-07-26\n---\n"
-        "# Synthetic profile\n\n"
-        "## 每周可投入学习时间\n- 1 小时\n\n"
-        "## 学习目标\n- 验证 Exercise-first 往返\n\n"
-        "## 辅导与展现偏好\n- 逐步确认\n\n"
-        "## 个体基线\n- 已有基础：合成测试\n",
-    )
-    skin = fixture / "main/80_interface/SK001_default/skin.yaml"
-    skin.write_text(
-        replace_frontmatter_field(
-            skin.read_text(encoding="utf-8-sig"),
-            "art_file",
-            "03_inori_2.txt",
-        ),
-        encoding="utf-8",
-        newline="\n",
-    )
-    cloud_state = fixture / "cloud/cloud_sync_state.md"
-    state_content = cloud_state.read_text(encoding="utf-8-sig")
-    # R2-F05a: convert generic_skeleton once; already personal_instance → skip;
-    # neither form → fail. Never force Main through Skeleton-only rewrite.
-    if re.search(
-        r"^-\s*current_cloud_project_mode:\s*personal_instance\s*$",
-        state_content,
-        re.MULTILINE,
-    ):
-        pass
-    elif re.search(
-        r"^-\s*current_cloud_project_mode:\s*generic_skeleton\s*$",
-        state_content,
-        re.MULTILINE,
-    ):
-        state_content = replace_regex_exactly_once(
-            state_content,
-            r"^-\s*current_cloud_project_mode:\s*generic_skeleton\s*$",
-            "- current_cloud_project_mode: personal_instance",
-            label="Skeleton current_cloud_project_mode",
-            flags=re.MULTILINE,
-        )
-    else:
-        raise AssertionError(
-            "cloud_sync_state has neither generic_skeleton nor personal_instance "
-            "current_cloud_project_mode"
-        )
-    if "new_cloud_sessions_allowed:" not in state_content:
-        state_content = replace_exactly_once(
-            state_content,
-            "- cloud_bridge_status: paused\n",
-            "- cloud_bridge_status: paused\n"
-            "- new_cloud_sessions_allowed: false\n"
-            "- new_component_directives_allowed: false\n",
-            label="Skeleton cloud pause gates",
-        )
-    cloud_state.write_text(state_content, encoding="utf-8", newline="\n")
-    cloud_prompt = fixture / "cloud/T2AG_PROJECT_INSTRUCTIONS.txt"
-    prompt_content = cloud_prompt.read_text(encoding="utf-8-sig")
-    if "cloud_project_mode: personal_instance" in prompt_content:
-        pass
-    elif "cloud_project_mode: generic_skeleton" in prompt_content:
-        prompt_content = replace_exactly_once(
-            prompt_content,
-            "cloud_project_mode: generic_skeleton",
-            "cloud_project_mode: personal_instance",
-            label="Skeleton cloud prompt flavor",
-        )
-    else:
-        raise AssertionError(
-            "cloud prompt has neither generic_skeleton nor personal_instance "
-            "cloud_project_mode"
-        )
-    if "personal_instance_protocol_markers:" not in prompt_content:
-        prompt_content += (
-            "\n\npersonal_instance_protocol_markers:\n"
-            "- T2AG_SESSION_CLOSE\n"
-            "- T2AG_CLOUD_CHANGE_DIRECTIVE\n"
-            "- T2AG_CLOUD_HANDOFF\n"
-        )
-    cloud_prompt.write_text(prompt_content, encoding="utf-8", newline="\n")
-    # Preserve existing course→teacher rows when materializing on top of Main;
-    # only-TEST1001 wipe breaks state_refresh on multi-course personal_instance.
-    existing_course_ids = {
-        path.parent.name
-        for path in (fixture / "main/40_course").glob("*/progress.md")
-    }
-    ensure_teacher_mapping_row(fixture, course_id, existing_course_ids)
-    document_relative = (
-        "main/40_course/TEST1001/book/primary/source_documents/"
-        "test1001_b001_c01_s01.txt"
-    )
-    document = fixture / document_relative
-    write(document, "synthetic Exercise-first source document\n")
-    document_sha = hashlib.sha256(document.read_bytes()).hexdigest()
-    write(
-        source,
-        "---\ntype: verified_source_excerpt\n"
-        "artifact_id: TEST1001_EXERCISE01_SOURCE\ncourse_id: TEST1001\n"
-        f"content_group_id: {content_group}\n"
-        f"source_document: {document_relative}\n"
-        f"source_document_sha256: {document_sha}\n"
-        "source_locator: synthetic problem 1\n"
-        "verification_status: synthetic_verified\nverified: 2026-07-26\n"
-        "lifecycle: persistent\n---\n# Synthetic source\n\n"
-        f"## {exercise_id}-Q001\n\n- 教材题号：1\n- 来源页：1\n"
-        "- 题面：证明 1 = 1。\n",
-    )
-    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    registry_path = fixture / "main/70_tools/artifact_registry.json"
-    registry = json.loads(registry_path.read_text(encoding="utf-8-sig"))
-    synthetic_artifact = {
-        "artifact_id": "TEST1001_EXERCISE01_SOURCE",
-        "canonical_path": source_relative,
-        "redirects": [],
-        "status": "active",
-        "migration_reason": "synthetic contract fixture",
-    }
-    matching_artifacts = [
-        item for item in registry.setdefault("artifacts", [])
-        if item.get("artifact_id") == synthetic_artifact["artifact_id"]
-    ]
-    if not matching_artifacts:
-        registry["artifacts"].append(synthetic_artifact)
-    elif matching_artifacts != [synthetic_artifact]:
-        raise AssertionError("synthetic artifact registry entry drifted or duplicated")
-    registry_path.write_text(
-        json.dumps(registry, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-        newline="\n",
+    cli(
+        "t2ag_init.py", "--root", str(fixture), "new-course",
+        "--course-id", course_id,
+        "--name", "Synthetic Course",
+        "--driver", "textbook",
+        "--lifecycle", "ongoing",
+        "--entry", "exercise",
+        "--teacher", "T001",
+        "--source-scope", "synthetic",
+        "--position", "synthetic start",
+        "--node-title", "identity",
+        "--source-document", str(document),
+        "--source-locator", "synthetic problem 1",
+        "--source-page", "1",
+        "--problem-text", "证明 1 = 1。",
+        "--verification-status", "synthetic_verified",
+        "--date", "2026-07-26",
     )
 
-    course = fixture / f"main/40_course/{course_id}"
-    write(
-        course / "course.md",
-        "---\ntype: course\ncourse_id: TEST1001\n"
-        "school_course_code: TEST1001\nname: Synthetic Course\n"
-        "course_type: mastery\ndefault_driver: textbook\n"
-        "prerequisites: []\nstatus: active\n---\n# Synthetic Course\n",
+    # The foreground group must point at the generated course. Clearing the
+    # release's own groups is fixture setup, not generation: only new-group may
+    # create one, so a broken group template still fails the test.
+    group_root = fixture / "main/30_group"
+    for existing in sorted(group_root.glob("G*")):
+        if not existing.is_dir():
+            continue
+        if fixture.resolve() not in existing.resolve().parents:
+            raise AssertionError(f"refusing to remove a group outside the fixture: {existing}")
+        shutil.rmtree(existing)
+    cli(
+        "t2ag_init.py", "--root", str(fixture), "new-group",
+        "--group-id", "G01",
+        "--members", course_id,
+        "--status", "active",
+        "--cycle", "synthetic",
+        "--date", "2026-07-26",
     )
-    write(
-        course / "progress.md",
-        "---\ntype: course_progress\ncourse_id: TEST1001\n"
-        "lifecycle_status: ongoing\ncourse_driver: textbook\n"
-        "truth_scope: course_lifecycle,course_frontend,activity_position\n"
-        "current_activity: exercise\n"
-        f"current_activity_id: {exercise_id}\n"
-        f"resume_path: main/40_course/TEST1001/exercises/{exercise_id}/exercise.md\n"
-        "activity_position: synthetic start\nupdated: 2026-07-26\n"
-        f"current_completion_node: {content_group}-N01\n"
-        "current_checkpoint: TEST1001-B001-P001-N01\n"
-        "checkpoint_state: queued\nnext_action_kind: resume\n"
-        f"next_activity_type: exercise\nnext_activity_id: {exercise_id}\n---\n"
-        f"# TEST1001 progress\n\n- **下一步计划**：resume exercise:{exercise_id}\n\n"
-        "## Completion nodes\n\n"
-        "| node_id | 标题 | 来源范围 | 状态 | 完成证据 |\n"
-        "|---|---|---|---|---|\n"
-        f"| {content_group}-N01 | identity | synthetic | queued | — |\n",
-    )
-    write(
-        course / "activity_map.md",
-        "---\ntype: course_activity_map\ncourse_id: TEST1001\n"
-        "updated: 2026-07-26\n---\n# Activity map\n\n"
-        "## 内容组连接表\n\n"
-        "| content_group_id | source_scope | lesson_ids | exercise_ids |\n"
-        "|---|---|---|---|\n"
-        f"| {content_group} | synthetic | — | {exercise_id} |\n",
-    )
-    write(course / "lessons/_README.md", "No Lesson: Exercise-first fixture.\n")
-    write(course / "book/README.md", "Synthetic persistent source.\n")
-    write(
-        course / f"exercises/{exercise_id}/exercise.md",
-        f"---\ntype: exercise\ncourse_id: TEST1001\nexercise_id: {exercise_id}\n"
-        f"content_group_ids: [{content_group}]\nstatus: ongoing\n"
-        f"created: 2026-07-26\n---\n# {exercise_id}\n\n## 学习记录\n",
-    )
-    write(
-        course / f"exercises/{exercise_id}/problems.md",
-        "---\ntype: exercise_problem_set\ncourse_id: TEST1001\n"
-        f"exercise_id: {exercise_id}\n"
-        f"content_group_id: {content_group}\n"
-        "source_artifact_id: TEST1001_EXERCISE01_SOURCE\n"
-        f"source_path: {source_relative}\n"
-        "source_locator: synthetic problem 1\n"
-        f"source_sha256: {source_sha}\n"
-        f"source_order: [{exercise_id}-Q001]\n"
-        f"teaching_sequence: [{exercise_id}-Q001]\n"
-        f"status: active\n---\n# Problems\n\n## {exercise_id}-Q001\n\n"
-        "- 题号：1\n- 来源页：1\n- 难度：未评估\n"
-        f"- 依赖 completion node：`{content_group}-N01`\n"
-        "- 状态：open\n- 错误级别：—\n- 题面：证明 1 = 1。\n",
-    )
-    (course / f"exercises/{exercise_id}/attempts").mkdir(parents=True, exist_ok=True)
-    (course / f"exercises/{exercise_id}/reviews").mkdir(parents=True, exist_ok=True)
-    ledger_event = ledger_contract.render_migration_snapshot_event(
-        event_id="ALE-000001",
-        course_id=course_id,
-        activity_type="exercise",
-        activity_id=exercise_id,
-        observed_state="ongoing",
-        recorded_at="2026-07-26T00:00:00Z",
-        transaction_id="MIG022-TEST1001",
-        observed_from_refs=[
-            f"main/40_course/{course_id}/exercises/{exercise_id}/exercise.md"
-        ],
-        evidence_refs=["contract_test_support:synthetic_exercise_first"],
-        content_group_ids=[content_group],
-    )
-    write(
-        course / "activity_ledger.md",
-        ledger_contract.build_ledger_with_events(course_id, ledger_event),
-    )
-    write(
-        course / "question_bank.md",
-        "---\ntype: question_bank\ncourse_id: TEST1001\nnext_id: 1\n---\n"
-        "<!-- QUESTION_BANK_TEMPLATE_V2 -->\n# Questions\n",
-    )
-    write(
-        course / "mistake_bank.md",
-        "---\ntype: mistake_bank\ncourse_id: TEST1001\nnext_id: 1\n---\n"
-        "# Mistakes\n\n## 活跃知识点\n\n## 维护知识点\n\n## 陈年知识点\n",
-    )
-    group = fixture / "main/30_group/G01"
-    write(
-        group / "plan.md",
-        "---\ntype: group\ngroup_id: G01\nstatus: active\n"
-        "course_members: [TEST1001]\nengagement_members: []\n"
-        "current_course: TEST1001\nupdated: 2026-07-26\n---\n# G01\n",
-    )
-    write(
-        group / "calendar.md",
-        "---\ntype: group_calendar\ngroup_id: G01\nstatus: active\n"
-        "updated: 2026-07-26\n---\n# Calendar\n",
-    )
-    write(
-        group / "review.md",
-        "---\ntype: group_review\ngroup_id: G01\nstatus: open\n"
-        "updated: 2026-07-26\n---\n# Review\n",
-    )
-    (group / "bindings").mkdir(parents=True, exist_ok=True)
     return course_id
 
 
@@ -2672,7 +2528,7 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
         cli("migrate_020.py", "--check", "--target", "skeleton")
         if list((fixture / "main/40_course").glob("*/progress.md")):
             raise AssertionError("Skeleton release E2E unexpectedly contains a course")
-        course_id = materialize_synthetic_exercise_first(fixture)
+        course_id = generate_synthetic_exercise_first(fixture, cli)
         expected_runtime_flavor = "main"
     else:
         expected_runtime_flavor = "lite" if source.name == "t2ag-lite" else "main"
@@ -2710,7 +2566,7 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
                     or recover["current_activity_id"] != "none"
                     or recover["primary_read"] != expected_progress
                     or recover["activity_read_targets"]
-                    or recover["working_pages"] is not None
+                    or "working_pages" in recover
                 ):
                     raise AssertionError(
                         f"between-activities recover invented an active activity: {recover}"
@@ -2719,7 +2575,7 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
             # Initialized Main may only have ongoing textbook Lessons (no Exercise /
             # between_activities). Do not depend on mutable instance shape: synthesize
             # an Exercise-first course inside the fixture for the disk roundtrip.
-            course_id = materialize_synthetic_exercise_first(fixture)
+            course_id = generate_synthetic_exercise_first(fixture, cli)
         else:
             course_id = candidates[0]
 
@@ -2771,8 +2627,10 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
     )
     if recover["primary_read"] != expected_carrier:
         raise AssertionError(f"recover routed away from Exercise: {recover}")
-    if recover["working_pages"] is not None:
-        raise AssertionError(f"Exercise recover inherited working pages: {recover}")
+    # working_pages was retired in 0.2.2 S3: the key must be absent, not null.
+    # Asserting `is not None` raised KeyError instead of checking anything.
+    if "working_pages" in recover:
+        raise AssertionError(f"Exercise recover inherited retired working_pages: {recover}")
     for relative in recover["activity_read_targets"]:
         if not (fixture / relative).is_file():
             raise AssertionError(f"recover target was not read-resolvable: {relative}")
@@ -3217,10 +3075,17 @@ def write_handoff_fixture(repo: Path, body: str) -> None:
         f"| 2026-08-07 | `{filename}` |\n\n"
         f"{headings}\n",
     )
+    write(repo / "main/t2ag.md", FIXTURE_CONSTITUTION)
     metadata = "\n".join(
         f"> **{field}**：{value}" for field, value in HANDOFF_METADATA_FIELDS
     )
-    write(handoff_root / filename, f"# fixture handoff\n\n{metadata}\n\n{body}\n")
+    write(
+        handoff_root / filename,
+        f"# fixture handoff\n\n{metadata}\n\n"
+        "## 最小状态摘要\n\nfixture state\n\n"
+        "## 连续性摘要\n\n无需要恢复的额外主线。\n\n"
+        f"{body}\n",
+    )
 
 
 def test_handoff_assertion_without_source_is_reported(root: Path) -> None:
@@ -3286,6 +3151,109 @@ def test_handoff_assertion_scan_skips_structure_only(root: Path) -> None:
     quoted = doctor.unsourced_handoff_assertions("上一轮误报「零命中」，实际索引存在\n")
     if len(quoted) != 1 or quoted[0][0] != 1:
         raise AssertionError(f"quoted prose must still be reported: {quoted}")
+
+
+def test_handoff_required_context_layers_are_enforced(root: Path) -> None:
+    repo = root / "t2ag"
+    reset(repo)
+    write_handoff_fixture(repo, "## 状态\n\nfixture\n")
+    handoff = repo.parent / "docs/handoffs/FIXTURE_HANDOFF.md"
+    write(
+        handoff,
+        handoff.read_text(encoding="utf-8").replace("## 连续性摘要", "## 讨论记录", 1),
+    )
+    run_silently(doctor.check_handoff_contract)
+    assert_message(doctor.fails, "缺连续性摘要层")
+
+
+def test_handoff_active_lane_absence_contradiction_is_enforced(root: Path) -> None:
+    repo = root / "t2ag"
+    reset(repo)
+    write_handoff_fixture(repo, "## 状态\n\nfixture\n")
+    index = repo.parent / "docs/handoffs/README.md"
+    write(
+        index,
+        index.read_text(encoding="utf-8") + "\n当前没有 active `maintenance` Handoff。\n",
+    )
+    run_silently(doctor.check_handoff_contract)
+    assert_message(doctor.fails, "同时登记 active 又声明不存在")
+
+
+def test_handoff_index_version_drift_is_enforced(root: Path) -> None:
+    repo = root / "t2ag"
+    reset(repo)
+    write_handoff_fixture(repo, "## 状态\n\nfixture\n")
+    index = repo.parent / "docs/handoffs/README.md"
+    write(index, index.read_text(encoding="utf-8") + "\n- 当前版本为 0.1.0。\n")
+    run_silently(doctor.check_handoff_contract)
+    assert_message(doctor.fails, "handoff 索引版本漂移")
+
+
+def test_handoff_shadow_runtime_index_is_enforced(root: Path) -> None:
+    repo = root / "t2ag"
+    reset(repo)
+    write_handoff_fixture(repo, "## 状态\n\nfixture\n")
+    write(repo / "docs/handoffs/README.md", "# shadow\n\n## Active Handoffs\n")
+    run_silently(doctor.check_handoff_contract)
+    assert_message(doctor.fails, "复制了 Active Handoffs")
+
+
+AUTHORIZATION_PLAYBOOK_FIXTURE = {
+    "main/50_playbook/batch_workorder_spec.md": (
+        "授权不可放大\n尚未生成的对象不可预授权\n"
+    ),
+    "main/50_playbook/session_close.md": (
+        "user + direct_user\nreceipt 只记录授权证据\n"
+    ),
+    "main/50_playbook/remediation_governance.md": (
+        "stopped_budget\n默认最多两轮 finding 整改\n"
+    ),
+    "main/50_playbook/handoff_management.md": (
+        "### 8.1 恢复后动作授权门\n"
+        "概括性认可只覆盖当轮已具体列出的动作\n"
+        "Handoff 的 authorization 字段是历史记录，不构成当轮许可\n"
+    ),
+}
+
+
+def write_authorization_governance_fixture(repo: Path) -> None:
+    """Seed the minimum surface check_authorization_governance reads."""
+    instructions = "授权不可放大与闭环止损\nstopped_budget\ntoken\n"
+    write(repo / "AGENTS.md", instructions)
+    write(repo / "main/t2ag.md", FIXTURE_CONSTITUTION + instructions)
+    for relative, content in AUTHORIZATION_PLAYBOOK_FIXTURE.items():
+        write(repo / relative, content)
+
+
+def test_resume_authorization_gate_is_enforced(root: Path) -> None:
+    """NEGATIVE: dropping the resume gate from handoff_management must FAIL.
+
+    G1 guards cross-conversation resumption: a taker must not turn a historical
+    `authorization` field or a generic "go ahead" into fresh construction rights.
+    The rule only binds if Doctor refuses the playbook that lost it.
+    """
+    repo = root / "t2ag"
+    reset(repo)
+    write_authorization_governance_fixture(repo)
+    write(
+        repo / "main/50_playbook/handoff_management.md",
+        AUTHORIZATION_PLAYBOOK_FIXTURE["main/50_playbook/handoff_management.md"].replace(
+            "概括性认可只覆盖当轮已具体列出的动作", "接管方可自行判断范围", 1
+        ),
+    )
+    run_silently(
+        lambda: doctor.check_authorization_governance(include_external_handoffs=False)
+    )
+    assert_message(doctor.fails, "handoff_management.md")
+
+    reset(repo)
+    write_authorization_governance_fixture(repo)
+    run_silently(
+        lambda: doctor.check_authorization_governance(include_external_handoffs=False)
+    )
+    surviving = [message for message in doctor.fails if "handoff_management.md" in message]
+    if surviving:
+        raise AssertionError(f"complete resume gate must pass: {surviving}")
 
 
 def test_environment_probes_report_broken_assumptions(root: Path) -> None:
@@ -3929,6 +3897,11 @@ ALL_CONTRACT_TESTS = (
         test_handoff_assertion_without_source_is_reported,
         test_handoff_assertion_with_source_is_accepted,
         test_handoff_assertion_scan_skips_structure_only,
+        test_handoff_required_context_layers_are_enforced,
+        test_handoff_active_lane_absence_contradiction_is_enforced,
+        test_handoff_index_version_drift_is_enforced,
+        test_handoff_shadow_runtime_index_is_enforced,
+        test_resume_authorization_gate_is_enforced,
         test_environment_probes_report_broken_assumptions,
         test_environment_probes_silent_when_assumptions_hold,
         test_environment_registry_must_exist_and_list_every_probe,

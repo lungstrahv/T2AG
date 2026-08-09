@@ -1,0 +1,37 @@
+---
+type: course_progress
+course_id: COURSE_ID
+lifecycle_status: planned
+course_driver: COURSE_DRIVER
+progress_nodes_status: lazy_on_activation
+truth_scope: course_lifecycle,course_frontend,activity_position
+current_activity: none
+current_activity_id: none
+resume_path: none
+next_action_kind: none
+next_activity_type: none
+next_activity_id: none
+activity_position: between_activities
+next_action: NEXT_ACTION
+updated: YYYY-MM-DD
+---
+# COURSE_ID 进度真相源
+
+> Activity 生命周期唯一真相源是同目录 `activity_ledger.md`。
+> 本文件只拥有 Course lifecycle、唯一前台指针与结构化 next_action。
+>
+> **planned 课程纪律**：不预填 `current_activity_id`、`resume_path` 或真实
+> `activity_position`；完成节点表在激活时才惰性建立
+> （`progress_nodes_status: lazy_on_activation`）。
+
+## 当前进度
+
+- **Lesson 上下文**：无
+- **状态**：planned，尚未开课
+- **精确停顿点**：不进入课程学习
+- **已投入学习时长**：0 小时
+- **下一步计划**：当前没有自动选择的下一活动；以结构化 `next_action_*` 字段为准。
+
+## 教学记录
+
+真实开课后追加；planned 阶段不产生教学记录。

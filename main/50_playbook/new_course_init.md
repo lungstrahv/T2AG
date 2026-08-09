@@ -26,6 +26,20 @@ main/40_course/<COURSE_ID>/
 `main/00_core/learning_activity_model.md`。Lesson 与 Exercise 是同级学习活动，模板必须
 随 Skeleton 发行，不能靠当前模型临时回忆重建。
 
+## 生成入口
+
+```powershell
+python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称> `
+  --driver textbook --lifecycle ongoing --entry lesson|exercise --teacher Tddd `
+  --source-scope <范围> --position <停点> --date YYYY-MM-DD
+```
+
+教材驱动 + `--entry exercise` 时必须同时给 `--source-document`、`--source-locator`
+与 `--problem-text`，工具才建持久校对题源、登记 artifact 并把 SHA 写进 `problems.md`；
+缺任一项即拒绝生成，不允许用空题源占位。`--lifecycle planned` 必须配 `--entry none`。
+
+下面的步骤是该命令实现的契约，用于人工复核与反向定位，不是要模型手抄文件。
+
 ## 步骤
 
 1. 按 `naming_conventions.md` 校验稳定课程 ID，确认不存在同 ID 目录。

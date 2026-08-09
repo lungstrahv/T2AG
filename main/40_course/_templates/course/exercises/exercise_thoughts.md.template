@@ -1,0 +1,30 @@
+---
+type: exercise_thought_index
+course_id: COURSE_ID
+updated: YYYY-MM-DD
+---
+# COURSE_ID 习题想法
+
+> 惰性载体：只有真实出现由习题作答触发的学生想法时才从模板创建，不预造空文件。
+> 本文件汇总这些想法，供后续习题、复测和方法迁移读取。
+> 它不是原始作答或原话的第二真相源；学生原话以所链接的 Attempt 为准。
+> 去重键是 `Unit / Attempt / Problem` 来源元组；不复制完整作答。
+> 规则见 `main/50_playbook/exercise_evidence.md` §三。
+
+## 条目格式
+
+```markdown
+## UNIT_ID / ATdddd / PROBLEM_ID / YYYY-MM-DD
+
+- 来源：[ATdddd](exerciseNN/attempts/ATdddd/attempt.md)
+- 学生原话短摘：可回查的直接引文，不改写
+- 教师提炼：模型概括只能写在这一栏，不得混入原话
+- 索引标签：标签、标签
+- 后续使用：下次遇到同类题时怎么用这条
+- 推理模式：未升级 / 已升级到 reasoning_patterns.md（需跨题重复至少两次且有迁移性）
+- 课程提炼：REFL-COURSE_ID-dddd 或 —
+```
+
+## 条目
+
+暂无。
