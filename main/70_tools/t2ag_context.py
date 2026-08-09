@@ -2375,14 +2375,24 @@ def render_markdown(
     include_l1: bool = False,
 ) -> str:
     if packet["status"] == "first_run_required":
-        lines = [
-            "# T2AG 上下文包",
-            "",
-            "- status: `first_run_required`",
-            f"- snapshot_id: `{packet['snapshot_id']}`",
-            "- sources_unchanged: `true`",
-            f"- next_action: `{packet['next_action']}`",
-        ]
+        # Return here, do not fall through.  A first-run packet has no route, no
+        # cost and no `l1_empty_reason`; the L1 block below reads that key
+        # unconditionally, so falling through made the documented empty-skeleton
+        # quick-start command
+        #   t2ag_context.py --include-l1 --format markdown
+        # die with KeyError instead of printing the first-run notice.
+        return "\n".join(
+            [
+                "# T2AG 上下文包",
+                "",
+                "- status: `first_run_required`",
+                f"- snapshot_id: `{packet['snapshot_id']}`",
+                "- sources_unchanged: `true`",
+                f"- next_action: `{packet['next_action']}`",
+                "",
+                "> 空模板尚未初始化，无 L0/L1 可投影；`--include-l1` 在此状态下无附加内容。",
+            ]
+        )
     else:
         route = packet["route"]
         cost = packet["cost"]

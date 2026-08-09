@@ -3368,6 +3368,119 @@ def check_cloud_contract() -> None:
             report("FAIL", f"Cloud outbox 指令未登记：{sorted(outbox_ids - registered_cd)}")
         if inbox_ids - registered_ch:
             report("FAIL", f"Cloud inbox 交接未登记：{sorted(inbox_ids - registered_ch)}")
+        _check_cloud_ledger_invariants(state_text, outbox_ids, inbox_ids)
+        _check_cloud_instructions_regeneration()
+        _check_cloud_skeleton_leak()
+
+
+def _check_cloud_ledger_invariants(
+    state_text: str, outbox_ids: set[str], inbox_ids: set[str]
+) -> None:
+    """EV-0021：账本 frontmatter↔三表一致、paused 后无新事件、表登记反向有文件。"""
+    from datetime import datetime
+
+    def front(field: str) -> str | None:
+        m = re.search(rf"^-\s*{field}:\s*(.+?)\s*$", state_text, re.MULTILINE)
+        return m.group(1) if m else None
+
+    def table_rows(header: str) -> list[list[str]]:
+        m = re.search(rf"^##\s+{header}\s*$([\s\S]*?)(?=^##\s|\Z)", state_text, re.MULTILINE)
+        rows = []
+        if m:
+            for line in m.group(1).splitlines():
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                if len(cells) >= 4 and re.match(r"(CD|CH|CLOUD)-", cells[0]):
+                    rows.append(cells)
+        return rows
+
+    cd_rows = table_rows("部件变更指令")
+    ch_rows = table_rows("云端交接")
+    session_rows = table_rows("已处理会话")
+
+    # 1) frontmatter last_* 与表一致
+    last_cd, last_cd_status = front("last_change_directive_id"), front("last_change_directive_status")
+    if last_cd:
+        row = next((r for r in cd_rows if r[0] == last_cd), None)
+        if row is None:
+            report("FAIL", f"Cloud 账本：last_change_directive_id {last_cd} 不在指令表")
+        elif last_cd_status and last_cd_status not in row[3]:
+            report("FAIL", f"Cloud 账本：{last_cd} frontmatter 状态 {last_cd_status} 与表 {row[3]} 不一致")
+    last_ch, last_ch_status = front("last_cloud_handoff_id"), front("last_cloud_handoff_status")
+    if last_ch:
+        row = next((r for r in ch_rows if r[0] == last_ch), None)
+        if row is None:
+            report("FAIL", f"Cloud 账本：last_cloud_handoff_id {last_ch} 不在交接表")
+        elif last_ch_status and last_ch_status not in row[3]:
+            report("FAIL", f"Cloud 账本：{last_ch} frontmatter 裁决 {last_ch_status} 与表 {row[3]} 不一致")
+    last_session = front("last_synced_session_id")
+    if last_session and not any(r[0] == last_session for r in session_rows):
+        report("FAIL", f"Cloud 账本：last_synced_session_id {last_session} 不在会话表")
+
+    # 2) 表登记 → 信道文件反向核对
+    for row in cd_rows:
+        if row[0] not in outbox_ids:
+            report("FAIL", f"Cloud 账本登记指令无 outbox 文件：{row[0]}")
+    for row in ch_rows:
+        if row[0] not in inbox_ids:
+            report("FAIL", f"Cloud 账本登记交接无 inbox 文件：{row[0]}")
+
+    # 3) paused 之后不得有新事件
+    paused_at = front("cloud_bridge_paused_at")
+    if front("cloud_bridge_status") == "paused" and paused_at:
+        try:
+            pause_dt = datetime.fromisoformat(paused_at)
+        except ValueError:
+            report("FAIL", f"Cloud 账本：cloud_bridge_paused_at 不是 ISO 时间：{paused_at}")
+            return
+        for rows, col, label in ((session_rows, 1, "会话"), (cd_rows, 1, "指令"), (ch_rows, 2, "交接")):
+            for row in rows:
+                try:
+                    event_dt = datetime.fromisoformat(row[col])
+                except (ValueError, IndexError):
+                    continue
+                if event_dt > pause_dt:
+                    report("FAIL", f"Cloud 暂停不变量破坏：{label} {row[0]} 时间晚于 paused_at")
+
+
+def _check_cloud_instructions_regeneration() -> None:
+    """EV-0021：instructions 必须等于模板 + mobile_entry 的再生结果。"""
+    import sync_cloud
+
+    for level, message in sync_cloud.run_checks(ROOT):
+        if level != "INFO":
+            report(level, message)
+
+
+def _check_cloud_skeleton_leak() -> None:
+    """EV-0021：skeleton 开源面（cloud/ 与协议模板）不得含实例痕迹。"""
+    skeleton = ROOT.parent / "t2ag-skeleton"
+    if not skeleton.is_dir():
+        report("INFO", "cloud 泄漏扫描：未挂载 t2ag-skeleton，跳过")
+        return
+    entry = ROOT / "cloud/t2ag_mobile_entry.md"
+    state = ROOT / "cloud/cloud_sync_state.md"
+    tokens: set[str] = set()
+    corpus = ""
+    if entry.exists():
+        corpus += read(entry)
+    if state.exists():
+        corpus += read(state)
+    for field in ("reply_suffix", "course"):
+        m = re.search(rf"^-\s*{field}:\s*(\S+)\s*$", corpus, re.MULTILINE)
+        if m:
+            tokens.add(m.group(1))
+    tokens.update(re.findall(r"\bBS-[A-Z0-9]+-\d{8}-\d{4}\b", corpus))
+    tokens.update(re.findall(r"\bCLOUD-[A-Z0-9]+-\d{8}T\d{6}[+-]\d{4}-[A-Z0-9]{4}\b", corpus))
+    tokens.update(re.findall(r"\b(?:CD|CH)-\d{8}-\d{4}\b", corpus))
+    targets = [skeleton / "main/50_playbook/cloud_instructions_template.md"]
+    targets += [p for p in (skeleton / "cloud").rglob("*") if p.is_file()]
+    for path in targets:
+        if not path.exists() or path.suffix not in {".md", ".txt"}:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        hits = sorted(tok for tok in tokens if tok and tok in text)
+        if hits:
+            report("FAIL", f"Cloud 泄漏：skeleton 开源面 {path.name} 含实例痕迹 {hits}")
 
 
 def check_derived_tools() -> None:

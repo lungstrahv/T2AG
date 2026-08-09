@@ -42,6 +42,18 @@ T2AG 云端同步分成两条通道，二者不得混写：
   不得从课程示例、lite、历史日志或 skeleton 猜测。
 - `generic_skeleton` 永远不得继承 `personal_instance` 的学生档案、课程停点或教师映射。
 
+### 1.2 实例级句尾标记（防冒充机制，写机制不写值）
+
+`personal_instance` 可以约定一个**实例级句尾字面标记**：云端普通教学回复在正文结束后另起
+一行追加该标记，作为回复来源的轻量防冒充信号。
+
+- 标记的**具体值**只存在于实例文件（`t2ag_mobile_entry.md` 与由其生成的
+  Project Instructions），属于实例与云端 Project 之间的共享秘密。
+- 协议层、`cloud_instructions_template.md` 模板、skeleton 与任何开源面**永不记载具体值**；
+  值一旦进入公开载体即视为失效，应在下一次基线导出时更换。
+- 标记是字面记号，不是文件名或路径；云端不得尝试读取、创建或推断同名文件。
+- `generic_skeleton` 模式不配置标记；缺失标记不构成教学阻断，只降低来源可信度。
+
 ## 二、云端开课恢复
 
 1. 读取 Project Instructions，确认协议标识为 `T2AG-CLOUD-1`。

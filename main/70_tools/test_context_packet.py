@@ -1154,6 +1154,44 @@ def b_layer_exclusions(body: str) -> str:
     return normalise_spec_text(body[start : end if end != -1 else len(body)])
 
 
+class FirstRunRenderTests(unittest.TestCase):
+    """The empty-skeleton quick-start path documented in Skeleton `README.md`.
+
+    Step 4 of that quick-start is `t2ag_context.py --include-l1 --format markdown`.
+    On an uninitialised Skeleton it used to die with `KeyError: 'l1_empty_reason'`:
+    `render_markdown` built the short first-run notice but then fell through into
+    the L1 block, which reads a key that only a routed packet carries.  The very
+    first command a new user is told to run therefore crashed.
+    """
+
+    PACKET = {
+        "status": "first_run_required",
+        "snapshot_id": "CTX-FIRST-RUN-abc123",
+        "next_action": "读取 main/50_playbook/first_run.md",
+    }
+
+    def test_first_run_renders_without_l1(self) -> None:
+        text = context.render_markdown(dict(self.PACKET), include_l1=False)
+        self.assertIn("first_run_required", text)
+        self.assertIn("first_run.md", text)
+
+    def test_first_run_renders_with_l1_flag(self) -> None:
+        """NEGATIVE-turned-positive: the flag must not require a routed packet."""
+        text = context.render_markdown(dict(self.PACKET), include_l1=True)
+        self.assertIn("first_run_required", text)
+        self.assertNotIn("l1_empty_reason", text)
+
+    def test_first_run_packet_needs_no_routed_keys(self) -> None:
+        """Guards the fall-through: rendering must not touch route/cost/L1 keys.
+
+        If someone re-introduces the fall-through, this fails with KeyError rather
+        than silently producing a half-packet.
+        """
+        for flag in (False, True):
+            with self.subTest(include_l1=flag):
+                context.render_markdown(dict(self.PACKET), include_l1=flag)
+
+
 class ScanEvidenceSpecTests(unittest.TestCase):
     """The clauses U5 cannot test behaviourally must at least be present in text.
 
