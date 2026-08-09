@@ -2870,6 +2870,29 @@ def resolve_external_peer_root(hint: str) -> Path | None:
     return None
 
 
+def describe_mount_surface() -> str:
+    """List what this environment actually has mounted, for unresolvable-root reports.
+
+    A root that will not resolve is the one place doctor knows least: "peer repo
+    moved", "peer repo deleted" and "host has not mounted it" all land here and are
+    indistinguishable from inside.  Printing the mount surface lets the reader tell
+    them apart in one glance instead of guessing -- and guessing here has a known
+    bad outcome, because the plausible guess ("it moved") invites deleting a
+    reference whose binding is in fact healthy.  See EA-0005.
+    """
+    names: list[str] = []
+    sessions = Path("/sessions")
+    if sessions.is_dir():
+        names = sorted(
+            {
+                p.name
+                for p in sessions.glob("*/mnt/*")
+                if p.is_dir() and not p.name.startswith(".")
+            }
+        )
+    return "、".join(names) if names else "(本环境无 /sessions 挂载面，或为原生宿主)"
+
+
 def check_external_references() -> None:
     """T1 引用合同（cross_repo_reference.md）：断链=FAIL，pinned 漂移=WARN。"""
     sidecars = sorted(MAIN.rglob("external_refs.json"))
@@ -2888,8 +2911,11 @@ def check_external_references() -> None:
             report("FAIL", f"外部引用 sidecar 缺 peer_root_hints 或 references：{rel(sidecar)}")
             continue
         roots: dict[str, Path | None] = {}
+        hint_by_system: dict[str, str] = {}
         for system, entry in hints.items():
             hint = entry.get("windows_host") if isinstance(entry, dict) else None
+            if isinstance(hint, str) and hint:
+                hint_by_system[system] = hint
             roots[system] = (
                 resolve_external_peer_root(hint) if isinstance(hint, str) and hint else None
             )
@@ -2928,7 +2954,19 @@ def check_external_references() -> None:
                 continue
             root = roots[peer_system]
             if root is None:
-                report("FAIL", f"外部引用 root 不可达（对端仓搬家或未挂载）：{label}")
+                # State the fact, not a conclusion: from here "moved", "deleted" and
+                # "not mounted" are the same observation.  Severity stays FAIL — a
+                # peer repo that is gone entirely also lands in this branch, and
+                # demoting it would turn total peer loss into an ignorable WARN.
+                report(
+                    "FAIL",
+                    f"外部引用 root 无法解析：{label}"
+                    f"；提示路径 {hint_by_system.get(peer_system, '(缺 windows_host)')} 在本环境不存在"
+                    f"；当前挂载：{describe_mount_surface()}"
+                    "；→ 先确认对端是否已挂载（声明已连接 ≠ 已实际挂载，挂载可能是惰性的，见 EA-0005）"
+                    "；挂上仍不可达才判搬家或消失"
+                    "；无论哪种都不得删除引用身份（cross_repo_reference.md §四）",
+                )
                 continue
             target = root / relative
             if not target.is_file():
