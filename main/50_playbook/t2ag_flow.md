@@ -1,4 +1,4 @@
-# T2AG 0.2.0 功能流程图
+# T2AG 0.2.3 功能流程图
 
 **保护级别**：core-playbook
 
@@ -13,18 +13,21 @@
 ```mermaid
 flowchart TD
 A(["打开目标实例"])
+L["读取 active skin；显示 welcome_msg + art_file + 版本"]
 B["doctor + state refresh --check"]
 C{"首次启动判据成立？"}
 D["日常接管：进入图 1"]
-E["逐项确认身份、时间、目标、基础与偏好"]
-F["写 profile；可选项写未提供"]
-G["确认首门 Course 与首个 Group"]
-  H["建立 progress、首个 Lesson 或 Exercise 与 teacher 映射"]
-I["state refresh --write + --check"]
-J{"doctor 为 0 FAIL？"}
-K["修复状态，不开新内容"]
-L["读取 active skin；显示 welcome_msg + art_file + 版本"]
-M(["进入图 1"])
+E["逐项确认身份、时区、目标、基础与偏好"]
+F["把答案写成 answers.json；缺项即拒绝，不代填"]
+G["t2ag_init.py init：写 profile 与发行身份"]
+H{"用户已确认首门 Course 与真实入口？"}
+I["等待确认；不代选课程与入口"]
+J["t2ag_init.py new-course：Course、首个活动与 teacher 映射"]
+K["t2ag_init.py new-group：plan/calendar/review/bindings"]
+M["state refresh --write + --check"]
+N{"doctor 为 0 FAIL？"}
+O["修复状态，不开新内容"]
+P(["进入图 1"])
 A --> L
 L --> B
 B --> C
@@ -33,15 +36,23 @@ C -- "是" --> E
 E --> F
 F --> G
 G --> H
-H --> I
-I --> J
-J -- "否" --> K
-J -- "是" --> M
+H -- "否" --> I
+H -- "是" --> J
+J --> K
+K --> M
+M --> N
+N -- "否" --> O
+N -- "是" --> P
 ```
 <!-- /FLOW:first_run -->
 
 首次判据是：profile 未初始化、仍有必填占位符，或 memory 上次课日期为 `—`。
-Skeleton 不预填真实实例，也不自动创建 `.venv`、课程或 Engagement。
+
+实例由 `main/70_tools/t2ag_init.py` 生成，模型不照 `first_run.md` 手抄文件：模型的职责是
+提问、把答案写成 `answers.json`、调用工具、复核输出。工具只从 `40_course/_templates/` 与
+`30_group/_templates/` 实例化，缺任一必答项即拒绝并一次报全；不代选课程与入口，不装依赖、
+不建 `.venv`、不下教材、不生成 Engagement、不做 git 写，也不代跑 doctor 与 state refresh。
+前置校验全部先于第一次写盘，失败不留半个课程。
 
 ## 图 1 · 一次教学会话
 
@@ -229,6 +240,11 @@ G["禁止建立正式快照"]
 H{"用户明确授权 commit？"}
 I["保持未提交；如实报告"]
 J["显式 add → cached diff → commit"]
+N{"本批改了 Main/Skeleton 共享文件？"}
+O["cmp 核对两仓字节同源，再各自 commit"]
+P["sync_lite.py --write 从干净 Main 再生 Lite"]
+Q{"需要重打包发行物？"}
+R["按最终 HEAD 重打包；旧包不可发"]
 K{"需要 push？"}
 L["仅展示命令，等待另行授权"]
 M(["本地快照完成"])
@@ -242,13 +258,28 @@ F -- "否" --> G
 F -- "是" --> H
 H -- "否" --> I
 H -- "是" --> J
-J --> K
+J --> N
+N -- "是" --> O
+N -- "否" --> P
+O --> P
+P --> Q
+Q -- "是" --> R
+Q -- "否" --> K
+R --> K
 K -- "否" --> M
 K -- "是" --> L
 ```
 <!-- /FLOW:git -->
 
 禁止自行使用 `reset --hard`、`clean -fd` 或强推。Git 是保护层，不是课程真相源。
+
+三发行的投影方向不对称，且都排在 commit 之后：
+
+- **Main ↔ Skeleton** 是镜像关系。共享实现、契约与 core-playbook 必须字节同源，改完用
+  `cmp` 逐一核对；Skeleton 只保留发行面差异（清零的实例、清零的 EV register、隐私豁免）。
+- **Main → Lite** 是单向投影。`sync_lite.py` 在 Main 工作树脏时**拒绝执行**——把不存在于任何
+  commit 的中间态投到无 git 的 Lite 不可追回。`--force` 存在但不推荐；正确顺序永远是
+  先 commit，再投影。Lite 是只读审查快照，其验收是全量投影哈希，不在 Lite 内跑 doctor。
 
 Git 证据边界分三层：
 
@@ -367,11 +398,15 @@ Q --> R
 ```
 <!-- /FLOW:exercise_loop -->
 
-图片是原始证据；0.2.0 不伪装实现 OCR 置信度或学生转写确认状态机。
+图片是原始证据；本版不伪装实现 OCR 置信度或学生转写确认状态机。
 
 ## 维护约定
 
 1. 本文件是视图；与权威冲突时修图。
-2. 九个 FLOW ID 必须唯一、开闭配对，并由 doctor 校验。
-3. HTML 指南由 `build_guide.py` 生成静态 SVG 与文本回退，不依赖公网 CDN。
-4. Main/Skeleton 内容一致；Lite 只从 Main 再生。
+2. 九个 FLOW ID 必须唯一、开闭配对，并由 doctor 校验；改 ID 集合须同步
+   `t2ag_doctor.py` 的 `EXPECTED_FLOWS`。
+3. Mermaid 只用离线渲染器支持的子集：`X(["终点"])`、`X{"判断"}`、`X["动作"]`，
+   边为 `A --> B` 或 `A -- "标签" --> B`。超出子集时 `build_guide.py` 直接报错退出。
+4. HTML 指南由 `build_guide.py` 生成静态 SVG 与文本回退，不依赖公网 CDN；改完本文件
+   必须在两仓各跑一次 `build_guide.py --write`，否则 doctor 会报 SVG 数量漂移。
+5. Main/Skeleton 内容一致；Lite 只从 Main 再生，且只从干净树再生。

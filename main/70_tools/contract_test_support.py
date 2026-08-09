@@ -1439,6 +1439,56 @@ def test_flow_and_offline_guide(root: Path) -> None:
     assert_message(doctor.fails, "缺受控滚动视窗")
 
 
+def test_offline_guide_version_drift_is_enforced(root: Path) -> None:
+    """NEGATIVE: the guide's hand-maintained kicker/footer must track the version.
+
+    They sit outside every `T2AG_GENERATED` anchor, so `build_guide.py --write`
+    never corrects them. Skeleton shipped `0.2.2` there while its constitution
+    already said `0.2.3` — the first number an external reader checks.
+    """
+    flows = "\n".join(
+        f"<!-- FLOW:{flow_id} -->\nprose only\n<!-- /FLOW:{flow_id} -->"
+        for flow_id in sorted(doctor.EXPECTED_FLOWS)
+    )
+
+    def seed(guide_version: str, flow_version: str) -> None:
+        write(root / "main/t2ag.md", f"# T2AG {flow_version} 宪法\n\n- 当前运行版本：`0.2.3`\n")
+        write(
+            root / "main/50_playbook/t2ag_flow.md",
+            f"# T2AG {flow_version} 功能流程图\n\n{flows}\n",
+        )
+        write(
+            root / "t2ag_directory_guide.html",
+            f'<span class="kicker">T2AG / Directory Guide / {guide_version}</span>\n'
+            + "".join(
+                f"<!-- T2AG_GENERATED:{anchor} --><!-- /T2AG_GENERATED:{anchor} -->\n"
+                for anchor in (
+                    "preface", "directory_map", "flow_first_run",
+                    "flow_panorama", "flow_catalog",
+                )
+            )
+            + f'<span>T2AG {guide_version} · footer</span>\n',
+        )
+
+    reset(root)
+    seed("0.2.3", "0.2.3")
+    run_silently(doctor.check_flow_and_guide)
+    drifted = [f for f in doctor.fails if "版本漂移" in f or "缺当前版本标识" in f]
+    if drifted:
+        raise AssertionError(f"aligned versions must not report drift: {drifted}")
+
+    reset(root)
+    seed("0.2.2", "0.2.3")
+    run_silently(doctor.check_flow_and_guide)
+    assert_message(doctor.fails, "离线指南版本漂移")
+    assert_message(doctor.fails, "缺当前版本标识")
+
+    reset(root)
+    seed("0.2.3", "0.2.0")
+    run_silently(doctor.check_flow_and_guide)
+    assert_message(doctor.fails, "流程源标题版本漂移")
+
+
 def test_hint_gate_contract(root: Path) -> None:
     enabled_concept = hint_gate.evaluate_gate("enabled", "concept_answer")
     if not enabled_concept.allowed:
@@ -3916,6 +3966,7 @@ ALL_CONTRACT_TESTS = (
         test_skin_art,
         test_course_activity_templates,
         test_flow_and_offline_guide,
+        test_offline_guide_version_drift_is_enforced,
         test_hint_gate_contract,
         test_exercise_evidence,
         test_exercise_activity_links,

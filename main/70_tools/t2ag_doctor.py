@@ -3128,7 +3128,7 @@ def check_flow_and_guide() -> None:
     opens = re.findall(r"^<!-- FLOW:([a-z0-9_]+) -->\s*$", content, re.MULTILINE)
     closes = re.findall(r"^<!-- /FLOW:([a-z0-9_]+) -->\s*$", content, re.MULTILINE)
     if len(opens) != len(set(opens)) or set(opens) != EXPECTED_FLOWS:
-        report("FAIL", f"FLOW 集合不等于 0.2.0 九图：actual={sorted(opens)}")
+        report("FAIL", f"FLOW 集合不等于约定九图：actual={sorted(opens)}")
     if opens != closes:
         report("FAIL", "FLOW 开闭标记未按顺序配对")
     blocks = re.findall(
@@ -3159,6 +3159,36 @@ def check_flow_and_guide() -> None:
     for anchor in ("preface", "directory_map", "flow_first_run", "flow_panorama", "flow_catalog"):
         if html_text.count(f"T2AG_GENERATED:{anchor}") != 2:
             report("FAIL", f"离线指南生成锚点不闭合：{anchor}")
+    # The guide's kicker and footer sit outside every T2AG_GENERATED anchor, so
+    # build_guide.py never touches them and a version bump silently leaves them
+    # behind. Skeleton shipped 0.2.2 there while its constitution already said
+    # 0.2.3 — the one number an external reader checks first.
+    constitution = MAIN / "t2ag.md"
+    runtime_version = (
+        extract_runtime_version(read(constitution)) if constitution.is_file() else None
+    )
+    if runtime_version:
+        stale = sorted(
+            {
+                found
+                for found in re.findall(r"T2AG[^0-9\n]{0,24}?(\d+\.\d+\.\d+)", html_text)
+                if found != runtime_version
+            }
+        )
+        if stale:
+            report(
+                "FAIL",
+                f"离线指南版本漂移：guide={stale} runtime={runtime_version}"
+                "（kicker/footer 在生成锚点之外，须手工同步）",
+            )
+        if f"T2AG / Directory Guide / {runtime_version}" not in html_text:
+            report("FAIL", f"离线指南缺当前版本标识：{runtime_version}")
+    flow_title = re.match(r"#\s*T2AG\s+(\d+\.\d+\.\d+)\s", content)
+    if runtime_version and flow_title and flow_title.group(1) != runtime_version:
+        report(
+            "FAIL",
+            f"流程源标题版本漂移：flow={flow_title.group(1)} runtime={runtime_version}",
+        )
     responsive_inline = 'style="width:100%;height:auto;display:block"' in html_text
     responsive_css = bool(
         re.search(

@@ -8,6 +8,7 @@ import contract_test_support as contracts
 TESTS = (
     contracts.test_fixture_mutations_cannot_silently_noop,
     contracts.test_flow_and_offline_guide,
+    contracts.test_offline_guide_version_drift_is_enforced,
     contracts.test_candidate_replay_isolation_contract,
 )
 
