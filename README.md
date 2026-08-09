@@ -44,6 +44,12 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
    `main/50_playbook/first_run.md`。
 4. 与用户确认 profile、首门课程和首个 group 后再显式写入。
 
+**预期输出**：全新副本上 `doctor --profile runtime` 应为 **`0 FAIL, 0 WARN`**。
+若出现 `EA-0003 …可建文件但不能 unlink`，说明该目录所在的挂载不支持删除
+（常见于容器对宿主目录的挂载）——此时**不要在该环境执行任何 git 写操作**，
+换到宿主机执行；其余功能不受影响。见 `main/50_playbook/environment_assumptions.md`。
+出现任何 **FAIL** 都不是预期，请先修再继续。
+
 初始化后的来源库存比例只说明选择范围；软预算以完整序列化 Markdown（L0 及
 L0+首个 L1）为准，不把该比例称为端到端 Token 降幅。
 
