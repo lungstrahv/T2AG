@@ -2461,7 +2461,48 @@ def generate_synthetic_exercise_first(fixture: Path, cli) -> str:
         "--cycle", "synthetic",
         "--date", "2026-07-26",
     )
+    # Main's artifact_registry keeps 0.2.0 tombstones whose successors still
+    # pointed at G02 (and other pre-wipe groups). After the rmtree those paths
+    # are gone; doctor.check_registry would FAIL for reasons the synthetic
+    # course never caused. Prune missing successors (and empty tombstones) so
+    # the fixture's registry matches the fixture's group surface — same rule
+    # a human would apply after deleting a group by hand.
+    reconcile_registry_after_group_wipe(fixture)
     return course_id
+
+
+def reconcile_registry_after_group_wipe(fixture: Path) -> None:
+    """Drop registry successors that no longer exist after fixture group surgery.
+
+    Fixture-only. Never rewrite the source release's registry.
+    """
+    reg_path = fixture / "main/70_tools/artifact_registry.json"
+    if not reg_path.is_file():
+        return
+    data = json.loads(reg_path.read_text(encoding="utf-8"))
+    artifacts = data.get("artifacts", [])
+    kept_artifacts = []
+    for item in artifacts:
+        if item.get("status") == "tombstone":
+            successors = [
+                s for s in item.get("successors", [])
+                if (fixture / s).exists()
+            ]
+            item = {**item, "successors": successors}
+            if not successors and not item.get("alias_to"):
+                # tombstone with nowhere left to point — drop for this fixture
+                continue
+        elif item.get("status") in {"active", "archived"}:
+            canonical = item.get("canonical_path", "")
+            if canonical and not (fixture / canonical).exists():
+                continue
+        kept_artifacts.append(item)
+    data["artifacts"] = kept_artifacts
+    reg_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def test_activity_cli_disk_roundtrip(root: Path) -> None:
