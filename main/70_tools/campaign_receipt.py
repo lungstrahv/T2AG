@@ -241,7 +241,9 @@ def write_receipt(workspace: Path, payload: dict[str, Any]) -> tuple[Path, str]:
     return path, sha256_bytes(raw)
 
 
-def build_r0_receipt(workspace: Path, main: Path, skel: Path, reading: Path) -> dict[str, Any]:
+def build_r0_receipt(
+    workspace: Path, main: Path, skel: Path, reading: Path | None
+) -> dict[str, Any]:
     prev_path, prev = latest_receipt(workspace)
     tools = main / "main" / "70_tools"
     bundle_paths = [
@@ -276,12 +278,16 @@ def build_r0_receipt(workspace: Path, main: Path, skel: Path, reading: Path) -> 
                 "tree": git(skel, "show", "-s", "--format=%T", "HEAD"),
                 "worktree_manifest_sha256": worktree_manifest_sha(skel),
             },
-            "reading": {
-                "head": git(reading, "rev-parse", "HEAD"),
-                "tree": git(reading, "show", "-s", "--format=%T", "HEAD"),
-                "porcelain_empty": git(reading, "status", "--porcelain=v1", "-uall")
-                == "",
-            },
+            "reading": (
+                {
+                    "head": git(reading, "rev-parse", "HEAD"),
+                    "tree": git(reading, "show", "-s", "--format=%T", "HEAD"),
+                    "porcelain_empty": git(reading, "status", "--porcelain=v1", "-uall")
+                    == "",
+                }
+                if reading is not None
+                else None
+            ),
         },
         "executor_bundle_sha256": executor_bundle_sha(
             [p for p in bundle_paths if p.is_file()]
@@ -329,11 +335,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--validate-chain", action="store_true")
     parser.add_argument("--emit-r0", action="store_true")
     parser.add_argument("--emit-json", default=None, help="path to payload json to wrap")
+    parser.add_argument(
+        "--reading-root",
+        type=Path,
+        default=None,
+        help="可选第三仓（阅读系统）根路径；缺省时 receipt 不含 reading 绑定",
+    )
     args = parser.parse_args(argv)
     workspace = args.workspace.resolve()
     main_root = workspace / "t2ag"
     skel = workspace / "t2ag-skeleton"
-    reading = Path(r"C:\Users\MikeChen\Documents\辅助阅读系统")
+    # EV-0023：第三仓路径不再硬编码维护者机器字面量，由调用方显式传入。
+    reading = args.reading_root.resolve() if args.reading_root else None
     if args.validate_chain:
         head_path, head_data, chain = validate_receipt_chain(workspace)
         if not head_path or head_data is None:

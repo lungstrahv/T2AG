@@ -45,17 +45,21 @@ doctor 原子项 `runtime.environment` 实现本表中标注「已探测」的�
 
 ## 四、登记条目
 
-### EA-0001｜`activity_close` 的生产根路径是硬编码的
+### EA-0001｜`activity_close` 的生产根派生自代码所在仓根
 
-- **断言**：`activity_close.PRODUCTION_ROOT` 硬编码为 `C:\Users\MikeChen\T2AC\t2ag`。在其它
-  路径下运行 apply 会要求 `T2AG_022_CLOSE_TEST=1`，而生产路径下的直接用户授权闸门在其它
-  路径下**根本不生效**。
-- **依赖它的代码锚点**：`grep -n "PRODUCTION_ROOT" main/70_tools/activity_close.py`
-  （`root.resolve() == PRODUCTION_ROOT` 分支与 `T2AG_022_CLOSE_TEST` 分支）
-- **探测方法**：比较 `activity_close.PRODUCTION_ROOT` 与当前 `ROOT.resolve()`。
-- **探测失败时的正确反应**：知道当前环境下哪些授权闸门未生效，据此收缩动作范围。
+- **断言**（2026-08-09 EV-0022 改写）：`activity_close.INSTANCE_ROOT` 派生自代码文件所在
+  仓根（`Path(__file__).resolve().parents[2]`），`PRODUCTION_ROOT` 仅为兼容 alias。
+  **任何安装实例的仓根就是它自己的生产根**：direct_user 授权闸门在每个实例上都生效；
+  显式 `--root` 指向其它路径时仍要求 `T2AG_022_CLOSE_TEST=1`（test/shadow guard 不变）。
+  改写前该常量是维护者机器的硬编码字面量——其它机器上授权闸门永不触发，
+  外部使用者实际上无法结课。
+- **依赖它的代码锚点**：`grep -n "INSTANCE_ROOT\|PRODUCTION_ROOT" main/70_tools/activity_close.py`
+  （`root.resolve() == INSTANCE_ROOT` 分支与 `T2AG_022_CLOSE_TEST` 分支）
+- **探测方法**：比较 `activity_close.INSTANCE_ROOT` 与当前 `ROOT.resolve()`。
+- **探测失败时的正确反应**：二者派生关系决定它们恒等；不等意味着代码树与运行根错位
+  （例如从被移动过的副本运行），先弄清运行的是哪份代码再行动。
   **绝不要为了让 apply 通过而设置 `T2AG_022_CLOSE_TEST=1`**——那个变量的用途是测试，
-  用它绕过生产闸门等于把闸门删了。也不要改 `PRODUCTION_ROOT` 去迎合当前路径。
+  用它绕过生产闸门等于把闸门删了。也不要把 `INSTANCE_ROOT` 改回任何机器字面量。
 - **首次记录**：2026-08-07。此前每份交接都要反复用散文警告「绝不要设那个变量」，
   因为没有任何机械手段说出这件事。
 - **doctor 状态**：已探测（`runtime.environment`，不等时报 INFO）

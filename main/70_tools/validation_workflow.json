@@ -6,6 +6,13 @@
       "handler": "check_structure",
       "depends_on": []
     },
+    "runtime.skeleton_privacy": {
+      "phase": "runtime",
+      "handler": "check_skeleton_privacy",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
     "runtime.version_profile": {
       "phase": "runtime",
       "handler": "check_version_and_profile",
@@ -188,6 +195,13 @@
         "runtime.structure"
       ]
     },
+    "runtime.decision_record_citations": {
+      "phase": "runtime",
+      "handler": "check_decision_record_citations",
+      "depends_on": [
+        "runtime.decision_records"
+      ]
+    },
     "runtime.course_templates": {
       "phase": "runtime",
       "handler": "check_course_activity_templates",
@@ -343,6 +357,7 @@
       "extends": null,
       "checks": [
         "runtime.structure",
+        "runtime.skeleton_privacy",
         "runtime.version_profile",
         "runtime.skin",
         "runtime.authorization",
@@ -369,6 +384,7 @@
         "runtime.context_packet",
         "runtime.test_management",
         "runtime.decision_records",
+        "runtime.decision_record_citations",
         "runtime.course_templates",
         "runtime.environment",
         "runtime.changelog",

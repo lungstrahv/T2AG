@@ -31,7 +31,7 @@
   python main/70_tools/sync_lite.py                  # check-only 预演
   python main/70_tools/sync_lite.py --write          # 显式全量再生
   python main/70_tools/sync_lite.py --write --force  # 经批准从脏树再生
-  python main/70_tools/sync_lite.py --write --root C:/Users/MikeChen/T2AC
+  python main/70_tools/sync_lite.py --write --root <工作区绝对路径>
 """
 from __future__ import annotations
 

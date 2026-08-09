@@ -223,8 +223,14 @@ def _supersedes_cycle(adrs: dict[str, AdrRecord]) -> list[str]:
     return errors
 
 
-def validate_decision_records(root: Path) -> list[str]:
-    """Return human-readable FAIL messages (empty = pass)."""
+def validate_decision_records(root: Path, flavor: str = "main") -> list[str]:
+    """Return human-readable FAIL messages (empty = pass).
+
+    flavor="skeleton": the local register is instance-fresh (EV-0023) and
+    EV references in ADR frontmatter are provenance annotations pointing at
+    the maintainer's register, never locally resolvable — EV linkage checks
+    are skipped; ADR file integrity checks still apply.
+    """
     errors: list[str] = []
     errors.extend(validate_redirect(root))
 
@@ -258,25 +264,26 @@ def validate_decision_records(root: Path) -> list[str]:
     errors.extend(_supersedes_cycle(by_adr))
 
     for adr in adrs:
-        for ev_id in adr.source_evolution:
-            if ev_id not in by_ev:
-                errors.append(f"dangling ADR→EV: {adr.adr_id} -> {ev_id}")
-                continue
-            ev = by_ev[ev_id]
-            if adr.status == "accepted" and ev.status not in {"decided", "archived"}:
-                errors.append(
-                    f"accepted ADR {adr.adr_id} points at non-decided EV {ev_id} "
-                    f"(status={ev.status})"
-                )
-            if adr.status == "proposed" and ev.status not in {
-                "discussing",
-                "decided",
-                "archived",
-                "observing",
-            }:
-                errors.append(
-                    f"proposed ADR {adr.adr_id} has incompatible EV status {ev.status}"
-                )
+        if flavor != "skeleton":
+            for ev_id in adr.source_evolution:
+                if ev_id not in by_ev:
+                    errors.append(f"dangling ADR→EV: {adr.adr_id} -> {ev_id}")
+                    continue
+                ev = by_ev[ev_id]
+                if adr.status == "accepted" and ev.status not in {"decided", "archived"}:
+                    errors.append(
+                        f"accepted ADR {adr.adr_id} points at non-decided EV {ev_id} "
+                        f"(status={ev.status})"
+                    )
+                if adr.status == "proposed" and ev.status not in {
+                    "discussing",
+                    "decided",
+                    "archived",
+                    "observing",
+                }:
+                    errors.append(
+                        f"proposed ADR {adr.adr_id} has incompatible EV status {ev.status}"
+                    )
         if adr.status == "accepted" and not adr.source_evolution:
             errors.append(f"accepted ADR {adr.adr_id} missing source_evolution")
 
@@ -312,6 +319,70 @@ def validate_decision_records(root: Path) -> list[str]:
     return errors
 
 
-def validate_decision_records_as_report(root: Path) -> Iterable[tuple[str, str]]:
-    for message in validate_decision_records(root):
+# Live normative prose whose ADR/EV citations must resolve.  Historical
+# append-only documents (changelog, problemlog, journal, handoffs, memory)
+# legitimately cite retired or external records and are deliberately out of
+# scope: the carrier of this guarantee is live normative text only — a guard
+# whose scope is wider than its claim is the carrier_mismatch family
+# (remediation_governance.md §七).
+CITATION_SURFACE_FILES = (
+    "main/t2ag.md",
+    "AGENTS.md",
+    "README.md",
+)
+# 2026-08-09 复审扩面：ADR 正文与 docs/protocol 同为现行规范，此前不在扫描面
+# 内，其中的悬空 ADR 引用会假绿（独立复审 P2）。预检两仓零悬空后纳入。
+CITATION_SURFACE_GLOBS = (
+    "main/50_playbook/*.md",
+    "docs/adr/*.md",
+    "docs/protocol/*.md",
+)
+
+
+def validate_decision_citations(root: Path, flavor: str = "main") -> list[str]:
+    """ADR/EV tokens cited by live normative prose must name real records.
+
+    flavor="skeleton": ADR citations must still resolve (ADRs are portable and
+    ship with the distribution); EV citations are maintainer provenance
+    annotations and are exempt (EV-0023).
+    """
+    errors: list[str] = []
+    adrs = {a.adr_id for a in load_adrs(root)}
+    evs: set[str] = set()
+    register_path = root / REGISTER_REL
+    if flavor != "skeleton" and register_path.is_file():
+        evs = {
+            e.ev_id
+            for e in parse_evolution_register(
+                register_path.read_text(encoding="utf-8")
+            )
+        }
+    targets: list[Path] = []
+    for rel in CITATION_SURFACE_FILES:
+        path = root / rel
+        if path.is_file():
+            targets.append(path)
+    for pattern in CITATION_SURFACE_GLOBS:
+        targets.extend(sorted(root.glob(pattern)))
+    for path in targets:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        rel = path.relative_to(root).as_posix()
+        for token in sorted(set(ADR_TOKEN_RE.findall(text))):
+            if token not in adrs:
+                errors.append(f"dangling citation: {rel} 引用不存在的 {token}")
+        if flavor == "skeleton":
+            continue
+        for token in sorted(set(EV_TOKEN_RE.findall(text))):
+            if token not in evs:
+                errors.append(f"dangling citation: {rel} 引用不存在的 {token}")
+    return errors
+
+
+def validate_decision_records_as_report(
+    root: Path, flavor: str = "main"
+) -> Iterable[tuple[str, str]]:
+    for message in validate_decision_records(root, flavor):
         yield ("FAIL", message)

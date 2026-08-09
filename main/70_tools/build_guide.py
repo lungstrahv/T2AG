@@ -15,7 +15,7 @@ so prose examples containing FLOW:xxx are ignored.
 Usage (cwd or any path inside edition):
   python main/70_tools/build_guide.py              # check only
   python main/70_tools/build_guide.py --write      # explicit write
-  python main/70_tools/build_guide.py --write --root C:/Users/MikeChen/T2AC/t2ag
+  python main/70_tools/build_guide.py --write --root <本仓绝对路径>
 """
 from __future__ import annotations
 

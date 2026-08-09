@@ -35,7 +35,7 @@ implementation_refs: []
 | `adr_id` | Local identity `ADR-NNNN` |
 | `portable_key` | Stable cross-project semantic key; unique in this repo |
 | `status` | `proposed` \| `accepted` \| `superseded` |
-| `source_evolution` | Local EV ids that own lifecycle for this decision |
+| `source_evolution` | Local EV ids that own lifecycle for this decision（Skeleton 发行面中为 Main register 的外部出处标注，见下） |
 | `supersedes` | Other ADR ids; must exist and form no cycle |
 | `implementation_refs` | Optional paths / protocols / tools |
 
@@ -48,6 +48,11 @@ implementation_refs: []
 | `superseded` | Keep history; superseding ADR must list this id |
 
 **Accepted ≠ implemented.** Implementation continues via EV, changelog, version state, and live protocols.
+
+**Skeleton 发行面的 `source_evolution`**：Skeleton 的 Evolution Register 自 EV-0023 起实例清零，
+ADR frontmatter 中的 EV id 是维护者 Main 仓 register 的**外部出处标注**，本仓不持有这些 EV 记录；
+机器侧 `runtime.decision_record_citations` 对 skeleton flavor 豁免 EV 解析（ADR 引用仍必须解析），
+人类读者按外部出处理解，不要在本仓检索这些 EV。
 
 ## Reuse / adoption in another project
 
@@ -65,6 +70,8 @@ local_adoption_evolution: EV-XXXX
 |---|---|---|---|
 | [0001](./0001-textbook-source-assets-and-bounded-cache.md) | textbook-source-assets-and-bounded-cache | accepted | EV-0012 |
 | [0002](./0002-host-controlled-textbook-teaching-egress.md) | host-controlled-textbook-teaching-egress | proposed | EV-0013 |
+| [0003](./0003-prefetcher-self-certified-scan-admission.md) | prefetcher-self-certified-scan-admission | accepted | EV-0019 |
+| [0004](./0004-cloud-protocol-instance-separation.md) | cloud-protocol-instance-separation | accepted | EV-0021 |
 
 Superseded filename stub: [0002-teaching-admission-capability-gate.md](./0002-teaching-admission-capability-gate.md) (redirect only; not a second decision).
 

@@ -16,7 +16,8 @@
 
 | 日期 | 文件 | 标题 | 状态 |
 |---|---|---|---|
-| 2026-07-26 | [migration_020_review.md](migration_020_review.md) | T2AG 0.2.0 Skeleton 迁移审查 | — |
+| 2026-08-08 | [t2ag_version_ledger.md](t2ag_version_ledger.md) | T2AG 版本台账（canonical，自宪法 §7 下沉 2026-08-08/EV-0020） | — |
+| 2026-08-09 | [t2ag_evolution_register.md](t2ag_evolution_register.md) | T2AG Evolution Register（t2ag_evolution_register.md） | — |
 <!-- T2AG_GENERATED:JOURNAL_INDEX:END -->
 
 管理规则见 `50_playbook/journal_management.md`。

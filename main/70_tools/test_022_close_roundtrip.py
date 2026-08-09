@@ -398,12 +398,17 @@ class CloseRoundTripTests(unittest.TestCase):
         direct_auth, direct_auth_sha = production_authorization(
             plan_path, Path(self.tmp.name) / "production-direct"
         )
-        delegated_auth, delegated_auth_sha = production_authorization(
+        # 2026-08-09 复审修复：负例必须用一个全局合法但生产不允许的模式
+        # （test/shadow 在 PRODUCTION_APPLY_AUTHORIZATION_MODES 之外）。
+        # 此前负例用全局就不支持的 user_continuous_delegation，且 patch 的是
+        # 已不参与判断的 PRODUCTION_ROOT——生产专属 direct_user 分支即使整个
+        # 失效，这对断言仍可能通过，覆盖是假的。
+        test_mode_auth, test_mode_auth_sha = production_authorization(
             plan_path,
-            Path(self.tmp.name) / "production-delegated",
-            mode="user_continuous_delegation",
+            Path(self.tmp.name) / "production-test-mode",
+            mode="test",
         )
-        with patch.object(close, "PRODUCTION_ROOT", self.root.resolve()):
+        with patch.object(close, "INSTANCE_ROOT", self.root.resolve()):
             validated = close.validate_authorization(
                 self.root,
                 json.loads(plan_path.read_text(encoding="utf-8")),
@@ -411,12 +416,14 @@ class CloseRoundTripTests(unittest.TestCase):
                 expect_auth_sha=direct_auth_sha,
             )
             self.assertEqual(validated["authorization_mode"], "direct_user")
-            with self.assertRaisesRegex(close.CloseError, "unsupported"):
+            with self.assertRaisesRegex(
+                close.CloseError, "production close requires direct_user authority"
+            ):
                 close.validate_authorization(
                     self.root,
                     json.loads(plan_path.read_text(encoding="utf-8")),
-                    auth_path=delegated_auth,
-                    expect_auth_sha=delegated_auth_sha,
+                    auth_path=test_mode_auth,
+                    expect_auth_sha=test_mode_auth_sha,
                 )
         auth_path, auth_sha = authorization(
             plan_path, Path(self.tmp.name) / "direct-auth", "F_AUTHORIZED"

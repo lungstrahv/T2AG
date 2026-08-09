@@ -39,7 +39,17 @@ import campaign_receipt as campaign  # noqa: E402
 import occurrence_classify as occurrence  # noqa: E402
 import t2ag_state_refresh as state_refresh  # noqa: E402
 
-PRODUCTION_ROOT = Path(r"C:\Users\MikeChen\T2AC\t2ag").resolve()
+# EV-0022/EV-0023：常量不再携带维护者机器字面量。
+# apply 已永久退役（下方 PRODUCTION_MIGRATION_APPLY_ENABLED = False），
+# 此根只服务 dry-run oracle；派生自代码所在仓根，与 activity_close.INSTANCE_ROOT 同语义。
+PRODUCTION_ROOT = Path(__file__).resolve().parents[2]
+# 第三仓（阅读系统）仅存在于维护者工作区；经 T2AG_READING_ROOT 显式提供，
+# 缺省指向不存在的占位路径，repository_binding 按 {"present": False} 处理。
+READING_ROOT = (
+    Path(os.environ["T2AG_READING_ROOT"]).resolve()
+    if os.environ.get("T2AG_READING_ROOT")
+    else Path(__file__).resolve().parents[3] / ".t2ag-no-reading-repo"
+)
 # 0.2.2 migration has already been applied and released.  Keeping the dry-run
 # oracle is useful, but the production apply entry is permanently retired so a
 # historical delegated receipt can never be replayed as RT3 authority.
@@ -1507,7 +1517,7 @@ def materialize_plan_file(root: Path, plan_out: Path) -> dict[str, Any]:
 
     workspace = root.parent
     skeleton = workspace / "t2ag-skeleton"
-    reading = Path(r"C:\Users\MikeChen\Documents\辅助阅读系统")
+    reading = READING_ROOT
     plan["generator_version"] = "T2AG-022-V4"
     plan["plan_id"] = "PLAN022-" + sha256_text(
         plan["transaction_id"] + "|" + started
@@ -1888,9 +1898,7 @@ def validate_apply_authorization(
             raise MigrateError("apply blocked: direct authorization source digest mismatch")
         live_main = repository_binding(root)
         live_skeleton = repository_binding(workspace / "t2ag-skeleton")
-        live_reading = repository_binding(
-            Path(r"C:\Users\MikeChen\Documents\辅助阅读系统")
-        )
+        live_reading = repository_binding(READING_ROOT)
         live_bindings = {
             "main": live_main,
             "skeleton": live_skeleton,

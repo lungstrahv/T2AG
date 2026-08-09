@@ -62,7 +62,8 @@ plan-only 聚合门，均属于基础结构 FAIL。
 | 学习活动发行能力 | runtime 本地 + release 跨发行 | 本地 Core/Template 缺失，或 release 时 Main/Skeleton/Lite 内容分叉 |
 | 恢复路径 | 统一活动路由器 + doctor | ongoing Course 缺显式 `current_activity`、`current_activity_id`、canonical `resume_path`、`activity_position`，或目标悬空；Exercise 首启不得依赖预造 Lesson |
 | 学习上下文包 | runtime 本地 + release 跨发行 | 本地工具/合同缺失或行为错误；三发行分叉只在 release profile 阻断 |
-| Evolution Register ↔ ADR 关联 | runtime `decision_records` | EV/ADR ID 重复、悬空双向引用、accepted 指向非 decided EV、portable_key 冲突、supersedes 环、redirect 失效；**不做**“是否值得成为 ADR”的价值裁决 |
+| Evolution Register ↔ ADR 关联 | runtime `decision_records` | EV/ADR ID 重复、悬空双向引用、accepted 指向非 decided EV、portable_key 冲突、supersedes 环、redirect 失效；**不做**“是否值得成为 ADR”的价值裁决。skeleton 侧 register 为实例清零（EV-0023），EV 链接检查豁免、ADR 文件完整性不变 |
+| 正文 ADR/EV 引用存在性 | runtime `decision_record_citations` | 现行规范性正文（宪法、AGENTS、README、`50_playbook/`、`docs/adr/`（含 ADR 正文）、`docs/protocol/`）引用的 ADR-NNNN 必须存在；Main 侧 EV-NNNN 必须存在于 register，skeleton 侧 EV 引用为维护者出处注释豁免（EV-0023）。扫描面不含 changelog/problemlog/journal 等只追加历史档（P-0067）；ADR 正文与 protocol 于 2026-08-09 复审后纳入 |
 | 状态快照组件边界 | `test_progress_identity_is_shared` + `test_state_refresh_activity_roundtrip` | state 或 Doctor 推断缺失活动、把历史 Lesson 标成活跃、为 sentinel 构造路径、组视图假定当前活动必为 Lesson，或一次运行对同一 ongoing progress 二次读取而混合状态版本 |
 | 活动事务落盘往返 | `test_activity_cli_disk_roundtrip` | 从当前发行自身建立无 hardlink 的临时完整工作树，并断言 Doctor 实际检测到本发行 flavor；真实执行 `--write → 重读 → --check → 完整 Doctor → recover route → close route`，按路由结果落盘 progress 与当前主载体后再次执行 state/Doctor；写入零命中、任一步失败或 Exercise 修改历史 Lesson |
 | Lesson 上下文退役 | `test_exercise_current_lesson_driver_matrix` | 四种 driver 下 active progress 不依赖或回填 `current_lesson`；遗留非法/悬空值不得驱动路由，历史 Lesson 只从 ledger/ContentGroup 解析 |
@@ -81,7 +82,7 @@ plan-only 聚合门，均属于基础结构 FAIL。
 | Cloud 暂停态 | doctor 内建 | 组件缺失、协议字段冲突、暂停门失效或 CD/CH 登记悬空 |
 | handoff 分类与恢复路由 | release 内建 | Active 缺 lane/artifact_role、支撑材料混入 Active、release backlog 未隔离、索引/文件/元数据/唯一性或体积老化状态冲突 |
 | handoff 断言复算来源 | release `handoff` + `unsourced_handoff_assertions` | active 交接正文中数量/存在性/哈希断言（`N 个`、`零命中`、`sha256:`）同行及下一行均无 `←` 复算来源为 WARN，逐条指名文件与行号；围栏代码与标题不扫描，**引述与散文不豁免**（`handoff_management.md` §5.6.4）。门只证明「来源相邻」，**不判定**命令质量 |
-| 宿主环境假设 | runtime `environment` + `environment_probe_results` | `environment_assumptions.md` 缺失或缺 `EA-0001`~`EA-0003` 为 FAIL；`PRODUCTION_ROOT` 不匹配、`fitz` 不可用为 INFO；`.git` 可建不可 unlink 为 WARN。探测**只读且只报事实**——不安装、不清理锁文件、不改路径 |
+| 宿主环境假设 | runtime `environment` + `environment_probe_results` | `environment_assumptions.md` 缺失或缺 `EA-0001`~`EA-0003` 为 FAIL；`INSTANCE_ROOT` 与运行根不一致（代码树错位）、`fitz` 不可用为 INFO；`.git` 可建不可 unlink 为 WARN。探测**只读且只报事实**——不安装、不清理锁文件、不改路径 |
 | changelog 漂移与腐烂 | runtime `changelog` + `check_changelog_contract`（`parse_changelog_anchors` / `stale_changelog_claims`） | **锚定**（U2 已批 A+B+C）：最新条目声明的 plan sha / checks / atom-set sha 与实测不等 → WARN，须含声明值与实测值两者。**佐证**：最新条目 `佐证断言` 节内 `grep -c/-n` 命中为零 → WARN，须指名条目标题与断言原文。**缺锚定块** → WARN。不证明完整性；形式复用 `handoff_management.md` §5.6.2；锚定量零 git 依赖 |
 | state/journal/migration/Lite | release 派生工具 | 缓存漂移、证据缺失、迁移非幂等或投影差异 |
 | 发布候选隔离 | `t2ag_candidate_replay.py` + `test_candidate_replay_isolation_contract` | 有效 sparse checkout/sparse index，Git 环境/拓扑污染，Main/Skeleton 安全配置无法 preflight，源/A/B 字节清单或副本结果不一致，或全部 A/B 复核之后的末次源指纹发生变化 |

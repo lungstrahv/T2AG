@@ -211,7 +211,8 @@ V0–V3、预算与防越级门以它为准，绑定 plan SHA）。
 
 版本更新、`version_campaign` 和治理面大改必须证明规则语义的去向；文件长度、关键词存在、
 历史清单或模型建议都只能触发复核，不能单独证明规则丢失、等价或应当恢复。诊断候选见
-`docs/handoffs/T2AG_RULE_COMPRESSION_INVENTORY_2026-08-06.md`；该清单不是授权源。
+维护实例的 `docs/handoffs/` 诊断清单（如 `T2AG_RULE_COMPRESSION_INVENTORY_2026-08-06.md`）；
+该清单不是授权源，**Skeleton 不携带它**，其缺失不构成本节任何义务的豁免。
 
 1. **触发条件**：只有删除、合并、概括、迁址、退役现行规范性正文，或改变具名硬边界的
    owner、触发条件、授权级别、执行结果时，施工单/envelope 才必须逐条登记

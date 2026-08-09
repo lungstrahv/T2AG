@@ -153,6 +153,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
     "check_skeleton_textbook", "check_distribution_parity",
+    "check_skeleton_privacy", "check_decision_record_citations",
     "check_line_endings", "check_release_line_endings",
 }
 LEGACY_DOMAINS = {
@@ -3502,6 +3503,17 @@ def check_derived_tools() -> None:
 def check_migration_evidence() -> None:
     if FLAVOR == "lite":
         return
+    if FLAVOR == "skeleton":
+        # EV-0023：Skeleton 是新实例起点，不携带维护者 0.2.0 迁移档案（同 :3793 先例）。
+        for rel in (
+            "main/60_journal/migration_020_operations.json",
+            "main/60_journal/migration_020_report.json",
+            "main/60_journal/migration_020_review.md",
+            "main/60_journal/retired_020_sources",
+        ):
+            if (ROOT / rel).exists():
+                report("FAIL", f"Skeleton 不得复制 Main 0.2.0 迁移证据：{rel}")
+        return
     readme_content = read(ROOT / "README.md") if (ROOT / "README.md").is_file() else ""
     migration_target_kind = (
         "skeleton"
@@ -3516,6 +3528,17 @@ def check_migration_evidence() -> None:
 
 def check_migration_021_evidence() -> None:
     if FLAVOR == "lite":
+        return
+    if FLAVOR == "skeleton":
+        # EV-0023：Skeleton 不携带维护者 0.2.1 profile 迁移档案（同 :3793 先例）。
+        for rel in (
+            "main/60_journal/migration_021_profile_operations.json",
+            "main/60_journal/migration_021_profile_report.json",
+            "main/60_journal/migration_021_profile_operations_v2.json",
+            "main/60_journal/migration_021_profile_report_v2.json",
+        ):
+            if (ROOT / rel).exists():
+                report("FAIL", f"Skeleton 不得复制 Main 0.2.1 profile 迁移证据：{rel}")
         return
     def strict_json(path: Path) -> object:
         def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
@@ -4630,8 +4653,25 @@ def check_decision_records() -> None:
     """Deterministic Evolution Register ↔ ADR linkage (no value judgment)."""
     import decision_record_contract as drc  # local tools path already on sys.path
 
-    for level, message in drc.validate_decision_records_as_report(ROOT):
+    for level, message in drc.validate_decision_records_as_report(ROOT, FLAVOR):
         report(level, message)
+
+
+def check_decision_record_citations() -> None:
+    """ADR/EV tokens cited by live normative prose must name real records.
+
+    Closes the blind spot found 2026-08-09: Skeleton shipped constitution,
+    playbooks, code and tests citing ADR-0003/EV-0019 while carrying neither
+    the ADR nor the register entries -- every existing check passed because
+    they only validated relations *among present records*, never citations
+    *from consuming prose* (P-0067).
+    """
+    if FLAVOR == "lite":
+        return
+    import decision_record_contract as drc  # local tools path already on sys.path
+
+    for message in drc.validate_decision_citations(ROOT, FLAVOR):
+        report("FAIL", message)
 
 
 def check_cloud_pause() -> None:
@@ -4716,6 +4756,75 @@ def check_distribution_parity() -> None:
             "INFO",
             "distribution parity: "
             f"{len(DISTRIBUTION_PARITY_EXEMPT)} 项豁免，其余全部字节一致",
+        )
+
+
+# Personal identifiers that must never ship inside the open-source Skeleton.
+# The pattern list lives here; the *scope* is the whole repo, which is the point --
+# an identical check already existed inside check_version_and_profile but read only
+# `profile.md`, so nine other files leaked past it for months (P-0067).
+SKELETON_PRIVACY_PATTERNS = (
+    (r"[A-Za-z]:[\\/]Users[\\/]", "Windows 用户目录绝对路径"),
+    (r"/(?:home|Users)/[A-Za-z0-9_.-]+/", "POSIX 用户目录绝对路径"),
+    (r"MikeChen", "维护者用户名"),
+    (r"上海交通大学", "维护者所属院校"),
+    (r"辅助阅读系统", "维护者的对端私有仓名"),
+)
+# Files allowed to contain the patterns, with the reason as the value.  A bare
+# allowlist would hollow the check out; the reason is what makes it reviewable.
+SKELETON_PRIVACY_EXEMPT = {
+    "main/70_tools/t2ag_doctor.py":
+        "本检查自身携带待匹配的字面量；不豁免则检查必然自我命中",
+}
+# 2026-08-09 复审（独立 review）：changelog 曾整文件豁免，但正文仍含三处
+# `C:\Users\<maintainer>\...`——豁免使「privacy 0 FAIL」沦为检查绕过。三处路径
+# 已就地脱敏（事件保留、身份移除，见 changelog [2026-08-09] 复审批），豁免随之
+# 撤销；历史条目今后一律脱敏或按版本裁剪，不再整文件豁免。
+
+
+def check_skeleton_privacy() -> None:
+    """Skeleton must not ship the maintainer's identity or local paths.
+
+    Scope is the whole tracked tree, deliberately.  The pre-existing leak guard
+    (`check_version_and_profile`) applied the same patterns to `profile.md` alone,
+    so it reported clean while `activity_close.PRODUCTION_ROOT`, two migration
+    scripts, a receipt tool and a migration report all carried
+    `C:\\Users\\<maintainer>\\...`.  A guard whose scope is narrower than the risk
+    is the `carrier_mismatch` family -- see `remediation_governance.md` §七.
+
+    FAIL rather than WARN: the Skeleton is the artifact handed to strangers, and a
+    hardcoded maintainer path is not only a disclosure but a functional blocker
+    (EA-0001: the production authorization gate never fires outside that path).
+    """
+    if FLAVOR != "skeleton":
+        return
+    skip_dirs = {".git", "__pycache__", ".venv", ".cache", ".recovery", ".staging"}
+    hits: list[str] = []
+    for path in sorted(ROOT.rglob("*")):
+        if not path.is_file() or path.suffix.lower() in {".png", ".jpg", ".pdf", ".zip"}:
+            continue
+        if skip_dirs & set(path.parts):
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        if rel in SKELETON_PRIVACY_EXEMPT:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for pattern, label in SKELETON_PRIVACY_PATTERNS:
+            match = re.search(pattern, content)
+            if match:
+                line = content[: match.start()].count("\n") + 1
+                hits.append(f"{rel}:{line} -> {label}")
+                break
+    for hit in hits:
+        report("FAIL", f"Skeleton 含维护者个人信息：{hit}")
+    if not hits:
+        report(
+            "INFO",
+            "skeleton privacy: "
+            f"{len(SKELETON_PRIVACY_EXEMPT)} 项豁免，其余全树无维护者标识",
         )
 
 
@@ -5379,10 +5488,10 @@ def environment_probe_results(
     if root.resolve() != production_root:
         findings.append((
             "INFO",
-            f"EA-0001 生产根路径不匹配：当前 {root.resolve()}；"
-            "期望值见 grep -n \"PRODUCTION_ROOT\" main/70_tools/activity_close.py"
-            "（该常量是 Windows 字面量，在非 Windows 宿主上 resolve 后不可读，故不复制）。"
-            "activity_close 的直接用户授权闸门在本环境不生效，"
+            f"EA-0001 实例根不一致：当前 {root.resolve()}；"
+            "activity_close.INSTANCE_ROOT 派生自代码所在仓根（EV-0022），"
+            "二者不一致意味着代码树与运行根错位。"
+            "direct_user 授权闸门以实例根为准在任何安装实例上生效，"
             "且不得为通过 apply 而设置 T2AG_022_CLOSE_TEST=1",
         ))
     if not fitz_available:
@@ -5691,6 +5800,8 @@ def execute_doctor_checks(
         "check_dirty_tree": check_dirty_tree,
         "check_skeleton_textbook": check_skeleton_textbook_gate,
         "check_distribution_parity": check_distribution_parity,
+        "check_skeleton_privacy": check_skeleton_privacy,
+        "check_decision_record_citations": check_decision_record_citations,
         "check_line_endings": check_line_endings,
         "check_release_line_endings": check_release_line_endings,
     }

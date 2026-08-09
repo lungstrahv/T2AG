@@ -303,6 +303,11 @@ def main() -> int:
         elif args.recover:
             print(f"recover={recover(repo, MIGRATION_ID)}")
         elif args.write_evidence:
+            if target_kind != "main":
+                raise MigrationTransactionError(
+                    "evidence regeneration is Main-only: skeleton/lite 不携带维护者"
+                    "迁移证据，历史证据再生能力已在发行面退役（EV-0023）"
+                )
             write_evidence(repo, target_kind, args.baseline)
             print(f"evidence={REPORT_PATH.as_posix()}")
         state = inspect_operations(repo, operation_set)

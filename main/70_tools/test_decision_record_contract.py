@@ -14,6 +14,19 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _live_flavor(root: Path) -> str:
+    """Same rule as t2ag_doctor.detect_flavor (skeleton ships no profile)."""
+    if root.name == "t2ag-skeleton":
+        return "skeleton"
+    readme = root / "README.md"
+    text = (
+        readme.read_text(encoding="utf-8-sig", errors="replace")
+        if readme.is_file()
+        else ""
+    )
+    return "skeleton" if "t2ag-skeleton" in text else "main"
+
+
 def _minimal_tree(root: Path) -> None:
     _write(
         root / drc.REDIRECT_REL,
@@ -59,7 +72,7 @@ def _minimal_tree(root: Path) -> None:
 class DecisionRecordContractTests(unittest.TestCase):
     def test_live_repo_validates(self) -> None:
         root = Path(__file__).resolve().parents[2]
-        errors = drc.validate_decision_records(root)
+        errors = drc.validate_decision_records(root, _live_flavor(root))
         self.assertEqual(errors, [], msg="\n".join(errors))
 
     def test_happy_minimal_tree(self) -> None:
@@ -151,6 +164,126 @@ class DecisionRecordContractTests(unittest.TestCase):
             )
             (root / drc.REGISTER_REL).write_text(reg, encoding="utf-8")
             self.assertEqual(drc.validate_decision_records(root), [])
+
+
+class SkeletonFlavorTests(unittest.TestCase):
+    """EV-0023: skeleton register is instance-fresh; EV refs are provenance."""
+
+    def test_skeleton_tolerates_external_ev_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _minimal_tree(root)
+            adr = (root / "docs/adr/0001-x.md").read_text(encoding="utf-8")
+            adr = adr.replace("EV-0012", "EV-0099")
+            (root / "docs/adr/0001-x.md").write_text(adr, encoding="utf-8")
+            main_errors = drc.validate_decision_records(root, "main")
+            self.assertTrue(any("dangling ADR→EV" in e for e in main_errors), main_errors)
+            skel_errors = drc.validate_decision_records(root, "skeleton")
+            self.assertFalse(any("dangling ADR→EV" in e for e in skel_errors), skel_errors)
+
+    def test_skeleton_keeps_adr_integrity_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _minimal_tree(root)
+            adr = (root / "docs/adr/0001-x.md").read_text(encoding="utf-8")
+            adr = adr.replace("source_evolution: [EV-0012]", "source_evolution: []")
+            (root / "docs/adr/0001-x.md").write_text(adr, encoding="utf-8")
+            errors = drc.validate_decision_records(root, "skeleton")
+            self.assertTrue(any("missing source_evolution" in e for e in errors), errors)
+
+
+class DecisionCitationTests(unittest.TestCase):
+    """P-0067: live normative prose must not cite nonexistent ADR/EV records."""
+
+    def _tree(self, root: Path) -> None:
+        _minimal_tree(root)
+        _write(
+            root / "main/t2ag.md",
+            "# 宪法\n\n扫描判据见 ADR-0001 与 EV-0012。\n",
+        )
+
+    def test_live_repo_citations_valid(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        self.assertEqual(
+            drc.validate_decision_citations(root, _live_flavor(root)), []
+        )
+
+    def test_dangling_adr_citation_flagged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._tree(root)
+            text = (root / "main/t2ag.md").read_text(encoding="utf-8")
+            (root / "main/t2ag.md").write_text(
+                text + "另见 ADR-0009。\n", encoding="utf-8"
+            )
+            errors = drc.validate_decision_citations(root, "main")
+            self.assertTrue(any("ADR-0009" in e for e in errors), errors)
+
+    def test_dangling_ev_citation_flagged_in_main(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._tree(root)
+            text = (root / "main/t2ag.md").read_text(encoding="utf-8")
+            (root / "main/t2ag.md").write_text(
+                text + "另见 EV-0099。\n", encoding="utf-8"
+            )
+            errors = drc.validate_decision_citations(root, "main")
+            self.assertTrue(any("EV-0099" in e for e in errors), errors)
+
+    def test_skeleton_ev_exempt_but_adr_not(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._tree(root)
+            text = (root / "main/t2ag.md").read_text(encoding="utf-8")
+            (root / "main/t2ag.md").write_text(
+                text + "另见 EV-0099 与 ADR-0009。\n", encoding="utf-8"
+            )
+            errors = drc.validate_decision_citations(root, "skeleton")
+            self.assertFalse(any("EV-0099" in e for e in errors), errors)
+            self.assertTrue(any("ADR-0009" in e for e in errors), errors)
+
+    def test_history_files_out_of_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._tree(root)
+            _write(
+                root / "main/00_core/t2ag_changelog.md",
+                "# changelog\n\n历史条目曾引用 ADR-0099 与 EV-0099，合法。\n",
+            )
+            self.assertEqual(drc.validate_decision_citations(root, "main"), [])
+
+    def test_playbook_surface_included(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._tree(root)
+            _write(
+                root / "main/50_playbook/startup_orchestration.md",
+                "# startup\n\n canonical：ADR-0007。\n",
+            )
+            errors = drc.validate_decision_citations(root, "main")
+            self.assertTrue(any("ADR-0007" in e for e in errors), errors)
+
+    def test_adr_body_surface_included(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._tree(root)
+            _write(
+                root / "docs/adr/0002-live.md",
+                "# ADR-0002\n\nThis live decision cites ADR-0007.\n",
+            )
+            errors = drc.validate_decision_citations(root, "main")
+            self.assertTrue(any("ADR-0007" in e for e in errors), errors)
+
+    def test_protocol_surface_included(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._tree(root)
+            _write(
+                root / "docs/protocol/example.md",
+                "# Protocol\n\nCompanion decision: ADR-0007.\n",
+            )
+            errors = drc.validate_decision_citations(root, "main")
+            self.assertTrue(any("ADR-0007" in e for e in errors), errors)
 
 
 if __name__ == "__main__":

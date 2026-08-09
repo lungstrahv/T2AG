@@ -27,7 +27,12 @@ import campaign_receipt as campaign  # noqa: E402
 import t2ag_state_refresh as state_refresh  # noqa: E402
 
 CAMPAIGN_ID = campaign.CAMPAIGN_ID
-PRODUCTION_ROOT = Path(r"C:\Users\MikeChen\T2AC\t2ag").resolve()
+# EV-0022：生产根不再绑定维护者机器字面量，派生自代码所在仓根——
+# 任何安装实例的仓根就是它自己的生产根，direct_user 授权闸门在所有实例上生效；
+# 显式 --root 指向其它路径时仍落入 test/shadow guard 分支（fail-closed 语义不变）。
+INSTANCE_ROOT = Path(__file__).resolve().parents[2]
+# 兼容 alias：旧消费方（activity_lifecycle、doctor 环境探测、测试 patch）仍读此名。
+PRODUCTION_ROOT = INSTANCE_ROOT
 KNOWLEDGE_STATES = ledger.KNOWLEDGE_STATES
 PREF_KEYS = (
     "lesson_actual_review",
@@ -1595,7 +1600,7 @@ def validate_authorization(
         raise CloseError(f"close authorization phase must be {expected_phase}")
     if auth.get("authorization_mode") not in {"direct_user", "test", "shadow"}:
         raise CloseError("unsupported close authorization mode")
-    if root.resolve() == PRODUCTION_ROOT:
+    if root.resolve() == INSTANCE_ROOT:
         if not auth.get("authorization_source_sha256"):
             raise CloseError("production close authorization source missing")
         if auth.get("authorization_mode") not in PRODUCTION_APPLY_AUTHORIZATION_MODES:
@@ -1634,7 +1639,7 @@ def run_postchecks(root: Path, plan: dict[str, Any]) -> None:
                 f"post-close hash mismatch: {rel}"
                 + line_ending_drift(raw, want)
             )
-    if root.resolve() == PRODUCTION_ROOT:
+    if root.resolve() == INSTANCE_ROOT:
         commands = [
             [sys.executable, "-B", str(root / "main/70_tools/t2ag_doctor.py")],
             [
@@ -1745,7 +1750,7 @@ def load_json_file(path: Path | None, default: Any) -> Any:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=PRODUCTION_ROOT)
+    parser.add_argument("--root", type=Path, default=INSTANCE_ROOT)
     parser.add_argument("--course-id", default="MATH1607H")
     parser.add_argument("--activity-type", choices=["lesson", "exercise"], default="exercise")
     parser.add_argument("--activity-id", default="exercise01")

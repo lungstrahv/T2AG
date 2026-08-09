@@ -11,7 +11,7 @@ tools = 确定性检查，playbook = 裁量流程（宪法 2.7）。
 - `migration_txn_021.py`：profile/ActivityRecord 迁移共用的 durable transaction 协议；
 - `migrate_021_activity_records.py`：reading ActivityRecord 分类迁移与 Main-only 证据；
 - `t2ag_reading_bridge.py`：T2AG owner 的 context export、candidate import 与 receipt outbox；
-- `contracts/reading_bridge_v1/`：与 Skeleton、辅助阅读系统逐字节一致的六份 schema 和严格校验器。
+- `contracts/reading_bridge_v1/`：与 Skeleton 及对端阅读系统逐字节一致的六份 schema 和严格校验器。
 - `test_021_closeout.py`：迁移事务、ActivityRecord、Attempt、桥接与 Lite 回滚反例；
 - `scenarios/release_reading_bridge_saga.py`：release-only 双仓 LOOP 与三类中断恢复场景；
 - `contract_test_support.py` 与四个领域测试入口：共享原子断言，不再由单个聚合文件全量调用；
@@ -36,4 +36,4 @@ tools = 确定性检查，playbook = 裁量流程（宪法 2.7）。
   ↔ ADR 确定性关联（无 CLI）；Doctor `runtime.decision_records` 调用。
 - `build_journal_index.py`：支持通用 `journal_index: false`（redirect 不进生成索引）。
 
-桥接工具只写本仓 sidecar，不读取或启动辅助阅读系统；跨仓调用由外部 saga 编排层完成。
+桥接工具只写本仓 sidecar，不读取或启动对端阅读系统；跨仓调用由外部 saga 编排层完成。

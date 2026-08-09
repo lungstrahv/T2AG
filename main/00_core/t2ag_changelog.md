@@ -5,6 +5,62 @@
 
 ---
 
+## [2026-08-09] 独立复审修复闭合（不升版）
+
+- **隐私检查恢复实质覆盖**：changelog 中维护者绝对路径已脱敏；整文件豁免已撤销，
+  `runtime.skeleton_privacy` 现仅豁免 doctor 自检文件，报告「1 项豁免，其余全树无维护者标识」。
+- **生产授权回归恢复有效性**：测试改 patch `INSTANCE_ROOT`，负例使用全局合法但生产不允许的
+  `test` 模式，并精确断言生产环境必须使用 `direct_user`。
+- **文档闭环**：July journal 已移除迁移档案死链；ADR 索引补齐 ADR-0003/0004，并明确
+  `source_evolution` 是 Main register 的外部出处。
+- **引用扫描闭环**：扫描面新增 `docs/adr/*.md`、`docs/protocol/*.md`，新增 ADR 正文与协议
+  正文两条回归；`docs/adr/README.md` 不再重复扫描。
+- **验证**：decision_record 19、close_roundtrip 21、migration 10、receipts 12 全绿；
+  runtime doctor 0 FAIL / 0 WARN。
+- 本批次只修复既有 EV-0022/EV-0023 的复审发现，不产生本实例新决策，故不登记 EV-0024。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = d7a4eebc1238d5a019349589db9324438177686e86d26d926c7047ead8a2d48a ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 35 ← 同上
+- doctor_checks atom set sha256 = 54f3d071a3c144d4c3dc0bbeed75fd5c4542b4952faed19caf3849667a29be07 (n=50) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+#### 佐证断言
+- 四组测试通过 ← `python -B main/70_tools/test_decision_record_contract.py`、`python -B main/70_tools/test_022_close_roundtrip.py`、`python -B main/70_tools/test_022_migration.py`、`python -B main/70_tools/test_release_receipts.py`
+- runtime 状态复算 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime`
+- 共享实现与 Main 同源 ← 本批次 `git diff --no-index` 核对
+
+---
+
+## [2026-08-09] EV-0022/EV-0023 落地：发行边界清洗完成，privacy FAIL 归零（不升版）
+
+- **privacy FAIL 6→0**：三处硬编码路径随 EV-0022/EV-0023 消除（`activity_close` 改
+  `INSTANCE_ROOT` 实例派生；`campaign_receipt` 第三仓改 `--reading-root` 入参；
+  `migrate_022` 常量派生化）；三处历史档案随 EV-0023 移出（`migration_020_*`、
+  `migration_021_profile_*`、`retired_020_sources/`、维护者 register）。
+  `runtime.skeleton_privacy` 现报「2 项豁免，其余全树无维护者标识」。
+- **register 实例清零**：本实例决策从 EV-0001 自筹（模板含 EV-0023 清零说明）；
+  正文 EV-NNNN 引用为维护者出处注释，本 flavor 豁免 EV 链接检查。
+- **ADR-0003/0004 补入**：宪法 §7 权威入口不再悬空。
+- **新增 `runtime.decision_record_citations`**（P-0067 盲区闭合）：正文引用的
+  ADR-NNNN 必须存在。两个 migration evidence check 获 skeleton 分支（证据存在即 FAIL）；
+  `migrate_021 --write-evidence` 在本仓拒绝（Main-only）。
+- **AGENTS.md 遍历指引**：首启不必全读全仓（README → 宪法 → `t2ag_context.py`）。
+- 验证：runtime doctor **0 FAIL**；四组测试两仓各跑全绿（decision_record 17 /
+  close_roundtrip 21 / migration 10 / receipts 12）；模板既有漂移已同步。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = d7a4eebc1238d5a019349589db9324438177686e86d26d926c7047ead8a2d48a ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | head -1`
+- runtime checks = 35 ← 同上
+- doctor_checks atom set sha256 = 54f3d071a3c144d4c3dc0bbeed75fd5c4542b4952faed19caf3849667a29be07 (n=50) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+#### 佐证断言
+- privacy 检查通过 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | grep -c 'skeleton privacy'`
+- register 已清零 ← `grep -c '实例清零说明' main/60_journal/t2ag_evolution_register.md`
+- ADR-0003/0004 在场 ← `ls docs/adr/000*.md | grep -c '000[34]'`
+- 遍历指引已写入 ← `grep -c '遍历指引' AGENTS.md`
+
+---
+
 ## [2026-08-08] Skeleton 新手路径修复与节预算脚手架（不升版）
 
 - **`context --include-l1` 在空模板上崩溃已修**：`render_markdown` 的
@@ -465,7 +521,7 @@ v0.0.07 背后第一次站着三个立法者：用户（共同起草人）、age
 
 - **全局改名 T2AC → T2AG**：所有文件名（t2ac.md → t2ag.md 等 9 个/仓）、文件内容、路径引用统一为 T2AG
 - **版本号**：0.0.05 → 0.0.06（AGENTS / README / t2ag.md / doctor 一致性检查通过）
-- **文件夹重构**：`C:\Users\MikeChen\T2AC\` 为工作区根，内含 `T2AG\`（主项目）+ `T2AG-skeleton\`（骨架，独立 git 仓）
+- **文件夹重构**：工作区根内含 `T2AG\`（主项目）+ `T2AG-skeleton\`（骨架，独立 git 仓，与主仓同级）
 - **skin 文件夹**：welpic → skin，文件加编号（01_welcome.txt 等），创建 README 索引
 - **skeleton 整治**：
   - 补缺失 playbook 文件（exam_protocol / exam_bank_spec / lesson_recover / ocr_correct_flow）
@@ -483,7 +539,7 @@ v0.0.07 背后第一次站着三个立法者：用户（共同起草人）、age
 - 全称：T2AG by T2AG——T2AG 是产品名，T2AG 是系统代号（v0.0.06 起统一为 T2AG）
 - 改名范围：README/AGENTS/t2ag.md 头部/git_workflow.md 示例文本
 - v0.0.06 追加：文件名（t2ac.md → t2ag.md 等）、文件夹路径全部统一为 T2AG
-- **skeleton 分仓**：T2AG_skeleton 移出主仓 → `C:\Users\MikeChen\T2AG-skeleton\`，独立 git init
+- **skeleton 分仓**：T2AG_skeleton 移出主仓 → 与主仓同级的独立目录，独立 git init
   - 理由：主仓 Private（学生档案）× skeleton 将来 Public（分发资产）= 可见性冲突，物理隔离
   - 同步纪律：主仓结构性变更当天同步 skeleton 仓并打相同版本 tag
 - **项目日程表**：新增 `00_core/project_schedule.md`——向前看路线图（版本/课程组/里程碑/系统节点/公开前审计清单）
@@ -658,7 +714,7 @@ v0.0.07 背后第一次站着三个立法者：用户（共同起草人）、age
 
 - 改名原因：skeleton 是骨架/种子的标准称谓，lite 暗示"功能阉割版"语义不准
 - 33 个文件完好，含 t2ag_flow.md 和 pattern_retire_loop.md 等全部新增内容
-- 路径：`C:\Users\MikeChen\T2AG\T2AG_skeleton`
+- 路径：主仓内 `T2AG_skeleton/`（分仓前的嵌套位置）
 
 ---
 
