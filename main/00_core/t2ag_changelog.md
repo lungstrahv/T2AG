@@ -5,6 +5,35 @@
 
 ---
 
+## [2026-08-08] Skeleton 新手路径修复与节预算脚手架（不升版）
+
+- **`context --include-l1` 在空模板上崩溃已修**：`render_markdown` 的
+  `first_run_required` 分支只构造提示行却未 `return`，落入 L1 块读取仅路由包才有的
+  `l1_empty_reason`，抛 `KeyError`。该命令是 Skeleton `README.md`「快速开始」第 4 条——
+  **新手照文档跑的第一条路径直接抛栈**。改为提前返回并附一句空模板说明；
+  新增 `FirstRunRenderTests` 三条回归（含 fall-through 变异守卫）。
+- **memory 节预算脚手架**：Skeleton 此前无任何 `[max N]` 标记，
+  `runtime.memory_budget` 恒报「节预算机制未生效」。补入「节预算与下沉」说明与
+  三节空脚手架（教学检查 30 / 关键决策 100 / 问题摘要 50），内容留空由首次启动后生长。
+- **本条自带锚定断言**：Skeleton 此前最新条目无锚定块，`runtime.changelog` 恒 WARN。
+- cloud 面复核：`sync_cloud.py` / `cloud_learning_sync.md` /
+  `cloud_instructions_template.md` 三文件已与 Main 同源；`cloud/` 目录差异
+  （无 `t2ag_mobile_entry.md`、`T2AG_PROJECT_INSTRUCTIONS.txt` 为 13 行空壳）
+  **属设计**——该工具自述「模板与 skeleton 永不含实例值」「skeleton 无 mobile_entry，
+  无生成对象」，两侧 check 均通过，无欠账。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = 7bb4d73404b828450bf4dc773212d6a711d62f4bb8185cb99a82c89793182230 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | head -1`
+- runtime checks = 33 ← 同上
+- doctor_checks atom set sha256 = 70fe8ee726b90514481b358c948f1a10d9520b2bf5e701635f2ee01f75eb8de0 (n=48) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+#### 佐证断言
+- first-run 渲染回归已登记 ← `grep -c 'FirstRunRenderTests' main/70_tools/test_context_packet.py`
+- memory 三节预算标记已就位 ← `grep -c '\[max ' main/00_core/t2ag_memory.md`
+- cloud 生成物在 skeleton 无对象 ← `python -B main/70_tools/sync_cloud.py`
+
+---
+
 ## [2026-08-06] 规则反压缩纪律（不升版）
 
 - 宪法新增 §6.3：版本更新默认 diff-patch、强制 `rule_migration`、不可丢集合、废止
