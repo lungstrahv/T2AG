@@ -5,6 +5,31 @@
 
 ---
 
+## [2026-08-10] release.package_surface：发行物表面检查（不升版）
+
+- **新增 `release.package_surface`**：扫描工作区根下全部 `t2ag-skeleton*.zip`，包内含 `.git`
+  即判 FAIL（该包不得对外分发）；`.bak-*` 等非 `*.zip` 后缀视为隔离件，不参与判定。
+  这是 `remediation_governance.md` §七 `carrier_mismatch` 家族的一次主动收口——发行物住在
+  仓外，仓内检查此前读不到它。
+- **原子集变动**：`doctor_checks` 50 → 51；release profile checks 15 → 16；runtime profile
+  不变（本检查为 release-only，外部使用者的 runtime 首启不受影响）。
+- **本条目补记上一 commit 的锚定断言缺失**：`52df0a6` 改了原子集但未追加 changelog 锚定块，
+  导致全新副本 runtime doctor 报「状态漂移无记录」1 WARN。教训与 P-0067 同族：**改
+  `validation_workflow.json` 的 commit 必须同批追加锚定块**，否则漂移检查会对着上一条
+  历史记录报警，而那条记录并没有说错话。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = d7a4eebc1238d5a019349589db9324438177686e86d26d926c7047ead8a2d48a ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 35 ← 同上
+- doctor_checks atom set sha256 = d41fafde87632b191fe35f4659f1b9d87ca4d32ec5d7f8618bddba954bf71fd8 (n=51) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+#### 佐证断言
+- 全新解压副本 runtime 0 FAIL / 0 WARN ← 沙箱解包后执行 `python3 -B main/70_tools/t2ag_doctor.py --profile runtime`
+- release profile 计划 sha256 = `25bfb3951a424b202835bb05c7b930d14b664f1f36409231d54a687fa905ea5f`（checks=51）← `--profile release` 首行；**不入锚定块**：锚定解析按「plan sha256」子串取最后一次命中，多写一行会静默改写 runtime 断言（§七 carrier_mismatch 同族，已记入下方教训）
+- 工作区三个既有 `t2ag-skeleton*.zip` 均不含 `.git`，新检查不产生存量红 ← `zipfile.namelist()` 实扫
+
+---
+
 ## [2026-08-09] 独立复审修复闭合（不升版）
 
 - **隐私检查恢复实质覆盖**：changelog 中维护者绝对路径已脱敏；整文件豁免已撤销，
