@@ -154,7 +154,8 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
     "check_skeleton_textbook", "check_distribution_parity",
-    "check_skeleton_privacy", "check_decision_record_citations",
+    "check_skeleton_privacy", "check_release_package_surface",
+    "check_decision_record_citations",
     "check_line_endings", "check_release_line_endings",
 }
 LEGACY_DOMAINS = {
@@ -4953,6 +4954,48 @@ def skeleton_package_findings(archive: Path) -> list[str]:
     return findings
 
 
+SKELETON_RELEASE_NAME = "t2ag-skeleton"
+
+
+def built_skeleton_packages(root: Path) -> list[Path]:
+    """Every built Skeleton archive sitting next to the release trees.
+
+    Deliberately independent of the current flavor: a Main-side release review is
+    exactly when someone should be told the Skeleton package carries history.
+    `.bak-*` suffixes fall outside `*.zip` and are left alone — a quarantined
+    package is evidence of what was shipped before, not a thing to re-flag.
+    """
+    return sorted(root.parent.glob(f"{SKELETON_RELEASE_NAME}*.zip"))
+
+
+def check_release_package_surface() -> None:
+    """FAIL on any built package that would disclose history or identity.
+
+    Runtime reports the same facts as WARN so a stale archive never blocks a
+    lesson. That severity turned out to be wrong for the moment that matters:
+    the risk window is the instant a *new* package is built, and a new package
+    lands in the same directory as the old one. The 2026-08-09 repack shipped
+    `.git` again and the WARN was read as ordinary noise — the operator even
+    reported "commit 对象在" as a healthy sign. Release review is where this has
+    to be unskippable.
+    """
+    packages = built_skeleton_packages(ROOT)
+    if not packages:
+        report("INFO", "release package surface: 工作区没有已构建的 Skeleton 发行包")
+        return
+    clean = 0
+    for archive in packages:
+        findings = skeleton_package_findings(archive)
+        for finding in findings:
+            report("FAIL", f"{finding}（该包不得对外分发）")
+        if not findings:
+            clean += 1
+    report(
+        "INFO",
+        f"release package surface: {clean}/{len(packages)} 个发行包清洁",
+    )
+
+
 def check_skeleton_privacy() -> None:
     """Skeleton must not ship the maintainer's identity or local paths.
 
@@ -5001,9 +5044,9 @@ def check_skeleton_privacy() -> None:
     # problem, not a state error, and must not block a lesson mid-session (same
     # rule as check_gate_ledger). It still has to be visible — the whole point is
     # that nobody notices the package until it is already in someone else's hands.
-    for archive in sorted(ROOT.parent.glob(f"{ROOT.name}*.zip")):
+    for archive in built_skeleton_packages(ROOT):
         for finding in skeleton_package_findings(archive):
-            report("WARN", f"{finding}（该包不得对外分发）")
+            report("WARN", f"{finding}（该包不得对外分发；release.package_surface 判 FAIL）")
 
 
 def check_skeleton_textbook_gate() -> None:
@@ -5984,6 +6027,7 @@ def execute_doctor_checks(
         "check_skeleton_textbook": check_skeleton_textbook_gate,
         "check_distribution_parity": check_distribution_parity,
         "check_skeleton_privacy": check_skeleton_privacy,
+        "check_release_package_surface": check_release_package_surface,
         "check_decision_record_citations": check_decision_record_citations,
         "check_line_endings": check_line_endings,
         "check_release_line_endings": check_release_line_endings,

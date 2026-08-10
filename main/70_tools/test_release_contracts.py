@@ -10,6 +10,7 @@ TESTS = (
     contracts.test_flow_and_offline_guide,
     contracts.test_offline_guide_version_drift_is_enforced,
     contracts.test_skeleton_package_surface_is_enforced,
+    contracts.test_release_package_surface_severity_split,
     contracts.test_candidate_replay_isolation_contract,
 )
 

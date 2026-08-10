@@ -1546,6 +1546,40 @@ def test_skeleton_package_surface_is_enforced(root: Path) -> None:
         raise AssertionError("an unreadable package must fail closed, not pass silently")
 
 
+def test_release_package_surface_severity_split(root: Path) -> None:
+    """The same fact must be WARN at runtime and FAIL at release.
+
+    Shipping `.git` was WARN-only once, and the operator read it as noise while
+    reporting "commit 对象在" as healthy — the package went out with full history.
+    Runtime must stay non-blocking (a stale archive is not a teaching fault);
+    release must be unskippable, because that is the moment a package is built.
+    """
+    repo = root / "t2ag-skeleton"
+    reset(repo, "skeleton")
+    write(repo / "main/t2ag.md", FIXTURE_CONSTITUTION)
+    contaminated = root / "t2ag-skeleton-0.9.9-deadbee.zip"
+    with zipfile.ZipFile(contaminated, "w") as bundle:
+        bundle.writestr("t2ag-skeleton/README.md", "# skeleton\n")
+        bundle.writestr("t2ag-skeleton/.git/config", "user = anyone\n")
+
+    if doctor.built_skeleton_packages(repo) != [contaminated]:
+        raise AssertionError(
+            f"package discovery must be flavor-independent: {doctor.built_skeleton_packages(repo)}"
+        )
+
+    run_silently(doctor.check_release_package_surface)
+    assert_message(doctor.fails, "不得对外分发")
+    if doctor.warns:
+        raise AssertionError(f"release must not downgrade the finding: {doctor.warns}")
+
+    # A quarantined `.bak-*` copy is evidence of what shipped before, not a new finding.
+    reset(repo, "skeleton")
+    contaminated.rename(root / "t2ag-skeleton.zip.bak-20260809")
+    run_silently(doctor.check_release_package_surface)
+    if doctor.fails:
+        raise AssertionError(f"a quarantined .bak copy must not be re-flagged: {doctor.fails}")
+
+
 def test_hint_gate_contract(root: Path) -> None:
     enabled_concept = hint_gate.evaluate_gate("enabled", "concept_answer")
     if not enabled_concept.allowed:
@@ -4025,6 +4059,7 @@ ALL_CONTRACT_TESTS = (
         test_flow_and_offline_guide,
         test_offline_guide_version_drift_is_enforced,
         test_skeleton_package_surface_is_enforced,
+        test_release_package_surface_severity_split,
         test_hint_gate_contract,
         test_exercise_evidence,
         test_exercise_activity_links,
