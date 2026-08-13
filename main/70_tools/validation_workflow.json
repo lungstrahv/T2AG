@@ -139,6 +139,13 @@
         "runtime.course_discovery"
       ]
     },
+    "runtime.problemlog_closure": {
+      "phase": "runtime",
+      "handler": "check_problemlog_closure",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
     "runtime.trading_boundary": {
       "phase": "runtime",
       "handler": "check_trading_boundary",
@@ -383,6 +390,7 @@
         "runtime.scope_page_cache",
         "runtime.checkpoint_block_routing",
         "runtime.gate_ledger",
+        "runtime.problemlog_closure",
         "runtime.trading_boundary",
         "runtime.external_references",
         "runtime.legacy_references",

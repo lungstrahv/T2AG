@@ -34,6 +34,8 @@ TESTS = (
     contracts.test_git_unlink_probe_residue_is_bounded,
     contracts.test_changelog_anchor_mismatch_warns_with_both_values,
     contracts.test_changelog_missing_anchor_block_warns,
+    contracts.test_changelog_entry_above_title_warns,
+    contracts.test_changelog_body_date_disorder_warns,
     contracts.test_changelog_stale_evidence_warns_with_title_and_claim,
     contracts.test_memory_budget_over_limit_warns_with_both_numbers,
     contracts.test_memory_budget_missing_markers_warns,
@@ -54,6 +56,15 @@ TESTS = (
     contracts.test_gate_ledger_carrier_without_section_is_skipped,
     contracts.test_gate_ledger_blocks_before_anchor_are_exempt,
     contracts.test_gate_ledger_pure_functions_mutation_is_killed,
+    contracts.test_gate_ledger_header_driven_checkpoint_table,
+    contracts.test_gate_ledger_detour_transition_chain_is_accepted,
+    contracts.test_gate_ledger_active_textbook_lesson_without_section_fails,
+    contracts.test_gate_ledger_inactive_or_nontextbook_lesson_is_exempt,
+    contracts.test_problemlog_closure_missing_anchor_fail_closed,
+    contracts.test_problemlog_closure_missing_field_after_anchor_warns,
+    contracts.test_problemlog_closure_two_strike_prose_landing_warns,
+    contracts.test_problemlog_closure_machine_landings_are_silent,
+    contracts.test_problemlog_closure_check_reads_instance_log,
 )
 
 

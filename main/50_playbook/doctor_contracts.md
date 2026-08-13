@@ -174,3 +174,19 @@ delta review 只有在旧证据的输入 manifest SHA 未变、范围外文件�
 
 recovery checkpoint 只证明存在恢复点，不进入 release 资格判断。release snapshot 必须由外部
 独立报告绑定完整 candidate review 和有界 finalization delta review；`clean ≠ reviewed ≠ released`。
+
+## 八、检验的产生纪律（2026-08-10，随检验体系施工确立）
+
+新增或修改任何 Doctor 检验时：
+
+1. **四卡点原则**：检验只许挂在四个既有卡点——启动（runtime doctor）、结课
+   （session_close 第 5 步）、施工（V0–V3 / t2ag_test）、发布（release profile）。
+   不得新增依赖"模型记得去跑"的散文义务；需要模型记得才会执行的检验视同不存在
+   （问题根源见 2026-08-08 审查 A3：注意力过载线）。
+2. **红测夹具**：新增/修改检验必须附至少一个会触发它的最小夹具（contracts 测试组
+   NEGATIVE 用例）。从不触发的检验与不能触发的检验无法区分。存量检验按 problemlog
+   回放命中顺序逐步补齐；覆盖率 = 有红测的检验数 / 总检验数。
+3. **回灌契约与两振出局**：problemlog 条目须声明强制落点（`closure` 字段，机检
+   `runtime.problemlog_closure`）；`occurrence_count >= 2` 的问题不得再以散文修复收尾，
+   必须落 `check=`（doctor 检查）或 `tool=`（代码强制）。字段语义 canonical：
+   `00_core/t2ag_problemlog.md` 头部回灌契约。

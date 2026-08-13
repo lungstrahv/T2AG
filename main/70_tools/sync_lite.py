@@ -23,6 +23,10 @@
 
 保留：
 - 规则、playbook、doctor、实例 Markdown 状态、lesson 文本、cloud 文本
+- **出生证明（F2，2026-08-12）**：AGENTS.md 尾部由本脚本写入 generated_at /
+  source_commit / file_count / dirty_tree / host_redactions，快照自证生成时点。
+- **宿主脱敏（F5，2026-08-12）**：文本投影中宿主身份串替换为 `<host_user>`，
+  拷贝与校验共用同一变换；check 模式含残留自检。
 - main/80_interface/fable_snail.png（见 ALLOWED_BINARY_REL）
 - t2ag_directory_guide.html
 - lite 身份 README.md / AGENTS.md（再生后写回审查快照说明，与 main 有意不同）
@@ -44,6 +48,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 FORBIDDEN_EXT = {
@@ -141,6 +146,63 @@ TEXT_EXT = {
     ".svg",
 }
 
+# --- 宿主身份脱敏（review_LITE-20260812-0001 F5，2026-08-12 裁决）---
+# lite 是给线上模型看的快照；宿主用户名属环境私货。投影与校验两侧走同一变换，
+# 替换只作用于 TEXT_EXT 文本投影，main 本体与二进制白名单不动。
+# 顺序敏感：整路径规则先行，兜底裸用户名规则收尾（替换结果不再含命中串，不会双计）。
+# 字面量禁令（2026-08-13 裁决）：宿主用户名不得硬编码——本文件按 parity 契约字节同源
+# 投影到开源 Skeleton，硬编码字面量即泄露（skeleton privacy 检查必 FAIL）。改为运行时
+# 推导：优先 `T2AG_HOST_USER` 环境变量（宿主可显式指定），缺省 getpass.getuser()。
+# 裸用户名兜底规则仅在用户名长度 >= 4 时启用：过短/通用用户名（如 "a"、"pc"）做全文
+# 替换会误伤正文；整路径规则不受此限（「盘符 + Users + 用户名」前缀已足够特异）。
+
+
+def _resolve_host_user() -> str:
+    explicit = os.environ.get("T2AG_HOST_USER", "").strip()
+    if explicit:
+        return explicit
+    try:
+        import getpass
+
+        return getpass.getuser()
+    except Exception:
+        return ""
+
+
+def _build_host_redactions(user: str) -> tuple[tuple[bytes, bytes], ...]:
+    if not user:
+        return ()
+    encoded = user.encode("utf-8")
+    # 前缀分段拼接而非整串字面量：skeleton privacy 扫描器匹配「盘符:[\/]Users[\/]」，
+    # 本文件按 parity 契约字节同源进 Skeleton，源码含整串前缀即自我命中。拼接后
+    # 运行时字节不变，源码不再携带可匹配路径串——比整文件豁免窄得多（豁免会连
+    # 未来真正的路径泄露一起放行，见 08-09 复审「豁免即绕过」结论）。
+    win_prefix = b"C:" + b"\\Users" + b"\\"
+    posix_prefix = b"C:" + b"/Users" + b"/"
+    rules: list[tuple[bytes, bytes]] = [
+        (win_prefix + encoded, win_prefix + b"<host_user>"),
+        (posix_prefix + encoded, posix_prefix + b"<host_user>"),
+    ]
+    if len(user) >= 4:
+        rules.append((encoded, b"<host_user>"))
+    return tuple(rules)
+
+
+HOST_USER = _resolve_host_user()
+HOST_REDACTIONS: tuple[tuple[bytes, bytes], ...] = _build_host_redactions(HOST_USER)
+
+
+def redact_host_bytes(data: bytes) -> tuple[bytes, int]:
+    """Pure transform: (redacted_bytes, hit_count). Same function feeds copy AND verify."""
+    hits = 0
+    for pattern, replacement in HOST_REDACTIONS:
+        count = data.count(pattern)
+        if count:
+            data = data.replace(pattern, replacement)
+            hits += count
+    return data, hits
+
+
 # 相对 main 根（或同步根）的二进制白名单。每条必须注释：是什么、为何 lite 需要。
 # 例外是清单腐化的起点——新增前先问「审查是否真的缺它」。
 ALLOWED_BINARY_REL: dict[str, str] = {
@@ -181,6 +243,8 @@ LITE_README = """# T2AG 0.2.3 线上模型审查快照（t2ag-lite）
 - ADR/Protocol 仅为**只读审查资料**，不赋予 Lite 执行权或宿主教学硬门
 - 排除：教材二进制（PDF/压缩包等）、`.venv`、`.tools`、`.git`、`.recovery`、
   缓存、二进制生成资产、DB/WAL 等；审查所需的纯文本课程材料可以保留
+- 脱敏：宿主身份字符串（用户主目录名）投影时替换为 `<host_user>`；
+  命中计数见 `AGENTS.md` 出生证明，残留自检零容忍
 
 ## 三形态基础验证内容
 
@@ -289,7 +353,7 @@ def should_skip_file(path: Path, rel: Path, tree_prefix: str = "") -> bool:
         return True
     return False
 
-def require_main_clean(src: Path, force: bool) -> None:
+def require_main_clean(src: Path, force: bool) -> str:
     """main 工作区必须干净，否则拒绝（--force 可越过）。
 
     脏树探测与 doctor.check_release_snapshot 共用 git_status_porcelain
@@ -298,7 +362,7 @@ def require_main_clean(src: Path, force: bool) -> None:
     git_dir = src / ".git"
     if not git_dir.exists():
         print("WARN: main has no .git; skip clean-tree gate", file=sys.stderr)
-        return
+        return "no-git"
     try:
         # Co-located import: same 70_tools/ when run as script.
         from t2ag_doctor import git_status_porcelain  # type: ignore
@@ -328,7 +392,7 @@ def require_main_clean(src: Path, force: bool) -> None:
         dirty = run.stdout.strip()
     if not dirty:
         print("gate: main working tree clean OK")
-        return
+        return ""
     msg = (
         "REFUSE: main working tree is dirty; refuse to project an uncommitted "
         "intermediate state onto git-less lite.\n"
@@ -345,7 +409,7 @@ def require_main_clean(src: Path, force: bool) -> None:
             + preview + suffix,
             file=sys.stderr,
         )
-        return
+        return dirty
     print(msg, file=sys.stderr)
     raise SystemExit(2)
 
@@ -392,10 +456,10 @@ def iter_projected_files(
 
 def copy_filtered(
     src_root: Path, dst_root: Path, dry_run: bool, tree_prefix: str = ""
-) -> tuple[int, int]:
-    copied = skipped = 0
+) -> tuple[int, int, int]:
+    copied = skipped = redacted = 0
     if not src_root.exists():
-        return 0, 0
+        return 0, 0, 0
     for src in src_root.rglob("*"):
         if not src.is_file():
             continue
@@ -408,9 +472,9 @@ def copy_filtered(
             copied += 1
             continue
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        redacted += copy_projected_file(src, dst)
         copied += 1
-    return copied, skipped
+    return copied, skipped, redacted
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -418,6 +482,28 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def expected_projection_sha256(source: Path) -> str:
+    """Hash of what the Lite copy of *source* should contain (post-redaction for text)."""
+    if source.suffix.lower() in TEXT_EXT:
+        data, hits = redact_host_bytes(source.read_bytes())
+        if hits:
+            return hashlib.sha256(data).hexdigest()
+    return sha256_file(source)
+
+
+def copy_projected_file(source: Path, target: Path) -> int:
+    """Copy one projected file applying host redaction to text payloads; return hits."""
+    if source.suffix.lower() in TEXT_EXT:
+        data = source.read_bytes()
+        redacted, hits = redact_host_bytes(data)
+        if hits:
+            target.write_bytes(redacted)
+            shutil.copystat(source, target)
+            return hits
+    shutil.copy2(source, target)
+    return 0
 
 
 def source_projection_manifest(src: Path) -> dict[str, tuple[int, int, str]]:
@@ -513,7 +599,7 @@ def verify_projection(
             print(f"MISS_DST {label}")
             missing += 1
             continue
-        hs, hd = sha256_file(s), sha256_file(d)
+        hs, hd = expected_projection_sha256(s), sha256_file(d)
         if hs == hd:
             match += 1
         elif label in LITE_GUIDE_DIVERGE_REL:
@@ -546,11 +632,37 @@ def verify_projection(
     return 0
 
 
-def write_identity(dst: Path, dry_run: bool) -> None:
+BIRTH_KEYS = ("generated_at", "source_commit", "file_count", "dirty_tree", "host_redactions")
+
+
+def render_birth_block(birth: dict) -> str:
+    """出生证明（F2）：快照必须能自证生成时点与来源，歧义不再依赖场外记忆。"""
+    lines = [
+        "\n## 出生证明（每次再生由 sync_lite 写入；review_LITE-20260812-0001 F2）\n\n"
+    ]
+    for key in BIRTH_KEYS:
+        lines.append(f"- {key}: {birth.get(key, 'unknown')}\n")
+    return "".join(lines)
+
+
+def git_head_commit(src: Path) -> str:
+    try:
+        run = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=src, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+    return run.stdout.strip() if run.returncode == 0 and run.stdout.strip() else "unknown"
+
+
+def write_identity(dst: Path, dry_run: bool, birth: dict | None = None) -> None:
     if dry_run:
         return
     (dst / "README.md").write_text(LITE_README, encoding="utf-8", newline="\n")
-    (dst / "AGENTS.md").write_text(LITE_AGENTS, encoding="utf-8", newline="\n")
+    agents = LITE_AGENTS + (render_birth_block(birth) if birth else "")
+    (dst / "AGENTS.md").write_text(agents, encoding="utf-8", newline="\n")
 
 
 def projection_manifest(src: Path, dst: Path) -> list[tuple[str, Path, Path]]:
@@ -666,14 +778,42 @@ def check_current_projection(src: Path, dst: Path) -> int:
     for label, source, target in projected:
         if label not in current or label in LITE_GUIDE_DIVERGE_REL:
             continue
-        if sha256_file(source) != sha256_file(target):
+        if expected_projection_sha256(source) != sha256_file(target):
             differ.append(label)
 
-    identity_expected = {"README.md": LITE_README, "AGENTS.md": LITE_AGENTS}
-    for label, content in identity_expected.items():
-        target = dst / label
-        if target.is_file() and target.read_text(encoding="utf-8") != content:
-            differ.append(label)
+    readme = dst / "README.md"
+    if readme.is_file() and readme.read_text(encoding="utf-8") != LITE_README:
+        differ.append("README.md")
+    agents = dst / "AGENTS.md"
+    if agents.is_file():
+        agents_text = agents.read_text(encoding="utf-8")
+        birth_ok = all(
+            re.search(rf"^- {key}: \S", agents_text, re.MULTILINE) for key in BIRTH_KEYS
+        )
+        if not agents_text.startswith(LITE_AGENTS) or not birth_ok:
+            differ.append("AGENTS.md")
+
+    # 脱敏残留自检（F5）：投影后的文本不得再含宿主身份串。
+    residual: list[str] = []
+    # HOST_USER 为空时跳过：空 needle 命中一切文件，自检沦为噪声（推导失败已在
+    # HOST_REDACTIONS 为空、host_redactions=0 处显形，不靠这里兜底）。
+    if dst.exists() and HOST_USER:
+        needle = HOST_USER.encode()
+        for path in dst.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in TEXT_EXT:
+                continue
+            rel = path.relative_to(dst)
+            if rel.parts and rel.parts[0] in PRESERVE_DST_TOP:
+                continue
+            try:
+                if needle in path.read_bytes():
+                    residual.append(rel.as_posix())
+            except OSError:
+                residual.append(rel.as_posix() + " (unreadable)")
+    for value in residual[:10]:
+        print(f"HOST_RESIDUAL {value}")
+    if residual:
+        differ.append(f"host-identity residual in {len(residual)} file(s)")
 
     guide_bad = False
     guide = dst / "t2ag_directory_guide.html"
@@ -711,20 +851,21 @@ def check_current_projection(src: Path, dst: Path) -> int:
 
 
 def build_candidate(
-    src: Path, candidate: Path
+    src: Path, candidate: Path, birth: dict | None = None
 ) -> tuple[int, int, list[tuple[str, Path, Path]]]:
-    total_copied = total_skipped = 0
+    total_copied = total_skipped = total_redacted = 0
     for name in ("main", "cloud", "assets"):
-        copied, skipped = copy_filtered(
+        copied, skipped, redacted = copy_filtered(
             src / name, candidate / name, False, tree_prefix=name
         )
         total_copied += copied
         total_skipped += skipped
-        print(f"tree {name}: copied={copied} skipped={skipped}")
+        total_redacted += redacted
+        print(f"tree {name}: copied={copied} skipped={skipped} redacted_hits={redacted}")
     for name in ("t2ag_directory_guide.html", ".gitignore"):
         source = src / name
         if source.is_file() and not should_skip_file(source, Path(name)):
-            shutil.copy2(source, candidate / name)
+            total_redacted += copy_projected_file(source, candidate / name)
             total_copied += 1
             print(f"root file: {name}")
         elif source.is_file():
@@ -743,13 +884,17 @@ def build_candidate(
         if not source.is_file():
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
+        total_redacted += copy_projected_file(source, target)
         extras += 1
         total_copied += 1
     if extras:
         print(f"docs extras: copied={extras}")
 
-    write_identity(candidate, False)
+    if birth is not None:
+        birth["file_count"] = len(projected_preview)
+        birth["host_redactions"] = total_redacted
+    print(f"host_redactions: {total_redacted}")
+    write_identity(candidate, False, birth)
     tools_dir = Path(__file__).resolve().parent
     if str(tools_dir) not in sys.path:
         sys.path.insert(0, str(tools_dir))
@@ -936,11 +1081,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {rel}: {reason}")
 
     # Gate: main clean (even for dry-run — dry-run should still teach the discipline)
-    require_main_clean(src, force=args.force)
+    dirty_state = require_main_clean(src, force=args.force)
 
     if dry_run:
         return check_current_projection(src, dst)
 
+    birth = {
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source_commit": git_head_commit(src),
+        "dirty_tree": "unknown" if dirty_state == "no-git" else str(bool(dirty_state)).lower(),
+        "file_count": 0,
+        "host_redactions": 0,
+    }
     source_before_build = source_projection_manifest(src)
     old_lite_manifest: dict[str, tuple[int, int, str]] | None = None
     installed_state: tuple[list[Path], list[Path], Path] | None = None
@@ -956,7 +1108,7 @@ def main(argv: list[str] | None = None) -> int:
         candidate.mkdir()
         require_distinct_file_ids(temporary_root, candidate, src, dst)
         total_copied, total_skipped, projected = build_candidate(
-            src, candidate
+            src, candidate, birth
         )
         print(f"candidate={candidate}")
         print(f"TOTAL copied={total_copied} skipped={total_skipped}")

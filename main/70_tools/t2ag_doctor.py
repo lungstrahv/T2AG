@@ -140,6 +140,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
     "check_registry", "check_textbook_preparation", "check_scope_page_cache",
     "check_checkpoint_block_routing", "check_gate_ledger",
+    "check_problemlog_closure",
     "check_trading_boundary", "check_external_references",
     "check_legacy_references", "check_retired_instance_ids", "check_cloud_pause",
     "check_context_packet_contract", "check_test_management_contract",
@@ -2588,16 +2589,45 @@ def checkpoint_rows_from(progress_text: str, anchor_id: str) -> list[tuple[str, 
     Anchor-inclusive: the anchor block itself needs no incoming transition, but
     the crossing anchor→next is in scope.  None when the anchor is not in the
     table (the ledger then fails closed, not open).
+
+    Two deterministic table shapes are accepted:
+    - header-driven: a header row naming `checkpoint_id` and `状态` declares
+      the layout for the rows beneath it; `页码` is optional (goal-driver
+      courses legitimately have no page column — the AIF false 000 of
+      2026-08-10 came from rejecting this shape);
+    - headerless legacy: fixed 6-column rows whose id matches
+      `-B\\d+-P\\d+-N\\d+`.
     """
     rows: list[tuple[str, str, str]] = []
+    header: dict[str, int] | None = None
+    width = 0
     for line in progress_text.splitlines():
         stripped = line.strip()
         if not stripped.startswith("|"):
+            header = None
             continue
         cells = [c.strip() for c in stripped.strip("|").split("|")]
-        if len(cells) < 6 or not re.fullmatch(r"[A-Za-z0-9]+-B\d+-P\d+-N\d+", cells[0]):
+        if cells and all(set(c) <= {"-", ":", " "} for c in cells):
+            continue  # markdown separator row
+        if "checkpoint_id" in cells:
+            if "状态" in cells:
+                header = {
+                    "id": cells.index("checkpoint_id"),
+                    "page": cells.index("页码") if "页码" in cells else -1,
+                    "status": cells.index("状态"),
+                }
+                width = len(cells)
+            else:
+                header = None
             continue
-        rows.append((cells[0], cells[2], cells[5]))
+        if header is not None and len(cells) == width:
+            cid = cells[header["id"]]
+            if re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+", cid):
+                page = cells[header["page"]] if header["page"] >= 0 else ""
+                rows.append((cid, page, cells[header["status"]]))
+            continue
+        if len(cells) >= 6 and re.fullmatch(r"[A-Za-z0-9]+-B\d+-P\d+-N\d+", cells[0]):
+            rows.append((cells[0], cells[2], cells[5]))
     ids = [row[0] for row in rows]
     if anchor_id not in ids:
         return None
@@ -2649,10 +2679,28 @@ def gate_ledger_findings(
         return findings
 
     confirmed = [(cid, page) for cid, page, status in checkpoints if status == "confirmed"]
-    transitions = {(r["block"], r["consumed"]) for r in rows if r["gate"] == "块过渡"}
+    transition_rows = [r for r in rows if r["gate"] == "块过渡"]
+
+    def _names(cell: str, cp_id: str) -> bool:
+        """A cell names a checkpoint by full id, or by its terminal token.
+
+        Teaching may legally detour through off-tree blocks（宪法§4 学生主导
+        分支），so a crossing a→b is satisfied by an exit row for a plus an
+        entry row for b — not only by one direct a→b row.  Token match is
+        boundary-guarded so S01 never matches S011.
+        """
+        if cp_id in cell:
+            return True
+        token = cp_id.rsplit("-", 1)[-1]
+        return bool(re.search(
+            rf"(?<![A-Za-z0-9]){re.escape(token)}(?![0-9])", cell
+        ))
+
     pageturns = {r["consumed"] for r in rows if r["gate"] == "翻页"}
     for (a_id, a_page), (b_id, b_page) in zip(confirmed, confirmed[1:]):
-        if (a_id, b_id) not in transitions:
+        has_exit = any(_names(r["block"], a_id) for r in transition_rows)
+        has_entry = any(_names(r["consumed"], b_id) for r in transition_rows)
+        if not (has_exit and has_entry):
             findings.append((
                 "GATE-LEDGER-001",
                 f"{carrier} 相邻 confirmed 块 {a_id} → {b_id} 缺块过渡行",
@@ -2682,15 +2730,19 @@ def gate_ledger_findings(
 
 
 def check_gate_ledger(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
-    """GATE-LEDGER-000..006: teaching-gate ledger completeness (WARN, §2.4).
+    """GATE-LEDGER-000..007: teaching-gate ledger completeness (§2.4).
 
-    Scans every Lesson/Exercise carrier that HAS a 门台账 section; carriers
-    without one are skipped (deployment transition — sections arrive with the
-    ledger_since anchor, history before the anchor is exempt by design).
-    Read-only and WARN-only: an incomplete ledger is a record-keeping breach,
-    not a state error, and must not block a lesson mid-session.
+    Scans every Lesson/Exercise carrier that HAS a 门台账 section; historical
+    carriers without one are skipped (deployment transition — sections arrive
+    with the ledger_since anchor, history before the anchor is exempt).
+    Completeness findings are WARN-only: an incomplete ledger is a
+    record-keeping breach, not a state error, and must not block a lesson
+    mid-session.  The one FAIL is GATE-LEDGER-007: the course's CURRENT
+    textbook Lesson missing its 门台账 section entirely — then the prose
+    gates have no machine landing at all (the P-0054 hole), and closure
+    claims must not be made until the section exists.
     """
-    for course_id, (folder, _meta) in courses.items():
+    for course_id, (folder, meta) in courses.items():
         progress_text = ""
         progress_path = folder / "progress.md"
         if progress_path.is_file():
@@ -2698,6 +2750,25 @@ def check_gate_ledger(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
                 progress_text = read(progress_path)
             except OSError:
                 progress_text = ""
+        driver = str(meta.get("course_driver") or "")
+        current_activity = str(meta.get("current_activity") or "")
+        current_id = str(meta.get("current_activity_id") or "")
+        if (
+            driver == "textbook"
+            and current_activity == "lesson"
+            and re.fullmatch(r"lesson\d+", current_id)
+        ):
+            active_carrier = folder / "lessons" / current_id / f"{current_id}.md"
+            try:
+                active_text = read(active_carrier)
+            except OSError:
+                active_text = ""
+            if GATE_LEDGER_SECTION not in active_text:
+                report(
+                    "FAIL",
+                    f"GATE-LEDGER-007 {course_id}/{current_id} 当前教材 Lesson "
+                    "缺门台账节：散文门没有机器落点（§2.4）；补节后才可宣称闭合",
+                )
         for carrier_path in sorted(folder.glob("lessons/lesson*/lesson*.md")):
             if not re.fullmatch(r"lesson\d+\.md", carrier_path.name):
                 continue
@@ -2748,6 +2819,101 @@ def check_gate_ledger(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
                 ledger, [], carrier=carrier, rv_ids=rv_ids, attempt_hints=tuple(hints),
             ):
                 report("WARN", f"{code} {message}")
+
+
+PLOG_ANCHOR = re.compile(r"^closure_fields_since:\s*(P-\d{4})\s*$", re.MULTILINE)
+PLOG_ENTRY = re.compile(r"^## (P-\d{4})\b", re.MULTILINE)
+PLOG_CLOSURE_FIELD = re.compile(r"^-\s*closure:\s*(.+?)\s*$", re.MULTILINE)
+PLOG_OCCURRENCE = re.compile(r"^-\s*occurrence_count:\s*(\d+)\s*$", re.MULTILINE)
+PLOG_CLOSURE_VALUE = re.compile(
+    r"^(open|check=\S+|tool=\S+|prose_accepted[（(].+[）)])$"
+)
+
+
+def problemlog_closure_findings(text: str) -> list[tuple[str, str]]:
+    """PLOG-CLOSURE-000..002 — the problemlog→doctor backfill contract.
+
+    The problemlog is this system's eval set: every entry is one recorded
+    check failure.  The contract makes the conversion step mandatory —
+    each new entry must declare where its enforcement landed.
+
+    000: P-entries exist but the header lacks a readable
+         `closure_fields_since: P-NNNN` anchor (fail-closed, mirrors
+         GATE-LEDGER-000).  A fresh instance with no entries is silent.
+    001: an entry at/after the anchor has no `- closure:` field, or the
+         field value is not one of
+         open / check=<doctor检查ID> / tool=<工具路径> / prose_accepted（理由）.
+    002: two-strike rule（两振出局）— an entry with occurrence_count >= 2
+         that lands on prose_accepted: a repeat offender may only land on
+         machine enforcement (check= / tool=).  Applies wherever the field
+         appears; legacy entries without the field stay exempt until the
+         backfill reaches them.
+    """
+    findings: list[tuple[str, str]] = []
+    entries = list(PLOG_ENTRY.finditer(text))
+    if not entries:
+        return findings
+    anchor = PLOG_ANCHOR.search(text)
+    if not anchor:
+        findings.append((
+            "PLOG-CLOSURE-000",
+            "problemlog 缺 closure_fields_since 锚（fail-closed）：回灌契约无起算点",
+        ))
+        return findings
+    anchor_num = int(anchor.group(1)[2:])
+    for index, match in enumerate(entries):
+        pid = match.group(1)
+        pid_num = int(pid[2:])
+        end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
+        body = text[match.start():end]
+        closure_match = PLOG_CLOSURE_FIELD.search(body)
+        closure = closure_match.group(1) if closure_match else None
+        if closure is None:
+            if pid_num >= anchor_num:
+                findings.append((
+                    "PLOG-CLOSURE-001",
+                    f"{pid} 缺 closure 字段：须声明落点 "
+                    "open/check=<ID>/tool=<路径>/prose_accepted（理由）",
+                ))
+            continue
+        if not PLOG_CLOSURE_VALUE.fullmatch(closure):
+            findings.append((
+                "PLOG-CLOSURE-001",
+                f"{pid} closure 字段值非法：{closure[:60]}",
+            ))
+            continue
+        occurrence = PLOG_OCCURRENCE.search(body)
+        if (
+            occurrence
+            and int(occurrence.group(1)) >= 2
+            and closure.startswith("prose_accepted")
+        ):
+            findings.append((
+                "PLOG-CLOSURE-002",
+                f"{pid} 两振出局：occurrence_count>=2 的条目不得以散文收尾"
+                f"（closure={closure[:40]}），须落 check= 或 tool=",
+            ))
+    return findings
+
+
+def check_problemlog_closure() -> None:
+    """PLOG-CLOSURE-000..002: problemlog entries must name their enforcement.
+
+    WARN-only, same philosophy as the gate ledger: a missing landing is a
+    record-keeping breach that must be visible at every doctor run, without
+    blocking teaching.  The severity lives in what it protects: without this
+    check, the incident log and the check registry drift apart — the same
+    gate then fails a third time (P-0014 → P-0041 → P-0054).
+    """
+    problemlog = MAIN / "00_core/t2ag_problemlog.md"
+    if not problemlog.is_file():
+        return
+    try:
+        text = read(problemlog)
+    except OSError:
+        return
+    for code, message in problemlog_closure_findings(text):
+        report("WARN", f"{code} {message}")
 
 
 def check_checkpoint_block_routing(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
@@ -5339,6 +5505,34 @@ def parse_changelog_entries(text: str) -> list[dict[str, str]]:
     return entries
 
 
+def changelog_order_violations(text: str) -> list[str]:
+    """Order contract for the changelog (F1, review_LITE-20260812-0001).
+
+    The main title splits the file into an ignored front zone and the body;
+    checker and readers both resolve「最新」as the first body entry. Two ways that
+    resolution silently breaks: a dated entry parked above the title, and a body
+    that is not newest-first. Both were hit for real in the 2026-08-12 online
+    review (stale anchor picked up first → one drafted misjudgment), so both are
+    named violations here rather than prose conventions.
+    """
+    violations: list[str] = []
+    title_at = text.find("# T2AG 变更历史")
+    if title_at > 0:
+        for match in CHANGELOG_ENTRY_HEADING.finditer(text[:title_at]):
+            violations.append(
+                f"忽略区有日期条目：{match.group(0).strip()}"
+                "（主标题上方不受检，最新锚会被埋没；应移入正文区正确位置）"
+            )
+    entries = parse_changelog_entries(text)
+    for above, below in zip(entries, entries[1:]):
+        if above["date"] < below["date"]:
+            violations.append(
+                f"正文区日期乱序：{above['heading']}（{above['date']}）位于 "
+                f"{below['heading']}（{below['date']}）之上，破坏「新在上」约定"
+            )
+    return violations
+
+
 def _section_after(heading_re: re.Pattern[str], body: str) -> str | None:
     match = heading_re.search(body)
     if not match:
@@ -5519,6 +5713,8 @@ def check_changelog_contract() -> None:
     if not entries:
         report("WARN", f"changelog 无日期条目：{CHANGELOG_REL}")
         return
+    for violation in changelog_order_violations(text):
+        report("WARN", f"changelog 次序契约：{violation}")
     latest = entries[0]
     latest_title = latest["heading"]
     declared = parse_changelog_anchors(text)
@@ -6008,6 +6204,7 @@ def execute_doctor_checks(
         "check_legacy_references": check_legacy_references,
         "check_retired_instance_ids": check_retired_instance_ids,
         "check_cloud_pause": check_cloud_pause,
+        "check_problemlog_closure": check_problemlog_closure,
         "check_decision_records": check_decision_records,
         "check_environment_assumptions": check_environment_assumptions,
         "check_memory_budget": check_memory_budget,

@@ -3590,6 +3590,44 @@ def test_changelog_missing_anchor_block_warns(root: Path) -> None:
         raise AssertionError("missing-block WARN must still expose measured values")
 
 
+def test_changelog_entry_above_title_warns(root: Path) -> None:
+    """NEGATIVE (F1): a dated entry parked above the main title must be named.
+
+    2026-08-12 线上审查按「顶部=最新」自顶向下读，先取到忽略区的过期锚，
+    产生一次真实误判草稿——忽略区不是理论风险，缺口必须具名。
+    """
+    text = (
+        "## [2026-08-11] Parked above title\n\n- body\n\n---\n"
+        + _changelog_fixture_body(plan_sha="a" * 64, checks="1", atom_sha="b" * 64)
+    )
+    violations = doctor.changelog_order_violations(text)
+    if len(violations) != 1:
+        raise AssertionError(f"expected exactly one violation, got {violations}")
+    assert_message(violations, "忽略区有日期条目")
+    assert_message(violations, "Parked above title")
+    # 「最新」解析必须继续忽略前置区（既有约定不因新断言而改变）。
+    entries = doctor.parse_changelog_entries(text)
+    if "Fixture changelog entry" not in entries[0]["heading"]:
+        raise AssertionError(f"front-zone entry must not become latest: {entries[0]}")
+    # POSITIVE: clean fixture stays silent.
+    clean = _changelog_fixture_body(plan_sha="a" * 64, checks="1", atom_sha="b" * 64)
+    if doctor.changelog_order_violations(clean):
+        raise AssertionError("clean fixture must yield zero violations")
+
+
+def test_changelog_body_date_disorder_warns(root: Path) -> None:
+    """NEGATIVE (F1): an older body entry above a newer one must name both ends."""
+    text = _changelog_fixture_body(
+        plan_sha="a" * 64, checks="1", atom_sha="b" * 64
+    ) + "\n## [2026-08-09] Newer but buried\n\n- body\n"
+    violations = doctor.changelog_order_violations(text)
+    if len(violations) != 1:
+        raise AssertionError(f"expected exactly one violation, got {violations}")
+    assert_message(violations, "日期乱序")
+    assert_message(violations, "2026-08-07")
+    assert_message(violations, "2026-08-09")
+
+
 def test_changelog_stale_evidence_warns_with_title_and_claim(root: Path) -> None:
     """NEGATIVE: evidence grep with zero hits must name title and claim text."""
     text = _changelog_fixture_body(
@@ -4040,6 +4078,148 @@ def test_gate_ledger_pure_functions_mutation_is_killed(root: Path) -> None:
         doctor.gate_ledger_findings = real  # type: ignore[assignment]
 
 
+def test_gate_ledger_header_driven_checkpoint_table(root: Path) -> None:
+    """POSITIVE: a header table without 页码 (goal-driver) resolves the anchor.
+
+    2026-08-10: AIF1001r's ledger drew a false 000 only because its
+    checkpoint table has no page column — the parser now follows the
+    header row instead of assuming one fixed shape.
+    """
+    progress = (
+        "# p\n\n## 当前节点 checkpoints\n\n"
+        "| checkpoint_id | parent_node | 到达内容 | 状态 |\n"
+        "|---|---|---|---|\n"
+        "| A1-L1-S00 | A1-L1 | 定标 | confirmed |\n"
+        "| A1-L1-S01 | A1-L1 | 对表 | confirmed |\n"
+    )
+    checkpoints = doctor.checkpoint_rows_from(progress, "A1-L1-S00")
+    if checkpoints is None or [c[0] for c in checkpoints] != ["A1-L1-S00", "A1-L1-S01"]:
+        raise AssertionError(f"header-driven table not parsed: {checkpoints}")
+    if any(page != "" for _, page, _ in checkpoints):
+        raise AssertionError("pageless table must yield empty page fields")
+
+
+def test_gate_ledger_detour_transition_chain_is_accepted(root: Path) -> None:
+    """POSITIVE: a→X→b detour rows satisfy the a→b crossing（学生主导分支）."""
+    ledger = doctor.parse_gate_ledger(_gate_ledger_fixture(rows=(
+        "| GT-0001 | C1-B001-P029-N01 | 块过渡 | ok | ok | \"继续\"(10:00) | 0c 复述门 |\n"
+        "| GT-0002 | 0c（树外节点） | 块过渡 | ok | ok | \"继续\"(10:05) | 消费于 N02 对表 |\n"
+    )))
+    ckpt = (
+        "| C1-B001-P029-N01 | G | 29 | A | d | confirmed |\n"
+        "| C1-B001-P029-N02 | G | 29 | A | d | confirmed |\n"
+    )
+    checkpoints = doctor.checkpoint_rows_from("x\n" + ckpt, "C1-B001-P029-N01")
+    findings = doctor.gate_ledger_findings(ledger, checkpoints, carrier="C1/lesson01")
+    if any(code == "GATE-LEDGER-001" for code, _ in findings):
+        raise AssertionError(f"detour chain wrongly flagged: {findings}")
+
+
+def test_gate_ledger_active_textbook_lesson_without_section_fails(root: Path) -> None:
+    """NEGATIVE: the CURRENT textbook Lesson missing 门台账 → 007 FAIL.
+
+    The bridge from prose gates to machine landing must not be opt-in
+    exactly where teaching is happening (the P-0054 hole).
+    """
+    reset(root)
+    course = root / "main/40_course/C1"
+    write(course / "progress.md", "# p\n")
+    write(course / "lessons/lesson01/lesson01.md", "# lesson01\n\n正文，无台账节。\n")
+    meta = {
+        "course_driver": "textbook",
+        "current_activity": "lesson",
+        "current_activity_id": "lesson01",
+    }
+    run_silently(lambda: doctor.check_gate_ledger({"C1": (course, meta)}))
+    assert_message(doctor.fails, "GATE-LEDGER-007")
+
+
+def test_gate_ledger_inactive_or_nontextbook_lesson_is_exempt(root: Path) -> None:
+    """POSITIVE: 007 guards only the active textbook lesson."""
+    for meta in (
+        {},
+        {"course_driver": "goal", "current_activity": "lesson",
+         "current_activity_id": "lesson01"},
+        {"course_driver": "textbook", "current_activity": "none",
+         "current_activity_id": "none"},
+    ):
+        reset(root)
+        course = root / "main/40_course/C1"
+        write(course / "progress.md", "# p\n")
+        write(course / "lessons/lesson01/lesson01.md", "# lesson01\n\n无台账节。\n")
+        run_silently(lambda: doctor.check_gate_ledger({"C1": (course, meta)}))
+        if any("GATE-LEDGER-007" in message for message in doctor.fails):
+            raise AssertionError(f"007 fired outside its scope: meta={meta}")
+
+
+_PLOG_HEADER = "next_id: P-0068\nclosure_fields_since: P-0060\n\n"
+
+
+def test_problemlog_closure_missing_anchor_fail_closed(root: Path) -> None:
+    """NEGATIVE: entries without a header anchor → 000; empty log is silent."""
+    findings = doctor.problemlog_closure_findings(
+        "## P-0001 | [2026-08-10] | x\n\n- closure: open\n"
+    )
+    if not any(code == "PLOG-CLOSURE-000" for code, _ in findings):
+        raise AssertionError(f"missing anchor not fail-closed: {findings}")
+    if doctor.problemlog_closure_findings("# 空实例，无条目\n"):
+        raise AssertionError("a fresh instance without entries must stay silent")
+
+
+def test_problemlog_closure_missing_field_after_anchor_warns(root: Path) -> None:
+    """NEGATIVE: post-anchor entry without `- closure:` → 001; legacy exempt."""
+    text = _PLOG_HEADER + (
+        "## P-0059 | [2026-08-01] | legacy\n\n- tags: [a]\n\n"
+        "## P-0060 | [2026-08-10] | new\n\n- tags: [b]\n"
+    )
+    findings = doctor.problemlog_closure_findings(text)
+    if [code for code, _ in findings] != ["PLOG-CLOSURE-001"]:
+        raise AssertionError(f"want exactly one 001 for P-0060: {findings}")
+    if "P-0060" not in findings[0][1]:
+        raise AssertionError(f"001 must name the entry: {findings}")
+    bad_value = _PLOG_HEADER + "## P-0061 | [2026-08-10] | v\n\n- closure: 已修\n"
+    findings = doctor.problemlog_closure_findings(bad_value)
+    if not any(code == "PLOG-CLOSURE-001" for code, _ in findings):
+        raise AssertionError(f"illegal closure value not flagged: {findings}")
+
+
+def test_problemlog_closure_two_strike_prose_landing_warns(root: Path) -> None:
+    """NEGATIVE: occurrence_count>=2 + prose_accepted → 002（两振出局）."""
+    text = _PLOG_HEADER + (
+        "## P-0061 | [2026-08-10] | repeat\n\n"
+        "- occurrence_count: 3\n- closure: prose_accepted（临时）\n"
+    )
+    findings = doctor.problemlog_closure_findings(text)
+    if not any(code == "PLOG-CLOSURE-002" for code, _ in findings):
+        raise AssertionError(f"two-strike prose landing not flagged: {findings}")
+
+
+def test_problemlog_closure_machine_landings_are_silent(root: Path) -> None:
+    """POSITIVE: open / check= / tool= landings and first-strike prose pass."""
+    text = _PLOG_HEADER + (
+        "## P-0060 | [2026-08-10] | a\n\n- occurrence_count: 1\n"
+        "- closure: prose_accepted（成本低）\n\n"
+        "## P-0061 | [2026-08-10] | b\n\n- occurrence_count: 4\n"
+        "- closure: check=GATE-LEDGER-007\n\n"
+        "## P-0062 | [2026-08-10] | c\n\n- closure: tool=70_tools/t2ag_hint_gate.py\n\n"
+        "## P-0063 | [2026-08-10] | d\n\n- closure: open\n"
+    )
+    findings = doctor.problemlog_closure_findings(text)
+    if findings:
+        raise AssertionError(f"legal landings must stay silent: {findings}")
+
+
+def test_problemlog_closure_check_reads_instance_log(root: Path) -> None:
+    """End-to-end: check_problemlog_closure consumes main/00_core and WARNs."""
+    reset(root)
+    write(
+        root / "main/00_core/t2ag_problemlog.md",
+        _PLOG_HEADER + "## P-0060 | [2026-08-10] | new\n\n- tags: [b]\n",
+    )
+    run_silently(doctor.check_problemlog_closure)
+    assert_message(doctor.warns, "PLOG-CLOSURE-001")
+
+
 ALL_CONTRACT_TESTS = (
         test_profile_placeholder,
         test_profile_container_contract,
@@ -4094,6 +4274,8 @@ ALL_CONTRACT_TESTS = (
         test_git_unlink_probe_residue_is_bounded,
         test_changelog_anchor_mismatch_warns_with_both_values,
         test_changelog_missing_anchor_block_warns,
+        test_changelog_entry_above_title_warns,
+        test_changelog_body_date_disorder_warns,
         test_changelog_stale_evidence_warns_with_title_and_claim,
         test_memory_budget_over_limit_warns_with_both_numbers,
         test_memory_budget_missing_markers_warns,
@@ -4114,6 +4296,15 @@ ALL_CONTRACT_TESTS = (
         test_gate_ledger_carrier_without_section_is_skipped,
         test_gate_ledger_blocks_before_anchor_are_exempt,
         test_gate_ledger_pure_functions_mutation_is_killed,
+        test_gate_ledger_header_driven_checkpoint_table,
+        test_gate_ledger_detour_transition_chain_is_accepted,
+        test_gate_ledger_active_textbook_lesson_without_section_fails,
+        test_gate_ledger_inactive_or_nontextbook_lesson_is_exempt,
+        test_problemlog_closure_missing_anchor_fail_closed,
+        test_problemlog_closure_missing_field_after_anchor_warns,
+        test_problemlog_closure_two_strike_prose_landing_warns,
+        test_problemlog_closure_machine_landings_are_silent,
+        test_problemlog_closure_check_reads_instance_log,
 )
 
 

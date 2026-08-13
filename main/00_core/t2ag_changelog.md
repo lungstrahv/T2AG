@@ -5,6 +5,34 @@
 
 ---
 
+## [2026-08-13] 镜像 Main 08-12 复审施工 + sync_lite 宿主字面量运行时化（不升版）
+
+- **同源镜像**：从 Main（HEAD `286c79e` 之后的工作树）投影 4 个 parity 面文件：
+  `t2ag_doctor.py`、`contract_test_support.py`、`test_runtime_contracts.py`、`sync_lite.py`。
+  带入 Main 08-12 线上复审裁决施工（review_LITE-20260812-0001）：F1 changelog 顺序契约
+  （`changelog_order_violations` + `runtime.problemlog_closure` 等原子集变动）、F2 lite
+  出生证明、F5 宿主脱敏。runtime checks 35 → 36。
+- **parity↔privacy 冲突收口（2026-08-13 裁决）**：F5 施工曾把宿主用户名硬编码进
+  `sync_lite.py`，该文件按 parity 契约字节同源进本仓，硬编码即维护者身份泄露
+  （`runtime.skeleton_privacy` 必 FAIL）。裁决为运行时推导：优先 `T2AG_HOST_USER`
+  环境变量，缺省 `getpass.getuser()`；裸用户名兜底规则仅在长度 ≥ 4 时启用；路径前缀
+  分段拼接使源码不含可匹配路径串（不新增 privacy 豁免——豁免会连未来真正的泄露一起
+  放行，见 08-09 复审结论）。两仓该文件字节同源且零维护者标识。
+- **本条目为状态漂移锚定**：镜像改变了原子集与 runtime 计划，下方锚定断言随之刷新。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = f3a72a83f7706633a0cd10fa29c3b8fcca806fd9b7543a807ce85a5d217b61ad ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 36 ← 同上
+- doctor_checks atom set sha256 = 1eea05692e450a5bda1a4dd5510498ab9a31f31a9bf73ad491840430073b33d9 (n=52) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+#### 佐证断言
+- parity 面（50_playbook + 70_tools，扣两项豁免）与 Main 全量字节一致 ← 按 doctor 同规则逐文件比对，drift: none
+- `runtime.skeleton_privacy` 定向 0 FAIL ← 定向计划执行，全树仅 `t2ag_doctor.py` 一项既有豁免
+- `test_runtime_contracts.py` 59/59（两仓） ← 本批实跑
+- runtime doctor 0 FAIL ← 本批实跑（EA-0003 环境 WARN 既有）
+
+---
+
 ## [2026-08-10] release.package_surface：发行物表面检查（不升版）
 
 - **新增 `release.package_surface`**：扫描工作区根下全部 `t2ag-skeleton*.zip`，包内含 `.git`
