@@ -1,7 +1,7 @@
 # Changelog 管理（漂移留痕与不腐烂）
 
 > **职能**：规定 `main/00_core/t2ag_changelog.md` 的**验证层**——条目必须可复算，状态漂移必须留痕。  
-> **保护级别**：`core-playbook`（与 `handoff_management.md` 同级；约束跨会话、跨平台的记录纪律）。  
+> **保护级别**：core-playbook（与 `handoff_management.md` 同级；约束跨会话、跨平台的记录纪律）。  
 > **不做什么**：不证明「该记的都记了」（完整性 / L5 不可达）。记录的输入是人的判断，不是仓库状态，故 L4「可确定性再生成」路线天然不通。  
 > **Canonical owner（验证层）**：本文件。出单方义务与执行方硬规则仍分别保留在 `batch_workorder_spec.md`（见文末 rule_migration）。
 

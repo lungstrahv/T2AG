@@ -1,5 +1,7 @@
 # ActivityRecord 管理
 
+**保护级别**：playbook
+
 ActivityRecord 用于低治理、可暂停、尚未成为正式课程的活动。
 
 ## 创建

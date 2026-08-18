@@ -1,5 +1,7 @@
 # OCR 校对标准流程
 
+**保护级别**：playbook
+
 > 本文件是 T2AG「技能固化」文档之一。
 > 当教材 Text PDF 文字层损坏、`pdftotext` / PyMuPDF 提取中文乱码时，按本流程使用 OCR 从 Image Container PDF 提取原文并校对。
 >

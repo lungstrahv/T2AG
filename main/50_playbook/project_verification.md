@@ -1,5 +1,7 @@
 # 项目线验证 v1.1（project_verification.md）—— 整合定稿
 
+**保护级别**：playbook
+
 > **位置**：本文件入 `50_playbook/`（它主体是"怎么验收"的操作细则）；
 > 三机制条款一句话挂入 `main/50_playbook/course_group_rules.md` 验收机制节。
 > 前两份文件（project_rules / project_rules_amendment）废止,内容并入本文件,changelog 记 v1.1。

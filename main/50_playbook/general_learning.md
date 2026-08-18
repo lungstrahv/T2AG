@@ -1,6 +1,6 @@
 # general_learning.md —— R 绑定规则（弹性执行绑定）
 
-**保护级别**：normal playbook
+**保护级别**：playbook
 
 > R 的正式名称是"弹性执行绑定（Elastic Binding）"。
 > 旧“通识轨 / Reading track”只作为归档术语存在，不是 R 的领域定义。

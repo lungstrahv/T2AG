@@ -1,5 +1,7 @@
 # 云端 Project Instructions 协议模板（cloud_instructions_template）
 
+**保护级别**：playbook
+
 > **真相源角色**：本模板是 `cloud/T2AG_PROJECT_INSTRUCTIONS.txt` 的协议内容真相源（EV-0021 / ADR-0004）。
 > **实例值**：`{{cloud_project_mode}}` `{{course}}` `{{teacher_role}}` `{{teacher_template}}` `{{reply_suffix}}`
 > 由 `main/70_tools/sync_cloud.py` 从 `cloud/t2ag_mobile_entry.md` 注入；本模板永不记载任何实例值

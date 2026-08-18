@@ -1,5 +1,7 @@
 # 云端学习与本地回写协议（cloud_learning_sync）
 
+**保护级别**：playbook
+
 > **协议标识**：`T2AG-CLOUD-1`
 >
 > 本流程用于 ChatGPT Project、手机端聊天等不能直接修改本地仓库的教学环境。
