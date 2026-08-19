@@ -46,6 +46,8 @@
 7. 历史只追加，不改写既成事实。规则、当前状态和 GENERATED 块不享受历史豁免。
 8. 外部治理系统保持权威边界。Trading-OS 拥有交易纪律和交易事实；
    T2AG 只保存学习、过程证据和复盘注释，不复制或放宽外部条款。
+9. meta-playbook 层是项目基础：项目围绕 meta 再生；skeleton 必含全部 meta，三发行字节同源。
+10. 分级定义与细则见 `50_playbook/playbook_management.md` §四；机器兜底见 doctor 分级仪器。
 
 ## 2. 目录与对象  [max 34]
 
@@ -218,7 +220,7 @@ V0–V3、预算与防越级门以它为准，绑定 plan SHA）。
    owner、触发条件、授权级别、执行结果时，施工单/envelope 才必须逐条登记
    `rule_id | 旧位置/原文锚点 | 动作(keep/sink/retire) | 新 owner/等价门 | 消费方 | 验证`。
    纯追加、错字、格式和不改变语义的局部澄清可写 `rule_migration: not_applicable` 并说明理由。
-2. **默认编辑方式**：对 `main/t2ag.md`、`AGENTS.md`、core-playbook 和硬边界治理文优先
+2. **默认编辑方式**：对 `main/t2ag.md`、`AGENTS.md`、core/meta-playbook 与硬边界治理文优先
    diff-patch。整文件重写不是绝对禁止，但必须先冻结完整 rule_migration 表，并在重写后做
    未登记规范性删除审查。
 3. **下沉闭包**：`sink` 只有在新 canonical owner、必要入口指针、消费方和验证证据同时存在

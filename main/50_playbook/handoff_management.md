@@ -604,5 +604,5 @@ RT3 门、授权失效事实和下一动作。它不得：
 - `main/00_core/t2ag_memory.md` —— 日常恢复指针与关键决策索引。
 - `main/50_playbook/lesson_recover.md` —— 课程跨会话恢复。
 - `main/50_playbook/session_close.md` —— 课程正式写回与交接关闭触发。
-- `main/50_playbook/playbook_management.md` —— core-playbook 保护与三发行版同步纪律。
+- `main/50_playbook/playbook_management.md` —— playbook 分级保护与发行同步纪律。
 - `<handoff_root>/README.md` —— 运行时交接索引，不随 skeleton 注入实例内容。

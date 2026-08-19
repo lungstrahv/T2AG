@@ -4209,6 +4209,323 @@ def test_problemlog_closure_machine_landings_are_silent(root: Path) -> None:
         raise AssertionError(f"legal landings must stay silent: {findings}")
 
 
+_RGATE_CHECKS = frozenset({"runtime.structure", "runtime.gate_ledger"})
+
+
+def _rule_docs(body: str, path: str = "50_playbook/rule_admission_gate.md") -> dict:
+    return {path: body}
+
+
+def _rgate_fixture(root: Path) -> Path:
+    """A minimal tree whose landings actually resolve; returns its main/."""
+    reset(root)
+    write(root / "main/70_tools/t2ag_doctor.py", "# fixture tool\n")
+    write(
+        root / "main/50_playbook/doctor_contracts.md",
+        "# 契约\n\n## 一、结果分类\n\n表格在此。\n",
+    )
+    write(root / "main/t2ag.md", "# 宪法\n\n## 1. 不可变原则\n")
+    return root / "main"
+
+
+def test_rule_enforcement_sound_landings_are_silent(root: Path) -> None:
+    """POSITIVE: the four legal landings, all resolvable, stay silent."""
+    main = _rgate_fixture(root)
+    body = (
+        "enforcement: check=runtime.gate_ledger\n"
+        "- enforcement: tool=70_tools/t2ag_doctor.py\n"
+        "enforcement: context=50_playbook/doctor_contracts.md#一、结果分类\n"
+        "enforcement: prose_accepted（理由：语义识别无机器手段）\n"
+    )
+    findings = doctor.rule_enforcement_findings(
+        _rule_docs(body), known_checks=_RGATE_CHECKS, main=main
+    )
+    if findings:
+        raise AssertionError(f"sound landings must stay silent: {findings}")
+
+
+def test_rule_enforcement_dangling_check_fails(root: Path) -> None:
+    """NEGATIVE: `check=` naming no registered check → RULE-ENF-001 FAIL.
+
+    A finding code (GATE-LEDGER-007) is the tempting wrong answer here: the
+    namespace is the `doctor_checks` key set, not the finding vocabulary.
+    """
+    main = _rgate_fixture(root)
+    for value in ("check=runtime.not_a_check", "check=GATE-LEDGER-007"):
+        findings = doctor.rule_enforcement_findings(
+            _rule_docs(f"enforcement: {value}\n"),
+            known_checks=_RGATE_CHECKS,
+            main=main,
+        )
+        if [(code, severity) for code, severity, _ in findings] != [
+            ("RULE-ENF-001", "FAIL")
+        ]:
+            raise AssertionError(f"{value} must fail as dangling: {findings}")
+
+
+def test_rule_enforcement_missing_tool_fails(root: Path) -> None:
+    """NEGATIVE: `tool=` pointing at no file → RULE-ENF-002 FAIL."""
+    main = _rgate_fixture(root)
+    findings = doctor.rule_enforcement_findings(
+        _rule_docs("enforcement: tool=70_tools/no_such_tool.py\n"),
+        known_checks=_RGATE_CHECKS,
+        main=main,
+    )
+    if not any(code == "RULE-ENF-002" for code, _, _ in findings):
+        raise AssertionError(f"missing tool not flagged: {findings}")
+    if any(severity != "FAIL" for _, severity, _ in findings):
+        raise AssertionError(f"missing tool must be FAIL: {findings}")
+
+
+def test_rule_enforcement_broken_context_anchor_warns(root: Path) -> None:
+    """NEGATIVE: stale `context=` anchor → RULE-ENF-003 WARN, not FAIL.
+
+    U-1: rewording prose must not block a lesson; the rule still stands, only
+    the citation rotted.  Also pins the split-on-first-# rule — the anchor
+    itself may contain '#'.
+    """
+    main = _rgate_fixture(root)
+    findings = doctor.rule_enforcement_findings(
+        _rule_docs("enforcement: context=t2ag.md#不再存在的锚#带井号\n"),
+        known_checks=_RGATE_CHECKS,
+        main=main,
+    )
+    if [(code, severity) for code, severity, _ in findings] != [
+        ("RULE-ENF-003", "WARN")
+    ]:
+        raise AssertionError(f"stale anchor must WARN once: {findings}")
+    if "不再存在的锚#带井号" not in findings[0][2]:
+        raise AssertionError(f"anchor must survive the first-# split: {findings}")
+
+
+def test_rule_enforcement_empty_prose_reason_warns(root: Path) -> None:
+    """NEGATIVE: `prose_accepted` without a reason → RULE-ENF-004 WARN."""
+    main = _rgate_fixture(root)
+    for value in ("prose_accepted", "prose_accepted（）", "prose_accepted()"):
+        findings = doctor.rule_enforcement_findings(
+            _rule_docs(f"enforcement: {value}\n"),
+            known_checks=_RGATE_CHECKS,
+            main=main,
+        )
+        if [(code, severity) for code, severity, _ in findings] != [
+            ("RULE-ENF-004", "WARN")
+        ]:
+            raise AssertionError(f"{value!r} must warn on empty reason: {findings}")
+    kept = doctor.rule_enforcement_findings(
+        _rule_docs("enforcement: prose_accepted(reason in halfwidth)\n"),
+        known_checks=_RGATE_CHECKS,
+        main=main,
+    )
+    if kept:
+        raise AssertionError(f"halfwidth parens must be accepted too: {kept}")
+
+
+def test_rule_enforcement_misplaced_fields_fail(root: Path) -> None:
+    """NEGATIVE: `enforcement:` in the record area / `closure:` in a rule file."""
+    main = _rgate_fixture(root)
+    findings = doctor.rule_enforcement_findings(
+        {
+            "00_core/t2ag_problemlog.md": "enforcement: check=runtime.structure\n",
+            "50_playbook/rule_admission_gate.md": "- closure: open\n",
+        },
+        known_checks=_RGATE_CHECKS,
+        main=main,
+    )
+    codes = [(code, severity) for code, severity, _ in findings]
+    if codes != [("RULE-ENF-005", "FAIL"), ("RULE-ENF-005", "FAIL")]:
+        raise AssertionError(f"both misplacements must FAIL: {findings}")
+
+
+def test_rule_enforcement_fenced_examples_are_silent(root: Path) -> None:
+    """POSITIVE (2A self-reference escape): examples inside fences never fire.
+
+    Without this the playbook that defines the field is the first document the
+    check fails on — the document about the checker tripping the checker.
+    """
+    main = _rgate_fixture(root)
+    body = (
+        "```text\n"
+        "enforcement: check=runtime.utterly_missing\n"
+        "enforcement: tool=70_tools/ghost.py\n"
+        "- closure: open\n"
+        "```\n"
+        "enforcement: check=runtime.structure\n"
+    )
+    findings = doctor.rule_enforcement_findings(
+        _rule_docs(body), known_checks=_RGATE_CHECKS, main=main
+    )
+    if findings:
+        raise AssertionError(f"fenced examples must not fire: {findings}")
+    unfenced = doctor.rule_enforcement_findings(
+        _rule_docs(body.replace("```text\n", "").replace("```\n", "")),
+        known_checks=_RGATE_CHECKS,
+        main=main,
+    )
+    if len(unfenced) != 3:
+        raise AssertionError(
+            f"same lines outside the fence must fire (fixture cannot no-op): {unfenced}"
+        )
+
+
+def test_problemlog_closure_dangling_landing_warns(root: Path) -> None:
+    """NEGATIVE (4A): closure naming a missing check/tool → 004, WARN not FAIL.
+
+    Same defect as RULE-ENF-001/002; the severity stays WARN because a new
+    check must not be used to quietly harden an old one's stance.
+    """
+    main = _rgate_fixture(root)
+    text = _PLOG_HEADER + (
+        "## P-0068 | [2026-08-15] | a\n\n- closure: check=runtime.not_a_check\n\n"
+        "## P-0069 | [2026-08-15] | b\n\n- closure: tool=70_tools/ghost.py\n"
+    )
+    findings = doctor.problemlog_closure_findings(
+        text, known_checks=_RGATE_CHECKS, main=main
+    )
+    if [code for code, _ in findings] != ["PLOG-CLOSURE-004", "PLOG-CLOSURE-004"]:
+        raise AssertionError(f"both dangling landings must warn: {findings}")
+    if doctor.problemlog_closure_findings(text):
+        raise AssertionError("without injected inputs it must stay a form checker")
+
+
+def test_problemlog_closure_duplicate_stable_id_warns(root: Path) -> None:
+    """NEGATIVE (4A′): one `P-NNNN` naming two incidents → 003, with lines."""
+    text = _PLOG_HEADER + (
+        "## P-0068 | [2026-07-31] | first\n\n- closure: open\n\n"
+        "## P-0069 | [2026-08-01] | other\n\n- closure: open\n\n"
+        "## P-0068 | [2026-08-09] | second, same id\n\n- closure: open\n"
+    )
+    findings = doctor.problemlog_closure_findings(text)
+    duplicates = [message for code, message in findings if code == "PLOG-CLOSURE-003"]
+    if len(duplicates) != 1 or "P-0068" not in duplicates[0]:
+        raise AssertionError(f"duplicate id must warn exactly once: {findings}")
+    expected = [
+        index + 1
+        for index, line in enumerate(text.splitlines())
+        if line.startswith("## P-0068")
+    ]
+    if any(str(line) not in duplicates[0] for line in expected):
+        raise AssertionError(
+            f"003 must name every line {expected}: {duplicates}"
+        )
+
+
+def _extsrc_fixture(root: Path) -> Path:
+    """Tree where a diff_recorded anchor can actually resolve; returns main/."""
+    reset(root)
+    write(
+        root / "main/40_course/C1/lessons/lesson01/lesson01.md",
+        "# lesson01\n\n### 官方目录核实（2026-08-16，教师实取）\n\n预画 8 / 实际 13。\n",
+    )
+    return root / "main"
+
+
+def _course_md(catalog: str = "") -> str:
+    return "---\ntype: course\ncourse_id: C1\n" + catalog + "---\n# C1\n"
+
+
+_EXTSRC_GOOD = (
+    "source_catalog:\n"
+    "  url: https://example.org/catalog\n"
+    "  fetched_at: 2026-08-16\n"
+    "  predicted_count: 8\n"
+    "  actual_count: 13\n"
+    "  diff_recorded: 40_course/C1/lessons/lesson01/lesson01.md#官方目录核实\n"
+)
+
+
+def test_external_source_missing_catalog_warns_only_when_ongoing(root: Path) -> None:
+    """NEGATIVE+POSITIVE: ongoing → 001 WARN; planned → silent（不是待办）."""
+    main = _extsrc_fixture(root)
+    findings = doctor.external_source_findings(
+        {"C1": ("ongoing", _course_md())}, main=main
+    )
+    if [(code, severity) for code, severity, _ in findings] != [
+        ("EXTSRC-001", "WARN")
+    ]:
+        raise AssertionError(f"ongoing without catalog must warn once: {findings}")
+    for lifecycle in ("planned", "completed", ""):
+        quiet = doctor.external_source_findings(
+            {"C1": (lifecycle, _course_md())}, main=main
+        )
+        if quiet:
+            raise AssertionError(f"{lifecycle!r} must stay silent: {quiet}")
+
+
+def test_external_source_resolvable_diff_anchor_is_silent(root: Path) -> None:
+    """POSITIVE: catalogue declared and its diff anchor resolves → silent."""
+    main = _extsrc_fixture(root)
+    findings = doctor.external_source_findings(
+        {"C1": ("ongoing", _course_md(_EXTSRC_GOOD))}, main=main
+    )
+    if findings:
+        raise AssertionError(f"a resolvable diff anchor must stay silent: {findings}")
+
+
+def test_external_source_dangling_diff_anchor_fails(root: Path) -> None:
+    """NEGATIVE: present-but-unresolvable → 002 FAIL（悬空声称比不声称更毒）.
+
+    Three shapes: missing field, missing file, missing anchor text.
+    """
+    main = _extsrc_fixture(root)
+    cases = {
+        "缺字段": _EXTSRC_GOOD.replace(
+            "  diff_recorded: 40_course/C1/lessons/lesson01/lesson01.md#官方目录核实\n",
+            "",
+        ),
+        "文件不存在": _EXTSRC_GOOD.replace("lesson01.md#", "lesson99.md#"),
+        "锚失效": _EXTSRC_GOOD.replace("#官方目录核实", "#从未写过的锚"),
+    }
+    for label, catalog in cases.items():
+        findings = doctor.external_source_findings(
+            {"C1": ("ongoing", _course_md(catalog))}, main=main
+        )
+        if [(code, severity) for code, severity, _ in findings] != [
+            ("EXTSRC-002", "FAIL")
+        ]:
+            raise AssertionError(f"{label} must fail as 002: {findings}")
+
+
+def test_external_source_none_needs_a_reason(root: Path) -> None:
+    """`none（理由）` 静默；裸 `none` → 004 WARN；行内非 none → 002 FAIL.
+
+    Without the `none` branch, textbook- and project-driven courses carry a 001
+    that can never be legitimately cleared — permanent noise, which is how a
+    channel gets trained into being ignored.
+    """
+    main = _extsrc_fixture(root)
+    quiet = doctor.external_source_findings(
+        {"C1": ("ongoing", _course_md("source_catalog: none（理由：教材驱动，权威目录是纸质书）\n"))},
+        main=main,
+    )
+    if quiet:
+        raise AssertionError(f"none with a reason must stay silent: {quiet}")
+    for bare in ("source_catalog: none\n", "source_catalog: none（）\n"):
+        findings = doctor.external_source_findings(
+            {"C1": ("ongoing", _course_md(bare))}, main=main
+        )
+        if [(code, severity) for code, severity, _ in findings] != [
+            ("EXTSRC-004", "WARN")
+        ]:
+            raise AssertionError(f"{bare!r} must warn as 004: {findings}")
+    junk = doctor.external_source_findings(
+        {"C1": ("ongoing", _course_md("source_catalog: 待办\n"))}, main=main
+    )
+    if [(code, severity) for code, severity, _ in junk] != [("EXTSRC-002", "FAIL")]:
+        raise AssertionError(f"an inline value other than none must fail: {junk}")
+
+
+def test_external_source_empty_input_is_silent(root: Path) -> None:
+    """POSITIVE (净室): a distribution with no course instances says nothing."""
+    reset(root)
+    if doctor.external_source_findings({}, main=root / "main"):
+        raise AssertionError("empty course set must produce no findings")
+    run_silently(lambda: doctor.check_external_source_backlink({}))
+    if doctor.fails or doctor.warns:
+        raise AssertionError(
+            f"cleanroom must stay silent: fails={doctor.fails} warns={doctor.warns}"
+        )
+
+
 def test_problemlog_closure_check_reads_instance_log(root: Path) -> None:
     """End-to-end: check_problemlog_closure consumes main/00_core and WARNs."""
     reset(root)
@@ -4218,6 +4535,149 @@ def test_problemlog_closure_check_reads_instance_log(root: Path) -> None:
     )
     run_silently(doctor.check_problemlog_closure)
     assert_message(doctor.warns, "PLOG-CLOSURE-001")
+
+
+def _real_playbook_snapshot() -> dict[str, str]:
+    parent = doctor.ROOT.parent
+    out: dict[str, str] = {}
+    for edition in ("t2ag", "t2ag-skeleton", "t2ag-lite"):
+        playbook = parent / edition / "main/50_playbook"
+        if not playbook.is_dir():
+            continue
+        for path in playbook.glob("*.md"):
+            out[f"{edition}:{path.name}"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return out
+
+
+def _assert_real_playbooks_untouched(before: dict[str, str]) -> None:
+    after = _real_playbook_snapshot()
+    if after != before:
+        raise AssertionError(f"real playbook trees mutated: {before} vs {after}")
+    parent = doctor.ROOT.parent
+    for edition in ("t2ag", "t2ag-skeleton"):
+        repo = parent / edition
+        if not (repo / ".git").exists():
+            continue
+        extra = subprocess.check_output(
+            ["git", "ls-files", "--others", "--exclude-standard", "--", "main/50_playbook"],
+            cwd=repo,
+            text=True,
+        ).strip()
+        leftover = [
+            line for line in extra.splitlines()
+            if line and not line.endswith((
+                "gate_index.md",
+                "okf_adaptation.md",
+                "process_governance.md",
+                "rule_admission_gate.md",
+            ))
+        ]
+        if leftover:
+            raise AssertionError(f"{edition} new untracked playbook files: {leftover}")
+
+
+def _taxonomy_editions(root: Path) -> dict[str, Path]:
+    """Minimal three-edition playbook dirs under a temp physical root."""
+    reset(root)
+    editions = {}
+    body = "# X\n\n**保护级别**：meta-playbook\n\nbody\n"
+    for name in ("t2ag", "t2ag-skeleton", "t2ag-lite"):
+        playbook = root / name / "main/50_playbook"
+        write(playbook / "playbook_management.md", body)
+        write(playbook / "journal_management.md", "# J\n\n**保护级别**：meta-playbook\n")
+        write(playbook / "handoff_management.md", "# H\n\n**保护级别**：core-playbook\n")
+        write(playbook / "_README.md", "# index\n")
+        editions[name] = playbook
+    return editions
+
+
+def test_playbook_taxonomy_r1_byte_drift_fails_parity(root: Path) -> None:
+    """R1: one edition's meta file changes one byte → PB-TAXO-003 FAIL."""
+    before = _real_playbook_snapshot()
+    try:
+        editions = _taxonomy_editions(root)
+        target = editions["t2ag"] / "playbook_management.md"
+        target.write_text(target.read_text(encoding="utf-8") + "x", encoding="utf-8")
+        findings = doctor.playbook_taxonomy_parity_findings(editions)
+        if not any(code == "PB-TAXO-003" and severity == "FAIL" for code, severity, _ in findings):
+            raise AssertionError(f"byte drift must FAIL 003: {findings}")
+    finally:
+        _assert_real_playbooks_untouched(before)
+
+
+def test_playbook_taxonomy_r2_illegal_value_fails(root: Path) -> None:
+    """R2: `**保护级别**：normal playbook` → PB-TAXO-001 FAIL."""
+    before = _real_playbook_snapshot()
+    try:
+        documents = {"sample.md": "# S\n\n**保护级别**：normal playbook\n"}
+        findings = doctor.playbook_taxonomy_findings(documents)
+        if [(code, severity) for code, severity, _ in findings] != [("PB-TAXO-001", "FAIL")]:
+            raise AssertionError(f"illegal value must FAIL 001: {findings}")
+    finally:
+        _assert_real_playbooks_untouched(before)
+
+
+def test_playbook_taxonomy_r3_fenced_marker_is_silent(root: Path) -> None:
+    """R3: fenced marker is neither collected nor illegal."""
+    before = _real_playbook_snapshot()
+    try:
+        documents = {
+            "sample.md": (
+                "# S\n\n**保护级别**：playbook\n\n"
+                "```text\n**保护级别**：normal playbook\n```\n"
+            ),
+        }
+        legal, illegal = doctor.parse_playbook_protection_levels(documents["sample.md"])
+        if [value for _, value in legal] != ["playbook"] or illegal:
+            raise AssertionError(f"fence leaked: legal={legal} illegal={illegal}")
+        findings = doctor.playbook_taxonomy_findings(documents)
+        if findings:
+            raise AssertionError(f"fenced illegal must not fire: {findings}")
+    finally:
+        _assert_real_playbooks_untouched(before)
+
+
+def test_playbook_taxonomy_r4_blockquote_prefix_counts(root: Path) -> None:
+    """R4: `> **保护级别**：meta-playbook` joins the set."""
+    before = _real_playbook_snapshot()
+    try:
+        documents = {"sample.md": "# S\n\n> **保护级别**：meta-playbook\n"}
+        legal, illegal = doctor.parse_playbook_protection_levels(documents["sample.md"])
+        if [value for _, value in legal] != ["meta-playbook"] or illegal:
+            raise AssertionError(f"blockquote not accepted: legal={legal} illegal={illegal}")
+    finally:
+        _assert_real_playbooks_untouched(before)
+
+
+def test_playbook_taxonomy_r5_missing_marker_warns_readme_exempt(root: Path) -> None:
+    """R5: missing marker WARNs; `_README.md` is silent."""
+    before = _real_playbook_snapshot()
+    try:
+        findings = doctor.playbook_taxonomy_findings({"sample.md": "# S\n\nno marker\n"})
+        if [(code, severity) for code, severity, _ in findings] != [("PB-TAXO-002", "WARN")]:
+            raise AssertionError(f"missing marker must WARN 002: {findings}")
+        readme = doctor.playbook_taxonomy_findings({"_README.md": "# index\n"})
+        if readme:
+            raise AssertionError(f"_README.md must be exempt: {readme}")
+    finally:
+        _assert_real_playbooks_untouched(before)
+
+
+def test_playbook_taxonomy_r6_conflicting_values_fail(root: Path) -> None:
+    """R6: two different legal values in one file → PB-TAXO-005 FAIL."""
+    before = _real_playbook_snapshot()
+    try:
+        documents = {
+            "sample.md": (
+                "# S\n\n**保护级别**：playbook\n\n"
+                "> **保护级别**：core-playbook\n"
+            ),
+        }
+        findings = doctor.playbook_taxonomy_findings(documents)
+        if [(code, severity) for code, severity, _ in findings] != [("PB-TAXO-005", "FAIL")]:
+            raise AssertionError(f"conflict must FAIL 005: {findings}")
+    finally:
+        _assert_real_playbooks_untouched(before)
 
 
 ALL_CONTRACT_TESTS = (
@@ -4305,7 +4765,28 @@ ALL_CONTRACT_TESTS = (
         test_problemlog_closure_two_strike_prose_landing_warns,
         test_problemlog_closure_machine_landings_are_silent,
         test_problemlog_closure_check_reads_instance_log,
+        test_rule_enforcement_sound_landings_are_silent,
+        test_rule_enforcement_dangling_check_fails,
+        test_rule_enforcement_missing_tool_fails,
+        test_rule_enforcement_broken_context_anchor_warns,
+        test_rule_enforcement_empty_prose_reason_warns,
+        test_rule_enforcement_misplaced_fields_fail,
+        test_rule_enforcement_fenced_examples_are_silent,
+        test_problemlog_closure_dangling_landing_warns,
+        test_problemlog_closure_duplicate_stable_id_warns,
+        test_external_source_missing_catalog_warns_only_when_ongoing,
+        test_external_source_resolvable_diff_anchor_is_silent,
+        test_external_source_dangling_diff_anchor_fails,
+        test_external_source_none_needs_a_reason,
+        test_external_source_empty_input_is_silent,
+        test_playbook_taxonomy_r1_byte_drift_fails_parity,
+        test_playbook_taxonomy_r2_illegal_value_fails,
+        test_playbook_taxonomy_r3_fenced_marker_is_silent,
+        test_playbook_taxonomy_r4_blockquote_prefix_counts,
+        test_playbook_taxonomy_r5_missing_marker_warns_readme_exempt,
+        test_playbook_taxonomy_r6_conflicting_values_fail,
 )
+
 
 
 def _genesis_ledger_text(first_event_lines: str) -> str:

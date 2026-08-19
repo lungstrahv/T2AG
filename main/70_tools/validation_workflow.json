@@ -146,6 +146,34 @@
         "runtime.structure"
       ]
     },
+    "runtime.external_source_backlink": {
+      "phase": "runtime",
+      "handler": "check_external_source_backlink",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.rule_enforcement_integrity": {
+      "phase": "runtime",
+      "handler": "check_rule_enforcement_integrity",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.playbook_taxonomy": {
+      "phase": "runtime",
+      "handler": "check_playbook_taxonomy",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.playbook_taxonomy_parity": {
+      "phase": "release",
+      "handler": "check_playbook_taxonomy_parity",
+      "depends_on": [
+        "runtime.playbook_taxonomy"
+      ]
+    },
     "runtime.trading_boundary": {
       "phase": "runtime",
       "handler": "check_trading_boundary",
@@ -391,6 +419,9 @@
         "runtime.checkpoint_block_routing",
         "runtime.gate_ledger",
         "runtime.problemlog_closure",
+        "runtime.external_source_backlink",
+        "runtime.rule_enforcement_integrity",
+        "runtime.playbook_taxonomy",
         "runtime.trading_boundary",
         "runtime.external_references",
         "runtime.legacy_references",
@@ -422,6 +453,7 @@
         "release.activity_migration_021",
         "release.reading_bridge",
         "release.core_playbooks",
+        "release.playbook_taxonomy_parity",
         "release.candidate_replay",
         "release.tracked_environment",
         "release.dirty_tree",

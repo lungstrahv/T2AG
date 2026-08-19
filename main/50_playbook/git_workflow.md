@@ -154,7 +154,7 @@ git commit -m "恢复 <文件> 到 <提交> 的已确认版本"
 |---|---|
 | 结课仪式 | 检查状态与差异；默认逐次授权，或按已批准 campaign Git 计划建立列明的本地 checkpoint；远端由用户手动上传 |
 | 里程碑完成 | 建议 commit；tag 只在版本或课程规则明确要求时创建 |
-| doctor | 检查 `.venv/.env` 追踪、版本一致性和跨发行版 core-playbook |
+| doctor | 检查 `.venv/.env` 追踪、版本一致性和跨发行版 core/meta-playbook |
 | 版本发布 | changelog、版本号和发行版同步完成后再提交 |
 | 灾难恢复 | 先读历史和展示目标，再恢复单文件或明确范围 |
 

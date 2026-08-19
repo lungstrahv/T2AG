@@ -190,3 +190,23 @@ recovery checkpoint 只证明存在恢复点，不进入 release 资格判断。
    `runtime.problemlog_closure`）；`occurrence_count >= 2` 的问题不得再以散文修复收尾，
    必须落 `check=`（doctor 检查）或 `tool=`（代码强制）。字段语义 canonical：
    `00_core/t2ag_problemlog.md` 头部回灌契约。
+
+## 十、playbook 分级仪器（两档）
+
+| 档 | 检查 ID | handler | finding | 级别 |
+|---|---|---|---|---|
+| runtime（本地） | `runtime.playbook_taxonomy` | `check_playbook_taxonomy` | PB-TAXO-001 非法值 | FAIL |
+| runtime | 同上 | 同上 | PB-TAXO-002 无标记 | WARN（白名单仅 `_README.md`） |
+| runtime | 同上 | 同上 | PB-TAXO-005 同文件不同合法值 | FAIL；同值重复为 WARN |
+| release（跨发行） | `release.playbook_taxonomy_parity` | `check_playbook_taxonomy_parity` | PB-TAXO-003 meta+core 集合或 SHA 分叉 | FAIL |
+| release | 同上 | 同上 | PB-TAXO-004 Skeleton 缺任一 meta | FAIL |
+
+共享解析器：先 `strip_fenced_blocks`，再匹配
+`^(?:>\s*)?\*\*保护级别\*\*：(meta-playbook|core-playbook|playbook)\b`，
+返回全部匹配（不是首个）。围栏内引用不算。blockquote 前缀要认。
+
+**诚实边界**：不检查「该标而未标的语义正确性」——本检查只验证标记形式与跨发行
+集合/SHA，不判断一份 playbook 按 §四 功能判据该是 meta 还是 core。
+
+既有 `check_core_playbooks`（`release.core_playbooks`）本批只换同一解析器，
+注册位不动；其与 parity 检查的分工归并另池。

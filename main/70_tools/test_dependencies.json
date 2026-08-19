@@ -40,6 +40,17 @@
       "sources": ["main/70_tools/t2ag_doctor.py", "main/70_tools/validation_control.py", "main/70_tools/validation_workflow.json", "main/70_tools/test_022_doctor_postcheck.py", "main/50_playbook/doctor_contracts.md", "main/50_playbook/validation_flow.md"],
       "tests": ["doctor.postcheck", "contracts.runtime"]
     },
+    "playbook_taxonomy": {
+      "sources": [
+        "main/50_playbook/playbook_management.md",
+        "main/50_playbook/doctor_contracts.md",
+        "main/70_tools/t2ag_doctor.py",
+        "main/70_tools/validation_workflow.json",
+        "main/70_tools/contract_test_support.py",
+        "main/70_tools/test_runtime_contracts.py"
+      ],
+      "tests": ["contracts.runtime"]
+    },
     "handoff_contract": {
       "sources": ["main/50_playbook/handoff_management.md", "main/70_tools/t2ag_doctor.py", "main/70_tools/contract_test_support.py"],
       "tests": ["contracts.runtime"]
@@ -65,6 +76,29 @@
         "main/00_core/learning_activity_model.md",
         "main/40_course/_templates/course/lessons/lessonNN/lessonNN.md.template",
         "main/40_course/_templates/course/exercises/exerciseNN/exercise.md.template",
+        "main/70_tools/t2ag_doctor.py",
+        "main/70_tools/validation_workflow.json",
+        "main/70_tools/contract_test_support.py",
+        "main/70_tools/test_runtime_contracts.py"
+      ],
+      "tests": ["contracts.runtime"]
+    },
+    "external_source_backlink": {
+      "sources": [
+        "main/50_playbook/doctor_contracts.md",
+        "main/50_playbook/course_group_rules.md",
+        "main/70_tools/t2ag_doctor.py",
+        "main/70_tools/validation_workflow.json",
+        "main/70_tools/contract_test_support.py",
+        "main/70_tools/test_runtime_contracts.py"
+      ],
+      "tests": ["contracts.runtime"]
+    },
+    "rule_admission_gate": {
+      "sources": [
+        "main/50_playbook/rule_admission_gate.md",
+        "main/50_playbook/doctor_contracts.md",
+        "main/00_core/t2ag_problemlog.md",
         "main/70_tools/t2ag_doctor.py",
         "main/70_tools/validation_workflow.json",
         "main/70_tools/contract_test_support.py",

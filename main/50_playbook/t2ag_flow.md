@@ -255,7 +255,7 @@ doctor：active、registry、目录、元数据、art_file、未登记皮肤、�
 
 三发行的投影方向不对称，且都排在 commit 之后：
 
-- **Main ↔ Skeleton** 是镜像关系。共享实现、契约与 core-playbook 必须字节同源，改完用
+- **Main ↔ Skeleton** 是镜像关系。共享实现、契约与 core/meta-playbook 必须字节同源，改完用
   `cmp` 逐一核对；Skeleton 只保留发行面差异（清零的实例、清零的 EV register、隐私豁免）。
 - **Main → Lite** 是单向投影。`sync_lite.py` 在 Main 工作树脏时**拒绝执行**——把不存在于任何
   commit 的中间态投到无 git 的 Lite 不可追回。`--force` 存在但不推荐；正确顺序永远是

@@ -140,7 +140,8 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
     "check_registry", "check_textbook_preparation", "check_scope_page_cache",
     "check_checkpoint_block_routing", "check_gate_ledger",
-    "check_problemlog_closure",
+    "check_problemlog_closure", "check_rule_enforcement_integrity",
+    "check_external_source_backlink",
     "check_trading_boundary", "check_external_references",
     "check_legacy_references", "check_retired_instance_ids", "check_cloud_pause",
     "check_context_packet_contract", "check_test_management_contract",
@@ -153,6 +154,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_cloud_contract", "check_derived_tools", "check_migration_evidence",
     "check_migration_021_evidence", "check_activity_migration_021_evidence",
     "check_reading_bridge_contract", "check_core_playbooks",
+    "check_playbook_taxonomy", "check_playbook_taxonomy_parity",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
     "check_skeleton_textbook", "check_distribution_parity",
     "check_skeleton_privacy", "check_release_package_surface",
@@ -2829,8 +2831,363 @@ PLOG_CLOSURE_VALUE = re.compile(
     r"^(open|check=\S+|tool=\S+|prose_accepted[（(].+[）)])$"
 )
 
+# --- R-GATE: the enforcement/closure landing vocabulary ----------------------
+# One vocabulary, two hosts: `enforcement:` in rule files (rule_admission_gate.md
+# §二) and `closure:` in the problemlog.  Severity differs by host — a dangling
+# landing in a rule is a false guarantee that must block (P-0067 family), the
+# same defect in the incident log is a record-keeping breach that must not block
+# teaching.  The verdict logic is shared; the severity mapping is not.
 
-def problemlog_closure_findings(text: str) -> list[tuple[str, str]]:
+FENCE_LINE = re.compile(r"^[ \t]*(?:```|~~~)")
+ENFORCEMENT_FIELD = re.compile(
+    r"^[ \t]*(?:[-*+][ \t]+)?enforcement:[ \t]*(.+?)[ \t]*$", re.MULTILINE
+)
+CLOSURE_FIELD_ANY = re.compile(
+    r"^[ \t]*(?:[-*+][ \t]+)?closure:[ \t]*(.+?)[ \t]*$", re.MULTILINE
+)
+# 00_core files that may carry `enforcement:`.  The rest of 00_core — changelog,
+# problemlog body, memory — is append-only record: a quoted historical landing
+# must not become a live contract that FAILs when its target is later renamed.
+# NOTE: a new rule-bearing file under 00_core must be added here by hand.
+RULE_ENFORCEMENT_CORE_FILES = (
+    "domain_model.md",
+    "learning_activity_model.md",
+    "pattern_retire_loop.md",
+)
+
+
+def strip_fenced_blocks(text: str) -> str:
+    """Blank out fenced code blocks, preserving line numbering.
+
+    R-GATE §四, code side: the playbook that defines `enforcement:` is itself a
+    rule file full of examples.  Without this, the document that creates the
+    check is the first thing the check fires on.  Line count is preserved so
+    findings can still name a real line number.
+    """
+    lines: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        if FENCE_LINE.match(line):
+            inside = not inside
+            lines.append("")
+            continue
+        lines.append("" if inside else line)
+    return "\n".join(lines)
+
+
+PLAYBOOK_LEVEL_LINE = re.compile(
+    r"^(?:>\s*)?\*\*保护级别\*\*：(meta-playbook|core-playbook|playbook)\b"
+)
+PLAYBOOK_LEVEL_ANY = re.compile(r"^(?:>\s*)?\*\*保护级别\*\*：(.*)$")
+LEGAL_PLAYBOOK_LEVELS = frozenset({"meta-playbook", "core-playbook", "playbook"})
+TAXONOMY_README_EXEMPT = "_README.md"
+
+
+def parse_playbook_protection_levels(
+    text: str,
+) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
+    """Return (legal_matches, illegal_marker_rows). Line numbers are 1-based.
+
+    Fences are stripped first, so quoted examples do not count. Blockquote
+    prefixes are accepted. Every match is returned, not just the first.
+    """
+    stripped = strip_fenced_blocks(text)
+    legal: list[tuple[int, str]] = []
+    illegal: list[tuple[int, str]] = []
+    for lineno, line in enumerate(stripped.splitlines(), 1):
+        matched = PLAYBOOK_LEVEL_LINE.match(line)
+        if matched:
+            legal.append((lineno, matched.group(1)))
+            continue
+        any_match = PLAYBOOK_LEVEL_ANY.match(line)
+        if any_match:
+            illegal.append((lineno, any_match.group(1).strip()))
+    return legal, illegal
+
+
+def playbook_taxonomy_findings(
+    documents: dict[str, str],
+    *,
+    exempt_unmarked: frozenset[str] | None = None,
+) -> list[tuple[str, str, str]]:
+    """Local taxonomy findings: ``(code, severity, message)``."""
+    exempt = exempt_unmarked or frozenset({TAXONOMY_README_EXEMPT})
+    findings: list[tuple[str, str, str]] = []
+    for name in sorted(documents):
+        legal, illegal = parse_playbook_protection_levels(documents[name])
+        for lineno, raw in illegal:
+            findings.append((
+                "PB-TAXO-001",
+                "FAIL",
+                f"{name}:{lineno} 非法保护级别值：{raw}",
+            ))
+        values = [value for _, value in legal]
+        if not legal and not illegal and name not in exempt:
+            findings.append(("PB-TAXO-002", "WARN", f"{name} 无保护级别标记"))
+        unique = set(values)
+        if len(unique) > 1:
+            findings.append((
+                "PB-TAXO-005",
+                "FAIL",
+                f"{name} 冲突保护级别：{sorted(unique)}",
+            ))
+        elif len(values) > 1 and len(unique) == 1:
+            findings.append((
+                "PB-TAXO-005",
+                "WARN",
+                f"{name} 同值重复标记：{values[0]} x{len(values)}",
+            ))
+    return findings
+
+
+def playbook_level_sets(
+    playbook_dir: Path,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return ``(meta_name_to_sha, core_name_to_sha)`` for ``*.md`` in dir."""
+    meta: dict[str, str] = {}
+    core: dict[str, str] = {}
+    if not playbook_dir.is_dir():
+        return meta, core
+    for path in sorted(playbook_dir.glob("*.md")):
+        legal, _illegal = parse_playbook_protection_levels(read(path))
+        values = {value for _, value in legal}
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if "meta-playbook" in values:
+            meta[path.name] = digest
+        if "core-playbook" in values:
+            core[path.name] = digest
+    return meta, core
+
+
+def playbook_taxonomy_parity_findings(
+    edition_playbook_dirs: dict[str, Path],
+    *,
+    skeleton_name: str = "t2ag-skeleton",
+) -> list[tuple[str, str, str]]:
+    """Cross-edition findings for meta+core set/SHA and skeleton meta presence."""
+    findings: list[tuple[str, str, str]] = []
+    collected: dict[str, tuple[dict[str, str], dict[str, str]]] = {}
+    for name, directory in edition_playbook_dirs.items():
+        collected[name] = playbook_level_sets(directory)
+    if skeleton_name in collected:
+        skeleton_meta, _skeleton_core = collected[skeleton_name]
+        expected_meta: set[str] = set()
+        for meta, _core in collected.values():
+            expected_meta |= set(meta)
+        missing = sorted(expected_meta - set(skeleton_meta))
+        if missing:
+            findings.append((
+                "PB-TAXO-004",
+                "FAIL",
+                f"Skeleton 缺 meta-playbook：{missing}",
+            ))
+    if not collected:
+        return findings
+    reference_name = (
+        skeleton_name if skeleton_name in collected else next(iter(collected))
+    )
+    reference_meta, reference_core = collected[reference_name]
+    reference = {**reference_core, **reference_meta}
+    for name, (meta, core) in collected.items():
+        if name == reference_name:
+            continue
+        combo = {**core, **meta}
+        if set(combo) != set(reference):
+            findings.append((
+                "PB-TAXO-003",
+                "FAIL",
+                f"meta+core 文件集合分叉：{name}",
+            ))
+            continue
+        drift = [filename for filename in reference if combo[filename] != reference[filename]]
+        if drift:
+            findings.append((
+                "PB-TAXO-003",
+                "FAIL",
+                f"meta+core SHA 分叉：{name} -> {drift}",
+            ))
+    return findings
+
+
+def check_playbook_taxonomy() -> None:
+    playbook_dir = MAIN / "50_playbook"
+    if not playbook_dir.is_dir():
+        return
+    documents = {
+        path.name: read(path)
+        for path in sorted(playbook_dir.glob("*.md"))
+    }
+    for _code, severity, message in playbook_taxonomy_findings(documents):
+        report(severity, message)
+
+
+def check_playbook_taxonomy_parity() -> None:
+    parent = ROOT.parent
+    edition_dirs = {
+        name: parent / name / "main/50_playbook"
+        for name in distribution_release_names()
+        if (parent / name / "main/50_playbook").is_dir()
+    }
+    if len(edition_dirs) != len(distribution_release_names()):
+        return
+    for _code, severity, message in playbook_taxonomy_parity_findings(edition_dirs):
+        report(severity, message)
+
+
+def landing_defect(
+    value: str,
+    *,
+    allow_open: bool,
+    allow_context: bool,
+    known_checks: frozenset[str] | None = None,
+    main: Path | None = None,
+) -> tuple[str, str] | None:
+    """Verdict for one landing value; ``None`` means sound.
+
+    Returns ``(kind, detail)`` where kind is one of ``malformed`` /
+    ``dangling_check`` / ``missing_tool`` / ``broken_context`` /
+    ``empty_reason``.  Existence probes are skipped when their input is
+    ``None``, which keeps the function usable as a pure form checker.
+    """
+    value = value.strip()
+    if allow_open and value == "open":
+        return None
+    if value.startswith("check="):
+        target = value[len("check="):].strip()
+        if not target:
+            return ("malformed", "check= 取值为空")
+        if known_checks is not None and target not in known_checks:
+            return (
+                "dangling_check",
+                f"check={target} 不在 doctor_checks 键集"
+                "（取值须是含 profile 前缀的完整键名，不是 finding 码）",
+            )
+        return None
+    if value.startswith("tool="):
+        target = value[len("tool="):].strip()
+        if not target:
+            return ("malformed", "tool= 取值为空")
+        if main is not None and not (main / target).is_file():
+            return ("missing_tool", f"tool={target} 在 main/ 下不存在")
+        return None
+    if allow_context and value.startswith("context="):
+        # U-1: path is relative to MAIN, split on the FIRST '#', anchor matched
+        # as an exact substring (only the value's own edge whitespace is
+        # stripped — no folding, no case normalisation).
+        relative, separator, anchor = value[len("context="):].partition("#")
+        relative, anchor = relative.strip(), anchor.strip()
+        if not separator or not relative or not anchor:
+            return ("malformed", "context= 须为 `相对 main 的路径#锚文本`")
+        if main is not None:
+            target = main / relative
+            if not target.is_file():
+                return ("broken_context", f"context= 指向的文件不存在：{relative}")
+            try:
+                body = read(target)
+            except OSError:
+                return ("broken_context", f"context= 指向的文件不可读：{relative}")
+            if anchor not in body:
+                return (
+                    "broken_context",
+                    f"context= 锚文本已失效：{relative}#{anchor[:40]}",
+                )
+        return None
+    if value.startswith("prose_accepted"):
+        reason = value[len("prose_accepted"):].strip()
+        if not re.fullmatch(r"[（(]\s*\S.*[）)]", reason, re.DOTALL):
+            return ("empty_reason", "prose_accepted 须在括号内写明为什么没有机器手段")
+        return None
+    return ("malformed", f"取值不属四取值：{value[:60]}")
+
+
+RULE_ENFORCEMENT_SEVERITY = {
+    "malformed": ("RULE-ENF-000", "FAIL"),
+    "dangling_check": ("RULE-ENF-001", "FAIL"),
+    "missing_tool": ("RULE-ENF-002", "FAIL"),
+    "broken_context": ("RULE-ENF-003", "WARN"),
+    "empty_reason": ("RULE-ENF-004", "WARN"),
+}
+
+
+def rule_enforcement_findings(
+    documents: dict[str, str],
+    *,
+    known_checks: frozenset[str] | None = None,
+    main: Path | None = None,
+) -> list[tuple[str, str, str]]:
+    """RULE-ENF-000..005 — declared enforcement must be real (R-GATE §二/§三).
+
+    ``documents`` maps a path relative to ``main/`` to its text.  Whitelisted
+    rule files (``50_playbook/*.md`` plus the three 00_core model files) are
+    checked for landing soundness; anything else in the mapping is only probed
+    for misplacement.  Returns ``(code, severity, message)``.
+
+    Existence-of-declaration only: this never asks "should this rule have
+    declared something" — that is R4's self-referential account, already
+    accepted as prose (rule_admission_gate.md §六).
+    """
+    findings: list[tuple[str, str, str]] = []
+    for relative in sorted(documents):
+        text = strip_fenced_blocks(documents[relative])
+        whitelisted = relative.startswith("50_playbook/") or relative in {
+            f"00_core/{name}" for name in RULE_ENFORCEMENT_CORE_FILES
+        }
+        for match in ENFORCEMENT_FIELD.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            if not whitelisted:
+                findings.append((
+                    "RULE-ENF-005",
+                    "FAIL",
+                    f"{relative}:{line} `enforcement:` 出现在非规则文件"
+                    "（记录区只追加，历史不得回改；地界见 rule_admission_gate.md §三）",
+                ))
+                continue
+            defect = landing_defect(
+                match.group(1),
+                allow_open=False,
+                allow_context=True,
+                known_checks=known_checks,
+                main=main,
+            )
+            if defect is None:
+                continue
+            kind, detail = defect
+            code, severity = RULE_ENFORCEMENT_SEVERITY[kind]
+            findings.append((code, severity, f"{relative}:{line} {detail}"))
+        if whitelisted:
+            for match in CLOSURE_FIELD_ANY.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                findings.append((
+                    "RULE-ENF-005",
+                    "FAIL",
+                    f"{relative}:{line} `closure:` 只属 problemlog，不得出现在规则文件",
+                ))
+    return findings
+
+
+def doctor_check_ids() -> frozenset[str] | None:
+    """The `doctor_checks` key set — the one namespace `check=` may name.
+
+    Returns ``None`` when the control file is unreadable: an unreadable
+    registry is already a FAIL elsewhere, and inventing dangling-landing
+    failures on top of it would just bury the real cause.
+    """
+    try:
+        workflow = validation_control.load_workflow(
+            ROOT / "main/70_tools/validation_workflow.json"
+        )
+    except (validation_control.ValidationControlError, OSError, ValueError):
+        return None
+    checks = workflow.get("doctor_checks")
+    return frozenset(checks) if isinstance(checks, dict) else None
+
+
+def problemlog_closure_findings(
+    text: str,
+    *,
+    known_checks: frozenset[str] | None = None,
+    main: Path | None = None,
+) -> list[tuple[str, str]]:
     """PLOG-CLOSURE-000..002 — the problemlog→doctor backfill contract.
 
     The problemlog is this system's eval set: every entry is one recorded
@@ -2848,11 +3205,34 @@ def problemlog_closure_findings(text: str) -> list[tuple[str, str]]:
          machine enforcement (check= / tool=).  Applies wherever the field
          appears; legacy entries without the field stay exempt until the
          backfill reaches them.
+    003: the same `P-NNNN` heading appears more than once.  A stable ID that
+         names two different incidents makes every citation of it ambiguous
+         (remediation_governance.md §三 lists stable-ID conflict and
+         contradictory authorities among the non-waivable release gates).
+         WARN here: runtime must not block teaching over it, and the repair
+         touches history, so it is an adjudication rather than a fix.
+    004: a `closure:` landing that names a check or tool which does not exist
+         (R-GATE 4A).  Same defect class as RULE-ENF-001/002 but WARN, because
+         this check's whole stance is WARN-only — a new check must not be used
+         to quietly harden an old one.
     """
     findings: list[tuple[str, str]] = []
     entries = list(PLOG_ENTRY.finditer(text))
     if not entries:
         return findings
+    seen: dict[str, list[int]] = {}
+    for match in entries:
+        seen.setdefault(match.group(1), []).append(
+            text.count("\n", 0, match.start()) + 1
+        )
+    for pid, lines in seen.items():
+        if len(lines) > 1:
+            findings.append((
+                "PLOG-CLOSURE-003",
+                f"{pid} 稳定 ID 重复 {len(lines)} 次（行 "
+                + "、".join(str(line) for line in lines)
+                + "）：引用该 ID 的正文已无法确定指向哪条",
+            ))
     anchor = PLOG_ANCHOR.search(text)
     if not anchor:
         findings.append((
@@ -2882,6 +3262,15 @@ def problemlog_closure_findings(text: str) -> list[tuple[str, str]]:
                 f"{pid} closure 字段值非法：{closure[:60]}",
             ))
             continue
+        defect = landing_defect(
+            closure,
+            allow_open=True,
+            allow_context=False,
+            known_checks=known_checks,
+            main=main,
+        )
+        if defect is not None and defect[0] in ("dangling_check", "missing_tool"):
+            findings.append(("PLOG-CLOSURE-004", f"{pid} {defect[1]}"))
         occurrence = PLOG_OCCURRENCE.search(body)
         if (
             occurrence
@@ -2912,8 +3301,199 @@ def check_problemlog_closure() -> None:
         text = read(problemlog)
     except OSError:
         return
-    for code, message in problemlog_closure_findings(text):
+    for code, message in problemlog_closure_findings(
+        text, known_checks=doctor_check_ids(), main=MAIN
+    ):
         report("WARN", f"{code} {message}")
+
+
+SOURCE_CATALOG_HEAD = re.compile(r"^source_catalog:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
+SOURCE_CATALOG_ITEM = re.compile(r"^[ \t]+([A-Za-z_][A-Za-z0-9_]*):[ \t]*(.*?)[ \t]*$")
+
+
+def source_catalog_declaration(
+    text: str,
+) -> tuple[str, str | dict[str, str]] | None:
+    """Read the `source_catalog:` declaration; None when the course made none.
+
+    Returns ``("inline", value)`` for the scalar form (`none（理由）`) or
+    ``("block", fields)`` for the mapping form.  Hand-rolled rather than
+    YAML-parsed for the same reason as the rest of this file: the frontmatter
+    dialect is a small fixed subset, and a real parser would accept shapes the
+    contract does not.
+    """
+    head = SOURCE_CATALOG_HEAD.search(text)
+    if not head:
+        return None
+    inline = head.group(1)
+    if inline:
+        return ("inline", inline)
+    fields: dict[str, str] = {}
+    for line in text[head.end():].splitlines():
+        if not line.strip():
+            continue
+        item = SOURCE_CATALOG_ITEM.match(line)
+        if not item:
+            break
+        fields[item.group(1)] = item.group(2)
+    return ("block", fields)
+
+
+def external_source_findings(
+    courses: dict[str, tuple[str, str]],
+    *,
+    main: Path | None = None,
+) -> list[tuple[str, str, str]]:
+    """EXTSRC-001..002 — 「取了目录之后有没有留下 diff」（doctor_contracts.md §九）.
+
+    ``courses`` maps course_id -> (lifecycle_status, course.md text).
+    Returns ``(code, severity, message)``.
+
+    001 (WARN): an ongoing course with no `source_catalog:`.  Deliberately NOT
+        a FAIL: the predicted structure is a falsifiable prediction whose value
+        is the diff produced the day the real catalogue is fetched.  Failing it
+        would force "fetch on day one" and the diff would never exist — trading
+        the information away for enforcement (EV-0026).
+    002 (FAIL): `source_catalog:` present but `diff_recorded` missing or
+        unresolvable.  Being present *claims* the comparison happened; a claim
+        whose evidence cannot be found is worse than no claim (P-0067 family).
+    004 (WARN): `source_catalog: none` with no reason.  `none` says "this
+        course has no external catalogue to compare against" — legitimate for
+        textbook- and project-driven courses, whose authority is the printed
+        table of contents already in the repo.  Without it those courses would
+        carry a 001 that can never be legitimately cleared, and permanent noise
+        trains the reader to ignore the channel.  The reason is what keeps
+        `none` from becoming a mute button, exactly as with `prose_accepted`.
+
+    003 is a retired slot (the seed↔course edge, moved to the T1 cross-repo
+    contract before implementation).  It is never reused — a reused stable ID
+    makes every citation of it ambiguous (P-0072).
+
+    Anchor semantics are not re-implemented here — `landing_defect` owns them,
+    so `diff_recorded` and `enforcement: context=` can never drift apart.
+    """
+    findings: list[tuple[str, str, str]] = []
+    for course_id in sorted(courses):
+        lifecycle, text = courses[course_id]
+        declaration = source_catalog_declaration(text)
+        if declaration is None:
+            if lifecycle == "ongoing":
+                findings.append((
+                    "EXTSRC-001",
+                    "WARN",
+                    f"{course_id} 无 source_catalog：官方目录尚未对表"
+                    "（合法的「尚未检验」态，不是待办；对表当轮的 diff 才是它的价值。"
+                    "本课若压根没有外部目录可对，写 `source_catalog: none（理由）`）",
+                ))
+            continue
+        shape, payload = declaration
+        if shape == "inline":
+            value = str(payload).strip()
+            if not value.startswith("none"):
+                findings.append((
+                    "EXTSRC-002",
+                    "FAIL",
+                    f"{course_id} source_catalog 取值非法：行内形式只允许 "
+                    f"`none（理由）`，实际为 {value[:40]}",
+                ))
+                continue
+            reason = value[len("none"):].strip()
+            if not re.fullmatch(r"[（(]\s*\S.*[）)]", reason, re.DOTALL):
+                findings.append((
+                    "EXTSRC-004",
+                    "WARN",
+                    f"{course_id} source_catalog: none 未写理由："
+                    "`none` 是可被反驳的断言，不是免检牌——"
+                    "写清为什么本课没有外部目录可对",
+                ))
+            continue
+        fields = payload if isinstance(payload, dict) else {}
+        recorded = fields.get("diff_recorded", "").strip()
+        if not recorded:
+            findings.append((
+                "EXTSRC-002",
+                "FAIL",
+                f"{course_id} source_catalog 在场但缺 diff_recorded："
+                "声称对过表却没有证据落点（悬空声称）",
+            ))
+            continue
+        defect = landing_defect(
+            f"context={recorded}",
+            allow_open=False,
+            allow_context=True,
+            main=main,
+        )
+        if defect is not None:
+            findings.append((
+                "EXTSRC-002",
+                "FAIL",
+                f"{course_id} diff_recorded 解析不开：{defect[1]}",
+            ))
+    return findings
+
+
+def check_external_source_backlink(
+    courses: dict[str, tuple[Path, dict[str, str]]],
+) -> None:
+    """EXTSRC-001..002: declared catalogue comparisons must leave evidence.
+
+    Empty input is silent — a distribution without course instances
+    (skeleton / lite) has nothing to say here, mirroring the problemlog's
+    empty-log silence and gate_ledger's skip-when-absent.
+
+    The seed↔course edge is NOT here: it is a T1 cross-repo reference whose
+    sidecar lives on the course side and is checked by
+    `runtime.external_references`.  Re-implementing it would create a second
+    source of truth for the same edge.
+    """
+    payload: dict[str, tuple[str, str]] = {}
+    for course_id, (folder, meta) in courses.items():
+        course_file = folder / "course.md"
+        if not course_file.is_file():
+            continue
+        try:
+            payload[course_id] = (meta.get("lifecycle_status", ""), read(course_file))
+        except OSError:
+            continue
+    if not payload:
+        return
+    for code, severity, message in external_source_findings(payload, main=MAIN):
+        report(severity, f"{code} {message}")
+
+
+def check_rule_enforcement_integrity() -> None:
+    """RULE-ENF-000..005: a declared enforcement must be a real one.
+
+    The rule files say how each rule is enforced; this check verifies the
+    saying, not the rule.  A dangling `check=`/`tool=` is a false guarantee —
+    strictly worse than declaring nothing, because it buys confidence without
+    buying enforcement (P-0067 family) — so those FAIL.  A stale `context=`
+    anchor only means a citation rotted while the rule stands, so it WARNs:
+    rewording a sentence must not block a lesson.
+    """
+    documents: dict[str, str] = {}
+    playbook = MAIN / "50_playbook"
+    if playbook.is_dir():
+        for path in sorted(playbook.glob("*.md")):
+            try:
+                documents[f"50_playbook/{path.name}"] = read(path)
+            except OSError:
+                continue
+    probe_targets = list(RULE_ENFORCEMENT_CORE_FILES) + ["t2ag_problemlog.md"]
+    for name in probe_targets:
+        path = MAIN / "00_core" / name
+        if not path.is_file():
+            continue
+        try:
+            documents[f"00_core/{name}"] = read(path)
+        except OSError:
+            continue
+    if not documents:
+        return
+    for code, severity, message in rule_enforcement_findings(
+        documents, known_checks=doctor_check_ids(), main=MAIN
+    ):
+        report(severity, f"{code} {message}")
 
 
 def check_checkpoint_block_routing(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
@@ -4333,7 +4913,8 @@ def check_core_playbooks() -> None:
     for name, root in roots.items():
         manifest: dict[str, str] = {}
         for path in sorted((root / "main/50_playbook").glob("*.md")):
-            if CORE_PLAYBOOK_MARKER in read(path):
+            legal, _illegal = parse_playbook_protection_levels(read(path))
+            if any(value == "core-playbook" for _lineno, value in legal):
                 manifest[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
         manifests[name] = manifest
     reference = manifests["t2ag-skeleton"]
@@ -6205,6 +6786,7 @@ def execute_doctor_checks(
         "check_retired_instance_ids": check_retired_instance_ids,
         "check_cloud_pause": check_cloud_pause,
         "check_problemlog_closure": check_problemlog_closure,
+        "check_rule_enforcement_integrity": check_rule_enforcement_integrity,
         "check_decision_records": check_decision_records,
         "check_environment_assumptions": check_environment_assumptions,
         "check_memory_budget": check_memory_budget,
@@ -6218,6 +6800,8 @@ def execute_doctor_checks(
         "check_migration_021_evidence": check_migration_021_evidence,
         "check_activity_migration_021_evidence": check_activity_migration_021_evidence,
         "check_core_playbooks": check_core_playbooks,
+        "check_playbook_taxonomy": check_playbook_taxonomy,
+        "check_playbook_taxonomy_parity": check_playbook_taxonomy_parity,
         "check_candidate_replay_contract": check_candidate_replay_contract,
         "check_tracked_environment": check_tracked_environment,
         "check_dirty_tree": check_dirty_tree,
@@ -6240,6 +6824,7 @@ def execute_doctor_checks(
         "check_scope_page_cache": check_scope_page_cache,
         "check_checkpoint_block_routing": check_checkpoint_block_routing,
         "check_gate_ledger": check_gate_ledger,
+        "check_external_source_backlink": check_external_source_backlink,
     }
     for row in rows:
         handler = str(row["handler"])

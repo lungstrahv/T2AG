@@ -78,7 +78,7 @@ envelope 只能覆盖其中列明的仓、路径、操作和有限本地 checkpo
 风险升级、未知 FAIL/WARN、跨仓边界变化，或无法证明影响闭包时，连续授权立即失效并停手。
 未列路径、未知仓和 RT3 操作不得用“同版本”推定已授权。
 
-凡删除、合并、概括、迁址、退役 `main/t2ag.md`、`AGENTS.md`、core-playbook 或其它硬边界
+凡删除、合并、概括、迁址、退役 `main/t2ag.md`、`AGENTS.md`、core/meta-playbook 与其它硬边界
 治理文中的现行规范性正文，或改变具名硬边界的 owner/触发/授权/结果，envelope 或施工单必须
 附 `rule_migration` 表（见 §三第 11 条）。纯追加、格式与保义澄清可登记
 `rule_migration: not_applicable` 及理由；整文件重写仍须先冻结完整迁移表。
@@ -125,7 +125,7 @@ handoff、receipt chain、确定性 policy、模型建议、实现者或 reviewe
 8. 内容裁决归学生（agent 出差异报告 → 学生批准 → 执行）；结构裁决按单执行。
 9. **云端 CH 块 status 不变量**（M4 判例，2026-07-24）：`cloud/inbox/CH-*.md` 的 `T2AG_CLOUD_HANDOFF` 块内 `status` 必须恒为云端产出值 `proposed_for_local_review`（见 `cloud_learning_sync.md` §7.2 + doctor）。**本地终态**（accepted / partial_accept / rejected + sync_completed）只写 `cloud_sync_state.md` 交接表与 CH 文件**块外**本地裁决节。施工单若要求改块内 status = **工单错误**，执行方应拒改并声明偏离，不得静默改写或静默跳过闭环。
 10. `clean ≠ reviewed ≠ released`。evidence checkpoint 只证明证据，recovery checkpoint 只提供恢复点；release snapshot 必须绑定已通过的候选完整复审与 finalization delta 独立复审，不能由工作树干净或普通 commit 推出。
-11. **规则语义迁移**：对宪法、AGENTS、core-playbook 与硬边界治理文默认 **diff-patch**。
+11. **规则语义迁移**：对宪法、AGENTS、core/meta-playbook 与硬边界治理文默认 **diff-patch**。
     触发语义迁移时必须逐条登记：
     `rule_id | 旧位置/原文锚点 | 动作(keep/sink/retire) | 新 owner/等价门 | 消费方 | 验证`。
     `sink` 必须同时证明 canonical owner、必要入口指针、消费者与验证闭包；`retire` 必须有
