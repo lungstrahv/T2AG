@@ -98,6 +98,13 @@ planned（预划，只存在于课程 `progress.md` 或 planned group 的 `plan.
 | 权威链外的 .md 出现枚举式课程清单 | WARN |
 | 考核池卷的题号引用出现在 lesson/practice 文件 | FAIL |
 | `papers/` 下有卷夹但 index 未登记，或 meta 缺列/缺解答页码 | WARN |
+| `ongoing` 课程 `course.md` 无 `source_catalog:` | WARN |
+| 有 `source_catalog:` 但 `diff_recorded` 解析不开 | FAIL |
+| `source_catalog: none` 未写理由 | WARN |
+
+> 末两条的字段结构、锚语义与**为什么缺失只判 WARN**（预画是可证伪的预测，
+> 价值在取目录当轮的 diff；判 FAIL 会用强制力换掉信息），canonical 见
+> `doctor_contracts.md` §九，此处不复制。
 
 > 第四条实现口径：
 > - **只抓枚举，单课引用合法**：匹配"当前课程"后同一行出现 **≥2 个课程代码**模式（`[A-Z]{2,}\d{3,}` 计数），单代码不触发。

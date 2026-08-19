@@ -87,6 +87,7 @@ plan-only 聚合门，均属于基础结构 FAIL。
 | state/journal/migration/Lite | release 派生工具 | 缓存漂移、证据缺失、迁移非幂等或投影差异 |
 | 发布候选隔离 | `t2ag_candidate_replay.py` + `test_candidate_replay_isolation_contract` | 有效 sparse checkout/sparse index，Git 环境/拓扑污染，Main/Skeleton 安全配置无法 preflight，源/A/B 字节清单或副本结果不一致，或全部 A/B 复核之后的末次源指纹发生变化 |
 | Git/环境卫生 | release 内建 | 跟踪环境文件为 FAIL；未提交工作树为 WARN |
+| 规则强制声明的真实性（R-GATE） | runtime `rule_enforcement_integrity`（`rule_enforcement_findings` / `landing_defect`） | 白名单规则文件（`50_playbook/*.md` + `00_core` 三个模型文件）内 `enforcement:` 的声明必须兑现：`check=` 不在 `doctor_checks` 键集、`tool=` 文件缺失、取值不属四取值、字段错位（`enforcement:` 落记录区 / `closure:` 落规则文件）为 **FAIL**（悬空声明=假保障，P-0067 家族）；`context=` 锚失效、`prose_accepted` 空理由为 **WARN**（改措辞不阻断教学）。示例先剥 fenced block 再按行首匹配（自指逃逸，`rule_admission_gate.md` §四）。**不检查「该声明而未声明」**。记录区（changelog/problemlog 正文/memory）与宪法 `t2ag.md` 显式豁免，理由见 `rule_admission_gate.md` §三 |
 | **Main↔Skeleton 批准同源面** | release `distribution_parity`（`check_distribution_parity`） | 同源面内文件字节不一致或 Skeleton 缺失为 **FAIL**；**豁免项两侧已一致为 WARN**（提示移除，防止名单长成盲区）。同源面定义见 §二·一 |
 
 ### 二·一 「批准同源面」的定义（P-0065）
@@ -190,6 +191,90 @@ recovery checkpoint 只证明存在恢复点，不进入 release 资格判断。
    `runtime.problemlog_closure`）；`occurrence_count >= 2` 的问题不得再以散文修复收尾，
    必须落 `check=`（doctor 检查）或 `tool=`（代码强制）。字段语义 canonical：
    `00_core/t2ag_problemlog.md` 头部回灌契约。
+
+## 九、外部来源回指契约（`source_catalog`，2026-08-16，EV-0026）
+
+课程的教学结构常常先由模型**预画**，再在某一轮取到官方目录时对表。本契约管的
+**不是「有没有去取」，而是「取了之后有没有留下 diff」**。
+
+enforcement: check=runtime.external_source_backlink
+
+### 九·一 字段结构
+
+`40_course/<ID>/course.md` frontmatter 内的一个块（示例在围栏内，非真实标注）：
+
+```yaml
+source_catalog:
+  url: https://example.org/course/catalog
+  fetched_at: 2026-08-16
+  predicted_count: 8
+  actual_count: 13
+  diff_recorded: 40_course/<ID>/lessons/lesson01/lesson01.md#官方目录核实
+```
+
+`diff_recorded` 的**锚语义与 `enforcement: context=` 完全一致**（R-GATE
+`rule_admission_gate.md` §二，同一实现 `landing_defect`，不另起解析）：
+路径相对 `main/` 根、按**第一个** `#` 切分、精确子串零规范化。
+锚文本选短而稳定的短语，别选整句。
+
+### 九·二 判定与严厉度
+
+| finding | 条件 | 级别 |
+|---|---|---|
+| `EXTSRC-001` | 课程 `lifecycle_status: ongoing` 且无 `source_catalog:` | **WARN** |
+| `EXTSRC-002` | 有 `source_catalog:` 但 `diff_recorded` 缺失/解析不开，或行内取值不是 `none` | **FAIL** |
+| `EXTSRC-004` | `source_catalog: none` 未写理由 | **WARN** |
+
+> `EXTSRC-003` 是**已退役槽位**（种子↔课程边，实现前已改由 T1 跨仓合同承担）。
+> **永不复用**——复用的稳定 ID 会让此后每一次引用都无法确定指向哪条（P-0072 的教训）。
+
+### 九·二·一 `none`：没有外部目录可对的课程
+
+教材驱动与 project 驱动的课程，其权威目录是**已在仓内的纸质教材目录**，没有外部目录
+可取。这类课程写：
+
+```yaml
+source_catalog: none（理由：教材驱动，权威目录是纸质书目录，仓内 book/ 已有）
+```
+
+**为什么必须有这一支**：否则这类课程会永久挂着一条**无法被合法清除**的 001——
+而永久噪音会把整个告警通道训练成可以忽略的东西。
+
+**为什么 `none` 必须带理由**：理由是防止 `none` 变成消音键的唯一东西，与
+`prose_accepted（理由）` 同型。**`none` 不是免检牌，是一句可被反驳的断言**——
+谁发现这门课其实有官方目录页，就该把它改掉。
+
+**为什么缺失只判 WARN**：预画本身**合法且有价值**——它是一次可证伪的预测，价值恰在
+取目录当轮的 diff（首例实测：预画 8 节 / 实际 13 节，且指得出漏在哪几处）。判 FAIL
+会逼出「开课即抓目录」，那个 diff 就永远不会产生——**等于用强制力换掉了信息**。
+故缺失是**合法的「尚未检验」态**，不是待办。
+
+**为什么悬空判 FAIL**：`source_catalog` 在场即**声称已经对过表**；`diff_recorded`
+指不到东西，就是声称有证据而证据不在——悬空声称，P-0067 同型，比不声称更毒。
+
+与 R-GATE 同一句纪律：**管的是说了的话必须算数，不管没说的话。**
+
+### 九·三 限度（必须与机制同写）
+
+1. **不保证目录是最新的**，只保证「声称取过就必须留下 diff」。八天没取，本检查
+   仍然只出 WARN——**强制力是知情换掉的，不是漏掉的**（EV-0026 代价节）。
+2. **不覆盖时间维**（挂载缓存陈旧，P-0070）。新鲜度的真值源仍只有 Read 工具。
+3. **不检查「该声明而未声明」**：`planned` 课程、以及没有外部目录可对的课程，
+   不在判定面内。
+
+### 九·四 种子↔课程的边不在本检查内
+
+课程与 `docs/seeds/` 的回指走 **T1 引用合同**（`cross_repo_reference.md`），
+sidecar 落在**课程侧** `40_course/<ID>/external_refs.json`，由**已有的**
+`runtime.external_references` 校验。本检查**零参与**。
+
+理由：`check_external_references` 只 `MAIN.rglob("external_refs.json")`，
+放在 `docs/seeds/` 的 sidecar doctor 永远看不见、静默零 finding——那是假保障。
+故边的方向定为**课程 ──► 种子**（引用方=课程，住 `main/` 内，可达）。
+
+> **这与 `docs/SEEDS.md`「不存在 seed → 课程 的通道」不冲突。**
+> 那条禁的是**升格通道**（种子不得因为「想学」就变成课程）；这里建的是
+> **回溯引用边**（课程记录「本课堂外溢出了这颗种子」）。**是决定，不是漏洞**。
 
 ## 十、playbook 分级仪器（两档）
 
