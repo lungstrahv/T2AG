@@ -11,6 +11,7 @@
     "host.teaching_egress": {"path": "main/70_tools/test_host_teaching_egress.py", "tier": "fast", "kind": "atomic"},
     "decision.records": {"path": "main/70_tools/test_decision_record_contract.py", "tier": "fast", "kind": "atomic"},
     "source.pages": {"path": "main/70_tools/test_source_pages.py", "tier": "fast", "kind": "atomic"},
+    "okf.export": {"path": "main/70_tools/test_okf_export.py", "tier": "fast", "kind": "atomic"},
     "reading.closeout": {"path": "main/70_tools/test_021_closeout.py", "tier": "deep", "kind": "atomic"},
     "reading.release_saga": {"path": "main/70_tools/scenarios/release_reading_bridge_saga.py", "tier": "release_only", "kind": "scenario", "automatic": false},
     "activity.close": {"path": "main/70_tools/test_022_activity_close.py", "tier": "fast", "kind": "atomic"},
@@ -135,6 +136,15 @@
         "main/50_playbook/journal_management.md"
       ],
       "tests": ["decision.records"]
+    },
+    "okf_export": {
+      "sources": [
+        "main/70_tools/okf_export.py",
+        "main/70_tools/test_okf_export.py",
+        "main/50_playbook/okf_adaptation.md",
+        "docs/adr/0005-okf-knowledge-bundle-export-boundary.md"
+      ],
+      "tests": ["okf.export"]
     },
     "source_pages": {
       "sources": [
