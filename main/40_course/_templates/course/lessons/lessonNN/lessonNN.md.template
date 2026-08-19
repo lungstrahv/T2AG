@@ -7,6 +7,10 @@ created: YYYY-MM-DD
 ---
 # lessonNN
 
+> textbook driver 课程：本文件是备课与路由材料，**不是教学正文的正典**。教学正文经
+> `70_tools/canon_append.py` 写入本目录 `teaching_log.md`（正典）+ `emissions.jsonl`
+> （事件账），契约见 `50_playbook/canon_carrier.md`。非 textbook 课程可删本注。
+
 ## 学习范围
 
 - 来源：SOURCE_SCOPE

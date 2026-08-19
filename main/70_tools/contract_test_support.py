@@ -4930,3 +4930,96 @@ def test_version_bump_g2_minor_bump_is_declared_hole(root: Path) -> None:
     )
     if findings:
         raise AssertionError(f"minor bump is out of scope by design: {findings}")
+
+
+def _canon_log_block(block_id: str, content: str) -> str:
+    """A teaching_log.md block exactly as canon_append.py writes it."""
+    return f"## {block_id}\n\n> seq 1 · emitted_at X · pages A\n\n{content}"
+
+
+def _canon_line(block_id: str, content: str, prev: str = "GENESIS",
+                page_refs: list | None = None) -> str:
+    import hashlib as _h
+    return json.dumps({
+        "seq": 1, "block_id": block_id, "lesson": "lesson01",
+        "emitted_at": "X", "page_refs": page_refs or [],
+        "content_sha256": _h.sha256(content.encode("utf-8")).hexdigest(),
+        "prev_sha256": prev,
+    }, ensure_ascii=False, sort_keys=True)
+
+
+_CANON_ASSETS = {"A1": {
+    "asset_id": "A1", "source_document_sha256": "aaa", "pdf_page_index": "1",
+    "render_profile": "rp", "render_sha256": "bbb",
+}}
+
+
+def test_canon_r1_block_without_ledger_row_fails(root: Path) -> None:
+    """R1: canon block with no emissions row → CANON-000 FAIL (bypass).
+
+    Tests the clumsy bypass only.  A forger writing C and L together as one
+    consistent chain is out of scope for G2 by declared design
+    (canon_carrier.md header) — no fixture pretends otherwise.
+    """
+    findings = doctor.canonical_carrier_findings(
+        _canon_log_block("B001", "你好。\n"), [], _CANON_ASSETS, "T/l1")
+    if [(c, s) for c, s, _ in findings] != [("CANON-000", "FAIL")]:
+        raise AssertionError(f"bypass must FAIL 000: {findings}")
+
+
+def test_canon_r2_broken_chain_fails(root: Path) -> None:
+    """R2: second row's prev_sha256 does not hash-link to the first → 001."""
+    l1 = _canon_line("B001", "你好。\n")
+    l2 = _canon_line("B002", "再见。\n", prev="not-the-real-hash")
+    findings = doctor.canonical_carrier_findings(
+        _canon_log_block("B001", "你好。\n") + _canon_log_block("B002", "再见。\n"),
+        [l1, l2], _CANON_ASSETS, "T/l1")
+    if ("CANON-001", "FAIL") not in [(c, s) for c, s, _ in findings]:
+        raise AssertionError(f"broken chain must FAIL 001: {findings}")
+
+
+def test_canon_r3_page_identity_mismatch_fails(root: Path) -> None:
+    """R3: ledger page identity differs from the asset frontmatter → 002."""
+    refs = [dict(_CANON_ASSETS["A1"], render_sha256="TAMPERED")]
+    line = _canon_line("B001", "你好。\n", page_refs=refs)
+    findings = doctor.canonical_carrier_findings(
+        _canon_log_block("B001", "你好。\n"), [line], _CANON_ASSETS, "T/l1")
+    if ("CANON-002", "FAIL") not in [(c, s) for c, s, _ in findings]:
+        raise AssertionError(f"identity mismatch must FAIL 002: {findings}")
+
+
+def test_canon_r4_content_hash_mismatch_fails(root: Path) -> None:
+    """R4: canon body was edited after emit → 003."""
+    line = _canon_line("B001", "你好。\n")
+    findings = doctor.canonical_carrier_findings(
+        _canon_log_block("B001", "被改过的正文。\n"), [line], _CANON_ASSETS, "T/l1")
+    if ("CANON-003", "FAIL") not in [(c, s) for c, s, _ in findings]:
+        raise AssertionError(f"edited canon must FAIL 003: {findings}")
+
+
+def test_canon_r5_ledger_row_without_block_warns(root: Path) -> None:
+    """R5: L row with no C block → 004 WARN (crash residue, by design)."""
+    line = _canon_line("B001", "你好。\n")
+    findings = doctor.canonical_carrier_findings("", [line], _CANON_ASSETS, "T/l1")
+    if [(c, s) for c, s, _ in findings] != [("CANON-004", "WARN")]:
+        raise AssertionError(f"crash residue must WARN 004: {findings}")
+
+
+def test_canon_g1_empty_state_is_silent(root: Path) -> None:
+    """G1: both sides absent/empty → silence (adoption is a fact, not a debt)."""
+    if doctor.canonical_carrier_findings("", [], {}, "T/l1"):
+        raise AssertionError("empty state must be silent")
+
+
+def test_canon_g2_valid_chain_is_silent(root: Path) -> None:
+    """G2: a fully consistent C+L+asset triple produces nothing."""
+    refs = [dict(_CANON_ASSETS["A1"])]
+    l1 = _canon_line("B001", "你好。\n", page_refs=refs)
+    import hashlib as _h
+    l2 = _canon_line("B002", "再见。\n",
+                     prev=_h.sha256(l1.encode("utf-8")).hexdigest())
+    findings = doctor.canonical_carrier_findings(
+        _canon_log_block("B001", "你好。\n") + _canon_log_block("B002", "再见。\n"),
+        [l1, l2], _CANON_ASSETS, "T/l1")
+    if findings:
+        raise AssertionError(f"valid chain must be silent: {findings}")

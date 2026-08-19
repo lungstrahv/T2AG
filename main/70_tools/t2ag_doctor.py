@@ -139,7 +139,8 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_activity_ledgers", "check_engagements_and_activities",
     "check_question_banks", "check_knowledge_ledgers", "check_project_verification",
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
-    "check_registry", "check_textbook_preparation", "check_scope_page_cache",
+    "check_registry", "check_textbook_preparation", "check_canonical_teaching_carrier",
+    "check_scope_page_cache",
     "check_checkpoint_block_routing", "check_gate_ledger",
     "check_problemlog_closure", "check_rule_enforcement_integrity",
     "check_external_source_backlink",
@@ -2373,6 +2374,172 @@ def activity_has_been_entered(folder: Path, activity_type: str, activity_id: str
         and event.get("activity_id") == activity_id
         for event in doc.events
     )
+
+
+CANON_PAGE_IDENTITY_FIELDS = (
+    "source_document_sha256", "pdf_page_index", "render_profile", "render_sha256",
+)
+
+
+def canonical_carrier_findings(
+    log_text: str,
+    emission_lines: list[str],
+    assets: dict[str, dict[str, str]],
+    label: str,
+) -> list[tuple[str, str, str]]:
+    """CANON-000..004 — the teaching canon and its emissions ledger must agree.
+
+    Contract: 50_playbook/canon_carrier.md.  This verifies **consistency**
+    between teaching_log.md (C), emissions.jsonl (L) and the persistent page
+    asset identity — it does NOT prove a block was written by canon_append.py.
+    A forger who writes both files as one consistent chain passes; only the
+    clumsy bypass is caught (G2 floor, declared in the playbook header).
+
+    Crash asymmetry (by design, not oversight): canon_append writes L first,
+    so "L row without C block" is repairable residue → WARN (CANON-004), while
+    "C block without L row" cannot come from a crash → FAIL (CANON-000).
+
+    Empty state: both sides missing/empty is silence — adoption is a
+    per-lesson fact, not a debt.  Legacy lesson.md prose is not C (D3) and is
+    never scanned.  ``verified_text_sha256`` / ``verification_status`` are
+    snapshots, not compared: a page legitimately moving unverified→verified
+    must not rot old emissions.
+    """
+    findings: list[tuple[str, str, str]] = []
+    lines = [l for l in emission_lines if l.strip()]
+    if not log_text.strip() and not lines:
+        return findings
+
+    records: list[dict | None] = []
+    prev = "GENESIS"
+    for index, raw in enumerate(lines, 1):
+        try:
+            rec = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            findings.append((
+                "CANON-001", "FAIL",
+                f"{label} emissions 第 {index} 行不是合法 JSON：链不可验证",
+            ))
+            rec = None
+        if rec is not None and rec.get("prev_sha256") != prev:
+            findings.append((
+                "CANON-001", "FAIL",
+                f"{label} SHA 链断裂于第 {index} 行"
+                f"（声明 prev={str(rec.get('prev_sha256'))[:12]}… 应为 {prev[:12]}…）",
+            ))
+        prev = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        records.append(rec)
+
+    ledger_blocks: dict[str, dict] = {}
+    for rec in records:
+        if rec and rec.get("block_id"):
+            ledger_blocks[str(rec["block_id"])] = rec
+
+    canon_blocks: dict[str, str] = {}
+    current: str | None = None
+    buffer: list[str] = []
+    for line in log_text.split("\n"):
+        match = re.match(r"^## (\S+)\s*$", line)
+        if match:
+            if current is not None:
+                canon_blocks[current] = "\n".join(buffer)
+            current = match.group(1)
+            buffer = []
+        elif current is not None:
+            buffer.append(line)
+    if current is not None:
+        canon_blocks[current] = "\n".join(buffer)
+
+    for block_id in canon_blocks:
+        if block_id not in ledger_blocks:
+            findings.append((
+                "CANON-000", "FAIL",
+                f"{label} 正典块 {block_id} 无对应事件行：绕过唯一写入器",
+            ))
+
+    for block_id, rec in ledger_blocks.items():
+        if block_id not in canon_blocks:
+            findings.append((
+                "CANON-004", "WARN",
+                f"{label} 事件行 {block_id} 无对应正典块（emit 中断残留，可重放补齐）",
+            ))
+        else:
+            body_lines = canon_blocks[block_id].split("\n")
+            while body_lines and not body_lines[0].strip():
+                body_lines.pop(0)
+            while body_lines and body_lines[0].startswith(">"):
+                body_lines.pop(0)
+            while body_lines and not body_lines[0].strip():
+                body_lines.pop(0)
+            canonical = "\n".join(body_lines).rstrip("\n") + "\n"
+            got = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            want = rec.get("content_sha256")
+            if want != got:
+                findings.append((
+                    "CANON-003", "FAIL",
+                    f"{label} 正典块 {block_id} 内容哈希与事件账不符"
+                    f"（账 {str(want)[:12]}… 实测 {got[:12]}…）",
+                ))
+        for ref in rec.get("page_refs") or []:
+            asset_id = str(ref.get("asset_id", ""))
+            asset = assets.get(asset_id)
+            if asset is None:
+                findings.append((
+                    "CANON-002", "FAIL",
+                    f"{label} 事件行 {block_id} 引用的页资产不可发现：{asset_id}"
+                    "（资产是永久身份，非可驱逐缓存）",
+                ))
+                continue
+            for field in CANON_PAGE_IDENTITY_FIELDS:
+                if str(ref.get(field, "")) != str(asset.get(field, "")):
+                    findings.append((
+                        "CANON-002", "FAIL",
+                        f"{label} 事件行 {block_id} 页身份与资产不符：{asset_id}"
+                        f".{field} 账 {str(ref.get(field))[:12]}… "
+                        f"资产 {str(asset.get(field))[:12]}…",
+                    ))
+    return findings
+
+
+def check_canonical_teaching_carrier(
+    courses: dict[str, tuple[Path, dict[str, str]]]
+) -> None:
+    """CANON-000..004: teaching canon ↔ emissions ledger ↔ page assets agree.
+
+    Applies to courses whose course.md declares ``default_driver: textbook``
+    (D4: the machine criterion is the driver field, not a course roster).
+    """
+    for course_id, (folder, _meta) in sorted(courses.items()):
+        course_md = folder / "course.md"
+        if not course_md.is_file():
+            continue
+        if frontmatter(course_md).get("default_driver") != "textbook":
+            continue
+        lessons = folder / "lessons"
+        if not lessons.is_dir():
+            continue
+        assets: dict[str, dict[str, str]] | None = None
+        for lesson_dir in sorted(p for p in lessons.iterdir() if p.is_dir()):
+            log_path = lesson_dir / "teaching_log.md"
+            emissions_path = lesson_dir / "emissions.jsonl"
+            if not log_path.is_file() and not emissions_path.is_file():
+                continue
+            if assets is None:
+                assets = {}
+                book = folder / "book"
+                if book.is_dir():
+                    for page in book.rglob("page_*.md"):
+                        if ".cache" in page.parts:
+                            continue
+                        fields = frontmatter(page)
+                        if fields.get("asset_id"):
+                            assets[fields["asset_id"]] = fields
+            log_text = read(log_path) if log_path.is_file() else ""
+            lines = read(emissions_path).split("\n") if emissions_path.is_file() else []
+            for code, severity, message in canonical_carrier_findings(
+                log_text, lines, assets, f"{course_id}/{lesson_dir.name}"
+            ):
+                report(severity, f"{code} {message}")
 
 
 def check_textbook_preparation(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
@@ -6933,6 +7100,7 @@ def execute_doctor_checks(
         "check_project_verification": check_project_verification,
         "check_exercises": check_exercises,
         "check_textbook_preparation": check_textbook_preparation,
+        "check_canonical_teaching_carrier": check_canonical_teaching_carrier,
         "check_scope_page_cache": check_scope_page_cache,
         "check_checkpoint_block_routing": check_checkpoint_block_routing,
         "check_gate_ledger": check_gate_ledger,

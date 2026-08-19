@@ -332,6 +332,10 @@ def should_skip_file(path: Path, rel: Path, tree_prefix: str = "") -> bool:
     """rel 相对于同步根（main/ 或 cloud/ 或 assets/ 或仓根单文件）。"""
     ext = path.suffix.lower()
     parts = rel.parts
+    if rel.name in {"teaching_log.md", "emissions.jsonl"}:
+        # 正典载体实例文件（canon_carrier.md §一）：含教材原文引用，属实例数据，
+        # 不进 Lite 审查快照。规则须先于首次 emit 存在（2026-08-19，EV-0030 追加）。
+        return True
     for p in parts:
         if p in SKIP_DIR_NAMES:
             return True

@@ -397,6 +397,13 @@
       "depends_on": [
         "runtime.version_profile"
       ]
+    },
+    "runtime.canonical_teaching_carrier": {
+      "phase": "runtime",
+      "handler": "check_canonical_teaching_carrier",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
     }
   },
   "profiles": {
@@ -423,6 +430,7 @@
         "runtime.memory_pointers",
         "runtime.registry",
         "runtime.textbook_preparation",
+        "runtime.canonical_teaching_carrier",
         "runtime.scope_page_cache",
         "runtime.checkpoint_block_routing",
         "runtime.gate_ledger",

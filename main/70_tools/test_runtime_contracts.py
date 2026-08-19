@@ -90,6 +90,13 @@ TESTS = (
     contracts.test_version_bump_r3_unreviewed_predecessor_warns,
     contracts.test_version_bump_g1_closed_predecessor_is_silent,
     contracts.test_version_bump_g2_minor_bump_is_declared_hole,
+    contracts.test_canon_r1_block_without_ledger_row_fails,
+    contracts.test_canon_r2_broken_chain_fails,
+    contracts.test_canon_r3_page_identity_mismatch_fails,
+    contracts.test_canon_r4_content_hash_mismatch_fails,
+    contracts.test_canon_r5_ledger_row_without_block_warns,
+    contracts.test_canon_g1_empty_state_is_silent,
+    contracts.test_canon_g2_valid_chain_is_silent,
 )
 
 
