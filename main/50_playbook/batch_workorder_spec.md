@@ -83,6 +83,48 @@ envelope 只能覆盖其中列明的仓、路径、操作和有限本地 checkpo
 附 `rule_migration` 表（见 §三第 11 条）。纯追加、格式与保义澄清可登记
 `rule_migration: not_applicable` 及理由；整文件重写仍须先冻结完整迁移表。
 
+### 1.4.1 升版判据：什么时候该定一个新版本号
+
+envelope 要求冻结 `target_version`，但此前没有任何条款说**什么情况下才该有一个新号**。
+实测证据：0.2.3 于 2026-08-06 声明后至 2026-08-18，14 条 changelog 条目**全部标「不升版」**，
+判据完全靠人裁，无成文依据也无兜底。本节补这条。
+
+#### 硬前置（事实题）
+
+**前一版本 `implementation_status` 不是 `complete`，不得启用新版号。**
+
+enforcement: check=runtime.version_bump_precondition
+
+理由不是洁癖：版本号一旦前进，旧号就再没有人回头收口，历史上会永久留下一个
+`partial` 且从未被审查过的版本。这与 `handoff_management.md` §10.1「摘牌前置条件」同源——
+形式闭合早于语义闭合，未迁出的开放项会随载体一起下线且无人接管。
+
+收口的定义就是版本台账里那三个字段：`implementation_status: complete`、
+`candidate_review: passed`、`release_qualification`。前驱缺记录、记为非 `complete`，
+或让邻近版本的记录代答，都是 FAIL；前驱 `candidate_review` 未 passed 报 WARN——
+它仍可作为运行版本，但不能被引用为发行资格依据。
+
+#### 触发情形（判断题，穷举）
+
+enforcement: prose_accepted（理由：「值不值得开一个新版本」是判断题，无机器手段可测；可机检的那一半已拆出为上面的硬前置 check=runtime.version_bump_precondition，此处如实认了没有落点，不假装覆盖）
+
+只有以下三种情形才定新号，其余一律「不升版」：
+
+| # | 情形 | 判据 |
+|---|---|---|
+| 1 | **结构性换代** | domain model、迁移器或目录契约改变，旧版本的实例需要迁移才能在新版本下运行 |
+| 2 | **对外发行需要一个受审的号** | 交付、开源或外部试用要引用一个 `candidate_review: passed` 的版本，而现有最新受审版本不够用 |
+| 3 | **前版 partial 项补齐后收口** | 前一版本声明时留下的未实现项已完成或已显式改判出范围，收口后顺势进位 |
+
+**明确不触发的**：新增 doctor 检查、新增或修改 playbook、修缮既有缺陷、EV 编号的独立批次。
+这些走 EV 与 changelog 记账，不动版本号。**升版是战役的产物，不是时间或工作量的产物**——
+干了很多活不构成升版理由，那只说明 changelog 变长了。
+
+#### 与 envelope 的关系
+
+新号只在 `version_campaign` envelope 冻结 `target_version` 那一刻确定，不得由某个批次
+顺手写进 `t2ag.md` §7。日常批次若发现自己"顺便升了版"，说明它实际上是一次未经授权的战役。
+
 ### 1.5 授权不可放大
 
 验证等级与授权等级相互独立；V0–V3 只定义证据成本，不能改变批准主体。任何

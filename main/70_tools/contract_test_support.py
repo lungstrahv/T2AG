@@ -4865,3 +4865,68 @@ def run_contract_tests(tests: tuple, *, suite_name: str) -> int:
             print(f"PASS {test.__name__}")
     print(f"result: {len(tests)}/{len(tests)} {suite_name} tests passed")
     return 0
+
+
+_VER_CUR = "## 7. 版本  [max 14]\n\n- 当前运行版本：`{}`；`implementation_status`：`partial`\n"
+_VER_LEDGER_OK = (
+    "- 0.2.3 `implementation_status`：`complete`；`candidate_review`：`passed`\n"
+)
+
+
+def test_version_bump_r1_partial_predecessor_fails(root: Path) -> None:
+    """R1: predecessor `implementation_status=partial` → VER-BUMP-000 FAIL."""
+    findings = doctor.version_bump_precondition_findings(
+        _VER_CUR.format("0.2.4"),
+        "- 0.2.3 `implementation_status`：`partial`；`candidate_review`：`not_run`\n",
+    )
+    codes = [code for code, _, _ in findings]
+    if "VER-BUMP-000" not in codes:
+        raise AssertionError(f"partial predecessor must FAIL 000: {findings}")
+
+
+def test_version_bump_r2_missing_ledger_record_fails(root: Path) -> None:
+    """R2: predecessor absent from the ledger → VER-BUMP-001 FAIL.
+
+    A neighbouring version's record must not answer for the missing one.
+    """
+    findings = doctor.version_bump_precondition_findings(
+        _VER_CUR.format("0.2.4"),
+        "- 0.2.2 `implementation_status`：`complete`；`candidate_review`：`passed`\n",
+    )
+    codes = [code for code, _, _ in findings]
+    if "VER-BUMP-001" not in codes:
+        raise AssertionError(f"missing predecessor record must FAIL 001: {findings}")
+
+
+def test_version_bump_r3_unreviewed_predecessor_warns(root: Path) -> None:
+    """R3: predecessor complete but `candidate_review != passed` → 002 WARN."""
+    findings = doctor.version_bump_precondition_findings(
+        _VER_CUR.format("0.2.4"), _VER_LEDGER_OK.replace("passed", "not_run")
+    )
+    pairs = [(code, severity) for code, severity, _ in findings]
+    if ("VER-BUMP-002", "WARN") not in pairs:
+        raise AssertionError(f"unreviewed predecessor must WARN 002: {findings}")
+
+
+def test_version_bump_g1_closed_predecessor_is_silent(root: Path) -> None:
+    """G1: a closed-out predecessor produces nothing — the gate stays quiet."""
+    findings = doctor.version_bump_precondition_findings(
+        _VER_CUR.format("0.2.4"), _VER_LEDGER_OK
+    )
+    if findings:
+        raise AssertionError(f"closed predecessor must be silent: {findings}")
+
+
+def test_version_bump_g2_minor_bump_is_declared_hole(root: Path) -> None:
+    """G2: patch==0 reports nothing — the coverage hole is declared, not hidden.
+
+    Pinning it keeps the silence deliberate: if someone later teaches the check
+    to walk minor bumps, this fixture fails and forces the docstring to change
+    with it.
+    """
+    findings = doctor.version_bump_precondition_findings(
+        _VER_CUR.format("0.3.0"),
+        "- 0.2.3 `implementation_status`：`partial`；`candidate_review`：`not_run`\n",
+    )
+    if findings:
+        raise AssertionError(f"minor bump is out of scope by design: {findings}")

@@ -390,6 +390,13 @@
       "depends_on": [
         "runtime.skeleton_privacy"
       ]
+    },
+    "runtime.version_bump_precondition": {
+      "phase": "runtime",
+      "handler": "check_version_bump_precondition",
+      "depends_on": [
+        "runtime.version_profile"
+      ]
     }
   },
   "profiles": {
@@ -401,6 +408,7 @@
         "runtime.structure",
         "runtime.skeleton_privacy",
         "runtime.version_profile",
+        "runtime.version_bump_precondition",
         "runtime.skin",
         "runtime.authorization",
         "runtime.course_discovery",

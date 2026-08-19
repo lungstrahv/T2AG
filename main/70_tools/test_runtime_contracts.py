@@ -85,6 +85,11 @@ TESTS = (
     contracts.test_playbook_taxonomy_r4_blockquote_prefix_counts,
     contracts.test_playbook_taxonomy_r5_missing_marker_warns_readme_exempt,
     contracts.test_playbook_taxonomy_r6_conflicting_values_fail,
+    contracts.test_version_bump_r1_partial_predecessor_fails,
+    contracts.test_version_bump_r2_missing_ledger_record_fails,
+    contracts.test_version_bump_r3_unreviewed_predecessor_warns,
+    contracts.test_version_bump_g1_closed_predecessor_is_silent,
+    contracts.test_version_bump_g2_minor_bump_is_declared_hole,
 )
 
 

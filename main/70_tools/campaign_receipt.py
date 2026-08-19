@@ -319,8 +319,8 @@ def build_r0_receipt(
             },
         ],
         "evidence": [
-            "docs/handoffs/T2AG_022_EXECUTION_REPORT_2026-08-04.md#R0",
-            "docs/handoffs/T2AG_022_MIGRATION_PLAN_2026-08-04.md#REVOKED",
+            "docs/handoffs/archive/v0.2.2/T2AG_022_EXECUTION_REPORT_2026-08-04.md#R0",
+            "docs/handoffs/archive/v0.2.2/T2AG_022_MIGRATION_PLAN_2026-08-04.md#REVOKED",
         ],
         "argv": sys.argv,
         "cwd": str(Path.cwd()),

@@ -133,7 +133,8 @@ BASE_DOCTOR_PROFILE_MARKERS = (
     'default="runtime"',
 )
 SUPPORTED_DOCTOR_HANDLERS = {
-    "check_structure", "check_version_and_profile", "check_skin_system",
+    "check_structure", "check_version_and_profile", "check_version_bump_precondition",
+    "check_skin_system",
     "check_authorization_governance", "discover_courses", "check_groups",
     "check_activity_ledgers", "check_engagements_and_activities",
     "check_question_banks", "check_knowledge_ledgers", "check_project_verification",
@@ -457,6 +458,116 @@ def check_memory_version_pointer(memory_text: str, runtime_version: str) -> None
                 f"{runtime_version} 不一致（先修 t2ag_state_refresh 的版本来源，"
                 f"再跑 --write）",
             )
+
+
+VERSION_LEDGER_REL = "main/60_journal/t2ag_version_ledger.md"
+
+
+def version_bump_precondition_findings(
+    constitution_text: str, ledger_text: str
+) -> list[tuple[str, str, str]]:
+    """VER-BUMP-000..002 — a predecessor that never closed out blocks the bump.
+
+    Judges **this transition only**: the immediate predecessor of the running
+    version must be recorded `complete` in the version ledger.  It deliberately
+    does not walk the whole history — the three-field convention began at 0.2.1,
+    and retro-applying it to older versions would report defects that were never
+    defects.  The criterion governs the next bump, not the past.
+
+    Known coverage hole (declared, not silently absent): only patch-level bumps
+    are checked.  A minor/major bump (patch == 0) has no arithmetic predecessor
+    this function can name, so it reports nothing — the judgement half of the
+    criterion (`batch_workorder_spec.md` §升版判据) is prose_accepted there.
+
+    ``ledger_text`` lines look like::
+
+        - 0.2.2 `implementation_status`：`complete`；`candidate_review`：`passed`
+    """
+    findings: list[tuple[str, str, str]] = []
+    current = extract_runtime_version(constitution_text)
+    if not current:
+        return findings
+    parts = current.split(".")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        return findings
+    major, minor, patch = (int(p) for p in parts)
+    if patch == 0:
+        return findings
+    predecessor = f"{major}.{minor}.{patch - 1}"
+
+    def field(name: str) -> str | None:
+        # Line-scoped on purpose: the ledger puts several fields on one line
+        # (``- 0.2.2 `implementation_status`：`complete`；`candidate_review`：…``),
+        # so a version-then-field regex over the whole text only ever matches
+        # the first field.  Require the version to appear before the field on
+        # the same line, which also stops a neighbouring version's record from
+        # answering for this one.
+        token = re.compile(r"`" + re.escape(name) + r"`\s*[：:]\s*`([A-Za-z_]+)`")
+        for line in ledger_text.splitlines():
+            position = line.find(predecessor)
+            if position < 0:
+                continue
+            match = token.search(line, position)
+            if match:
+                return match.group(1)
+        return None
+
+    status = field("implementation_status")
+    if status is None:
+        findings.append(
+            (
+                "VER-BUMP-001",
+                "FAIL",
+                f"运行版本 {current} 的前驱 {predecessor} 在版本台账无 "
+                f"`implementation_status` 记录：升版把前一版本留在了无收口证据的状态"
+                f"（台账 {VERSION_LEDGER_REL}）",
+            )
+        )
+    elif status != "complete":
+        findings.append(
+            (
+                "VER-BUMP-000",
+                "FAIL",
+                f"运行版本 {current} 的前驱 {predecessor} "
+                f"`implementation_status`={status}（应为 complete）："
+                f"前一版本未收口即启用新版号，历史上会永久留一个未闭合的版本",
+            )
+        )
+    review = field("candidate_review")
+    if review is not None and review != "passed":
+        findings.append(
+            (
+                "VER-BUMP-002",
+                "WARN",
+                f"前驱 {predecessor} `candidate_review`={review}（未 passed）："
+                f"该版本从未被独立审查过，引用它作为发行资格依据前需复核",
+            )
+        )
+    return findings
+
+
+def check_version_bump_precondition() -> None:
+    """VER-BUMP-000..002: the previous version must have closed out.
+
+    The judgement half of the bump criterion — *whether a new version is worth
+    opening* — has no machine handle and is declared `prose_accepted` in
+    `batch_workorder_spec.md`.  This check carries only the factual half, which
+    is exactly the half that can be verified: whether the version being left
+    behind was ever finished.  It fires on the bad action itself rather than
+    accumulating as a standing complaint, so it stays silent until someone bumps.
+    """
+    constitution = MAIN / "t2ag.md"
+    ledger = MAIN / "60_journal/t2ag_version_ledger.md"
+    if not constitution.is_file():
+        report("FAIL", "缺少 main/t2ag.md（无法核对升版前置）")
+        return
+    if not ledger.is_file():
+        report("WARN", f"版本台账缺失：{VERSION_LEDGER_REL}（升版前置无法核对）")
+        return
+    for code, severity, message in version_bump_precondition_findings(
+        read(constitution), read(ledger)
+    ):
+        report(severity, f"{code} {message}")
 
 
 def check_version_and_profile() -> None:
@@ -6777,6 +6888,7 @@ def execute_doctor_checks(
     no_argument_handlers = {
         "check_structure": check_structure,
         "check_version_and_profile": check_version_and_profile,
+        "check_version_bump_precondition": check_version_bump_precondition,
         "check_skin_system": check_skin_system,
         "check_engagements_and_activities": check_engagements_and_activities,
         "check_registry": check_registry,
