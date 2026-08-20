@@ -4680,6 +4680,48 @@ def test_playbook_taxonomy_r6_conflicting_values_fail(root: Path) -> None:
         _assert_real_playbooks_untouched(before)
 
 
+def test_playbook_usage_r1_stale_reference_is_archive_candidate(root: Path) -> None:
+    """USE-R1: >40 天引用 → PB-USE-002 WARN；同行日期与来源种子日期都要配对。"""
+    import datetime as dt
+    names = frozenset({"sample.md"})
+    same_line = doctor.playbook_usage_last_seen(
+        [("j", "2026-01-05 本会话用了 sample.md", None)], names
+    )
+    seeded = doctor.playbook_usage_last_seen(
+        [("h", "提到 sample.md（无同行日期）", dt.date(2026, 1, 5))], names
+    )
+    if same_line != {"sample.md": dt.date(2026, 1, 5)} or seeded != same_line:
+        raise AssertionError(f"日期配对失败: same_line={same_line} seeded={seeded}")
+    findings = doctor.playbook_usage_findings(names, same_line, dt.date(2026, 8, 20))
+    if not any(c == "PB-USE-002" and s == "WARN" for c, s, _ in findings):
+        raise AssertionError(f"40 天线必须出归档候选: {findings}")
+
+
+def test_playbook_usage_r2_mark_window_cursor_and_recent_silent(root: Path) -> None:
+    """USE-R2: 游标日期作数；15–40 天 → PB-USE-001；14 天内静默。"""
+    import datetime as dt
+    names = frozenset({"cold.md", "warm.md"})
+    text = "2026-08-01 会话甲\n参考了 cold.md\n2026-08-18 会话乙\n参考了 warm.md"
+    last = doctor.playbook_usage_last_seen([("j", text, None)], names)
+    findings = doctor.playbook_usage_findings(names, last, dt.date(2026, 8, 20))
+    warns = [(c, m) for c, s, m in findings if s == "WARN"]
+    if len(warns) != 1 or warns[0][0] != "PB-USE-001" or "cold.md" not in warns[0][1]:
+        raise AssertionError(f"应当且仅当 cold.md 冷门标记: {findings}")
+    if any("warm.md" in m for _, m in warns):
+        raise AssertionError(f"14 天内不得标记: {findings}")
+
+
+def test_playbook_usage_r3_no_data_is_info_not_warn(root: Path) -> None:
+    """USE-R3: 从无引用记录 → 仅 PB-USE-003 INFO 观测态，不判冷门。"""
+    import datetime as dt
+    names = frozenset({"ghost.md"})
+    findings = doctor.playbook_usage_findings(names, {}, dt.date(2026, 8, 20))
+    if [c for c, s, _ in findings if s == "WARN"]:
+        raise AssertionError(f"无数据不得 WARN: {findings}")
+    if not any(c == "PB-USE-003" and s == "INFO" for c, s, _ in findings):
+        raise AssertionError(f"必须报观测态 INFO: {findings}")
+
+
 ALL_CONTRACT_TESTS = (
         test_profile_placeholder,
         test_profile_container_contract,
@@ -4785,6 +4827,9 @@ ALL_CONTRACT_TESTS = (
         test_playbook_taxonomy_r4_blockquote_prefix_counts,
         test_playbook_taxonomy_r5_missing_marker_warns_readme_exempt,
         test_playbook_taxonomy_r6_conflicting_values_fail,
+        test_playbook_usage_r1_stale_reference_is_archive_candidate,
+        test_playbook_usage_r2_mark_window_cursor_and_recent_silent,
+        test_playbook_usage_r3_no_data_is_info_not_warn,
 )
 
 

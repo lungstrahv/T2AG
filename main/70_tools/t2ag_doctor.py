@@ -157,6 +157,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_migration_021_evidence", "check_activity_migration_021_evidence",
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_playbook_taxonomy", "check_playbook_taxonomy_parity",
+    "check_playbook_usage",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
     "check_skeleton_textbook", "check_distribution_parity",
     "check_skeleton_privacy", "check_release_package_surface",
@@ -3218,6 +3219,84 @@ def playbook_taxonomy_findings(
     return findings
 
 
+PLAYBOOK_USAGE_MARK_DAYS = 14
+PLAYBOOK_USAGE_ARCHIVE_DAYS = 40
+# Exemptions are data, not silence（同 DISTRIBUTION_PARITY_EXEMPT 语义）。
+PLAYBOOK_USAGE_EXEMPT = {
+    "host_g1_optional.md": "宿主可选休眠件，休眠即常态（2026-08-20 用户裁）",
+}
+USAGE_DATE_TOKEN = re.compile(r"\b(20\d{2}-\d{2}-\d{2})\b")
+USAGE_MANAGED_BY = re.compile(r"^(?:>\s*)?managed_by:", re.M)
+
+
+def playbook_usage_last_seen(
+    sources: list[tuple[str, str, "dt.date | None"]],
+    names: frozenset[str],
+) -> dict[str, "dt.date"]:
+    """Latest dated reference per playbook filename.
+
+    逐行配对规则：同行日期优先；否则用游标（同一来源内上文最近出现的日期，
+    来源自带日期——如 handoff 文件名日期——作游标种子）。无日期的提及**忽略**，
+    不伪造证据（doctor_contracts 诚实边界：引用≠阅读，无日期≠冷门）。
+    """
+    last: dict[str, dt.date] = {}
+    for _label, text, seed in sources:
+        cursor = seed
+        for line in text.splitlines():
+            tokens = USAGE_DATE_TOKEN.findall(line)
+            if tokens:
+                try:
+                    cursor = max(dt.date.fromisoformat(t) for t in tokens)
+                except ValueError:
+                    pass
+            if cursor is None:
+                continue
+            for name in names:
+                if name in line and (name not in last or cursor > last[name]):
+                    last[name] = cursor
+    return last
+
+
+def playbook_usage_findings(
+    names: frozenset[str],
+    last_seen: dict[str, "dt.date"],
+    today: "dt.date",
+) -> list[tuple[str, str, str]]:
+    """折旧判定：``(code, severity, message)``。仅普通级参与（调用方筛好）。
+
+    14 天冷门标记 / 40 天归档候选（2026-08-20 用户裁，Hermes 前身规则首次着床）。
+    终点=归档候选**报告**，处置归宿主（git mv 入 archive/），唯一副本不删，
+    永不自动删除。从无引用记录=INFO 观测态，不判冷门（静默阅读测不到）。
+    """
+    findings: list[tuple[str, str, str]] = []
+    unseen = sorted(n for n in names if n not in last_seen)
+    if unseen:
+        findings.append((
+            "PB-USE-003",
+            "INFO",
+            "无引用数据（观测中，不判冷门）：" + "、".join(unseen),
+        ))
+    for name in sorted(names):
+        seen = last_seen.get(name)
+        if seen is None:
+            continue
+        age = (today - seen).days
+        if age > PLAYBOOK_USAGE_ARCHIVE_DAYS:
+            findings.append((
+                "PB-USE-002",
+                "WARN",
+                f"归档候选：{name} 最近引用 {seen}（{age} 天前）"
+                "；处置=宿主 git mv 入 archive/，唯一副本不删",
+            ))
+        elif age > PLAYBOOK_USAGE_MARK_DAYS:
+            findings.append((
+                "PB-USE-001",
+                "WARN",
+                f"冷门标记：{name} 最近引用 {seen}（{age} 天前）",
+            ))
+    return findings
+
+
 def playbook_level_sets(
     playbook_dir: Path,
 ) -> tuple[dict[str, str], dict[str, str]]:
@@ -3309,6 +3388,64 @@ def check_playbook_taxonomy_parity() -> None:
     if len(edition_dirs) != len(distribution_release_names()):
         return
     for _code, severity, message in playbook_taxonomy_parity_findings(edition_dirs):
+        report(severity, message)
+
+
+def check_playbook_usage() -> None:
+    """普通级 playbook 折旧扫描（WARN-only 仪器，2026-08-20）。
+
+    冷启动护栏：无课程实例（40_course 仅 _ 前缀目录）即跳过——空模板/新试用者
+    的 doctor 必须保持 0 WARN。数据源=引用扫描双轨之机器侧：changelog 节日期、
+    journal 行内日期游标、handoffs 文件名日期种子；会话自报经 session_close
+    的 playbooks_consulted 行落入 journal，被同一扫描器捕获。
+    """
+    playbook_dir = MAIN / "50_playbook"
+    course_dir = MAIN / "40_course"
+    if not playbook_dir.is_dir():
+        return
+    has_courses = course_dir.is_dir() and any(
+        child.is_dir() and not child.name.startswith("_")
+        for child in course_dir.iterdir()
+    )
+    if not has_courses:
+        report("INFO", "PB-USE-000 无课程实例，playbook 折旧扫描跳过（冷启动护栏）")
+        return
+    names: set[str] = set()
+    for path in sorted(playbook_dir.glob("*.md")):
+        if path.name == TAXONOMY_README_EXEMPT or path.name in PLAYBOOK_USAGE_EXEMPT:
+            continue
+        text = read(path)
+        legal, _illegal = parse_playbook_protection_levels(text)
+        if {value for _, value in legal} != {"playbook"}:
+            continue  # 折旧只管普通级；meta/core 由 §四 keep 条款豁免自动归档
+        if USAGE_MANAGED_BY.search(strip_fenced_blocks(text)):
+            continue  # 受管数据文件（如 gate_index），是账本不是散文，不参与折旧
+        names.add(path.name)
+    if not names:
+        return
+    sources: list[tuple[str, str, dt.date | None]] = []
+    changelog = MAIN / "00_core/t2ag_changelog.md"
+    if changelog.is_file():
+        sources.append(("changelog", read(changelog), None))
+    journal_dir = MAIN / "60_journal"
+    if journal_dir.is_dir():
+        for path in sorted(journal_dir.glob("*.md")):
+            sources.append((f"journal:{path.name}", read(path), None))
+    handoffs = ROOT.parent / "docs" / "handoffs"
+    if handoffs.is_dir():
+        for path in sorted(handoffs.glob("*.md")):
+            token = USAGE_DATE_TOKEN.search(path.name)
+            seed: dt.date | None = None
+            if token:
+                try:
+                    seed = dt.date.fromisoformat(token.group(1))
+                except ValueError:
+                    seed = None
+            sources.append((f"handoff:{path.name}", read(path), seed))
+    last_seen = playbook_usage_last_seen(sources, frozenset(names))
+    for _code, severity, message in playbook_usage_findings(
+        frozenset(names), last_seen, dt.date.today()
+    ):
         report(severity, message)
 
 
@@ -7088,6 +7225,7 @@ def execute_doctor_checks(
         "check_activity_migration_021_evidence": check_activity_migration_021_evidence,
         "check_core_playbooks": check_core_playbooks,
         "check_playbook_taxonomy": check_playbook_taxonomy,
+        "check_playbook_usage": check_playbook_usage,
         "check_playbook_taxonomy_parity": check_playbook_taxonomy_parity,
         "check_candidate_replay_contract": check_candidate_replay_contract,
         "check_tracked_environment": check_tracked_environment,

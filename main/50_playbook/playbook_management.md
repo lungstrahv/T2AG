@@ -93,6 +93,21 @@ core 与 meta 都不应被自动归档、合并或大幅改写；如需修改，
 其余流程手册标 `playbook`。修改走批次，不享受 core/meta 的三仓全同义务
 （distribution 轴另单）。
 
+**普通级折旧（2026-08-20 裁，Hermes 前身规则首次着床）**：仅普通级参与——
+14 天无带日期引用＝冷门标记（WARN），40 天＝归档候选（WARN）；审查随 doctor
+每跑即审，不设独立定时。终点＝归档候选**报告**，处置归宿主（`git mv` 入
+`archive/`），**唯一副本不删、永不自动删除**（`batch_workorder_spec.md` §三.5）。
+使用率数据源双轨：机器侧＝引用扫描（changelog 节日期／journal 行内日期游标／
+handoffs 文件名日期）；会话侧＝结课时在 journal 记
+`playbooks_consulted:`（见 `session_close.md` 步骤 1）。从无引用记录＝观测态
+INFO，不判冷门——静默阅读测不到，是诚实边界不是证据。meta/core 由上文 keep
+条款豁免自动归档；带 `managed_by:` 的受管数据文件与显式豁免清单
+（`PLAYBOOK_USAGE_EXEMPT`，豁免即数据）不参与。
+
+```text
+enforcement: check=runtime.playbook_usage
+```
+
 规范行的机器落点（示例，围栏内）：
 
 ```text

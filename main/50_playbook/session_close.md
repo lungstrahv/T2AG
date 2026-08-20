@@ -152,7 +152,11 @@ progress 或活动主文件写 Activity lifecycle：
 - `activity_position`、completion node、checkpoint 与
   `queued / arrived / pending / confirmed / archived` 状态；
 - 下次第一件事与当次教学摘要；
-- active progress 不写 `current_lesson`；历史 Lesson 上下文只从 ledger 事件解析。
+- active progress 不写 `current_lesson`；历史 Lesson 上下文只从 ledger 事件解析；
+- 在当月 journal（`main/60_journal/YYYY-MM.md`）追加一行会话自报：
+  `- YYYY-MM-DD playbooks_consulted: a.md, b.md`（本会话实际参考过的 playbook；
+  日期必须与清单同行。这是折旧扫描的会话侧数据源——漏写的后果可见：
+  该 playbook 引用日期停走，冷门标记提前到来。见 `playbook_management.md` §4.3）。
 
 ### 步骤 2：写当前活动主载体
 

@@ -294,5 +294,16 @@ sidecar 落在**课程侧** `40_course/<ID>/external_refs.json`，由**已有的
 **诚实边界**：不检查「该标而未标的语义正确性」——本检查只验证标记形式与跨发行
 集合/SHA，不判断一份 playbook 按 §四 功能判据该是 meta 还是 core。
 
+| runtime | `runtime.playbook_usage` | `check_playbook_usage` | PB-USE-000 无课程实例跳过（冷启动护栏） | INFO |
+| runtime | 同上 | 同上 | PB-USE-001 冷门标记（>14 天无带日期引用） | WARN |
+| runtime | 同上 | 同上 | PB-USE-002 归档候选（>40 天；处置归宿主 git mv，唯一副本不删） | WARN |
+| runtime | 同上 | 同上 | PB-USE-003 无引用数据（观测态，不判冷门） | INFO |
+
+**折旧检查的诚实边界**：测的是**带日期的引用痕迹**（changelog/journal/handoffs＋
+会话自报行），不是阅读事实——文件制系统读文件无拦截点，静默阅读不可观测。
+仅普通级参与；meta/core、`managed_by:` 受管数据、`PLAYBOOK_USAGE_EXEMPT`
+显式豁免（豁免即数据）不参与。skeleton 无 `docs/handoffs` 时该数据源自动缺席，
+不报错。
+
 既有 `check_core_playbooks`（`release.core_playbooks`）本批只换同一解析器，
 注册位不动；其与 parity 检查的分工归并另池。

@@ -167,6 +167,13 @@
         "runtime.structure"
       ]
     },
+    "runtime.playbook_usage": {
+      "phase": "runtime",
+      "handler": "check_playbook_usage",
+      "depends_on": [
+        "runtime.playbook_taxonomy"
+      ]
+    },
     "release.playbook_taxonomy_parity": {
       "phase": "release",
       "handler": "check_playbook_taxonomy_parity",
@@ -438,6 +445,7 @@
         "runtime.external_source_backlink",
         "runtime.rule_enforcement_integrity",
         "runtime.playbook_taxonomy",
+        "runtime.playbook_usage",
         "runtime.trading_boundary",
         "runtime.external_references",
         "runtime.legacy_references",

@@ -5,7 +5,7 @@
 
 ---
 
-## [2026-08-20] 镜像 Main 08-19 裁决批（parity 面 9 文件）+ main-only 豁免登记（不升版）
+## [2026-08-20] 镜像 Main 08-19 裁决批 + 08-20 折旧仪器批 + main-only 豁免登记（不升版）
 
 - **同源镜像**：从 Main（a347bcd 同批）投影 parity 面 9 文件：六 playbook
   （`batch_workorder_spec.md` §二.7 跨模型边界经济＋§二.8 执行方分工与 DP 记分卡、
@@ -15,13 +15,19 @@
   `t2ag_doctor.py`（`ALLOWED_COURSE_LIFECYCLES` 增 paused；parity 豁免语义扩至覆盖
   main-only 缺失，登记 `gate_index.md`/`host_g1_optional.md` 两条——D12 distribution 轴
   落地后随迁收回）。
+- **同批第二镜像（08-20 折旧仪器批）**：`t2ag_doctor.py`（`runtime.playbook_usage`：
+  PB-USE-000 冷启动护栏／001 冷门／002 归档候选／003 观测态；豁免即数据）、
+  `validation_workflow.json`（58→59）、`contract_test_support.py`+
+  `test_runtime_contracts.py`（USE-R1..R3 红测）、`playbook_management.md` §4.3
+  折旧条款、`session_close.md` 会话自报行、`doctor_contracts.md` 契约四行。
+  空模板实测：PB-USE-000 INFO 跳过，0 FAIL 保持。
 - **本条目为状态漂移锚定**：镜像改变了原子集与 runtime 计划，下方锚定断言随之刷新
-  （08-13 声明 runtime checks 36 → 实测 41，系 08-13 后多批同步累积，本条一并收账）。
+  （08-13 声明 runtime checks 36 → 42，系 08-13 后多批同步累积＋本批新检查，一并收账）。
 
 #### 锚定断言（必填）
-- runtime plan sha256 = aec13fee43834daf6c19a4d2af804b9c4e890b57d06424f188cebd5a6af00807 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
-- runtime checks = 41 ← 同上
-- doctor_checks atom set sha256 = 4c8b7b2a07c0d74bdd8207f5bd2ce99095f0dfa5855c4f400da7760826901328 (n=58) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+- runtime plan sha256 = aa9e42dc10c0dc56a243f957dd9e2c0d7d9ace4517af650152bae6ec616a06bc ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 42 ← 同上
+- doctor_checks atom set sha256 = 5a1fd38d960eb06a9c14b91d7b4d571da40225c299951d0313e9fdcc446b360f (n=59) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
 
 ## [2026-08-13] 镜像 Main 08-12 复审施工 + sync_lite 宿主字面量运行时化（不升版）
 
