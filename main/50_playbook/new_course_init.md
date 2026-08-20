@@ -53,7 +53,7 @@ python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称>
 3. 创建 `progress.md`：
    - `type: course_progress`
    - `course_id`
-   - `lifecycle_status: planned | ongoing`
+   - `lifecycle_status: planned | ongoing`（全生命周期词表另含 paused/completed/dropped，见 `progress_tracking.md`；新课只从 planned/ongoing 起步）
    - `course_driver: textbook | goal | project | praxis`
    - `truth_scope: course_lifecycle,course_frontend,activity_position`
    - planned 课程只写 `updated`、

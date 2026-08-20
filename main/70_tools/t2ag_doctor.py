@@ -178,7 +178,7 @@ LEGACY_REFERENCES = (
 )
 ALLOWED_QUESTION_STATES = {"open", "answered", "closed"}
 ALLOWED_REGISTRY_STATES = {"active", "tombstone", "archived"}
-ALLOWED_COURSE_LIFECYCLES = {"planned", "ongoing", "completed", "dropped"}
+ALLOWED_COURSE_LIFECYCLES = {"planned", "ongoing", "paused", "completed", "dropped"}
 ALLOWED_COURSE_TYPES = {"mastery", "project", "praxis"}
 ALLOWED_COURSE_DRIVERS = {"textbook", "goal", "project", "praxis"}
 ALLOWED_BINDING_STATES = {"idle", "active", "paused", "closed"}
@@ -5844,6 +5844,12 @@ DISTRIBUTION_PARITY_EXEMPT = {
         "Skeleton 版正文自述 entries empty by design；Main 版为主实例级兼容登记",
     "main/70_tools/artifact_registry.json":
         "Main 含真实 artifact 条目；强制同源等于把实例数据灌进 Skeleton",
+    "main/50_playbook/gate_index.md":
+        "main-only（META D4 2026-08-18 裁：含实例引用，去实例化前不入 Skeleton）；"
+        "D12 distribution 轴落地后迁 frontmatter 机制，本条随迁收回",
+    "main/50_playbook/host_g1_optional.md":
+        "main-only（文件自宣不进 Skeleton/Lite/发行面，2026-08-19）；"
+        "D12 distribution 轴落地后迁 frontmatter 机制，本条随迁收回",
 }
 DISTRIBUTION_PARITY_ROOTS = ("main/50_playbook", "main/70_tools")
 DISTRIBUTION_PARITY_SUFFIXES = (".md", ".py", ".json")
@@ -5885,15 +5891,17 @@ def check_distribution_parity() -> None:
                 continue
             rel = path.relative_to(ROOT).as_posix()
             other = skeleton / rel
+            if rel in DISTRIBUTION_PARITY_EXEMPT:
+                # 豁免同时覆盖 drift 与 main-only 缺失（2026-08-19：gate_index/host_g1
+                # 首批案例；D12 distribution 轴落地后此语义迁 frontmatter 机制）。
+                # 豁免件若在 Skeleton 出现且字节一致，仍报 stale。
+                if other.is_file() and path.read_bytes() == other.read_bytes():
+                    stale_exempt.append(rel)
+                continue
             if not other.is_file():
                 missing.append(rel)
                 continue
-            identical = path.read_bytes() == other.read_bytes()
-            if rel in DISTRIBUTION_PARITY_EXEMPT:
-                if identical:
-                    stale_exempt.append(rel)
-                continue
-            if not identical:
+            if path.read_bytes() != other.read_bytes():
                 drifted.append(rel)
 
     for rel in drifted:

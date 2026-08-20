@@ -168,6 +168,23 @@ doctor 原子项 `runtime.environment` 实现本表中标注「已探测」的�
 
 ---
 
+## 四A、跨宿主交付物规约（HOST_BYTE_DRIFT L4，2026-08-19 裁准）
+
+已付代价：0.2.2 clone 换行重写致冻结 manifest SHA 失配；08-06 宿主工具 83 文件 LF→CRLF；
+08-06 `.ps1` 无 BOM 被 PowerShell 5.1 按 GBK 解码（四条全违反，炸在参数解析）。
+根因同类：**产物字节取决于宿主而非内容**（全案见
+`docs/handoffs/T2AG_HOST_BYTE_DRIFT_PREVENTION_PLAN_2026-08-06.md`；L3 诊断层已裁待施工）。
+
+任何**跨宿主执行**的交付脚本：
+
+1. **纯 ASCII**，不含任何非 ASCII 字节（避免宿主 codepage 解码，比「记得加 BOM」更彻底）；
+2. **LF 换行**；
+3. 哈希类参数**运行时实算**，不硬编码文件 SHA（硬编码 payload SHA 可以，那是内容指纹）；
+4. 取值后**断言非空**再传给下游命令。
+
+交付前验证：跑一次非 ASCII 字节扫描 + 引号配对自检。
+enforcement: prose_accepted（理由：交付脚本产生在仓外会话，doctor 扫不到出生点；失败可见性=脚本在宿主炸掉本身）
+
 ## 五、新增条目
 
 新增 `EA-XXXX` 的门槛是**已经付出过实际代价**，不是「可能会出问题」。推测性条目会稀释本表，

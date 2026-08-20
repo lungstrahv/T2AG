@@ -102,3 +102,4 @@ enforcement: prose_accepted（理由：聊天通道无机器拦截手段——�
 - `docs/adr/0003-prefetcher-self-certified-scan-admission.md` —— A1–A5 扫描自证（本机制不接手）
 - `main/50_playbook/source_page_assets.md` —— 页资产与持久身份字段
 - `main/70_tools/canon_append.py` / `main/70_tools/t2ag_doctor.py`
+- `main/50_playbook/host_g1_optional.md` —— 可选宿主写前拦截（G1）；不是本文件的地板

@@ -22,6 +22,8 @@
   正文只经 `70_tools/canon_append.py` 写入 `teaching_log.md` + `emissions.jsonl` 才算数；
   聊天只发指路语。机器落点 `runtime.canonical_teaching_carrier`（CANON-000..004，不一致
   检测：抓笨绕过，不抓自洽双写，不是 ADR-0002 硬门）。
+- `host_g1_optional.md`：宿主 G1 可选写前拦截（加强，非地板）。四格测过才许标该壳
+  「可开」；不进 doctor、不进课目录、不进发行面。Grok 2026-08-19 已测可开未常驻。
 - `okf_adaptation.md`：OKF v0.2 知识包适配协议（`T2AG-OKF-1`，EV-0024）。主库怎么被讲成
   可交换的 OKF bundle：范围白名单、frontmatter 映射、反引号引用升格为图的边、落盘前的
   泄漏闸门；末节是二期导入边界（只定规矩，未授权实现）。机器落点 `70_tools/okf_export.py`。

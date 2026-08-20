@@ -39,7 +39,7 @@ next_activity_id: lesson01
 每门课程在 `progress.md` 文件头使用：
 
 ```yaml
-lifecycle_status: planned  # planned / ongoing / completed / dropped
+lifecycle_status: planned  # planned / ongoing / paused / completed / dropped（paused 于 2026-08-19 增：暂停非放弃，须在 activity_position 记停点与恢复条件，首例 CS1953）
 ```
 
 - `planned`：已有方案或档案，但尚未进入实际学习。

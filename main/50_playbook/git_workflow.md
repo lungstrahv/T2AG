@@ -31,6 +31,14 @@ Git 是保护层，不是教学真相源。Git 不可用时课程仍可结课，
 7. commit 成功与用户报告的远端上传结果分开记录；无网络或无快照不能阻塞教学文件写回。
 8. `clean ≠ reviewed ≠ released`：干净工作树只说明没有未提交差异；普通 commit 或 recovery
    checkpoint 只提供恢复点，不自动取得独立复审或发布资格。
+9. **外仓 `docs/` 跟踪边界（DOCS-TRACKING-BOUNDARY，2026-08-19 裁）**：裁决面**默认应
+   跟踪**——工单、裁决记录、candidates、seeds、design、reports、tools 及顶层索引件
+   （`docs/README.md`、`T2AG_PROGRESS.md`、`T2AG_PENDING_LEDGER_*.md`、
+   `AUG_SHELL_WATCH.md`、`SEEDS.md`）。裁决记录是正典，不应活在仓外。豁免（入
+   `.gitignore` 显式列）：`docs/recovery_points/`、`docs/handoffs/backups/`、
+   `docs/publishing/` 生成物。背景：显式路径纪律（本节第 1/2 条）使跟踪集自然退化为
+   「历史被点名 add 的并集」，半跟踪是纪律副产物而非裁决——此条补上应然边界。
+   补 add 仍走显式目录路径，不豁免第 4 条授权。
 
 ### 2.1 Campaign Git 计划
 
