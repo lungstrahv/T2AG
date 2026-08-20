@@ -5,6 +5,24 @@
 
 ---
 
+## [2026-08-20] 镜像 Main 08-19 裁决批（parity 面 9 文件）+ main-only 豁免登记（不升版）
+
+- **同源镜像**：从 Main（a347bcd 同批）投影 parity 面 9 文件：六 playbook
+  （`batch_workorder_spec.md` §二.7 跨模型边界经济＋§二.8 执行方分工与 DP 记分卡、
+  `git_workflow.md` §二.9 docs 跟踪边界、`rule_admission_gate.md` §二 `model_dependent:` 字段、
+  `environment_assumptions.md` §四A 跨宿主交付物规约、`progress_tracking.md`/`new_course_init.md`
+  生命周期词表增 `paused`）＋ `canon_carrier.md` G1 指针行、`_README.md` 索引 2 行、
+  `t2ag_doctor.py`（`ALLOWED_COURSE_LIFECYCLES` 增 paused；parity 豁免语义扩至覆盖
+  main-only 缺失，登记 `gate_index.md`/`host_g1_optional.md` 两条——D12 distribution 轴
+  落地后随迁收回）。
+- **本条目为状态漂移锚定**：镜像改变了原子集与 runtime 计划，下方锚定断言随之刷新
+  （08-13 声明 runtime checks 36 → 实测 41，系 08-13 后多批同步累积，本条一并收账）。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = aec13fee43834daf6c19a4d2af804b9c4e890b57d06424f188cebd5a6af00807 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 41 ← 同上
+- doctor_checks atom set sha256 = 4c8b7b2a07c0d74bdd8207f5bd2ce99095f0dfa5855c4f400da7760826901328 (n=58) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
 ## [2026-08-13] 镜像 Main 08-12 复审施工 + sync_lite 宿主字面量运行时化（不升版）
 
 - **同源镜像**：从 Main（HEAD `286c79e` 之后的工作树）投影 4 个 parity 面文件：
