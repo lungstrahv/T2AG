@@ -13,6 +13,7 @@ activity_close_preferences_initialized_at: <set-on-initialization>
 activity_close_first_prompt_status: pending
 activity_close_first_prompt_at: none
 learning_timezone: <confirm-IANA-timezone>
+teaching_language: <confirm-single-value-eg-zh-CN>
 learning_day_cutoff: <confirm-HH:MM>
 lesson_actual_review: <on|off>
 lesson_student_feedback: <on|off>

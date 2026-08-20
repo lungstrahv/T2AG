@@ -38,6 +38,9 @@ python -B main/70_tools/t2ag_init.py new-group --group-id G01 --members <ID> --s
    播报全部后台结果。未要求覆盖时不追加阻断问题。辅导偏好还包括
    多块长篇讲解是否沿用默认的“先地图、后逐支”，以及学生希望怎样确认后再继续。同时让
    学生选择 `exercise_hint_gate: enabled | disabled`，不得由模型代选。
+   同时确认讲解语言 `teaching_language`（单值，如 `zh-CN`）；`t2ag_init.py` answers
+   schema 未含此项前不入 `answers.json`，由模型在第 4 步完成后直写 profile
+   frontmatter（LV-2，2026-08-18）。
    当前困难与特殊要求是可选信息；未提供时明确写“未提供”，不得保留“待填写”。
 4. 运行 `t2ag_init.py init`（对应本步与第 8 步）。它将 profile 从模板改为
    `initialization_status: initialized`，并写入

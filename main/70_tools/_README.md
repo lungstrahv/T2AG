@@ -36,4 +36,10 @@ tools = 确定性检查，playbook = 裁量流程（宪法 2.7）。
   ↔ ADR 确定性关联（无 CLI）；Doctor `runtime.decision_records` 调用。
 - `build_journal_index.py`：支持通用 `journal_index: false`（redirect 不进生成索引）。
 
+- `okf_export.py`：T2AG → OKF v0.2 知识包导出器（EV-0024，协议 `T2AG-OKF-1`）。默认
+  check-only，`--write` 落盘到仓外 `t2ag-okf/`；`--scope mechanism|course:<ID>`；泄漏闸门
+  在落盘前运行且词表复用 `t2ag_doctor.SKELETON_PRIVACY_PATTERNS`；`--check-bundle` 复算
+  OKF §11 conformance。规范在 `50_playbook/okf_adaptation.md`，本工具是它的可复算实现。
+  **不注册进 doctor**：bundle 是可选生成物，缺席不该阻断教学。
+
 桥接工具只写本仓 sidecar，不读取或启动对端阅读系统；跨仓调用由外部 saga 编排层完成。
