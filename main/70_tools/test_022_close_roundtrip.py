@@ -31,9 +31,9 @@ def presented_retrospective_sha(pending: dict) -> str:
     return close.learner_retrospective_sha256(pending["details"]["body"])
 
 
-def fully_assessed_content() -> dict:
+def fully_assessed_content(activity_type: str = "lesson") -> dict:
     retrospective = {}
-    for section, leaves in close.RETROSPECTIVE_TREE.items():
+    for section, leaves in close.retrospective_tree_for(activity_type).items():
         retrospective[section] = {
             "items": {
                 leaf: {
@@ -171,7 +171,7 @@ class CloseRoundTripTests(unittest.TestCase):
             blockers=blockers or [],
             evidence_refs=["attempts/AT0001", "reviews/RV0001"],
             student_feedback_ref="exercise_thoughts.md#ET-1",
-            content_sections=fully_assessed_content(),
+            content_sections=fully_assessed_content("exercise"),
         )
         auth_path, auth_sha = authorization(plan_path, Path(self.tmp.name), "F0_PENDING")
         applied = close.apply_close_plan(
@@ -530,9 +530,9 @@ class CloseRoundTripTests(unittest.TestCase):
             revision_patch={
                 "content_sections": {
                     "teaching_retrospective": {
-                        **fully_assessed_content()["teaching_retrospective"],
-                        "actual_teaching_process": {
-                            **fully_assessed_content()["teaching_retrospective"]["actual_teaching_process"],
+                        **fully_assessed_content("exercise")["teaching_retrospective"],
+                        "actual_exercise_process": {
+                            **fully_assessed_content("exercise")["teaching_retrospective"]["actual_exercise_process"],
                             "summary": "学生补充了 Q002 的证明回顾",
                         },
                     }
@@ -556,7 +556,7 @@ class CloseRoundTripTests(unittest.TestCase):
         )
         revised_body = close.decode_body(revisions[0])
         self.assertEqual(
-            revised_body["teaching_retrospective"]["actual_teaching_process"]["summary"],
+            revised_body["teaching_retrospective"]["actual_exercise_process"]["summary"],
             "学生补充了 Q002 的证明回顾",
         )
         plain = ledger.load_ledger(self.root / "main/40_course/DEMO/activity_ledger.md")
@@ -583,7 +583,7 @@ class CloseRoundTripTests(unittest.TestCase):
             blockers=[],
             evidence_refs=["AT"],
             student_feedback_ref="feedback",
-            content_sections=fully_assessed_content(),
+            content_sections=fully_assessed_content("exercise"),
         )
         auth_path, auth_sha = authorization(plan_path, Path(self.tmp.name), "F0_PENDING")
         ledger_path = self.root / "main/40_course/DEMO/activity_ledger.md"
@@ -744,7 +744,7 @@ class ClosePureContractTests(unittest.TestCase):
             knowledge=[{"topic": "x", "state": "unverified"}],
             evidence_refs=["e"],
             student_feedback_ref="f",
-            content_sections=fully_assessed_content(),
+            content_sections=fully_assessed_content("exercise"),
         )
         self.assertEqual(body["schema"], close.CLOSE_BODY_SCHEMA)
         self.assertEqual(body["preferences_snapshot"], resolved)
@@ -832,7 +832,7 @@ class ClosePureContractTests(unittest.TestCase):
         self.assertEqual(plan["body"]["schema"], close.CLOSE_BODY_SCHEMA)
         self.assertEqual(
             set(plan["body"]["teaching_retrospective"]),
-            set(close.RETROSPECTIVE_TREE),
+            set(close.EXERCISE_RETROSPECTIVE_TREE),
         )
         self.assertFalse(
             plan["body"]["mandatory_evidence"]["retrospective_tree_complete"]
@@ -995,7 +995,7 @@ class ClosePureContractTests(unittest.TestCase):
             knowledge=knowledge,
             evidence_refs=["exercise evidence"],
             student_feedback_ref="feedback",
-            content_sections=fully_assessed_content(),
+            content_sections=fully_assessed_content("exercise"),
             scope_change={"from": "chapter", "to": "section"},
             scope_change_confirmed=True,
         )
@@ -1005,7 +1005,7 @@ class ClosePureContractTests(unittest.TestCase):
             confirmed["completion_assessment"]["reason"],
             "无 blocker，范围、证据与结课树均已逐项检查；not_applicable 节点不阻断完成。",
         )
-        content = fully_assessed_content()
+        content = fully_assessed_content("exercise")
         content["teaching_retrospective"]["teacher_reflection"] = {
             "status": "not_applicable",
             "reason": "本次没有教学干预",
@@ -1036,6 +1036,49 @@ def main() -> int:
     suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
+
+
+
+class ExerciseRetrospectiveTreeTests(unittest.TestCase):
+    """EXERCISE-CLOSE D2（2026-08-20）：结课树按活动类型强制分树；借壳即拒。"""
+
+    def test_exercise_close_rejects_lesson_shaped_tree(self) -> None:
+        with self.assertRaisesRegex(
+            close.CloseError, "unknown teaching_retrospective sections"
+        ):
+            close.build_teaching_retrospective(
+                fully_assessed_content("lesson")["teaching_retrospective"],
+                activity_type="exercise",
+            )
+
+    def test_lesson_close_rejects_exercise_shaped_tree(self) -> None:
+        with self.assertRaisesRegex(
+            close.CloseError, "unknown teaching_retrospective sections"
+        ):
+            close.build_teaching_retrospective(
+                fully_assessed_content("exercise")["teaching_retrospective"],
+                activity_type="lesson",
+            )
+
+    def test_unknown_activity_type_fails_closed(self) -> None:
+        with self.assertRaisesRegex(close.CloseError, "no retrospective tree"):
+            close.retrospective_tree_for("praxis")
+
+    def test_exercise_render_uses_exercise_sections(self) -> None:
+        body = close.build_close_body(
+            activity_type="exercise",
+            activity_id="exercise01",
+            prefs={},
+            knowledge=[],
+            evidence_refs=["attempts/AT0001"],
+            student_feedback_ref="f",
+            content_sections=fully_assessed_content("exercise"),
+        )
+        rendered = close.render_learner_retrospective(body)
+        self.assertIn("掌握分账", rendered)
+        self.assertIn("副产物审计", rendered)
+        self.assertIn("题目覆盖轧账", rendered)
+        self.assertNotIn("下一 Lesson 边界", rendered)
 
 
 if __name__ == "__main__":

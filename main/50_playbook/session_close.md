@@ -118,6 +118,34 @@ Lesson 完整结课流程
         └── 系统改进任务
 ```
 
+## 〇、Exercise 完整结课树（EXERCISE-CLOSE 裁决 2026-08-20，D1–D5）
+
+Exercise 与 Lesson 共享同一套结课事务（pending → 学生核对 → 终态确认 → 事务写回），
+但**结课树是独立变体**，由 `activity_close.py` 按 `activity_type` 强制选择——给 Exercise
+递 Lesson 节名（或反之）按 unknown section 拒绝，「借 Lesson 树的壳」不再可能
+（裁决正本：工作区 `docs/handoffs/T2AG_EXERCISE_CLOSE_LIFECYCLE_CANDIDATES_2026-08-20.md`）。
+
+Exercise 变体树。共享节 `knowledge_absorption` / `course_content_feedback` /
+`teacher_reflection` 与 Lesson 同名同叶，不重复；专有节：
+
+- `actual_exercise_process`：实际做了哪些题、教学重排与题序对照、提示闸门使用、计划差异；
+- `question_coverage`：**对教材 `source_order`** 逐题逐小问轧账（闭合／部分／未触达）。
+  完整性不按 `teaching_sequence` 数——重排是教学自由，轧账必须对原始题序；
+- `mastery_ledger`：独立正确／提示后正确／污染或不计（越级提示、当堂理解）／错题库更新。
+  **只汇总 Attempt/Review 既有判定，结课不产生新评级**（D3=A，防事后合理化）；
+- `byproduct_audit`：未闭讨论链、复测钩子、想法路由、Attempt/Review 完备性。
+  **未决副产物不阻塞 `completed`**：如实入节点并写明去向，不进 `completion_blockers`；
+  blocker 仅收「题目本身没做完」与未确认 scope change（D4=B）。`closed_incomplete`
+  语义保留给题目未完成；
+- `learning_transition`：间隔复测、**回 Lesson 主线入口**（默认路由；接下一 exercise
+  须显式，D5=A）、学生想法后续消费。
+
+触发条件（D1=B）：结课由学生显式发起；系统职责是把四本账摆全，完成性由既有
+mandatory_evidence 与 blocker 机制裁决，不设「账未轧平禁止发起」的前置阻塞。
+
+enforcement: tool=70_tools/activity_close.py
+enforcement: prose_accepted（理由：D3「不产生新评级」与 D4「副产物去向如实」是判断纪律，机器只能验证字段在场与树形合法；失败由学生核对面与复盘抽查发现）
+
 ## 一、结课前解析唯一活动
 
 先执行只读路由：

@@ -84,6 +84,79 @@ RETROSPECTIVE_TREE: dict[str, tuple[str, ...]] = {
         "learner_thought_followup",
     ),
 }
+# EXERCISE-CLOSE D2=B（2026-08-20 裁决）：Exercise 拥有自己的结课树，不再借用 Lesson 树。
+# 共享节（knowledge_absorption / course_content_feedback / teacher_reflection）保持同名同叶，
+# mandatory_evidence 逻辑因此对两种活动类型同样成立。
+# 裁决正本：docs/handoffs/T2AG_EXERCISE_CLOSE_LIFECYCLE_CANDIDATES_2026-08-20.md
+EXERCISE_RETROSPECTIVE_TREE: dict[str, tuple[str, ...]] = {
+    "actual_exercise_process": (
+        "attempted_questions",
+        "sequence_vs_source_order",
+        "hint_gate_usage",
+        "plan_difference",
+    ),
+    "question_coverage": (
+        "completed_questions",
+        "partial_questions",
+        "untouched_questions",
+    ),
+    "mastery_ledger": (
+        "independent_correct",
+        "assisted_correct",
+        "contaminated_or_not_counted",
+        "mistake_bank_updates",
+    ),
+    "byproduct_audit": (
+        "open_question_chains",
+        "retest_hooks",
+        "thought_routing",
+        "attempt_review_completeness",
+    ),
+    "knowledge_absorption": (
+        "initial_understanding",
+        "reasoning_difficulties",
+        "turning_points",
+        "self_correction",
+        "independent_reconstruction_or_transfer",
+        "current_mastery",
+        "remaining_retests",
+    ),
+    "course_content_feedback": (
+        "valuable_content",
+        "difficult_content",
+        "content_sequence",
+        "example_effectiveness",
+        "redundancy_or_omission",
+        "requested_course_adjustment",
+    ),
+    "teacher_reflection": (
+        "effective_explanations",
+        "overcompressed_expressions",
+        "over_assistance",
+        "next_teaching_improvement",
+    ),
+    "learning_transition": (
+        "spaced_retests",
+        "return_to_lesson_entry",
+        "learner_thought_followup",
+    ),
+}
+RETROSPECTIVE_TREES: dict[str, dict[str, tuple[str, ...]]] = {
+    "lesson": RETROSPECTIVE_TREE,
+    "exercise": EXERCISE_RETROSPECTIVE_TREE,
+}
+
+
+def retrospective_tree_for(activity_type: str) -> dict[str, tuple[str, ...]]:
+    """EXERCISE-CLOSE D2：结课树按活动类型选择；未知类型 fail-closed。"""
+    try:
+        return RETROSPECTIVE_TREES[activity_type]
+    except KeyError:
+        raise CloseError(
+            f"no retrospective tree for activity_type: {activity_type}"
+        ) from None
+
+
 REVIEW_STATUSES = frozenset({"applicable", "not_applicable", "missing"})
 BOUND_COMPLETED_INTENTS = frozenset({"结课", "确认结课", "愿意结课"})
 BOUND_INCOMPLETE_INTENTS = frozenset({"以未完成状态结课", "确认以未完成状态结课"})
@@ -94,6 +167,11 @@ RETROSPECTIVE_SECTION_LABELS = {
     "course_content_feedback": "学生课程内容反馈",
     "teacher_reflection": "教师教学反思",
     "learning_transition": "后续学习衔接",
+    # EXERCISE-CLOSE（2026-08-20）：Exercise 变体树专有节
+    "actual_exercise_process": "实际做题过程",
+    "question_coverage": "题目覆盖轧账（对 source_order）",
+    "mastery_ledger": "掌握分账",
+    "byproduct_audit": "副产物审计",
 }
 RETROSPECTIVE_ITEM_LABELS = {
     "taught_content": "实际讲授",
@@ -124,6 +202,22 @@ RETROSPECTIVE_ITEM_LABELS = {
     "spaced_retests": "间隔复测",
     "next_lesson_entry": "下一 Lesson 入口",
     "learner_thought_followup": "学生想法后续消费",
+    # EXERCISE-CLOSE（2026-08-20）：Exercise 变体树专有叶
+    "attempted_questions": "实际做了哪些题",
+    "sequence_vs_source_order": "教学重排与题序对照",
+    "hint_gate_usage": "提示闸门使用",
+    "completed_questions": "闭合题目",
+    "partial_questions": "部分完成题目",
+    "untouched_questions": "未触达题目",
+    "independent_correct": "独立正确",
+    "assisted_correct": "提示后正确",
+    "contaminated_or_not_counted": "污染或不计（越级提示/当堂理解）",
+    "mistake_bank_updates": "错题库更新",
+    "open_question_chains": "未闭讨论链",
+    "retest_hooks": "复测钩子",
+    "thought_routing": "想法路由",
+    "attempt_review_completeness": "Attempt/Review 完备性",
+    "return_to_lesson_entry": "回 Lesson 主线入口",
 }
 TERMINAL_DECISIONS = {
     "confirm_completed": "completed",
@@ -258,13 +352,19 @@ def _simple_review_node(value: Any, *, default_refs: list[str] | None = None) ->
 
 def build_teaching_retrospective(
     supplied: Any,
+    activity_type: str = "lesson",
 ) -> tuple[dict[str, Any], dict[str, Any], bool]:
-    """Traverse every approved retrospective leaf and aggregate applicable content."""
+    """Traverse every approved retrospective leaf and aggregate applicable content.
+
+    EXERCISE-CLOSE D2（2026-08-20）：树按 activity_type 选择；给 exercise 递 Lesson 节名
+    （或反之）按 unknown section 拒绝——借壳正是本机制要消灭的病灶。
+    """
+    tree_template = retrospective_tree_for(activity_type)
     if supplied is None:
         supplied = {}
     if not isinstance(supplied, dict):
         raise CloseError("teaching_retrospective must be an object")
-    unknown_sections = set(supplied) - set(RETROSPECTIVE_TREE)
+    unknown_sections = set(supplied) - set(tree_template)
     if unknown_sections:
         if "system_feedback" in unknown_sections:
             raise CloseError(
@@ -276,7 +376,7 @@ def build_teaching_retrospective(
     tree: dict[str, Any] = {}
     visible: dict[str, Any] = {}
     complete = True
-    for section_name, leaf_names in RETROSPECTIVE_TREE.items():
+    for section_name, leaf_names in tree_template.items():
         raw_section = supplied.get(section_name) or {}
         if not isinstance(raw_section, dict):
             raise CloseError(f"retrospective section must be an object: {section_name}")
@@ -360,12 +460,14 @@ def render_learner_retrospective(body: dict[str, Any]) -> str:
         str((payload.get("close_scope") or {}).get("summary") or "未提供范围摘要"),
     ]
     visible = payload["learner_visible_retrospective"]
-    for section_name in RETROSPECTIVE_TREE:
+    # EXERCISE-CLOSE D2：渲染按 body 声明的活动类型选树（旧 v2 lesson 体不受影响）。
+    tree = retrospective_tree_for(str(payload.get("activity_type") or "lesson"))
+    for section_name in tree:
         section = visible.get(section_name)
         if not isinstance(section, dict):
             continue
         lines.extend(["", f"## {RETROSPECTIVE_SECTION_LABELS[section_name]}", ""])
-        for item_name in RETROSPECTIVE_TREE[section_name]:
+        for item_name in tree[section_name]:
             item = (section.get("items") or {}).get(item_name)
             if not isinstance(item, dict) or item.get("status") != "applicable":
                 continue
@@ -424,7 +526,8 @@ def build_close_body(
         default_refs=evidence_refs,
     )
     retrospective, learner_visible, tree_complete = build_teaching_retrospective(
-        content_sections.get("teaching_retrospective")
+        content_sections.get("teaching_retrospective"),
+        activity_type=activity_type,
     )
     knowledge_section = retrospective["knowledge_absorption"]
     feedback_section = retrospective["course_content_feedback"]

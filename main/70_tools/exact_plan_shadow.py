@@ -557,7 +557,7 @@ def execute(root: Path, plan_file: Path, report_file: Path) -> dict[str, Any]:
                                 for leaf in leaves
                             }
                         }
-                        for section, leaves in close.RETROSPECTIVE_TREE.items()
+                        for section, leaves in close.RETROSPECTIVE_TREES["exercise"].items()
                     },
                 },
                 ensure_ascii=False,
