@@ -1,0 +1,51 @@
+# COURSE_ID 参考资料
+
+> 教材与参考资料在真实获得后登记；未登记时保持空表，不写占位文件名。
+> 没有主教材的课程（goal / project / praxis 驱动）在「主教材」下写明「无主教材」
+> 并说明证据来源。
+
+## 主教材
+
+| 文件 | 资料 | 用途 |
+|---|---|---|
+
+登记格式：
+
+```markdown
+| `primary/书名_版本_上.pdf` | 书名 第 N 版上册（原版 PDF，大小） | 当前教学用书，每课按页推进 |
+| `primary/书名_版本_上_text.pdf` | 同书 OCR 文本层（大小） | 提取教材原文走 preparation Snapshot + source_assets |
+```
+
+> **OCR 文本层用法**：`_text.pdf` 是原版 PDF 的 OCR 结果，保留文本可搜索可复制。
+> 教学时 agent 从 `_text.pdf` 提取当前页文本进 source_assets，不直接从扫描版原 PDF 手抄。
+
+## 辅助参考
+
+### 本地参考
+
+| 文件 | 资料 | 用途 |
+|---|---|---|
+
+### 在线参考
+
+> 跨课程资源只登记资源 ID 与用途，正文见
+> `main/40_course/_shared/external_resources.md`；不在本文件复制共享索引内容。
+
+| 资源 ID | 本课最常用范围 | 用途 |
+|---|---|---|
+
+## 使用规则
+
+- **主教材优先**：每课从 `_text.pdf` 提取当前页文本，通过 preparation Snapshot +
+  source_assets 交付，agent 按教材原文讲。
+- 证明题以教材原文为准，参考书仅补充直觉。
+- 习题答案仅作参考，不直接抄写——学生必须自己先想足约定时长。
+- 版本不同的参考资料要注明章节编号可能不对应。
+
+## 添加外部学习资料
+
+- 课程专属在线资料登记在本 README，不重复写入共享索引。
+- 跨课程资料按 `main/50_playbook/book_management.md` 分类，并只引用
+  `main/40_course/_shared/external_resources.md` 中的资源 ID 和用途。
+- 临时课堂页面走 preparation Snapshot 管理；确需离线共享的文件使用
+  `_shared/library/[资源ID]/`。

@@ -1,0 +1,18 @@
+---
+type: course
+course_id: COURSE_ID
+school_course_code: COURSE_ID
+name: "COURSE_NAME"
+course_type: mastery
+source_language: SOURCE_LANGUAGE
+default_driver: textbook
+prerequisites: []
+status: active
+---
+# COURSE_ID Course
+
+> 术语纪律：讲解语言遵学生 `teaching_language`；术语与引文保留 `source_language` 原词优先，禁自造译名（LV-3，2026-08-18）。
+
+## 教材与稳定教学约束
+
+- 待与学生确认后填写。

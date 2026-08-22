@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:t2ag:schema:reading.t2ag_context_store.v1",
+  "title": "Reading-system imported T2AG context store V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "book_id", "processed_events", "contexts"],
+  "properties": {
+    "schema": {"type": "string", "const": "reading.t2ag_context_store.v1"},
+    "book_id": {"type": "string", "pattern": "[A-Z][A-Z0-9_-]{0,31}"},
+    "processed_events": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["event_id", "semantic_sha256", "export_id"],
+        "properties": {
+          "event_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{8,128}"},
+          "semantic_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+          "export_id": {"type": "string", "pattern": "CTX-[0-9a-f]{64}"}
+        }
+      }
+    },
+    "contexts": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["export_id", "status", "payload"],
+        "properties": {
+          "export_id": {"type": "string", "pattern": "CTX-[0-9a-f]{64}"},
+          "status": {"type": "string", "const": "pending_external_context"},
+          "payload": {
+            "type": "object", "additionalProperties": false,
+            "required": ["schema", "event_id", "generated_at", "producer", "semantic_sha256", "export_id", "activity_record_id", "target_reading_uri", "course_id", "reading_intents", "questions_or_observation_cues"],
+            "properties": {
+              "schema": {"type": "string", "const": "t2ag.reading_context.v1"},
+              "event_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{8,128}"},
+              "generated_at": {"type": "string", "format": "date-time"},
+              "producer": {"type": "string", "const": "t2ag"},
+              "semantic_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+              "export_id": {"type": "string", "pattern": "CTX-[0-9a-f]{64}"},
+              "activity_record_id": {"type": "string", "pattern": "AR-[0-9]{4}"},
+              "target_reading_uri": {"type": "string", "pattern": "reading://book/[A-Z][A-Z0-9_-]{0,31}"},
+              "course_id": {"type": ["string", "null"], "pattern": "[A-Z][A-Z0-9_-]{1,63}"},
+              "reading_intents": {
+                "type": "array", "maxItems": 3,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["source_id", "source_path", "text"],
+                  "properties": {
+                    "source_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{1,128}"},
+                    "source_path": {"type": "string", "format": "posix-relative-path", "maxLength": 512},
+                    "text": {"type": "string", "minLength": 1, "maxLength": 500}
+                  }
+                }
+              },
+              "questions_or_observation_cues": {
+                "type": "array", "maxItems": 3,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["source_id", "source_path", "text"],
+                  "properties": {
+                    "source_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{1,128}"},
+                    "source_path": {"type": "string", "format": "posix-relative-path", "maxLength": 512},
+                    "text": {"type": "string", "minLength": 1, "maxLength": 500}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+<!-- QUESTION_BANK_TEMPLATE_V2 -->
+> 【模式】复利回路·部件（00_core/pattern_retire_loop.md）｜角色=流量台账
+> 【服务】所属回路=question_bank 集合层→教师画像（存量=10_student/profile/reasoning_patterns.md）｜结算=answered/closed｜再入=学生复问→转“需要回看”
+> 【边界】知识性错误转投同课 mistake_bank；系统问题转投 t2ag_problemlog
+
+# COURSE_ID 课程疑问库
+
+> Lesson 与 Attempt 保存完整问答上下文；本文件提供跨活动汇总、状态与回看入口，
+> 不复制整段课堂正文。
+>
+> **canonical enum**：`open / answered / closed`。中文分区只负责显示：
+> 「待解决」=`open`；「需要回看」仍为 `open`（用 `回看原因` 说明）；
+> 「已解答」=`answered` 或 `closed`。旧 `revisit` 归一为 `open`，旧 `merged` 归一为 `closed`。
+
+next_id: 1
+
+## 条目格式
+
+```markdown
+### Q-0001｜一句话标题
+- 日期：YYYY-MM-DD
+- 来源：lessonNN 或 exerciseNN / 教材页码或题号
+- 问题：学生原话，不改写
+- 状态：open / answered / closed
+- 回看原因：仅 open 且需要回看时写
+- 答复要点：结论加判据，不复制整段讲解
+- 完整记录：指向 Lesson 或 Attempt 的路径与小节名
+- 关联：同课 M-dddd 或其他 Q-dddd
+```
+
+## 待解决
+
+暂无。
+
+## 需要回看
+
+暂无。
+
+## 已解答
+
+暂无。

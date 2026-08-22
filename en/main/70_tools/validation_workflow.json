@@ -1,0 +1,532 @@
+{
+  "schema": "t2ag.validation_workflow.v1",
+  "doctor_checks": {
+    "runtime.structure": {
+      "phase": "runtime",
+      "handler": "check_structure",
+      "depends_on": []
+    },
+    "runtime.skeleton_privacy": {
+      "phase": "runtime",
+      "handler": "check_skeleton_privacy",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.version_profile": {
+      "phase": "runtime",
+      "handler": "check_version_and_profile",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.skin": {
+      "phase": "runtime",
+      "handler": "check_skin_system",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.authorization": {
+      "phase": "runtime",
+      "handler": "check_authorization_governance",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.course_discovery": {
+      "phase": "runtime",
+      "handler": "discover_courses",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.groups": {
+      "phase": "runtime",
+      "handler": "check_groups",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.activity_ledgers": {
+      "phase": "runtime",
+      "handler": "check_activity_ledgers",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.engagements_activities": {
+      "phase": "runtime",
+      "handler": "check_engagements_and_activities",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.question_banks": {
+      "phase": "runtime",
+      "handler": "check_question_banks",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.knowledge_ledgers": {
+      "phase": "runtime",
+      "handler": "check_knowledge_ledgers",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.project_verification": {
+      "phase": "runtime",
+      "handler": "check_project_verification",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.exercises": {
+      "phase": "runtime",
+      "handler": "check_exercises",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.teacher_contract": {
+      "phase": "runtime",
+      "handler": "check_teacher_contract",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.memory_pointers": {
+      "phase": "runtime",
+      "handler": "check_memory_pointers",
+      "depends_on": [
+        "runtime.teacher_contract"
+      ]
+    },
+    "runtime.registry": {
+      "phase": "runtime",
+      "handler": "check_registry",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.textbook_preparation": {
+      "phase": "runtime",
+      "handler": "check_textbook_preparation",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.scope_page_cache": {
+      "phase": "runtime",
+      "handler": "check_scope_page_cache",
+      "depends_on": [
+        "runtime.textbook_preparation"
+      ]
+    },
+    "runtime.checkpoint_block_routing": {
+      "phase": "runtime",
+      "handler": "check_checkpoint_block_routing",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.gate_ledger": {
+      "phase": "runtime",
+      "handler": "check_gate_ledger",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.problemlog_closure": {
+      "phase": "runtime",
+      "handler": "check_problemlog_closure",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.external_source_backlink": {
+      "phase": "runtime",
+      "handler": "check_external_source_backlink",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
+    "runtime.rule_enforcement_integrity": {
+      "phase": "runtime",
+      "handler": "check_rule_enforcement_integrity",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.playbook_taxonomy": {
+      "phase": "runtime",
+      "handler": "check_playbook_taxonomy",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.playbook_taxonomy_parity": {
+      "phase": "release",
+      "handler": "check_playbook_taxonomy_parity",
+      "depends_on": [
+        "runtime.playbook_taxonomy"
+      ]
+    },
+    "runtime.trading_boundary": {
+      "phase": "runtime",
+      "handler": "check_trading_boundary",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.external_references": {
+      "phase": "runtime",
+      "handler": "check_external_references",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.legacy_references": {
+      "phase": "runtime",
+      "handler": "check_legacy_references",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.retired_instance_ids": {
+      "phase": "runtime",
+      "handler": "check_retired_instance_ids",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.cloud_pause": {
+      "phase": "runtime",
+      "handler": "check_cloud_pause",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.context_packet": {
+      "phase": "runtime",
+      "handler": "check_context_packet_contract",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.test_management": {
+      "phase": "runtime",
+      "handler": "check_test_management_contract",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.decision_records": {
+      "phase": "runtime",
+      "handler": "check_decision_records",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.decision_record_citations": {
+      "phase": "runtime",
+      "handler": "check_decision_record_citations",
+      "depends_on": [
+        "runtime.decision_records"
+      ]
+    },
+    "runtime.course_templates": {
+      "phase": "runtime",
+      "handler": "check_course_activity_templates",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.environment": {
+      "phase": "runtime",
+      "handler": "check_environment_assumptions",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.changelog": {
+      "phase": "runtime",
+      "handler": "check_changelog_contract",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.line_endings": {
+      "phase": "runtime",
+      "handler": "check_line_endings",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.flow_guide": {
+      "phase": "release",
+      "handler": "check_flow_and_guide",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.handoff": {
+      "phase": "release",
+      "handler": "check_handoff_contract",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.cloud": {
+      "phase": "release",
+      "handler": "check_cloud_contract",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.derived_tools": {
+      "phase": "release",
+      "handler": "check_derived_tools",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.migration_020": {
+      "phase": "release",
+      "handler": "check_migration_evidence",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.migration_021": {
+      "phase": "release",
+      "handler": "check_migration_021_evidence",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.activity_migration_021": {
+      "phase": "release",
+      "handler": "check_activity_migration_021_evidence",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.reading_bridge": {
+      "phase": "release",
+      "handler": "check_reading_bridge_contract",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.core_playbooks": {
+      "phase": "release",
+      "handler": "check_core_playbooks",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.candidate_replay": {
+      "phase": "release",
+      "handler": "check_candidate_replay_contract",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.tracked_environment": {
+      "phase": "release",
+      "handler": "check_tracked_environment",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.dirty_tree": {
+      "phase": "release",
+      "handler": "check_dirty_tree",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.skeleton_textbook": {
+      "phase": "release",
+      "handler": "check_skeleton_textbook",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.distribution_parity": {
+      "phase": "release",
+      "handler": "check_distribution_parity",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.line_endings": {
+      "phase": "release",
+      "handler": "check_release_line_endings",
+      "depends_on": [
+        "runtime.line_endings"
+      ]
+    },
+    "runtime.memory_budget": {
+      "phase": "runtime",
+      "handler": "check_memory_budget",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "runtime.constitution_budget": {
+      "phase": "runtime",
+      "handler": "check_constitution_budget",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
+    "release.package_surface": {
+      "phase": "release",
+      "handler": "check_release_package_surface",
+      "depends_on": [
+        "runtime.skeleton_privacy"
+      ]
+    },
+    "runtime.version_bump_precondition": {
+      "phase": "runtime",
+      "handler": "check_version_bump_precondition",
+      "depends_on": [
+        "runtime.version_profile"
+      ]
+    },
+    "runtime.canonical_teaching_carrier": {
+      "phase": "runtime",
+      "handler": "check_canonical_teaching_carrier",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    }
+  },
+  "profiles": {
+    "runtime": {
+      "default": true,
+      "explicit_only": false,
+      "extends": null,
+      "checks": [
+        "runtime.structure",
+        "runtime.skeleton_privacy",
+        "runtime.version_profile",
+        "runtime.version_bump_precondition",
+        "runtime.skin",
+        "runtime.authorization",
+        "runtime.course_discovery",
+        "runtime.groups",
+        "runtime.activity_ledgers",
+        "runtime.engagements_activities",
+        "runtime.question_banks",
+        "runtime.knowledge_ledgers",
+        "runtime.project_verification",
+        "runtime.exercises",
+        "runtime.teacher_contract",
+        "runtime.memory_pointers",
+        "runtime.registry",
+        "runtime.textbook_preparation",
+        "runtime.canonical_teaching_carrier",
+        "runtime.scope_page_cache",
+        "runtime.checkpoint_block_routing",
+        "runtime.gate_ledger",
+        "runtime.problemlog_closure",
+        "runtime.external_source_backlink",
+        "runtime.rule_enforcement_integrity",
+        "runtime.playbook_taxonomy",
+        "runtime.trading_boundary",
+        "runtime.external_references",
+        "runtime.legacy_references",
+        "runtime.retired_instance_ids",
+        "runtime.cloud_pause",
+        "runtime.context_packet",
+        "runtime.test_management",
+        "runtime.decision_records",
+        "runtime.decision_record_citations",
+        "runtime.course_templates",
+        "runtime.environment",
+        "runtime.changelog",
+        "runtime.memory_budget",
+        "runtime.constitution_budget",
+        "runtime.line_endings"
+      ]
+    },
+    "release": {
+      "default": false,
+      "explicit_only": true,
+      "extends": "runtime",
+      "checks": [
+        "release.flow_guide",
+        "release.handoff",
+        "release.cloud",
+        "release.derived_tools",
+        "release.migration_020",
+        "release.migration_021",
+        "release.activity_migration_021",
+        "release.reading_bridge",
+        "release.core_playbooks",
+        "release.playbook_taxonomy_parity",
+        "release.candidate_replay",
+        "release.tracked_environment",
+        "release.dirty_tree",
+        "release.skeleton_textbook",
+        "release.package_surface",
+        "release.distribution_parity",
+        "release.line_endings"
+      ]
+    }
+  },
+  "validation_levels": {
+    "V0": {
+      "doctor_profile": null,
+      "max_test_tier": null,
+      "description": "changed files only"
+    },
+    "V1": {
+      "doctor_profile": "runtime",
+      "max_test_tier": "fast",
+      "description": "direct local regression"
+    },
+    "V2": {
+      "doctor_profile": "runtime",
+      "max_test_tier": "deep",
+      "description": "affected contracts and distribution parity"
+    },
+    "V3": {
+      "doctor_profile": "release",
+      "max_test_tier": "release_only",
+      "description": "real migration or frozen release candidate"
+    }
+  },
+  "guards": {
+    "default_profile": "runtime",
+    "release_explicit_only": true,
+    "release_plan_binding_required": true,
+    "release_suite_plan_only": true,
+    "no_implicit_tier_escalation": true
+  },
+  "release_execution_reasons": [
+    "formal_release",
+    "version_upgrade",
+    "full_review",
+    "real_migration",
+    "release_candidate"
+  ],
+  "ordinary_budget": {
+    "max_agents": 1,
+    "max_test_commands": 3,
+    "max_minutes": 10,
+    "excluded_paths": [
+      ".venv/",
+      "t2ag-lite/",
+      "recovery/",
+      "staging/",
+      "main/40_course/*/book/",
+      "images/"
+    ]
+  }
+}

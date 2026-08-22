@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:t2ag:schema:reading.t2ag_contribution.v1",
+  "title": "Reading-system candidate contribution transport V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_id", "generated_at", "producer", "semantic_sha256", "contribution_id", "target_activity_record_id", "book_id", "source_reading_uri", "source_revision", "knowledge_node_id", "question", "maturity", "supports", "limits", "evidence_locator"],
+  "properties": {
+    "schema": {"type": "string", "const": "reading.t2ag_contribution.v1"},
+    "event_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{8,128}"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "producer": {"type": "string", "const": "reading_system"},
+    "semantic_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+    "contribution_id": {"type": "string", "pattern": "CON-[0-9a-f]{64}"},
+    "target_activity_record_id": {"type": "string", "pattern": "AR-[0-9]{4}"},
+    "book_id": {"type": "string", "pattern": "[A-Z][A-Z0-9_-]{0,31}"},
+    "source_reading_uri": {"type": "string", "pattern": "reading://(note|node)/[A-Za-z0-9._~:/-]{1,240}"},
+    "source_revision": {"type": "string", "pattern": "[0-9a-f]{64}"},
+    "knowledge_node_id": {"type": ["string", "null"], "pattern": "K-[A-Z][A-Z0-9_-]{0,31}-[0-9]{4}"},
+    "question": {"type": "string", "minLength": 1, "maxLength": 500},
+    "maturity": {"type": "string", "minLength": 1, "maxLength": 64},
+    "supports": {"type": "array", "maxItems": 5, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+    "limits": {"type": "array", "maxItems": 5, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+    "evidence_locator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_uri", "source_path", "source_id", "source_sha256", "receipt_note_uri"],
+      "properties": {
+        "source_uri": {"type": "string", "pattern": "reading://(note|node)/[A-Za-z0-9._~:/-]{1,240}"},
+        "source_path": {"type": "string", "format": "posix-relative-path", "maxLength": 512},
+        "source_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{1,128}"},
+        "source_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+        "receipt_note_uri": {"type": ["string", "null"], "pattern": "reading://note/[A-Za-z0-9._~:/-]{1,240}"}
+      }
+    }
+  }
+}

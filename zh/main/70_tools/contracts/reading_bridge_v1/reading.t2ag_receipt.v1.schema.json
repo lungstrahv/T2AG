@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:t2ag:schema:reading.t2ag_receipt.v1",
+  "title": "Reading use receipt transport V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_id", "generated_at", "producer", "semantic_sha256", "receipt_id", "contribution_id", "target_activity_record_id", "receipt_target_uri", "consumer_uri", "used_at", "purpose"],
+  "properties": {
+    "schema": {"type": "string", "const": "reading.t2ag_receipt.v1"},
+    "event_id": {"type": "string", "pattern": "RCP-[A-Z0-9]{16,64}"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "producer": {"type": "string", "const": "t2ag"},
+    "semantic_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+    "receipt_id": {"type": "string", "pattern": "RCP-[A-Z0-9]{16,64}"},
+    "contribution_id": {"type": "string", "pattern": "CON-[0-9a-f]{64}"},
+    "target_activity_record_id": {"type": "string", "pattern": "AR-[0-9]{4}"},
+    "receipt_target_uri": {"type": "string", "pattern": "reading://note/[A-Za-z0-9._~:/-]{1,240}"},
+    "consumer_uri": {"type": "string", "pattern": "t2ag://[A-Za-z0-9._~:/-]{1,240}"},
+    "used_at": {"type": "string", "format": "date-time"},
+    "purpose": {"type": "string", "minLength": 1, "maxLength": 500}
+  }
+}

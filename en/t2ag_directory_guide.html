@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T2AG Operating Directory Guide</title>
+<style>
+:root {
+  --paper: #f7f4ee;
+  --surface: #fffdf9;
+  --ink: #272320;
+  --muted: #746d66;
+  --line: #ddd6cc;
+  --clay: #b96549;
+  --clay-soft: #f1ddd3;
+  --sage: #6f806d;
+  --sage-soft: #e5ebe1;
+  --lilac: #7b7087;
+  --lilac-soft: #ebe7ef;
+  --gold: #99805a;
+  --gold-soft: #eee7d9;
+  --danger: #9c5146;
+  --serif: "Goudy Old Style", "STKaiti", "华文楷体", "KaiTi", serif;
+  --sans: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--sans);
+  line-height: 1.68;
+  letter-spacing: 0;
+}
+a { color: inherit; }
+code {
+  font-family: var(--mono);
+  font-size: .88em;
+  color: #4e4640;
+  overflow-wrap: anywhere;
+}
+.wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+.hero {
+  min-height: 560px;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+.hero-inner {
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  padding: 72px 0 64px;
+}
+.kicker {
+  width: fit-content;
+  padding: 5px 8px;
+  border: 1px solid #cfc6bb;
+  border-radius: 4px;
+  color: var(--clay);
+  font: 700 .84rem/1.2 var(--mono);
+  text-transform: uppercase;
+}
+h1, h2, h3 { font-family: var(--serif); font-weight: 500; }
+h1 {
+  max-width: 680px;
+  margin: 22px 0 14px;
+  font-size: clamp(3.5rem, 8vw, 6.3rem);
+  line-height: 1.02;
+}
+.hero-copy {
+  max-width: 600px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+.hero-rule {
+  max-width: 640px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 36px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.hero-rule div { padding: 13px 14px 13px 0; font-size: .85rem; }
+.hero-rule div + div { border-left: 1px solid var(--line); padding-left: 14px; }
+.hero-rule strong { display: block; color: var(--ink); }
+.snail {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: max(-70px, calc((100vw - 1260px) / 2));
+  transform: translateY(-48%);
+  width: min(650px, 52vw);
+  /* The PNG now carries real alpha, so none of the old camouflage is needed:
+     mix-blend-mode: multiply darkened the baked cream rectangle into a grey
+     halo, and the radial mask faded the snail out in an ellipse to hide that
+     rectangle's edges. Both were working around the asset, not styling it. */
+  pointer-events: none;
+}
+.jump {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.jump-inner { display: flex; gap: 4px; overflow-x: auto; padding: 10px 0; }
+.jump a {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: .82rem;
+}
+.jump a:hover { background: var(--clay-soft); color: var(--ink); }
+section { padding: 72px 0; border-bottom: 1px solid var(--line); }
+.section-head {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 36px;
+  margin-bottom: 34px;
+}
+.section-index {
+  color: var(--clay);
+  font: 700 .72rem/1.3 var(--mono);
+  text-transform: uppercase;
+}
+.section-head h2 { margin: 0; font-size: clamp(2rem, 4vw, 3.3rem); line-height: 1.05; }
+.section-head p { max-width: 680px; margin: 12px 0 0; color: var(--muted); }
+.preface-copy {
+  width: min(800px, 100%);
+  margin: 0 auto;
+  padding: 38px 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 18px 50px rgba(78, 62, 49, .06);
+}
+.preface-copy p {
+  margin: 0;
+  font: 1.08rem/1.92 var(--serif);
+}
+.preface-copy p + p { margin-top: 1.25em; }
+.preface-copy .preface-signature {
+  margin-top: 2em;
+  color: var(--clay);
+  font-style: italic;
+  text-align: right;
+}
+.preface-discipline {
+  width: min(800px, 100%);
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 18px;
+  margin: 16px auto 0;
+  padding: 16px 18px;
+  border-left: 3px solid var(--clay);
+  background: var(--clay-soft);
+  color: var(--muted);
+  font-size: .88rem;
+}
+.preface-discipline strong { color: var(--clay); font-family: var(--mono); }
+/* One rule for every character block: the nine flow diagrams and the directory
+   tree share a single visual language, so they must share a single style. */
+.flow-ascii, .dir-tree {
+  margin: 18px 0;
+  max-height: min(680px, 72vh);
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font: .78rem/1.6 var(--mono);
+  white-space: pre;
+  tab-size: 2;
+}
+.dir-tree { font-size: .8rem; }
+.flow-card { padding: 24px 0; border-top: 1px solid var(--line); }
+.flow-card h3 { margin: 0 0 10px; font-size: 1.35rem; }
+.materialize {
+  margin-top: 30px;
+  padding: 24px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.materialize h3 { margin: 0 0 8px; font-size: 1.4rem; }
+.materialize > p { margin: 0; max-width: 780px; color: var(--muted); }
+.routes { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.route {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.route:first-child { border-top: 4px solid var(--clay); }
+.route:last-child { border-top: 4px solid var(--sage); }
+.route h3 { margin: 0 0 8px; font-size: 1.35rem; }
+.route p { margin: 0; color: var(--muted); }
+.path {
+  display: block;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+.experience-section { background: var(--clay-soft); }
+.experience-flow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.experience-step { padding-top: 18px; border-top: 1px solid #d8bcae; }
+.experience-step b {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--clay);
+  font: 700 .72rem/1.2 var(--mono);
+}
+.experience-step h3 { margin: 0 0 8px; font-size: 1.35rem; }
+.experience-step p { margin: 0; color: var(--muted); font-size: .92rem; }
+.student-prompts {
+  display: grid;
+  grid-template-columns: .9fr 1.1fr;
+  gap: 38px;
+  margin-top: 34px;
+  padding-top: 28px;
+  border-top: 1px solid #d8bcae;
+}
+.student-prompts h3 { margin: 0 0 10px; font-size: 1.35rem; }
+.student-prompts p { margin: 0; color: var(--muted); }
+.prompt-list { margin: 0; padding-left: 19px; color: #5f5149; }
+.prompt-list li + li { margin-top: 7px; }
+.timeline { counter-reset: step; }
+.step {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  min-height: 126px;
+}
+.step-mark { position: relative; border-right: 1px solid var(--line); }
+.step-mark::before {
+  counter-increment: step;
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  top: 1px;
+  right: 22px;
+  color: var(--clay);
+  font: 700 .76rem/1 var(--mono);
+}
+.step-body { padding: 0 0 38px 34px; }
+.step-body h3 { margin: 0 0 6px; font-size: 1.35rem; }
+.step-body p { margin: 0; color: var(--muted); }
+.step-files { margin-top: 10px; color: #514a44; font-size: .85rem; }
+.matrix { width: 100%; border-collapse: collapse; border-top: 1px solid var(--line); }
+.matrix th, .matrix td { padding: 15px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.matrix th { width: 20%; color: var(--clay); font: 700 .73rem/1.3 var(--mono); }
+.matrix td { color: var(--muted); font-size: .9rem; }
+.matrix td:last-child { width: 38%; }
+.feedback-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 26px;
+  margin-bottom: 30px;
+}
+.feedback-item { padding-top: 18px; border-top: 1px solid var(--line); }
+.feedback-item h3 { margin: 0 0 8px; font-size: 1.35rem; }
+.feedback-item p { margin: 0; color: var(--muted); font-size: .92rem; }
+.feedback-route {
+  margin: 0 0 30px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.feedback-route > p { margin: 0 0 14px; color: var(--muted); }
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  align-items: center;
+}
+.node {
+  padding: 8px 10px;
+  border: 1px solid #d3cadb;
+  border-radius: 4px;
+  background: var(--surface);
+  font: .78rem/1.3 var(--mono);
+}
+.arrow { color: var(--lilac); }
+.guardrails { display: grid; grid-template-columns: 1.1fr .9fr; gap: 26px; }
+.guardrail {
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.guardrail h3 { margin: 0 0 12px; font-size: 1.4rem; }
+.guardrail ul { margin: 0; padding-left: 19px; color: var(--muted); }
+.guardrail li + li { margin-top: 8px; }
+.guardrail.clay { background: var(--clay-soft); border-color: #dfc3b7; }
+.naming-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 32px; }
+.naming-row {
+  display: grid;
+  grid-template-columns: 42% 1fr;
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.naming-row span { color: var(--muted); font-size: .88rem; }
+footer { padding: 34px 0 48px; color: var(--muted); font-size: .82rem; }
+.footer-inner { display: flex; justify-content: space-between; gap: 20px; }
+@media (max-width: 820px) {
+  .hero { min-height: 650px; }
+  .hero-inner { min-height: 650px; justify-content: flex-start; padding-top: 64px; }
+  h1 { font-size: 4rem; }
+  .snail { top: 48%; width: 620px; max-width: 110vw; right: -210px; opacity: .5; }
+  .section-head { grid-template-columns: 1fr; gap: 8px; }
+  .routes, .guardrails, .naming-grid, .student-prompts { grid-template-columns: 1fr; }
+  .experience-flow, .feedback-grid { grid-template-columns: repeat(2, 1fr); }
+  .matrix { display: block; overflow-x: auto; }
+}
+@media (max-width: 560px) {
+  .wrap { width: min(100% - 28px, 1120px); }
+  .hero-rule { grid-template-columns: 1fr; }
+  .hero-rule div + div { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
+  .step { grid-template-columns: 48px 1fr; }
+  .step-mark::before { right: 12px; }
+  .step-body { padding-left: 20px; }
+  .experience-flow, .feedback-grid { grid-template-columns: 1fr; }
+  .naming-row { grid-template-columns: 1fr; gap: 3px; }
+  .preface-copy { padding: 26px 22px; }
+  .preface-discipline { grid-template-columns: 1fr; gap: 4px; }
+  .flow-ascii, .dir-tree { padding: 10px; font-size: .72rem; }
+  .footer-inner { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap hero-inner">
+    <span class="kicker">T2AG / Directory Guide / 0.2.3</span>
+    <h1>Operating<br>Directory Guide</h1>
+    <p class="hero-copy">You only need to say what you want to learn, where you are stuck, and what feels awkward to use. The agent reads your state, reshapes files, generates tools and presentation forms as needed, and turns your feedback into a smoother starting point next time.</p>
+    <div class="hero-rule">
+      <div><strong>01 Say what you need</strong>Goals, blockers and experience all count as input</div>
+      <div><strong>02 Reshape on the spot</strong>Change the form, edit the files, build a tool</div>
+      <div><strong>03 Feedback written back</strong>Less explaining and less friction next time</div>
+    </div>
+  </div>
+  <img class="snail" src="main/80_interface/fable_snail.png" alt="Natural-history style snail illustration">
+</header>
+
+<nav class="jump" aria-label="On-page navigation">
+  <div class="wrap jump-inner">
+    <a href="#intro">Preface</a>
+    <a href="#principles">Principles</a>
+    <a href="#start">Getting started</a>
+    <a href="#session">Session loop</a>
+    <a href="#branches">On-demand flows</a>
+    <a href="#feedback">Feedback</a>
+    <a href="#naming">Naming</a>
+    <a href="#environment">Environment</a>
+  </div>
+</nav>
+
+<main>
+<section id="intro">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">01 / Preface</span>
+      <div><h2>Preface</h2><p>The constitution governs rules, the ledger governs evidence, the preface governs the reason why.</p></div>
+    </div>
+    <!-- T2AG_GENERATED:preface -->
+<div class="preface-copy">
+<p>This system has no coercive power, and should not have any. An agent can be talked into loosening its grip; files can be rewritten. Honestly: the student always has root, just as nobody can force you to walk into a gym.</p>
+<p>It exists for one small reason — a student&#x27;s small plea: that a tired person, on the days they doubt themselves, still has something trustworthy nearby, such as the rules they themselves once set and kept.</p>
+<p>The machine here is responsible for only two things: lowering the price, and leaving a trace. Lowering the price means shrinking &quot;beginning&quot; to its smallest form: the next step was already written when the last one ended, so on the hardest days it can be five minutes, or even just lifting one finger. Leaving a trace means turning &quot;your actions produced results&quot; into an account you can check every day. The contract is re-signed by the student daily: renew, or walk into the ceremony and amend the terms.</p>
+<p>So self-discipline here is not a personality trait, still less an unbridgeable neurological deficit. It is only this: today, do you or do you not perform the one action that has already been shrunk very small. The system never asks you to become a disciplined person. It only makes &quot;doing&quot; easy, and then lets the ledger remember how many times you have already done it — proving to you that a person can get better.</p>
+<p>What this system optimizes is not task throughput but the state of a human being. Older productivity tools assume an operator of constant state, infinite patience, and no self-doubt. Every page of this system assumes the operator gets tired, wants to quit, and was humiliated by a hard proof last week. That assumption is not pessimism; it rests on a simple belief: state is the matrix of ability. Someone in poor state can barely finish old problems assigned by others. Someone in good state not only learns faster but begins to ask questions they could not previously ask. And once you begin asking, the positive feedback loop has started.</p>
+<p>In this era, as AI becomes capable of everything, the anxiety of not being needed appears like a dark cloud on the horizon of people&#x27;s minds. But even if the machine clusters no longer need you, no longer need most individuals to create value, we humans choose to act simply because we want to. We may advance to any step, and we may stop at any time, because we want to.</p>
+<p>Now, let us try once more.</p>
+<p class="preface-signature">yours sincerely, mikp from t2ac</p>
+</div>
+<aside class="preface-discipline"><strong>Preface discipline</strong>
+<span>the preface is bound by the amendment and release rules of §6 exactly as the constitution is. When system behaviour changes, the corresponding sentence changes with it — the preface is a promise to the reader, and a promise is not allowed to expire.</span></aside>
+<!-- /T2AG_GENERATED:preface -->
+  </div>
+</section>
+
+<section id="dirmap">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">01b / Directory Map</span>
+      <div><h2>Directory map</h2><p>The authoritative file or directory entry listed in the table governs — this table is a view, not a second source of truth.</p></div>
+    </div>
+    <div class="matrix">
+      <!-- T2AG_GENERATED:directory_map -->
+<pre class="dir-tree">main/   the instance itself
+├─ 00_core/       domain model the constitution depends on, memory, changelog, problemlog
+├─ 10_student/    current student profile, learning path, activities and Engagements
+├─ 20_teacher/    teacher templates and the current overlay
+├─ 30_group/      training plan, course groups, calendar, review and bindings
+├─ 40_course/     courses, progress, sibling Lesson/Exercise activities, textbooks, problems and evidence
+├─ 50_playbook/   executable processes and maintenance rules
+                  authority main/50_playbook/_README.md
+├─ 60_journal/    append-only history, construction reports and archived source text
+                  authority main/60_journal/INDEX.md
+├─ 70_tools/      doctor, state refresh, migration, indexing and derivation tools
+                  authority main/70_tools/_README.md
+├─ 80_interface/  skins, welcome text and interface assets
+                  authority main/80_interface/README.md
+└─ bin/           T2AG command entry point
+
+cloud/         the bridge files between local and cloud (mobile / web) —
+               authority cloud/README.md
+</pre>
+<!-- /T2AG_GENERATED:directory_map -->
+    </div>
+  </div>
+</section>
+
+<section id="principles" class="experience-section">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">02 / Principles</span>
+      <div><h2>Designed around the student, not around the files</h2><p>Files are only reshapeable instruments. The value of the system is turning a student’s need into a change they can try quickly, then keeping the changes that work — so that later you neither re-explain nor re-endure the same thing.</p></div>
+    </div>
+    <div class="experience-flow">
+      <article class="experience-step"><b>01</b><h3>Say what you need, or what hurts</h3><p>Talk about goals, blockers, reading experience, mood or pace — or simply say “this file is awkward” or “I want to try a different way of studying”.</p></article>
+      <article class="experience-step"><b>02</b><h3>Generate and reshape on the spot</h3><p>The agent can switch or add a presentation form, edit course files, and produce diagrams, interactive pages, small tools, check scripts or skill prototypes.</p></article>
+      <article class="experience-step"><b>03</b><h3>Use it for real, then report back</h3><p>You do not need to design a complete scheme first. Just use it, then say what flowed better, what still annoys you, and what was misunderstood; the agent adjusts from there.</p></article>
+      <article class="experience-step"><b>04</b><h3>Solidify or roll back</h3><p>One-off artifacts stay in the lesson; stable preferences are written into the student profile; only a mature process is solidified into a playbook or tool. A change that does not work can be rolled back.</p></article>
+    </div>
+    <div class="student-prompts">
+      <div><h3>You can simply say</h3><ul class="prompt-list"><li>“Switch to, or add, a different presentation form.”</li><li>“Turn this step into a skill I can reuse later.”</li><li>“This file is hard work for me — reshape it.”</li><li>“Build a small tool first; I’ll give feedback after using it.”</li></ul></div>
+      <div><h3>How friction actually gets reduced</h3><p>Feedback does not stop at the conversation. In-course preferences go into <code>course_reflections.md</code>; cross-course stable preferences go into <code>profile.md</code>; problem-solving approaches go into <code>reasoning_patterns.md</code>; a repeated process enters <code>50_playbook/</code> once it passes the threshold; deterministic checks go into <code>70_tools/</code>. The student always holds root over editing, refusing and rolling back these files.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">03 / Start</span>
+      <div><h2>Turn the base install into your own T2AG</h2><p>The first use asks only a handful of questions. The system turns the blank structure into your student profile, your course entry point and your next action; when you come back later you never have to re-explain who you are or where you got to.</p></div>
+    </div>
+    <div class="materialize">
+      <h3>What happens the first time you open it</h3>
+      <!-- T2AG_GENERATED:flow_first_run -->
+<pre class="flow-ascii">● Open the target instance
+│
+▼ Read active skin: welcome_msg + art_file + version
+▼ doctor + state refresh --check
+│
+◇ Do the first-run criteria hold?
+│  └─ No ─→ Routine takeover: go to Diagram 1, initialize nothing
+│
+▼ Confirm identity, timezone, goals, foundation and tutoring preferences item by item
+▼ Write answers.json        · Refuse if any required answer is missing; never fill a default
+▼ t2ag_init.py init         · profile and release identity (cloud stays paused)
+│
+◇ Has the user confirmed the first Course and its real entry point?
+│  └─ No ─→ Wait; never choose the course, nor the Lesson / Exercise entry, for them
+│
+▼ t2ag_init.py new-course   · Course, first activity, teacher mapping
+▼ t2ag_init.py new-group    · plan / calendar / review / bindings
+▼ state refresh --write + --check
+│
+◇ Is doctor at 0 FAIL?
+│  └─ No ─→ Repair state; open no new content
+│
+◉ Enter Diagram 1
+</pre>
+<!-- /T2AG_GENERATED:flow_first_run -->
+      <p>What you receive is a minimal base install. Copy it into your own <code>t2ag</code> folder, open it in an AI environment and send “T2AG”, then answer questions about your nickname, course, textbook, current progress and study preferences. After you confirm, you will see your profile and course generated, the welcome message appear, and a next step you can act on immediately. From then on the files keep changing with use and feedback, until the system fits your habits.</p>
+      <div class="chain"><span class="node">Get the base install</span><span class="arrow">→</span><span class="node">Copy it as your own t2ag</span><span class="arrow">→</span><span class="node">Answer 5 questions</span><span class="arrow">→</span><span class="node">Watch profile and course appear</span><span class="arrow">→</span><span class="node">Receive an actionable next step</span><span class="arrow">→</span><span class="node">Just continue studying later</span></div>
+    </div>
+    <div class="routes">
+      <article class="route"><h3>First use</h3><p>Answer the questions: who you are, what you want to learn, which textbook, how far you have got, and what makes studying comfortable. The system restates and confirms before creating anything; it never guesses on your behalf.</p><code class="path">main/50_playbook/first_run.md</code></article>
+      <article class="route"><h3>Coming back later</h3><p>Just say “continue course X” and it restores the course, the textbook position, unresolved questions and retest material. New courses, skills, tools and preferences can still be added at any time.</p><code class="path">main/50_playbook/lesson_recover.md</code></article>
+    </div>
+  </div>
+</section>
+
+<section id="session">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">04 / Session</span>
+      <div><h2>The full loop of one lesson</h2><p>Reading is easy. What actually decides whether the system is reliable is the write-back at session close.</p></div>
+    </div>
+    <!-- T2AG_GENERATED:flow_panorama -->
+<pre class="flow-ascii">● Student asks to continue the course
+│
+▼ doctor + state refresh --check
+│
+◇ Any FAIL?
+│  └─ Yes ─→ Repair state; open no new content
+│
+▼ Produce one L0         · Verbatim state, teaching contract, current problem / required textbook window
+▼ Cache the same raw bytes · Validate ProgressSnapshot, activity route and teacher route
+│
+◇ current_activity
+├─ lesson   ─→ L1: append only current-activity evidence not already in L0
+└─ exercise ─→ L1: append Attempt / Review only if direct evidence for this problem exists
+│
+▼ L2 is triggered only by conflict, retest, scheduling, historical follow-up or session close
+▼ Main teaching loop     · see Diagram 1b
+│
+◇ Close type (Micro and full run the same mandatory transaction)
+│
+▼ Mandatory transaction  · progress + current activity&#x27;s main carrier + the real ledger
+│
+◇ Full close?
+│  └─ Yes ─→ Add reflections / reasoning / Group review per real triggers
+│
+▼ state refresh --write + --check
+▼ Full doctor; re-read the write targets
+│
+◉ Session closed
+</pre>
+<!-- /T2AG_GENERATED:flow_panorama -->
+    <div class="timeline">
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>Run doctor</h3><p>Fix any FAIL first; the skeleton’s first-run notice and lite’s no-Git notice may remain.</p><div class="step-files"><code>python main/70_tools/t2ag_doctor.py</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>Restore the hot context</h3><p>Read memory, the student profile, the current course group and course progress. Each course’s <code>progress.md</code> is the single source of truth for progress.</p><div class="step-files"><code>00_core/t2ag_memory.md · 10_student/profile/profile.md · 30_group/ · 40_course/*/progress.md</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>Run the knowledge spot-check</h3><p>Course-coverage items, active mistakes and aged rumination are sampled at a 2 + 8 + 1 ceiling; the same knowledge point is verified with a different problem statement.</p><div class="step-files"><code>50_playbook/mistake_retest.md · mistake_bank.md</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>Teach from the source</h3><p>A textbook lesson reads the current source text first; the workspace uses readable paths and never skips pages from model memory. The student may ask for a different or additional presentation form at any time.</p><div class="step-files"><code>lessonNN/working_pages/source_excerpt.md · lessonNN.md</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>Perform the closing ritual</h3><p>Update the source of truth, harvest knowledge-point errors, write the student profile, refresh memory, process working pages, and output a write confirmation.</p><div class="step-files"><code>50_playbook/session_close.md</code></div></div></article>
+      <article class="step"><div class="step-mark"></div><div class="step-body"><h3>Re-check and optionally archive</h3><p>doctor returns to 0 FAIL. Git commits only along explicit paths and only when authorization already exists; a network failure never blocks session close.</p><div class="step-files"><code>50_playbook/t2ag_flow.md · remediation_governance.md</code></div></div></article>
+    </div>
+  </div>
+</section>
+
+<section id="flow-catalog">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">04b / Flows</span>
+      <div><h2>System flow panorama</h2><p>Nine diagrams cover teaching, the authority chain, cycles, skins, Git, remediation and exercise evidence.</p></div>
+    </div>
+    <!-- T2AG_GENERATED:flow_catalog -->
+<article class="flow-card"><h3>Diagram 1b - Main teaching loop</h3>
+<pre class="flow-ascii">Classroom entry
+├─ 1. Recovery and source gate
+│  ├─ Resolve the unique current_activity and the exact stopping point
+│  ├─ Lesson: verify current PDF page / in-book page, Scope, source text and active segment
+│  └─ Exercise: present only the current problem statement; leak no unauthorized approach
+├─ 2. Display this round&#x27;s classroom tree
+│  ├─ Lesson opening: first summarize the whole lesson&#x27;s content, then show the ASCII knowledge tree
+│  ├─ Ask how the student feels about the route and whether to enter the first block
+│  ├─ Current textbook position or problem number
+│  ├─ Pending blocks on this page/problem (titles only; never pre-teach answers)
+│  ├─ Current block
+│  └─ Covered / pending / explicitly deferred / outside this lesson&#x27;s boundary
+└─ 3. The incompressible single-step loop
+   ├─ Expand exactly one new teaching block
+   │  ├─ Concept/definition: present the source text in full → explain sentence by sentence
+   │  ├─ Derivation/proof: one logical move at a time
+   │  ├─ Worked example: statement → student attempt → discussion
+   │  └─ Summary: summarize only the block just finished; never smuggle in the next
+   ├─ Understanding-confirmation gate
+   │  ├─ Student restates, gives an example, answers, or names a doubt
+   │  └─ A correct answer records understanding evidence only; it never auto-authorizes continuing
+   ├─ Feeling gate (mandatory after every derivation or summary)
+   │  ├─ &quot;How did that step land? What flowed, what stuck?&quot;
+   │  └─ Doubt raised → answer in place → then redo understanding confirmation and the feeling gate
+   ├─ Continuation-authorization gate (one-shot)
+   │  ├─ Explicit &quot;continue&quot; → authorizes only the next teaching block
+   │  └─ Not explicit / wants to stop / only answered the problem → stay on the current block
+   ├─ Creative interaction (allowed by default)
+   │  ├─ Analogy / rephrasing / historical background / character figures / student-led branches
+   │  ├─ Never leak, ahead of time, unrequested exercise answers or solution structure
+   │  └─ Never use an aside to skip a mandatory textbook block
+   ├─ Extra exercises (opt-in)
+   │  ├─ Student has not asked → at most ask whether they want extra practice; generate no actual problems
+   │  ├─ Student requests or explicitly agrees → may generate, marked &quot;teacher-generated supplement&quot;
+   │  └─ A single comprehension check on what was just taught is not an extra exercise
+   ├─ In-page coverage gate (textbook)
+   │  ├─ Uncovered blocks remain → update the classroom tree, await the next continuation authorization
+   │  └─ Every block has a status → only then may a page turn be proposed
+   ├─ Page-turn gate (before using any body text of the new page)
+   │  ├─ Show the previous page&#x27;s coverage checklist
+   │  ├─ Announce &quot;page turn: PDF N / in-book M&quot;
+   │  ├─ Show the new page&#x27;s classroom tree
+   │  ├─ Explicit continue → enter the first block of the new page
+   │  └─ Not explicit → stay within the old page boundary
+   └─ Activity-closure gate
+      ├─ Teaching blocks or doubts remain → return to the single-step loop
+      └─ All closed and the student confirms → proceed to session close
+</pre>
+</article>
+<article class="flow-card"><h3>Diagram 2 - Authority chain</h3>
+<pre class="flow-ascii">course.md ─────────────── course content, textbooks and teaching constraints
+progress.md ───────────── Course lifecycle, single foreground, exact stopping point
+activity_ledger.md ────── Activity lifecycle, pending/CLR, alias, statistics
+      │
+      └─ state_refresh ──→ memory / learning_path / Group view (GENERATED cache)
+
+profile ───────────────── stable student parameters and preferences
+Group plan/calendar ───── capacity, time and group-closing thresholds
+Group review ──────────── composition-level evidence
+teacher overlay ───────── current mapping from course to teacher template
+
+current Lesson / Exercise ─→ question / mistake ─→ reasoning pattern (once evidence threshold met)
+activity_map ───────────→ Lesson / Exercise (sibling LearningActivity)
+Exercise ─→ ExerciseProblem ─→ Attempt ─→ Review ──────┘
+Engagement evidence ───────────────────────→ consumed or verified by external governance
+
+Conflict adjudication: progress &gt; GENERATED cache; external governance fact &gt; T2AG process annotation.
+</pre>
+</article>
+<article class="flow-card"><h3>Diagram 3 - Cycle loops</h3>
+<pre class="flow-ascii">Every session   opening retest ↔ closing harvest              mistake/question
+Problem work    Exercise → Attempt → Review → ledger backlink        exercises/
+D3 / D7         minor adjustment; D7 also does cycle review   profile + Group review
+Every 3 cycles  major adjustment window; must leave a trace   Group calendar/review
+Chapter close   aged-knowledge candidate set; fires per the student&#x27;s authorized mode   mistake bank
+Course end      course review and user confirmation           progress + reflections
+Threshold met   group-closing review and user confirmation    Group plan/calendar/review
+Structural fix  three rounds x three attempts → classify → discuss   remediation_governance
+Version release gates → independent re-review → user-authorized Git snapshot   doctor + reports
+</pre>
+</article>
+<article class="flow-card"><h3>Diagram 5 - Skin system</h3>
+<pre class="flow-ascii">main/80_interface/skin.yaml
+  active: SK001
+  registry.SK001: SK001_default
+        │
+        ▼
+main/80_interface/SK001_default/skin.yaml
+  id / name / welcome_msg / art_file / style
+        │
+        ▼
+Welcome message + the plain-text picture art_file points at
+
+doctor: active, registry, directory, metadata, art_file, unregistered skins, command-word boundary
+Approved divergence: Main/Lite use Inori; Skeleton uses the default t2ag character art.
+</pre>
+</article>
+<article class="flow-card"><h3>Diagram 6 - Git workflow</h3>
+<pre class="flow-ascii">● Trigger: milestone, release or recovery
+│
+▼ git status --short + diff --check
+│
+◇ Any unexplained changes?
+│  └─ Yes ─→ Handle only the explicit paths owned this round; leave the rest untouched
+│
+▼ Review the working-tree diff
+│
+◇ Release gates and independent re-review passed?
+│  └─ No ─→ Creating a formal snapshot is forbidden
+│
+◇ Did the user explicitly authorize the commit?
+│  └─ No ─→ Stay uncommitted; report truthfully
+│
+▼ Explicit add → cached diff → commit
+│
+◇ Did this batch touch Main / Skeleton shared files?
+│  └─ Yes ─→ cmp for byte parity across both repos, then commit each
+│
+▼ sync_lite.py --write     · Regenerate only from a clean Main; a dirty tree is refused
+│
+◇ Need to repackage the release artifact?
+│  └─ Yes ─→ Repackage at the final HEAD, excluding .git; the old package must not ship
+│
+◇ Need to push?
+│  └─ Yes ─→ Only display the command; await separate authorization (RT3)
+│
+◉ Local snapshot complete
+</pre>
+</article>
+<article class="flow-card"><h3>Diagram 7 - Batch remediation governance</h3>
+<pre class="flow-ascii">● Register reproducible facts and the current contract
+│
+▼ Classify: FAIL / REVIEW / WARN / WAIVED
+│
+◇ Remediation needed?
+│  └─ No ─→ Go straight to &quot;record evidence&quot;
+│
+├─ Remediation round (at most three substantively different attempts per round)
+│  │
+│  ◇ Did this round converge?
+│  │  └─ Yes ─→ Exit the loop, record evidence
+│  │
+│  ◇ Three rounds completed?
+│  ├─ No ─→ Reclassify on the new evidence ─→ back to the top of this round
+│  └─ Yes ─→ Stop forcing it: separate fact, inference and requirement
+│           └─→ Discuss a change or withdrawal with the requester (no further solo attempts)
+│
+▼ Record evidence and verification results
+▼ Full gates + independent re-review
+│
+◇ Passed?
+│  └─ No ─→ Return to remediation; severity does not auto-escalate
+│
+◉ Await user authorization for the snapshot
+</pre>
+</article>
+<article class="flow-card"><h3>Diagram 8 - Exercise evidence loop</h3>
+<pre class="flow-ascii">● activity_map           · ContentGroup links sibling Lesson / Exercise
+│
+▼ problems.md            · Stable problems and textbook sources (with artifact path and SHA)
+▼ exerciseNN/exercise.md · Create or recover; store the work stopping point and evidence pointers
+▼ One real submission batch from the student
+│
+◇ Answer mode
+├─ text  ─→ per-problem body in attempt.md
+├─ image ─→ keep the original images in assets
+└─ mixed ─→ body text + original images
+│
+▼ Create ATdddd          · Reference this unit&#x27;s problems; never invent new ones
+▼ Grade problem by problem
+▼ Create RVdddd          · Reference the real Attempt
+│
+◇ Per-problem result
+├─ correct            ─→ keep the evidence
+├─ partial/incorrect  ─→ write back to the mistake bank
+└─ unresolved         ─→ write back to the question bank
+│
+▼ A repeated line of thinking across at least two problems
+│
+◇ Pattern threshold reached?
+│  └─ Yes ─→ Update reasoning_patterns
+│
+▼ Update problems, exercise.md and progress
+▼ If an idea meets the threshold, enter the compounding loop
+│
+◉ session close + doctor
+</pre>
+</article>
+<!-- /T2AG_GENERATED:flow_catalog -->
+  </div>
+</section>
+
+<section id="branches">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">05 / Branches</span>
+      <div><h2>Heavy flows expand only when needed</h2><p>The entry point stays short; textbooks, OCR, exams and project verification load on their trigger conditions.</p></div>
+    </div>
+    <table class="matrix">
+      <tbody>
+        <tr><th>New course</th><td>Establish state, question bank, mistake bank, textbook entry and course driver.</td><td><code>50_playbook/new_course_init.md</code></td></tr>
+        <tr><th>External material</th><td>Register an ER number first, then decide whether it is course-private or shared across courses.</td><td><code>book_management.md · 40_course/_shared/external_resources.md</code></td></tr>
+        <tr><th>OCR</th><td>Structured text first; model vision second; a heavy local model requires download authorization first.</td><td><code>50_playbook/ocr_correct_flow.md</code></td></tr>
+        <tr><th>Written exams</th><td>Problem statements are isolated from answers; exam state is independent of the daily lesson.</td><td><code>exam_protocol.md · exam_bank_spec.md</code></td></tr>
+        <tr><th>General track</th><td>Reading-type and project-type are routed separately and do not consume course-group budget.</td><td><code>50_playbook/general_learning.md</code></td></tr>
+        <tr><th>Praxis</th><td>A practice course facing chaos; the learning outcome must be completed by the student’s real action.</td><td><code>course.md: course_driver: praxis</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="feedback">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">06 / Feedback</span>
+      <div><h2>Feedback continuously tunes the next step</h2><p>The system never defines a fixed “condition” on the student’s behalf. It treats the student’s own feedback, long-term experience, learning results and progress consistency as references, forms an adjustment proposal, and executes only after the student confirms.</p></div>
+    </div>
+    <div class="feedback-grid">
+      <article class="feedback-item"><h3>The student’s own feedback</h3><p>What the student says right now — goals, blockers, discomfort, interest, format requests — takes priority. The system responds to present experience rather than overriding the person with their profile.</p></article>
+      <article class="feedback-item"><h3>Long-term experience reference</h3><p><code>profile.md</code> and course reflections supply stable preferences and historical friction, used only to propose a better pace, tone and format.</p></article>
+      <article class="feedback-item"><h3>Learning-result reference</h3><p><code>reasoning_patterns.md</code>, open questions and knowledge-point states provide observable evidence, helping decide whether to explain, practise, retest, or change the feedback style.</p></article>
+      <article class="feedback-item" id="authority"><h3>Progress-consistency reference</h3><p>The authority chain calibrates only “how far you actually got”: each course’s <code>progress.md</code> is the progress source of truth, memory and learning_path are caches, and doctor finds the conflicts.</p></article>
+    </div>
+    <div class="feedback-route">
+      <p>A reference never becomes a disposition on its own. First form a reversible adjustment proposal, then have the student confirm it, then test in the next round whether friction actually went down.</p>
+      <div class="chain"><span class="node">Own feedback</span><span class="arrow">+</span><span class="node">Experience profile</span><span class="arrow">+</span><span class="node">Learning results</span><span class="arrow">+</span><span class="node">Progress authority chain</span><span class="arrow">→</span><span class="node">Adjustment proposal</span><span class="arrow">→</span><span class="node">Student confirms</span><span class="arrow">→</span><span class="node">Change method / change files</span><span class="arrow">→</span><span class="node">Keep giving feedback</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="naming">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">07 / Naming</span>
+      <div><h2>Paths carry stability, titles carry expression</h2><p>Display names may read naturally; machine paths must be predictable. Existing IDs are never renamed for decoration.</p></div>
+    </div>
+    <div class="naming-grid">
+      <div class="naming-row"><code>AR-0001 · EG-0001 · G02</code><span>Entity IDs</span></div>
+      <div class="naming-row"><code>lesson01/lesson01.md</code><span>Two-digit lesson number</span></div>
+      <div class="naming-row"><code>MATH1607H/</code><span>The course directory name is the stable course ID</span></div>
+      <div class="naming-row"><code>course.md · progress.md</code><span>Definition and progress kept separate</span></div>
+      <div class="naming-row"><code>working_pages/source_excerpt.md</code><span>Current textbook workspace</span></div>
+      <div class="naming-row"><code>t2ag_directory_guide.html</code><span>The fixed entry point of this guide</span></div>
+    </div>
+    <p><a href="main/50_playbook/naming_conventions.md">Open the full naming and migration specification</a></p>
+  </div>
+</section>
+
+<section id="environment">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-index">08 / Environment</span>
+      <div><h2>The environment stays quiet by default</h2><p>Entering the project, teaching a lesson and ordinary acceptance are never reasons to download anything.</p></div>
+    </div>
+    <div class="guardrails">
+      <article class="guardrail clay"><h3>Default behaviour</h3><ul><li>Reuse the existing interpreter; never create, delete, upgrade or rebuild <code>.venv</code>.</li><li>Check only <code>pyvenv.cfg</code>, versions, direct dependencies, <code>pip check</code> and a minimal smoke test.</li><li>Never recursively enumerate every file in the virtual environment.</li></ul></article>
+      <article class="guardrail"><h3>When a download is required</h3><ul><li>First report the name, purpose, expected download size, disk use, cache location and duration.</li><li>Execute only after explicit user authorization.</li><li>Stop and re-confirm if the estimate exceeds the declared value by 20% or adds more than 500 MB.</li></ul></article>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap footer-inner"><span>T2AG 0.2.3 · Starts from a base form and grows through use</span><span>Skeleton is the empty-instance master; Lite is a review snapshot derived from Main</span></div>
+</footer>
+</body>
+</html>

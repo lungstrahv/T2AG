@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:t2ag:schema:t2ag.reading_contribution_ledger.v1",
+  "title": "T2AG imported reading contribution ledger V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "activity_record_id", "processed_events", "contributions", "receipt_outbox"],
+  "properties": {
+    "schema": {"type": "string", "const": "t2ag.reading_contribution_ledger.v1"},
+    "activity_record_id": {"type": "string", "pattern": "AR-[0-9]{4}"},
+    "processed_events": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["event_id", "semantic_sha256", "contribution_id"],
+        "properties": {
+          "event_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{8,128}"},
+          "semantic_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+          "contribution_id": {"type": "string", "pattern": "CON-[0-9a-f]{64}"}
+        }
+      }
+    },
+    "contributions": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["contribution_id", "payload"],
+        "properties": {
+          "contribution_id": {"type": "string", "pattern": "CON-[0-9a-f]{64}"},
+          "payload": {
+            "type": "object", "additionalProperties": false,
+            "required": ["schema", "event_id", "generated_at", "producer", "semantic_sha256", "contribution_id", "target_activity_record_id", "book_id", "source_reading_uri", "source_revision", "knowledge_node_id", "question", "maturity", "supports", "limits", "evidence_locator"],
+            "properties": {
+              "schema": {"type": "string", "const": "reading.t2ag_contribution.v1"},
+              "event_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{8,128}"},
+              "generated_at": {"type": "string", "format": "date-time"},
+              "producer": {"type": "string", "const": "reading_system"},
+              "semantic_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+              "contribution_id": {"type": "string", "pattern": "CON-[0-9a-f]{64}"},
+              "target_activity_record_id": {"type": "string", "pattern": "AR-[0-9]{4}"},
+              "book_id": {"type": "string", "pattern": "[A-Z][A-Z0-9_-]{0,31}"},
+              "source_reading_uri": {"type": "string", "pattern": "reading://(note|node)/[A-Za-z0-9._~:/-]{1,240}"},
+              "source_revision": {"type": "string", "pattern": "[0-9a-f]{64}"},
+              "knowledge_node_id": {"type": ["string", "null"], "pattern": "K-[A-Z][A-Z0-9_-]{0,31}-[0-9]{4}"},
+              "question": {"type": "string", "minLength": 1, "maxLength": 500},
+              "maturity": {"type": "string", "minLength": 1, "maxLength": 64},
+              "supports": {"type": "array", "maxItems": 5, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+              "limits": {"type": "array", "maxItems": 5, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+              "evidence_locator": {
+                "type": "object", "additionalProperties": false,
+                "required": ["source_uri", "source_path", "source_id", "source_sha256", "receipt_note_uri"],
+                "properties": {
+                  "source_uri": {"type": "string", "pattern": "reading://(note|node)/[A-Za-z0-9._~:/-]{1,240}"},
+                  "source_path": {"type": "string", "format": "posix-relative-path", "maxLength": 512},
+                  "source_id": {"type": "string", "pattern": "[A-Za-z0-9._:-]{1,128}"},
+                  "source_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+                  "receipt_note_uri": {"type": ["string", "null"], "pattern": "reading://note/[A-Za-z0-9._~:/-]{1,240}"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "receipt_outbox": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["receipt_id", "status", "payload", "ack_result"],
+        "properties": {
+          "receipt_id": {"type": "string", "pattern": "RCP-[A-Z0-9]{16,64}"},
+          "status": {"type": "string", "enum": ["pending", "acknowledged"]},
+          "payload": {
+            "type": "object", "additionalProperties": false,
+            "required": ["schema", "event_id", "generated_at", "producer", "semantic_sha256", "receipt_id", "contribution_id", "target_activity_record_id", "receipt_target_uri", "consumer_uri", "used_at", "purpose"],
+            "properties": {
+              "schema": {"type": "string", "const": "reading.t2ag_receipt.v1"},
+              "event_id": {"type": "string", "pattern": "RCP-[A-Z0-9]{16,64}"},
+              "generated_at": {"type": "string", "format": "date-time"},
+              "producer": {"type": "string", "const": "t2ag"},
+              "semantic_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+              "receipt_id": {"type": "string", "pattern": "RCP-[A-Z0-9]{16,64}"},
+              "contribution_id": {"type": "string", "pattern": "CON-[0-9a-f]{64}"},
+              "target_activity_record_id": {"type": "string", "pattern": "AR-[0-9]{4}"},
+              "receipt_target_uri": {"type": "string", "pattern": "reading://note/[A-Za-z0-9._~:/-]{1,240}"},
+              "consumer_uri": {"type": "string", "pattern": "t2ag://[A-Za-z0-9._~:/-]{1,240}"},
+              "used_at": {"type": "string", "format": "date-time"},
+              "purpose": {"type": "string", "minLength": 1, "maxLength": 500}
+            }
+          },
+          "ack_result": {
+            "type": ["object", "null"], "additionalProperties": false,
+            "required": ["receipt_id", "semantic_sha256", "result", "response_sha256"],
+            "properties": {
+              "receipt_id": {"type": "string", "pattern": "RCP-[A-Z0-9]{16,64}"},
+              "semantic_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"},
+              "result": {"type": "string", "enum": ["applied", "already_applied"]},
+              "response_sha256": {"type": "string", "pattern": "[0-9a-f]{64}"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

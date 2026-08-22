@@ -1,0 +1,48 @@
+---
+type: lesson
+course_id: COURSE_ID
+lesson_id: lessonNN
+content_group_ids: [CONTENT_GROUP_ID]
+created: YYYY-MM-DD
+---
+# lessonNN
+
+> textbook driver 课程：本文件是备课与路由材料，**不是教学正文的正典**。教学正文经
+> `70_tools/canon_append.py` 写入本目录 `teaching_log.md`（正典）+ `emissions.jsonl`
+> （事件账），契约见 `50_playbook/canon_carrier.md`。非 textbook 课程可删本注。
+
+## 学习范围
+
+- 来源：SOURCE_SCOPE
+- 精确停点：START_POSITION
+
+## Lesson 开场概览
+
+- 开课前按教材目录、完整 Lesson 范围与 `LessonMap` 编写本课目标和学习路径；只作路线概览，
+  不把概览冒充教材讲授或学生确认。
+
+## 开场知识树
+
+```text
+lessonNN
+└─ 按本课 active lesson blocks 填写字符知识树
+```
+
+## 教学记录
+
+- 真实教学开始后追加；不得预造学生确认。
+
+## 消息记录路由
+
+本节只是指针：路由表的唯一 owner 是 `00_core/learning_activity_model.md` §2.3
+（本 Lesson 用其中的 **Lesson 变体**）。模板与实例不得复制表正文，防止两份正文漂移。
+
+## 门台账
+
+ledger_since: YYYY-MM-DD | 起算块: FIRST_CHECKPOINT_ID
+
+规则的唯一 owner 是 `00_core/learning_activity_model.md` §2.4（本 Lesson 用其中的
+**Lesson 变体**）；本节只持有锚与留痕表，不复制规则正文。
+
+| 行ID | 块ID | 门类型 | 闭合依据 | 感受回应 | 授权原文 | 消费于 |
+|---|---|---|---|---|---|---|

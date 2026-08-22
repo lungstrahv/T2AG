@@ -1,0 +1,25 @@
+# COURSE_ID lessonNN 想法记录
+
+> 惰性载体：只有真实出现学生原创表述时才从模板创建，不预造空文件。
+> 学生原话与教师回应分栏，不混写、不改写原话。
+> 有跨课价值的才上挂 `main/10_student/profile/reasoning_patterns.md`；
+> 达提炼门的学习感受上收 `main/10_student/profile/course_reflections.md`。
+> 判据见 `main/00_core/learning_activity_model.md` 第 2 类与第 5 类。
+
+## 条目格式
+
+```markdown
+### TH-01｜一句话标题
+- 日期：YYYY-MM-DD
+- 触发位置：教材页码 / 块 ID / 讲解到哪一步
+- 类别：原创表述 / 学习感受 / 元认知
+- 学生原话：
+  > 原话照录，不润色、不补全
+- 教师回应：
+  回应要点，与原话分栏；不把回应写进原话
+- 后续处置：待观察 / 已上挂 reasoning_patterns / 已上收 course_reflections / 本课内消化
+```
+
+## 条目
+
+暂无。

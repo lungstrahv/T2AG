@@ -1,0 +1,48 @@
+#!/bin/bash
+# t2ag 启动脚本（可选辅助）
+# 位置：main/bin/t2ag
+# 作用：进入 t2ag 目录，展示欢迎语、欢迎图与版本号
+# 注意：t2ag 的核心启动方式是在 AI 对话中发送「t2ag」或「读取 t2ag.md」
+# 展示时机见 t2ag.md「3.0 启动欢迎信息」；展示内容以 active skin metadata 为准
+
+set -e
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+T2AG_DIR="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
+INTERFACE_DIR="$T2AG_DIR/main/80_interface"
+SKIN_YAML="$INTERFACE_DIR/skin.yaml"
+
+# 版本号需与 t2ag.md 顶部「当前版本」保持一致
+T2AG_VERSION="0.2.3"
+
+cd "$T2AG_DIR" || { echo "无法进入 $T2AG_DIR"; exit 1; }
+
+WELCOME_MSG="欢迎使用，因懒惰而生的 vibe learning，agent t2ag！"
+ART_PATH=""
+
+# 动态读取 active skin；硬编码文案只作为 metadata 损坏时的降级提示。
+if [ -f "$SKIN_YAML" ]; then
+    ACTIVE=$(sed -n 's/^active:[[:space:]]*//p' "$SKIN_YAML" | head -1)
+    if [ -n "$ACTIVE" ]; then
+        SKIN_FOLDER=$(sed -n "s/^registry\.$ACTIVE:[[:space:]]*//p" "$SKIN_YAML" | head -1)
+        SKIN_META="$INTERFACE_DIR/$SKIN_FOLDER/skin.yaml"
+        if [ -n "$SKIN_FOLDER" ] && [ -f "$SKIN_META" ]; then
+            CONFIGURED_WELCOME=$(sed -n 's/^welcome_msg:[[:space:]]*//p' "$SKIN_META" | head -1)
+            ART_FILE=$(sed -n 's/^art_file:[[:space:]]*//p' "$SKIN_META" | head -1)
+            if [ -n "$CONFIGURED_WELCOME" ]; then
+                WELCOME_MSG="$CONFIGURED_WELCOME"
+            fi
+            if [ -n "$ART_FILE" ] && [ -f "$INTERFACE_DIR/$SKIN_FOLDER/$ART_FILE" ]; then
+                ART_PATH="$INTERFACE_DIR/$SKIN_FOLDER/$ART_FILE"
+            fi
+        fi
+    fi
+fi
+
+printf '\n%s\n' "$WELCOME_MSG"
+printf '当前目录：%s\n\n' "$(pwd)"
+if [ -n "$ART_PATH" ]; then
+    cat -- "$ART_PATH"
+    printf '\n'
+fi
+printf 'version: %s\n\n' "$T2AG_VERSION"

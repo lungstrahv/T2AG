@@ -1,0 +1,21 @@
+{
+  "schema": "t2ag.lesson_preparation_snapshot.v2",
+  "snapshot_id": "PREP-id",
+  "lesson_id": "lessonNN",
+  "lesson_scope_version": "SCOPE-id",
+  "previous_snapshot_id": null,
+  "lesson_scope_sha256": "",
+  "page_keys": [],
+  "load_receipt_ids": [],
+  "load_receipts": [],
+  "lesson_map_sha256": "",
+  "source_document_sha256": "",
+  "document_id": "DOCUMENT_ID",
+  "scope_coverage": "complete",
+  "content_consumed": false,
+  "short_document": false,
+  "prepared_by": "",
+  "prepared_at": "",
+  "snapshot_body_sha256": "",
+  "state": "valid"
+}
