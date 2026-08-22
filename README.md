@@ -4,8 +4,8 @@ One repository, two editions of the same release. Pick your language and go.
 
 | Edition | Entry | Source |
 |---|---|---|
-| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | 0.2.3 skeleton, commit `f27a431` |
-| English (translated edition) | [`en/README.md`](en/README.md) | 0.2.3 skeleton-en, `a347bcd` (from `f27a431` line) |
+| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | 0.2.3 skeleton, commit `52fbadd` |
+| English (translated edition) | [`en/README.md`](en/README.md) | 0.2.3 skeleton-en, imported from T2AG-EN @ `afca378` |
 
 ## English
 
