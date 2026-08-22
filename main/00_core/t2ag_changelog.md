@@ -5,6 +5,20 @@
 
 ---
 
+## [2026-08-21] 镜像 Main 宪法同源盲区收口：分节同源仪器 + VI-§6 sink（不升版）
+
+- **同源镜像**：从 Main 投影 `release.constitution_parity` 仪器面（`t2ag_doctor.py` /
+  `validation_workflow.json` / `contract_test_support.py` / `test_release_contracts.py` /
+  `playbook_management.md`）＋段三 `skin_playbook.md` §五版权纪律（`visual_identity.md`
+  按 D5 不入本仓）。H1/H2/H3 已于 `1a77025` 写入本仓 `t2ag.md`。
+- **本条目为状态漂移锚定**：新检查改变原子集与 runtime 计划，下方锚定断言随之刷新。
+  本 lane 认 44 checks / atom n=61；并行 domain_tier 的 +1 归其条目。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = e33dbc47ea055b6e976e059992f9cc0a6751076c59f870e1494da529aa3e4184 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 44 ← 同上
+- doctor_checks atom set sha256 = 4af2a9bbffff03e45ff3538807b9bfc5aa36f0c0ee96ac727e8210e21cd3d44a (n=61) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
 ## [2026-08-20] 镜像 Main 08-19 裁决批 + 08-20 折旧仪器批 + main-only 豁免登记（不升版）
 
 - **同源镜像**：从 Main（a347bcd 同批）投影 parity 面 9 文件：六 playbook

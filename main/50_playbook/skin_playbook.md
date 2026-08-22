@@ -123,6 +123,26 @@ registry.SKxxx: SKxxx_名称
   doctor 用正则解析，保持"删了 venv 也能跑"的可移植性。
 - **艺术文件不强制格式**：ASCII 艺术用 .txt，不用图片。保持纯文本、任何编辑器可读。
 
+### 发行/私用视觉分叉（版权纪律）
+
+正本自 `main/80_interface/visual_identity.md` §6 下沉至此（2026-08-21 D5 裁）——
+规则的执行场景在发行面，必须住在发行面读得到的文件里：
+
+- **发行与公开材料**（Skeleton、README、对外文档）：只用 蜗牛 + t2AG 字标 + ⛩。
+- **Inori 系字符画**：仅 Main/Lite 私用皮肤，**不入发行**——现成动漫角色，公共分发有
+  版权风险。
+- 承接 `README.md` 已批准的「欢迎画发行分叉」先例，分工由「美术偏好」升格为「版权边界」。
+
+美术规范正本（色板、符号、待施工资产池）在 `main/80_interface/visual_identity.md`；
+Skeleton 不携带它，其缺失不构成本节任何义务的豁免。
+
+机器面只覆盖默认皮肤分叉（Skeleton 默认 `01_welcome.txt`，runtime.skin 检查）；
+「Inori 系文件不得进发行包」整体无逐文件机检——release.package_surface 只扫维护者
+标识，不扫美术版权。
+
+enforcement: check=runtime.skin
+enforcement: prose_accepted（理由：逐文件美术版权无机检落点，如实认了不假装覆盖；失败由发行打包复审与包表面抽查发现）
+
 ---
 
 ## 六、关联文件
