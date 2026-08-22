@@ -129,12 +129,11 @@ on stdout, and never generates-then-deletes a temporary Python suite.
 
 ## License
 
-This package is **not open source yet**. It ships under
-`INVITED_USE_GRANT.md` — a bilingual (English / 简体中文), per-release,
-revocable grant to invited individuals. Read §3: the consideration for a free
-grant is that you give feedback. Read §5: every learning record you produce
-belongs to you, is never uploaded, and survives revocation.
+**Status**: public release under Apache-2.0 (code) and CC BY-SA 4.0 (prose) —
+see [`LICENSING.md`](../LICENSING.md) for the path boundary. The Invited Use
+Grant remains in force for zips handed to invited individuals before this date.
 
-The author's current plan is Apache-2.0 for the code layer and CC BY-SA 4.0 for
-the prose layer once the trial closes, but that plan is stated in §8 as a plan
-and explicitly not a commitment.
+Code is [Apache-2.0](../LICENSE); prose is [CC BY-SA 4.0](../LICENSE-DOCS.md).
+Read §5 of [`INVITED_USE_GRANT.md`](../INVITED_USE_GRANT.md) either way: every
+learning record you produce belongs to you, is never uploaded, and survives
+revocation. A clone taken from this repository carries the two open licences.

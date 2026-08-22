@@ -18,9 +18,9 @@ student data, ever. Copy `en/` somewhere, open it with your agent, and follow
 The Chinese edition under `zh/` is the source of truth; the English edition is
 generated from it and ships in lockstep — one tag always covers both.
 
-**Status**: invited private trial. Use is governed by
-[`INVITED_USE_GRANT.md`](INVITED_USE_GRANT.md) (bilingual). No open-source
-license has been granted yet.
+**Status**: public release under Apache-2.0 (code) and CC BY-SA 4.0 (prose) — see
+[`LICENSING.md`](LICENSING.md) for the path boundary. The Invited Use Grant
+remains in force for zips handed to invited individuals before this date.
 
 ## 中文
 
@@ -31,8 +31,8 @@ T2AG 是一套跑在文件系统上、由 AI agent（Claude、Codex 等）驱动
 
 `zh/` 是正本；`en/` 由正本生成、同刀发行——同一个 tag 永远同时覆盖两个版本。
 
-**状态**：受邀私下试用。使用以 [`INVITED_USE_GRANT.md`](INVITED_USE_GRANT.md)
-（双语）为准。尚未授予任何开源许可证。
+**状态**：已公开发行，代码 Apache-2.0、散文 CC BY-SA 4.0，路径边界见
+[`LICENSING.md`](LICENSING.md)。此前交付给受邀个人的 zip 仍按各自授权书执行。
 
 ---
 
