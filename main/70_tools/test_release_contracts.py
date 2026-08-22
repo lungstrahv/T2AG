@@ -12,6 +12,10 @@ TESTS = (
     contracts.test_skeleton_package_surface_is_enforced,
     contracts.test_release_package_surface_severity_split,
     contracts.test_candidate_replay_isolation_contract,
+    contracts.test_constitution_parity_r1_section_drift_fails,
+    contracts.test_constitution_parity_r2_stale_exemption_warns,
+    contracts.test_constitution_parity_r3_section_set_fork_fails,
+    contracts.test_constitution_parity_r4_exempt_fork_and_clean_are_silent,
 )
 
 

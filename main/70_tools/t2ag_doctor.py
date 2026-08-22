@@ -157,9 +157,11 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_migration_021_evidence", "check_activity_migration_021_evidence",
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_playbook_taxonomy", "check_playbook_taxonomy_parity",
-    "check_playbook_usage",
+    "check_playbook_usage", "check_domain_tier_reconciliation",
+    "check_recommendation_ledger",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
     "check_skeleton_textbook", "check_distribution_parity",
+    "check_constitution_parity",
     "check_skeleton_privacy", "check_release_package_surface",
     "check_decision_record_citations",
     "check_line_endings", "check_release_line_endings",
@@ -3449,6 +3451,270 @@ def check_playbook_usage() -> None:
         report(severity, message)
 
 
+# ---------------------------------------------------------------------------
+# P-0073 N2：领域信任档位对账（WARN-only，2026-08-21）
+#
+# 学生 2026-08-08 自造三档模型，同日自诊真软点＝**档位误判无校验**。N1（profile 的
+# domain→tier 表）只是登记，登记等于自述；对账才是对症的那一半——档位只升不降必然虚高。
+#
+# 权力边界：**WARN-only，永不 FAIL**。档位是学生对自己的判断，机器只呈证据差，不替人
+# 裁档。这也是为什么这里没有降档动作：N5（降档触发）本轮未授权。
+#
+# 冷启动护栏沿用 EV-0031/PB-USE-000 先例：没有表就报观测态 INFO，不判虚高。一个上线首日
+# 就红的仪器，会把所有人教成忽略它——那比没有仪器更糟。
+# ---------------------------------------------------------------------------
+
+TIER_LEGAL_VALUES: frozenset[str] = frozenset({"远", "半熟", "精熟"})
+TIER_TOP_VALUE = "精熟"
+TIER_TABLE_HEADING = "领域信任档位"
+
+
+def domain_tier_rows(profile_text: str) -> list[tuple[str, str, str, str]]:
+    """Parse ``(domain, tier, evidence_ref, updated)`` from the profile table.
+
+    Header-driven and fenced-block-safe, mirroring ``checkpoint_rows_from``: a
+    literal column-order assumption is how GATE-LEDGER once produced phantom rows.
+    """
+    body = strip_fenced_blocks(profile_text)
+    start = body.find(f"## {TIER_TABLE_HEADING}")
+    if start < 0:
+        return []
+    section = body[start:]
+    nxt = section.find("\n## ", 1)
+    if nxt > 0:
+        section = section[:nxt]
+    rows: list[tuple[str, str, str, str]] = []
+    header_cells: list[str] | None = None
+    for line in section.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if header_cells is None:
+            if "领域" in cells and "档位" in cells:
+                header_cells = cells
+            continue
+        if all(set(cell) <= {"-", ":"} for cell in cells if cell):
+            continue
+        record = dict(zip(header_cells, cells))
+        domain = record.get("领域", "")
+        if not domain or domain.startswith("<"):
+            continue
+        rows.append(
+            (
+                domain,
+                record.get("档位", ""),
+                record.get("证据指针", "").strip("`"),
+                record.get("更新日", ""),
+            )
+        )
+    return rows
+
+
+def domain_tier_findings(
+    rows: list[tuple[str, str, str, str]],
+    evidence: dict[str, str | None],
+) -> list[tuple[str, str, str]]:
+    """Reconcile declared tiers against evidence.  ``None`` value = unresolvable.
+
+    Pure so the whole verdict is testable without a profile on disk.
+    """
+    findings: list[tuple[str, str, str]] = []
+    if not rows:
+        findings.append(
+            (
+                "TIER-000",
+                "INFO",
+                "profile 无领域信任档位表，档位对账跳过（冷启动护栏）："
+                "空模板与新试用者的 doctor 必须保持 0 WARN",
+            )
+        )
+        return findings
+    for domain, tier, ref, _updated in rows:
+        if tier not in TIER_LEGAL_VALUES:
+            findings.append(
+                (
+                    "TIER-003",
+                    "WARN",
+                    f"{domain} 档位取值非法：{tier!r} 不在三值合法集 "
+                    f"{sorted(TIER_LEGAL_VALUES)}",
+                )
+            )
+            continue
+        if tier == "远":
+            continue  # 默认档位，无主张即无需举证
+        body = evidence.get(ref)
+        if not ref or body is None:
+            findings.append(
+                (
+                    "TIER-002",
+                    "WARN",
+                    f"{domain} 自评 {tier}，但证据指针"
+                    f"{'为空' if not ref else f'不可解析（{ref}）'}——"
+                    "该登记目前只是自述，无对账对象（P-0073 的软点原样保留）",
+                )
+            )
+            continue
+        if tier == TIER_TOP_VALUE and domain not in body:
+            findings.append(
+                (
+                    "TIER-001",
+                    "WARN",
+                    f"{domain} 自评 {TIER_TOP_VALUE}，但证据文件 {ref} 全文未提及该领域："
+                    "顶档主张与实绩对不上，疑虚高（档位只升不降必然虚高）",
+                )
+            )
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# P-0069：建议登记册格式检查（2026-08-21）
+#
+# 08-11 曾裁「不建新载体、等 occurrence≥2」；08-21 用户在五条 open 问题全量审查后改判
+# 建册。改判理由已钉进 problemlog：重启计数器防的是**轻率**建状态机，本轮非轻率触发，
+# 计数器失去防护对象。
+#
+# 只验格式不验语义：四个必填字段在位、状态四值合法、adopted 必须给落地引用。语义（这条
+# 建议该不该采纳）永远归人。检查面刻意窄——这是台账的第一天，n=1，宽检查会先长成负担。
+# ---------------------------------------------------------------------------
+
+RECOMMENDATION_STATUSES: frozenset[str] = frozenset(
+    {"proposed", "deferred", "adopted", "retired"}
+)
+RECOMMENDATION_SCOPES: frozenset[str] = frozenset({"system", "group", "course"})
+RECOMMENDATION_REQUIRED_FIELDS: tuple[str, ...] = (
+    "scope",
+    "target",
+    "status",
+    "provenance",
+    "revisit_when",
+)
+
+
+def recommendation_entries(text: str) -> list[tuple[str, dict[str, str], str]]:
+    """Parse ``## R-NNNN`` blocks into ``(id, fields, body)``, fenced-block safe."""
+    body = strip_fenced_blocks(text)
+    entries: list[tuple[str, dict[str, str], str]] = []
+    matches = list(re.finditer(r"^## (R-\d{4})\b(.*)$", body, re.MULTILINE))
+    for index, match in enumerate(matches):
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
+        block = body[start:end]
+        fields: dict[str, str] = {}
+        for line in block.splitlines():
+            field = re.fullmatch(r"-\s*([a-z_]+):\s*(.*)", line.strip())
+            if field:
+                fields.setdefault(field.group(1), field.group(2).strip())
+        entries.append((match.group(1), fields, block))
+    return entries
+
+
+def recommendation_findings(
+    entries: list[tuple[str, dict[str, str], str]],
+    *,
+    ledger_present: bool,
+) -> list[tuple[str, str, str]]:
+    """Pure format verdict for the recommendation ledger (WARN-only)."""
+    findings: list[tuple[str, str, str]] = []
+    if not ledger_present:
+        return findings  # 无台账＝未施工实例（Skeleton/新试用者），不是缺陷
+    if not entries:
+        findings.append(
+            (
+                "REC-000",
+                "INFO",
+                "建议登记册在位但无条目（观测态；空台账不判缺陷）",
+            )
+        )
+        return findings
+    seen: set[str] = set()
+    for entry_id, fields, block in entries:
+        if entry_id in seen:
+            findings.append(
+                ("REC-004", "WARN", f"{entry_id} 条目 ID 重复（引用将歧义，同 P-0072）")
+            )
+        seen.add(entry_id)
+        missing = [
+            name for name in RECOMMENDATION_REQUIRED_FIELDS if not fields.get(name)
+        ]
+        if missing:
+            findings.append(
+                (
+                    "REC-001",
+                    "WARN",
+                    f"{entry_id} 缺必填字段：{'、'.join(missing)}"
+                    "（revisit_when 缺失＝死条目；provenance 缺失＝无主堆积）",
+                )
+            )
+        status = fields.get("status", "")
+        if status and status not in RECOMMENDATION_STATUSES:
+            findings.append(
+                (
+                    "REC-002",
+                    "WARN",
+                    f"{entry_id} 状态非法：{status!r} 不在四值合法集 "
+                    f"{sorted(RECOMMENDATION_STATUSES)}",
+                )
+            )
+        scope = fields.get("scope", "")
+        if scope and scope not in RECOMMENDATION_SCOPES:
+            findings.append(
+                (
+                    "REC-005",
+                    "WARN",
+                    f"{entry_id} scope 非法：{scope!r} 不在 "
+                    f"{sorted(RECOMMENDATION_SCOPES)}",
+                )
+            )
+        provenance = fields.get("provenance", "")
+        if provenance and not re.match(r"(student|model)\b", provenance):
+            findings.append(
+                (
+                    "REC-006",
+                    "WARN",
+                    f"{entry_id} provenance 须以 student 或 model 起头（实得 "
+                    f"{provenance!r}）：模型建议无标记地累积是已知失败模式",
+                )
+            )
+        if status == "adopted" and not re.search(r"main/\S+\.md", block):
+            findings.append(
+                (
+                    "REC-003",
+                    "WARN",
+                    f"{entry_id} 已标 adopted 但块内无 plan/progress 落地引用："
+                    "声称采纳却指不出对应改动＝纸面采纳",
+                )
+            )
+    return findings
+
+
+def check_recommendation_ledger() -> None:
+    """P-0069：建议登记册格式检查（WARN-only，语义归人）。"""
+    ledger = MAIN / "30_group/recommendations.md"
+    if not ledger.is_file():
+        return
+    for _code, severity, message in recommendation_findings(
+        recommendation_entries(read(ledger)), ledger_present=True
+    ):
+        report(severity, message)
+
+
+def check_domain_tier_reconciliation() -> None:
+    """P-0073 N2：档位自评 ↔ 取证实绩对账（WARN-only）。"""
+    profile_path = MAIN / "10_student/profile/profile.md"
+    if not profile_path.is_file():
+        return
+    rows = domain_tier_rows(read(profile_path))
+    evidence: dict[str, str | None] = {}
+    for _domain, _tier, ref, _updated in rows:
+        if not ref or ref in evidence:
+            continue
+        target = ROOT / ref
+        evidence[ref] = read(target) if target.is_file() else None
+    for _code, severity, message in domain_tier_findings(rows, evidence):
+        report(severity, message)
+
+
 def landing_defect(
     value: str,
     *,
@@ -6058,6 +6324,193 @@ def check_distribution_parity() -> None:
         )
 
 
+
+# --- Constitution & core-model section parity (EV-0032, 2026-08-21) -----------
+# check_distribution_parity's roots stop at 50_playbook/70_tools, so the
+# constitution and the 00_core models were never compared at all -- not exempted,
+# unseen.  The gap already cost real drift: the block-transition protocol entered
+# main/t2ag.md on 2026-08-06 (0.2.3) and stayed un-mirrored for 15 days with zero
+# findings (P-0074, a recurrence of P-0065's carrier_mismatch).
+#
+# The unit is the `## ` section, not the file: the Skeleton constitution
+# de-instantiates its §6 on purpose (the "H4 fork" -- it rewrites a
+# handoff-inventory pointer and explicitly states that the missing file grants no
+# exemption), so file-level byte parity would flag correct behaviour and force a
+# whole-file exemption, renaming the blind spot instead of removing it
+# (D1 adjudication, 2026-08-21).
+
+CONSTITUTION_PARITY_TARGETS = (
+    "main/t2ag.md",
+    "main/00_core/domain_model.md",
+    "main/00_core/learning_activity_model.md",
+    "main/00_core/pattern_retire_loop.md",
+)
+# (file, section title) -> mandatory reason.  The exemption covers drift and
+# one-sided presence, and turns stale (WARN) once both sides agree again --
+# same discipline as DISTRIBUTION_PARITY_EXEMPT.
+CONSTITUTION_PARITY_EXEMPT = {
+    ("main/t2ag.md", "6. 修改、迁移与发布闸门"):
+        "Skeleton 去实例化改写 handoff 清单指针，并显式声明缺失不构成豁免"
+        "（H4，2026-08-21 D1 裁）",
+}
+# Whole files whose editions serve different audiences by design.  INFO, not
+# silence: the file stays listed so the next reader knows it was seen and judged.
+CONSTITUTION_PARITY_FILE_EXEMPT = {
+    "AGENTS.md": "两侧受众不同：Skeleton 版含试用引导（2026-08-21 D2 裁）",
+}
+
+CONSTITUTION_SECTION_MARKER = re.compile(
+    r"^## +(?P<title>.+?)(?:\s+\[max \d+\])?\s*$"
+)
+
+
+def constitution_section_digests(data: bytes) -> tuple[dict[str, str], list[str]]:
+    """Split a constitution-family file into `## ` sections and hash each one.
+
+    Returns ({title: sha256}, [duplicated titles]).  Everything before the first
+    `## ` heading is the "<preamble>" section.  A trailing `[max N]` budget
+    marker is stripped from the title so a budget adjustment does not read as a
+    section rename (the numbers belong to the student -- check_constitution_budget).
+    Hashes cover raw bytes, so line endings count, same as check_distribution_parity.
+    Duplicate titles make parity undecidable and are returned for the caller to FAIL.
+    """
+    chunks: list[tuple[str, list[bytes]]] = [("<preamble>", [])]
+    for line in data.splitlines(keepends=True):
+        text_line = line.decode("utf-8", errors="replace").rstrip("\r\n")
+        match = CONSTITUTION_SECTION_MARKER.match(text_line)
+        if match:
+            chunks.append((match.group("title").strip(), [line]))
+        else:
+            chunks[-1][1].append(line)
+    merged: dict[str, bytes] = {}
+    duplicates: list[str] = []
+    for title, lines in chunks:
+        if title == "<preamble>" and not lines:
+            continue
+        if title in merged:
+            duplicates.append(title)
+            merged[title] += b"".join(lines)
+        else:
+            merged[title] = b"".join(lines)
+    digests = {
+        title: hashlib.sha256(blob).hexdigest() for title, blob in merged.items()
+    }
+    return digests, sorted(set(duplicates))
+
+
+def constitution_parity_findings(
+    main_root: Path,
+    skeleton_root: Path,
+    *,
+    targets: tuple[str, ...] = CONSTITUTION_PARITY_TARGETS,
+    exempt: dict[tuple[str, str], str] | None = None,
+    file_exempt: dict[str, str] | None = None,
+) -> list[tuple[str, str, str]]:
+    """Cross-edition findings: CONST-PAR-001 section drift / 002 section-set fork
+    / 003 stale-or-dangling exemption / 004 missing target file / 005 duplicate
+    section title.  File-level exemptions report INFO (000) so they stay visible."""
+    if exempt is None:
+        exempt = CONSTITUTION_PARITY_EXEMPT
+    if file_exempt is None:
+        file_exempt = CONSTITUTION_PARITY_FILE_EXEMPT
+    findings: list[tuple[str, str, str]] = []
+    for rel in sorted(file_exempt):
+        main_file, skel_file = main_root / rel, skeleton_root / rel
+        if (
+            main_file.is_file() and skel_file.is_file()
+            and main_file.read_bytes() == skel_file.read_bytes()
+        ):
+            findings.append((
+                "CONST-PAR-003", "WARN",
+                f"文件级豁免已失效（两侧已一致，应移除或改为纳管）：{rel}",
+            ))
+        else:
+            findings.append((
+                "CONST-PAR-000", "INFO",
+                f"文件级豁免：{rel}——{file_exempt[rel]}",
+            ))
+    seen_exempt: set[tuple[str, str]] = set()
+    for rel in targets:
+        main_file, skel_file = main_root / rel, skeleton_root / rel
+        if not main_file.is_file() or not skel_file.is_file():
+            side = "Main" if not main_file.is_file() else "Skeleton"
+            findings.append((
+                "CONST-PAR-004", "FAIL",
+                f"宪法同源目标缺失（{side} 无此文件）：{rel}",
+            ))
+            continue
+        main_digests, main_dupes = constitution_section_digests(main_file.read_bytes())
+        skel_digests, skel_dupes = constitution_section_digests(skel_file.read_bytes())
+        for edition, dupes in (("Main", main_dupes), ("Skeleton", skel_dupes)):
+            if dupes:
+                findings.append((
+                    "CONST-PAR-005", "FAIL",
+                    f"节标题重复，分节比对不可判：{rel}（{edition}）-> {dupes}",
+                ))
+        for title in sorted(set(main_digests) | set(skel_digests)):
+            key = (rel, title)
+            one_sided = (title in main_digests) != (title in skel_digests)
+            drifted = not one_sided and main_digests[title] != skel_digests[title]
+            if key in exempt:
+                seen_exempt.add(key)
+                if not one_sided and not drifted:
+                    findings.append((
+                        "CONST-PAR-003", "WARN",
+                        "分节豁免已失效（两侧已一致，应从 "
+                        f"CONSTITUTION_PARITY_EXEMPT 移除）：{rel} §「{title}」",
+                    ))
+                continue
+            if one_sided:
+                side = (
+                    "Skeleton 缺节" if title in main_digests else "Skeleton 多节"
+                )
+                findings.append((
+                    "CONST-PAR-002", "FAIL",
+                    f"Main↔Skeleton 节集合分叉（{side}）：{rel} §「{title}」",
+                ))
+            elif drifted:
+                findings.append((
+                    "CONST-PAR-001", "FAIL",
+                    f"Main↔Skeleton 宪法分节漂移：{rel} §「{title}」",
+                ))
+    for rel, title in sorted(set(exempt) - seen_exempt):
+        if rel in targets:
+            findings.append((
+                "CONST-PAR-003", "WARN",
+                f"分节豁免悬空（两侧均无此节）：{rel} §「{title}」",
+            ))
+    return findings
+
+
+def check_constitution_parity() -> None:
+    """Release: constitution + 00_core models stay section-identical in Skeleton.
+
+    Same division of labour as check_distribution_parity -- release, not runtime:
+    parity is a distribution property and a Skeleton drift must not stop the
+    day's teaching (t2ag.md §3.2).  Same exemption discipline: reasons are
+    mandatory data, stale exemptions surface as WARN so the list cannot quietly
+    grow into a hole.  Registered per the 2026-08-21 D1-D3 adjudication; the
+    founding incident is P-0074.
+    """
+    if FLAVOR != "main":
+        return
+    skeleton = ROOT.parent / "t2ag-skeleton"
+    if not skeleton.is_dir():
+        report("INFO", "constitution parity: 未挂载 t2ag-skeleton，跳过分节比对")
+        return
+    findings = constitution_parity_findings(ROOT, skeleton)
+    for _code, severity, message in findings:
+        report(severity, message)
+    if not any(severity == "FAIL" for _code, severity, _message in findings):
+        report(
+            "INFO",
+            "constitution parity: "
+            f"{len(CONSTITUTION_PARITY_TARGETS)} 件分节比对，"
+            f"{len(CONSTITUTION_PARITY_EXEMPT)} 节豁免 + "
+            f"{len(CONSTITUTION_PARITY_FILE_EXEMPT)} 文件级豁免",
+        )
+
+
 # Personal identifiers that must never ship inside the open-source Skeleton.
 # The pattern list lives here; the *scope* is the whole repo, which is the point --
 # an identical check already existed inside check_version_and_profile but read only
@@ -7226,12 +7679,15 @@ def execute_doctor_checks(
         "check_core_playbooks": check_core_playbooks,
         "check_playbook_taxonomy": check_playbook_taxonomy,
         "check_playbook_usage": check_playbook_usage,
+        "check_domain_tier_reconciliation": check_domain_tier_reconciliation,
+        "check_recommendation_ledger": check_recommendation_ledger,
         "check_playbook_taxonomy_parity": check_playbook_taxonomy_parity,
         "check_candidate_replay_contract": check_candidate_replay_contract,
         "check_tracked_environment": check_tracked_environment,
         "check_dirty_tree": check_dirty_tree,
         "check_skeleton_textbook": check_skeleton_textbook_gate,
         "check_distribution_parity": check_distribution_parity,
+        "check_constitution_parity": check_constitution_parity,
         "check_skeleton_privacy": check_skeleton_privacy,
         "check_release_package_surface": check_release_package_surface,
         "check_decision_record_citations": check_decision_record_citations,

@@ -120,6 +120,11 @@ enforcement: check=release.playbook_taxonomy_parity
 - 每个标记为 `core-playbook` 的文件都必须存在于 main、skeleton 与 lite，文件正文保持一致。
 - 每个标记为 `meta-playbook` 的文件都必须存在于 skeleton，且 main / skeleton / lite
   三仓字节全同。
+- 宪法与 00_core 模型**不走文件级字节同源，走分节同源**：`main/t2ag.md` 与
+  `00_core/` 三模型按 `## ` 节比对 SHA（Skeleton 宪法 §6 去实例化是合法分叉，以
+  节级豁免带理由登记；`AGENTS.md` 受众不同走文件级豁免；2026-08-21 D1–D3 裁）。
+  owner=`70_tools/t2ag_doctor.py` `check_constitution_parity`。
+  enforcement: check=release.constitution_parity
 - core-playbook 不得写入真实学生姓名、绝对路径、当前课程进度、固定 commit 或私人远端地址；实例参数从运行时文件读取。
 - 新增或重大修改 core-playbook 时，同一批次同步三版本，再分别运行 doctor。
 - 三仓同处一个工作区时，doctor 比较 core-playbook 文件集合与 SHA-256；缺失或正文分叉均为 FAIL。独立发行时只检查本地必需文件。

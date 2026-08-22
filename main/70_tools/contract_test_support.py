@@ -4722,6 +4722,190 @@ def test_playbook_usage_r3_no_data_is_info_not_warn(root: Path) -> None:
         raise AssertionError(f"必须报观测态 INFO: {findings}")
 
 
+def test_domain_tier_r1_top_claim_without_evidence_warns(root: Path) -> None:
+    """TIER-R1: 自评精熟但证据文件不提该领域 → TIER-001 虚高 WARN。
+
+    这条是 P-0073 的病灶本身：学生 2026-08-08 自诊「档位误判无校验」，档位只升不降
+    必然虚高。没有这条，N1 的表就只是自述。
+    """
+    rows = [("compute_governance", "精熟", "evidence/e3.md", "2026-08-21")]
+    findings = doctor.domain_tier_findings(
+        rows, {"evidence/e3.md": "本文件只记 ai_fluency 的辨别样本"}
+    )
+    if not any(c == "TIER-001" and s == "WARN" for c, s, _ in findings):
+        raise AssertionError(f"顶档主张对不上实绩必须 WARN: {findings}")
+    if any(s == "FAIL" for _, s, _ in findings):
+        raise AssertionError(f"档位是学生自判，机器只呈证据差，永不 FAIL: {findings}")
+
+
+def test_domain_tier_r2_dangling_or_missing_pointer_warns(root: Path) -> None:
+    """TIER-R2: 证据指针不可解析或为空 → TIER-002；「远」档无主张故豁免。"""
+    dangling = doctor.domain_tier_findings(
+        [("ai_fluency", "半熟", "evidence/gone.md", "2026-08-21")],
+        {"evidence/gone.md": None},
+    )
+    if not any(c == "TIER-002" and s == "WARN" for c, s, _ in dangling):
+        raise AssertionError(f"悬空指针必须 WARN: {dangling}")
+    empty = doctor.domain_tier_findings(
+        [("ai_fluency", "半熟", "", "2026-08-21")], {}
+    )
+    if not any(c == "TIER-002" for c, _, _ in empty):
+        raise AssertionError(f"空指针必须 WARN: {empty}")
+    far = doctor.domain_tier_findings([("quantum", "远", "", "2026-08-21")], {})
+    if far:
+        raise AssertionError(f"「远」是默认档位，无主张即无需举证: {far}")
+
+
+def test_domain_tier_r3_illegal_value_and_cold_start(root: Path) -> None:
+    """TIER-R3: 非三值合法集 → TIER-003；无表 → TIER-000 INFO 冷启动，不判虚高。"""
+    illegal = doctor.domain_tier_findings(
+        [("x", "熟练", "e.md", "2026-08-21")], {"e.md": "x"}
+    )
+    if not any(c == "TIER-003" and s == "WARN" for c, s, _ in illegal):
+        raise AssertionError(f"非法档位值必须 WARN: {illegal}")
+    cold = doctor.domain_tier_findings([], {})
+    if [c for c, s, _ in cold if s == "WARN"]:
+        raise AssertionError(f"空表不得 WARN（冷启动护栏，同 PB-USE-000）: {cold}")
+    if not any(c == "TIER-000" and s == "INFO" for c, s, _ in cold):
+        raise AssertionError(f"空表必须报观测态 INFO: {cold}")
+
+
+def test_domain_tier_r4_table_parse_is_header_driven(root: Path) -> None:
+    """TIER-R4: 表头驱动解析，围栏块内的示例表不得被当成真实登记。
+
+    GATE-LEDGER 曾因假定列序而产出幻影行（AIF1001r 假 000）；同一个坑不踩第二次。
+    """
+    profile = (
+        "# 档案\n\n## 领域信任档位（domain→tier）\n\n"
+        "| 领域 | 档位 | 证据指针 | 更新日 |\n|---|---|---|---|\n"
+        "| ai_fluency | 半熟 | `evidence/e3.md` | 2026-08-21 |\n\n"
+        "```\n| 领域 | 档位 | 证据指针 | 更新日 |\n"
+        "| fake_domain | 精熟 | `nope.md` | 2026-01-01 |\n```\n\n"
+        "## 下一节\n\n| 领域 | 档位 |\n|---|---|\n| after_section | 精熟 |\n"
+    )
+    rows = doctor.domain_tier_rows(profile)
+    domains = [row[0] for row in rows]
+    if domains != ["ai_fluency"]:
+        raise AssertionError(f"只应解析出真实登记行，实得: {domains}")
+    if rows[0][1] != "半熟" or rows[0][2] != "evidence/e3.md":
+        raise AssertionError(f"列取值错位: {rows[0]}")
+    if not doctor.domain_tier_rows("# 档案\n\n## 别的节\n\n无表\n") == []:
+        raise AssertionError("无该节时必须返回空表，交给冷启动护栏判定")
+
+
+def test_domain_tier_r5_live_profile_registers_and_resolves(root: Path) -> None:
+    """TIER-R5: 真实 profile 的 N1 表必须存在、合法、且证据指针真能解析开。
+
+    防的是「表写了但指针是想象的」——P-0069 那类按想象格式书写的同族毛病。
+    """
+    profile_path = doctor.MAIN / "10_student/profile/profile.md"
+    if not profile_path.is_file():
+        return
+    rows = doctor.domain_tier_rows(profile_path.read_text(encoding="utf-8"))
+    if not rows:
+        raise AssertionError("N1 表已施工，真实 profile 必须解析出至少一行")
+    for domain, tier, ref, _updated in rows:
+        if tier not in doctor.TIER_LEGAL_VALUES:
+            raise AssertionError(f"{domain} 档位非法: {tier}")
+        if tier == "远":
+            continue
+        if not (doctor.ROOT / ref).is_file():
+            raise AssertionError(f"{domain} 证据指针不可解析: {ref}")
+
+
+
+def _constitution_editions(root: Path) -> tuple[Path, Path]:
+    """Two minimal editions whose constitution files start byte-identical."""
+    reset(root)
+    constitution = (
+        "# T2AG\n\n宪法前言。\n\n"
+        "## 1. 原则  [max 9]\n\nalpha\n\n"
+        "## 6. 修改、迁移与发布闸门  [max 9]\n\nbeta\n"
+    )
+    for name in ("t2ag", "t2ag-skeleton"):
+        write(root / name / "main/t2ag.md", constitution)
+    return root / "t2ag", root / "t2ag-skeleton"
+
+
+_CONSTITUTION_TEST_TARGETS = ("main/t2ag.md",)
+
+
+def test_constitution_parity_r1_section_drift_fails(root: Path) -> None:
+    """R1: one section's bytes change in one edition → CONST-PAR-001 FAIL."""
+    main_root, skel_root = _constitution_editions(root)
+    path = skel_root / "main/t2ag.md"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("alpha", "alpha-x"),
+        encoding="utf-8",
+    )
+    findings = doctor.constitution_parity_findings(
+        main_root, skel_root,
+        targets=_CONSTITUTION_TEST_TARGETS, exempt={}, file_exempt={},
+    )
+    if [(code, severity) for code, severity, _ in findings] != [("CONST-PAR-001", "FAIL")]:
+        raise AssertionError(f"section drift must FAIL 001 only: {findings}")
+    if "1. 原则" not in findings[0][2] or "[max" in findings[0][2]:
+        raise AssertionError(
+            f"finding must name the section without its [max N] marker: {findings}"
+        )
+
+
+def test_constitution_parity_r2_stale_exemption_warns(root: Path) -> None:
+    """R2: exempt section identical on both sides → CONST-PAR-003 WARN (stale)."""
+    main_root, skel_root = _constitution_editions(root)
+    findings = doctor.constitution_parity_findings(
+        main_root, skel_root,
+        targets=_CONSTITUTION_TEST_TARGETS,
+        exempt={("main/t2ag.md", "6. 修改、迁移与发布闸门"): "test reason"},
+        file_exempt={},
+    )
+    if [(code, severity) for code, severity, _ in findings] != [("CONST-PAR-003", "WARN")]:
+        raise AssertionError(f"stale exemption must WARN 003: {findings}")
+
+
+def test_constitution_parity_r3_section_set_fork_fails(root: Path) -> None:
+    """R3: Skeleton loses a whole section → CONST-PAR-002 FAIL naming the side."""
+    main_root, skel_root = _constitution_editions(root)
+    path = skel_root / "main/t2ag.md"
+    head, _sep, _tail = path.read_text(encoding="utf-8").partition("## 6. ")
+    path.write_text(head, encoding="utf-8")
+    findings = doctor.constitution_parity_findings(
+        main_root, skel_root,
+        targets=_CONSTITUTION_TEST_TARGETS, exempt={}, file_exempt={},
+    )
+    if not any(
+        code == "CONST-PAR-002" and severity == "FAIL" and "Skeleton 缺节" in message
+        for code, severity, message in findings
+    ):
+        raise AssertionError(f"set fork must FAIL 002 naming the side: {findings}")
+
+
+def test_constitution_parity_r4_exempt_fork_and_clean_are_silent(root: Path) -> None:
+    """R4: identical editions are silent; a forked exempt section stays silent."""
+    main_root, skel_root = _constitution_editions(root)
+    clean = doctor.constitution_parity_findings(
+        main_root, skel_root,
+        targets=_CONSTITUTION_TEST_TARGETS, exempt={}, file_exempt={},
+    )
+    if clean:
+        raise AssertionError(f"identical editions must be silent: {clean}")
+    path = skel_root / "main/t2ag.md"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("beta", "beta-fork"),
+        encoding="utf-8",
+    )
+    forked = doctor.constitution_parity_findings(
+        main_root, skel_root,
+        targets=_CONSTITUTION_TEST_TARGETS,
+        exempt={("main/t2ag.md", "6. 修改、迁移与发布闸门"): "H4-style lawful fork"},
+        file_exempt={},
+    )
+    if forked:
+        raise AssertionError(f"exempt fork must be silent: {forked}")
+
+
+
+
 ALL_CONTRACT_TESTS = (
         test_profile_placeholder,
         test_profile_container_contract,
@@ -4830,8 +5014,16 @@ ALL_CONTRACT_TESTS = (
         test_playbook_usage_r1_stale_reference_is_archive_candidate,
         test_playbook_usage_r2_mark_window_cursor_and_recent_silent,
         test_playbook_usage_r3_no_data_is_info_not_warn,
+        test_domain_tier_r1_top_claim_without_evidence_warns,
+        test_domain_tier_r2_dangling_or_missing_pointer_warns,
+        test_domain_tier_r3_illegal_value_and_cold_start,
+        test_domain_tier_r4_table_parse_is_header_driven,
+        test_domain_tier_r5_live_profile_registers_and_resolves,
+        test_constitution_parity_r1_section_drift_fails,
+        test_constitution_parity_r2_stale_exemption_warns,
+        test_constitution_parity_r3_section_set_fork_fails,
+        test_constitution_parity_r4_exempt_fork_and_clean_are_silent,
 )
-
 
 
 def _genesis_ledger_text(first_event_lines: str) -> str:
