@@ -2,6 +2,7 @@
 """Regression checks for the read-only learning context packet."""
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import re
@@ -1291,6 +1292,193 @@ class ScanEvidenceSpecTests(unittest.TestCase):
             normalise_spec_text("能满足全部前置而**正文一字未投递**"),
             normalise_spec_text(dropped),
         )
+
+
+
+class OptionalL0ComponentTests(unittest.TestCase):
+    """TB Batch C（2026-08-21 裁决）：四段可选组件的旋钮交给学生，恢复链不可关。"""
+
+    def test_optional_ids_map_to_labels(self) -> None:
+        self.assertEqual(context.optional_component_id("学生教学契约"), "contract")
+        self.assertEqual(context.optional_component_id("生效教师模板 T003"), "template")
+        self.assertEqual(context.optional_component_id("当前教师 overlay"), "overlay")
+        self.assertEqual(
+            context.optional_component_id("当前课程感想与最近提炼"), "reflections"
+        )
+
+    def test_recovery_chain_sections_are_not_optional(self) -> None:
+        for label in (
+            "恢复指针",
+            "进度真相源当前切片",
+            "当前 Lesson 恢复胶囊",
+            "当前教材窗口",
+            "当前课程与课程组索引行",
+        ):
+            self.assertEqual(context.optional_component_id(label), "", label)
+
+    def test_parse_optional_off_accepts_comma_and_space(self) -> None:
+        head = "---\ntype: student_profile\nl0_optional_off: {}\n---\n"
+        self.assertEqual(
+            context.parse_optional_off(head.format("reflections, template")),
+            ("reflections", "template"),
+        )
+        self.assertEqual(
+            context.parse_optional_off(head.format("[overlay contract]")),
+            ("overlay", "contract"),
+        )
+        self.assertEqual(context.parse_optional_off("---\ntype: x\n---\n"), ())
+
+    def test_unknown_optional_id_fails_closed(self) -> None:
+        with self.assertRaisesRegex(context.ContextPacketError, "unknown l0_optional_off"):
+            context.parse_optional_off(
+                "---\ntype: student_profile\nl0_optional_off: reflectionz\n---\n"
+            )
+
+    def test_packet_reports_both_accounts_and_component_table(self) -> None:
+        packet = context.build_packet(context.ROOT)
+        cost = packet["cost"]
+        self.assertGreater(cost["serialized_l0_markdown_bytes"], 0)
+        self.assertGreater(
+            cost["serialized_l0_markdown_bytes"],
+            cost["serialized_l0_markdown_chars"],
+            "中文语料下字节数必然大于字符数；两账分别报（C-1）",
+        )
+        state = packet["optional_components"]
+        self.assertEqual(
+            {c["id"] for c in state}, set(context.OPTIONAL_L0_IDS)
+        )
+        for comp in state:
+            self.assertIn(comp["state"], {"on", "off"})
+            self.assertGreater(comp["bytes_if_on"], 0)
+        rendered = context.render_markdown(packet)
+        self.assertIn("## 可选组件（你可以自己关）", rendered)
+        self.assertIn("l0_optional_off", rendered)
+
+
+class StaleViewFreshnessTests(unittest.TestCase):
+    """P-0070 (W4)：两次真实事故即本仪器的规格，故以回放形态固定下来。
+
+    STALE-R1/R2 不是示例而是判例：R1 是 08-12 的四天旧快照，R2 是 08-16 的假 mtime。
+    R2 尤其重要——它是**腿①看不见而腿②能看见**的那一类，合并两腿的全部理由都在这条
+    测试里；哪天有人想砍掉双通道省一次进程，这条会先红。
+    """
+
+    A = "a" * 64
+    B = "b" * 64
+
+    def test_stale_r1_incident_20260812_four_day_snapshot_blocks(self) -> None:
+        """08-12 回放：正文自称 08-08、盘上 mtime 08-12，第二通道拿到不同字节。"""
+        findings = context.freshness_findings(
+            [
+                (
+                    "main/40_course/AIF1001r/progress.md",
+                    dt.date(2026, 8, 8),
+                    dt.date(2026, 8, 12),
+                    self.A,
+                    self.B,
+                    "subprocess",
+                )
+            ]
+        )
+        codes = {f.code for f in findings}
+        self.assertIn("STALE-VIEW-001", codes)
+        self.assertTrue(any(f.blocking for f in findings))
+
+    def test_stale_r2_incident_20260816_lying_mtime_caught_by_second_channel(
+        self,
+    ) -> None:
+        """08-16 回放：同日、mtime 说谎（两日期相等），腿①必然沉默，腿②必须开口。"""
+        same_day = dt.date(2026, 8, 16)
+        leg_one_only = context.freshness_findings(
+            [("p", same_day, same_day, self.A, self.A, "subprocess")]
+        )
+        self.assertEqual(leg_one_only, [], "同日且内容一致时不得有任何 finding")
+        both_legs = context.freshness_findings(
+            [("p", same_day, same_day, self.A, self.B, "subprocess")]
+        )
+        self.assertEqual([f.code for f in both_legs], ["STALE-VIEW-001"])
+        self.assertTrue(both_legs[0].blocking, "假 mtime 场景只有腿②能拦，必须阻断")
+
+    def test_stale_r3_bookkeeping_lag_is_note_not_block(self) -> None:
+        """mtime 领先但复读一致＝frontmatter 记账滞后，不得阻断教学（防误拦）。"""
+        findings = context.freshness_findings(
+            [
+                (
+                    "p",
+                    dt.date(2026, 8, 10),
+                    dt.date(2026, 8, 14),
+                    self.A,
+                    self.A,
+                    "subprocess",
+                )
+            ]
+        )
+        self.assertEqual([f.code for f in findings], ["STALE-VIEW-002"])
+        self.assertFalse(findings[0].blocking)
+        self.assertIn("4 天", findings[0].message)
+
+    def test_stale_r4_second_channel_unavailable_degrades_honestly(self) -> None:
+        """第二通道跑不起来时报观测态、不阻断，也**不假装**双腿仍在（P-0067 同型）。"""
+        findings = context.freshness_findings(
+            [("p", dt.date(2026, 8, 20), dt.date(2026, 8, 20), self.A, "", "rc=1")]
+        )
+        self.assertEqual([f.code for f in findings], ["STALE-VIEW-003"])
+        self.assertFalse(any(f.blocking for f in findings))
+
+    def test_stale_r5_healthy_view_is_silent(self) -> None:
+        findings = context.freshness_findings(
+            [("p", dt.date(2026, 8, 21), dt.date(2026, 8, 21), self.A, self.A, "sp")]
+        )
+        self.assertEqual(findings, [])
+
+    def test_stale_r6_withhold_strips_teaching_body(self) -> None:
+        blocking = context.FreshnessFinding(
+            "STALE-VIEW-001", "blocking", "p", "double-channel divergence"
+        )
+        payload = {
+            "teaching_body": "第一段正文",
+            "lesson_opening_contract": {"body": "开场白", "gate": "G1"},
+            "resume_contract": {"prompt": "接着上次", "stop_id": "P0030#B06"},
+            "source": "main/40_course/X/progress.md",
+        }
+        for key in context.WITHHELD_TEACHING_BODY_KEYS:
+            payload.setdefault(key, "copy-ready")
+        withheld = context.withhold_stale_view_teaching_payload(payload, [blocking])
+        self.assertTrue(withheld["teaching_payload_withheld"])
+        self.assertEqual(
+            withheld["teaching_payload_withheld_reason"], "stale_view_suspected"
+        )
+        self.assertTrue(withheld["packet_fields_do_not_authorize_emission"])
+        for key in context.WITHHELD_TEACHING_BODY_KEYS:
+            self.assertNotIn(key, withheld)
+        self.assertIsNone(withheld["resume_contract"]["prompt"])
+        self.assertEqual(
+            withheld["resume_contract"]["stop_id"], "P0030#B06", "停点身份必须留住"
+        )
+        self.assertTrue(withheld["lesson_opening_contract"]["body_withheld"])
+        self.assertTrue(withheld["stale_view_findings"])
+
+    def test_stale_r7_no_blocking_finding_leaves_payload_untouched(self) -> None:
+        note = context.FreshnessFinding("STALE-VIEW-002", "note", "p", "lag")
+        payload = {"teaching_body": "正文"}
+        self.assertIs(
+            context.withhold_stale_view_teaching_payload(payload, [note]), payload
+        )
+
+    def test_stale_r8_second_channel_is_a_separate_process(self) -> None:
+        """腿②必须真的跨进程：同源实现（本进程再读一次）等于没有第二意见。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe.md"
+            write_utf8(probe, "---\nupdated: 2026-08-21\n---\n内容\n")
+            digest, method = context._secondary_channel_digest(probe)
+            self.assertEqual(method, "subprocess")
+            self.assertEqual(
+                digest, hashlib.sha256(probe.read_bytes()).hexdigest()
+            )
+            missing = Path(tmp) / "not-there.md"
+            empty, reason = context._secondary_channel_digest(missing)
+            self.assertEqual(empty, "", "读不到必须降级为空，不得抛异常中断上课")
+            self.assertTrue(reason)
 
 
 if __name__ == "__main__":

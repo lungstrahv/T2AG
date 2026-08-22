@@ -84,10 +84,10 @@ RETROSPECTIVE_TREE: dict[str, tuple[str, ...]] = {
         "learner_thought_followup",
     ),
 }
-# EXERCISE-CLOSE D2=B（2026-08-20 裁决）：Exercise 拥有自己的结课树，不再借用 Lesson 树。
+# EXERCISE-CLOSE D2=B（2026-08-21 裁决）：Exercise 拥有自己的结课树，不再借用 Lesson 树。
 # 共享节（knowledge_absorption / course_content_feedback / teacher_reflection）保持同名同叶，
 # mandatory_evidence 逻辑因此对两种活动类型同样成立。
-# 裁决正本：docs/handoffs/T2AG_EXERCISE_CLOSE_LIFECYCLE_CANDIDATES_2026-08-20.md
+# 裁决正本：docs/handoffs/T2AG_EXERCISE_CLOSE_LIFECYCLE_CANDIDATES_2026-08-21.md
 EXERCISE_RETROSPECTIVE_TREE: dict[str, tuple[str, ...]] = {
     "actual_exercise_process": (
         "attempted_questions",
@@ -167,7 +167,7 @@ RETROSPECTIVE_SECTION_LABELS = {
     "course_content_feedback": "学生课程内容反馈",
     "teacher_reflection": "教师教学反思",
     "learning_transition": "后续学习衔接",
-    # EXERCISE-CLOSE（2026-08-20）：Exercise 变体树专有节
+    # EXERCISE-CLOSE（2026-08-21）：Exercise 变体树专有节
     "actual_exercise_process": "实际做题过程",
     "question_coverage": "题目覆盖轧账（对 source_order）",
     "mastery_ledger": "掌握分账",
@@ -202,7 +202,7 @@ RETROSPECTIVE_ITEM_LABELS = {
     "spaced_retests": "间隔复测",
     "next_lesson_entry": "下一 Lesson 入口",
     "learner_thought_followup": "学生想法后续消费",
-    # EXERCISE-CLOSE（2026-08-20）：Exercise 变体树专有叶
+    # EXERCISE-CLOSE（2026-08-21）：Exercise 变体树专有叶
     "attempted_questions": "实际做了哪些题",
     "sequence_vs_source_order": "教学重排与题序对照",
     "hint_gate_usage": "提示闸门使用",
@@ -356,7 +356,7 @@ def build_teaching_retrospective(
 ) -> tuple[dict[str, Any], dict[str, Any], bool]:
     """Traverse every approved retrospective leaf and aggregate applicable content.
 
-    EXERCISE-CLOSE D2（2026-08-20）：树按 activity_type 选择；给 exercise 递 Lesson 节名
+    EXERCISE-CLOSE D2（2026-08-21）：树按 activity_type 选择；给 exercise 递 Lesson 节名
     （或反之）按 unknown section 拒绝——借壳正是本机制要消灭的病灶。
     """
     tree_template = retrospective_tree_for(activity_type)

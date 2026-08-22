@@ -118,12 +118,12 @@ Lesson 完整结课流程
         └── 系统改进任务
 ```
 
-## 〇、Exercise 完整结课树（EXERCISE-CLOSE 裁决 2026-08-20，D1–D5）
+## 〇、Exercise 完整结课树（EXERCISE-CLOSE 裁决 2026-08-21，D1–D5）
 
 Exercise 与 Lesson 共享同一套结课事务（pending → 学生核对 → 终态确认 → 事务写回），
 但**结课树是独立变体**，由 `activity_close.py` 按 `activity_type` 强制选择——给 Exercise
 递 Lesson 节名（或反之）按 unknown section 拒绝，「借 Lesson 树的壳」不再可能
-（裁决正本：工作区 `docs/handoffs/T2AG_EXERCISE_CLOSE_LIFECYCLE_CANDIDATES_2026-08-20.md`）。
+（裁决正本：工作区 `docs/handoffs/T2AG_EXERCISE_CLOSE_LIFECYCLE_CANDIDATES_2026-08-21.md`）。
 
 Exercise 变体树。共享节 `knowledge_absorption` / `course_content_feedback` /
 `teacher_reflection` 与 Lesson 同名同叶，不重复；专有节：

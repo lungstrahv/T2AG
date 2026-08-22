@@ -9,9 +9,11 @@ build is checked again before output so a mixed-version packet is rejected.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +34,17 @@ from t2ag_activity import (
 ROOT = Path(__file__).resolve().parents[2]
 MAIN = ROOT / "main"
 DEFAULT_SOFT_CHAR_BUDGET = 16_000
+# TB Batch C（2026-08-21 裁决）：不由系统替学生裁掉任何段，改为**把旋钮交给学生**。
+# 这四段是「可关」的——关掉不破坏恢复链（停点/进度/教材窗口/指针一律不可关）。
+# 关法：学生 profile frontmatter 写 `l0_optional_off: contract, reflections`（逗号或空格分隔）。
+# 代价与现状每次都印在包头「可选组件」表里，学生按自己的账自行取舍。
+OPTIONAL_L0_COMPONENTS: tuple[tuple[str, str, str], ...] = (
+    ("contract", "学生教学契约", "profile 全文（含 hint_gate 与辅导偏好）；关掉后按需读 profile.md"),
+    ("reflections", "当前课程感想与最近提炼", "course_reflections 全文（含知识点树形图）；关掉后按需读"),
+    ("overlay", "当前教师 overlay", "课程级教师定制（句尾标记、节奏）；关掉后按需读 overlay.md"),
+    ("template", "生效教师模板", "教师模板正文（人格、行为准则）；关掉后按需读 T0NN.md"),
+)
+OPTIONAL_L0_IDS = frozenset(cid for cid, _, _ in OPTIONAL_L0_COMPONENTS)
 CRITICAL_MAX_CHARS = 12_000
 CRITICAL_EXCERPT_CHARS = 1_200
 PLACEHOLDER_RE = re.compile(
@@ -157,6 +170,226 @@ class SourceCache:
             )
 
 
+# ---------------------------------------------------------------------------
+# P-0070 启动新鲜度仪器（W4，2026-08-21）
+#
+# 既有的 assert_unchanged 覆盖「构建期间被改」，**不覆盖「一开始读到的就是旧副本」**：
+# 它用同一条通道复读，陈旧缓存两次都返回同一份旧字节，比对必然相等。P-0070 两次事故
+# 都死在这个空洞里（08-12 四天旧快照、08-16 假 mtime 十二分钟陈旧视图），且该条已两振
+# 出局——prose 收尾永久非法，只能落 tool=。
+#
+# 两条腿，各有一个未证前提，方向互补：
+#   腿① mtime ↔ frontmatter `updated:` 比对。08-12 靠它露馅（mtime 08-12 / 正文自称
+#        08-08）；但 08-16 证明 **mtime 自己会说谎**，同日亚小时的偏差它看不见。
+#   腿② 双通道对读：本进程读 vs 独立子进程读，比 sha256。不依赖 mtime 真伪；但
+#        「两条读路径不共享缓存层」属**未证假设**（工单 §三 W4 明载）。
+# 因此两腿都留、互为兜底。若日后实测证明双通道同源，按工单降级为单腿并回记 P-0070，
+# **不假装双保险**（P-0067「检查在、逻辑对、保证的事实比宣称的窄」是同型病）。
+#
+# 判级纪律：只有「复读拿到不同字节」才是坐实的陈旧视图（阻断）；mtime 领先但复读一致
+# 的，是 frontmatter 记账滞后，不是读到旧副本——不阻断教学，只提示。把后者也判阻断会
+# 让仪器在正常编辑日频繁拦课，教会所有人忽略它。
+# ---------------------------------------------------------------------------
+
+FRONTMATTER_UPDATED_RE = re.compile(r"^updated:\s*(\d{4}-\d{2}-\d{2})", re.MULTILINE)
+STALE_VIEW_BLOCKING_CODES = frozenset({"STALE-VIEW-001", "STALE-VIEW-004"})
+
+
+@dataclass(frozen=True)
+class FreshnessFinding:
+    """One freshness observation.  ``blocking`` gates the teaching payload."""
+
+    code: str
+    severity: str  # "blocking" | "note" | "info"
+    path: str
+    message: str
+
+    @property
+    def blocking(self) -> bool:
+        return self.severity == "blocking"
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "code": self.code,
+            "severity": self.severity,
+            "path": self.path,
+            "message": self.message,
+        }
+
+
+def declared_updated(content: str) -> dt.date | None:
+    """``updated:`` date declared in the frontmatter we actually read, or None."""
+    match = FRONTMATTER_UPDATED_RE.search(raw_frontmatter(content) or content[:400])
+    if not match:
+        return None
+    try:
+        return dt.date.fromisoformat(match.group(1))
+    except ValueError:
+        return None
+
+
+def freshness_findings(
+    observations: Iterable[tuple[str, dt.date | None, dt.date | None, str, str, str]],
+) -> list[FreshnessFinding]:
+    """Pure verdict over ``(path, declared, mtime_date, primary, secondary, method)``.
+
+    ``primary`` / ``secondary`` are sha256 hex of the same file read through two
+    channels; ``secondary`` may be ``""`` when the second channel is unavailable.
+    Kept pure so the two historical incidents can be replayed as fixtures without
+    a filesystem — the incidents are the specification, not an illustration.
+    """
+    findings: list[FreshnessFinding] = []
+    for path, declared, mtime_date, primary, secondary, method in observations:
+        if secondary and primary and secondary != primary:
+            findings.append(
+                FreshnessFinding(
+                    "STALE-VIEW-001",
+                    "blocking",
+                    path,
+                    f"双通道对读不一致（本进程 {primary[:12]} ≠ {method} {secondary[:12]}）："
+                    "至少一条通道给的是陈旧副本，已读内容不可用于教学；强制重读后重跑",
+                )
+            )
+            continue
+        if not secondary:
+            findings.append(
+                FreshnessFinding(
+                    "STALE-VIEW-003",
+                    "info",
+                    path,
+                    f"第二通道不可用（{method}）：本次仅 mtime 单腿覆盖，"
+                    "时间维保障弱一档（不阻断，如实标注而非假装双保险）",
+                )
+            )
+        if declared is None or mtime_date is None:
+            continue
+        if mtime_date > declared:
+            gap = (mtime_date - declared).days
+            findings.append(
+                FreshnessFinding(
+                    "STALE-VIEW-002",
+                    "note",
+                    path,
+                    f"盘上 mtime {mtime_date} 比正文自称 updated: {declared} 晚 {gap} 天；"
+                    "复读一致，故判 frontmatter 记账滞后而非陈旧视图——不阻断，"
+                    "但停点日期以正文为准前先核一眼",
+                )
+            )
+    return findings
+
+
+def _secondary_channel_digest(path: Path) -> tuple[str, str]:
+    """sha256 of ``path`` read by a **separate process**, plus the method label.
+
+    A separate process is the strongest portable approximation of an independent
+    read path: it owns its own descriptors and page-cache view of the mount.
+    Uses ``sys.executable`` rather than ``cat`` / ``type`` so the second channel
+    exists on the Windows host too (git_workflow §八 环境对称).  Returns
+    ``("", reason)`` when the channel cannot run — never raises, because a missing
+    second opinion must degrade the instrument, not break the lesson.
+    """
+    try:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import hashlib,sys;"
+                "print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return "", f"subprocess unavailable: {type(exc).__name__}"
+    if completed.returncode != 0:
+        return "", f"subprocess rc={completed.returncode}"
+    digest = completed.stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        return "", "subprocess returned no digest"
+    return digest, "subprocess"
+
+
+def observe_freshness(
+    cache: SourceCache, paths: Iterable[Path]
+) -> list[FreshnessFinding]:
+    """Run both legs over the critical paths and return the pure verdict.
+
+    Scope is deliberately narrow — the stop-point carriers only — because leg ②
+    spawns one process per file.  Two spawns at boot is affordable; scanning the
+    tree is not.
+    """
+    observations: list[
+        tuple[str, dt.date | None, dt.date | None, str, str, str]
+    ] = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        content = cache.read(path, required=False)
+        try:
+            mtime_date = dt.datetime.fromtimestamp(path.stat().st_mtime).date()
+        except OSError:
+            mtime_date = None
+        secondary, method = _secondary_channel_digest(path)
+        observations.append(
+            (
+                cache.relative(path),
+                declared_updated(content),
+                mtime_date,
+                cache.digest(path),
+                secondary,
+                method,
+            )
+        )
+    return freshness_findings(observations)
+
+
+def withhold_stale_view_teaching_payload(
+    action_payload: dict[str, object],
+    findings: Iterable[FreshnessFinding],
+) -> dict[str, object]:
+    """Strip copy-ready teaching prose when a stale view is *confirmed*.
+
+    Mirrors ``withhold_pending_scope_scan_teaching_payload``: the packet keeps its
+    structural identity so the session can recover, but nothing in it may be
+    replayed as a script.  P-0070's damage was teaching-面 — two rounds of messages
+    sent against a stop point that had been dead for four days — so the block sits
+    on emission, not on the build.
+    """
+    blocking = [f for f in findings if f.blocking]
+    if not blocking:
+        return action_payload
+    withheld = dict(action_payload)
+    for key in WITHHELD_TEACHING_BODY_KEYS:
+        withheld.pop(key, None)
+    opening = withheld.get("lesson_opening_contract")
+    if isinstance(opening, dict):
+        opening_out = dict(opening)
+        for key in WITHHELD_OPENING_BODY_KEYS:
+            opening_out.pop(key, None)
+        opening_out["body_withheld"] = True
+        opening_out["body_withheld_reason"] = "stale_view_suspected"
+        withheld["lesson_opening_contract"] = opening_out
+    resume = withheld.get("resume_contract")
+    if isinstance(resume, dict):
+        resume_out = dict(resume)
+        if "prompt" in resume_out:
+            resume_out["prompt"] = None
+            resume_out["prompt_withheld"] = True
+            resume_out["prompt_withheld_reason"] = "stale_view_suspected"
+        withheld["resume_contract"] = resume_out
+    withheld["teaching_payload_withheld"] = True
+    withheld["teaching_payload_withheld_reason"] = "stale_view_suspected"
+    withheld["packet_fields_do_not_authorize_emission"] = True
+    withheld["stale_view_findings"] = [f.as_dict() for f in blocking]
+    withheld["stale_view_recovery"] = (
+        "强制重读上列文件（新进程/新会话），复读一致后重跑本包；"
+        "在此之前不得据本包发出任何教学消息（P-0070 两振出局）"
+    )
+    return withheld
+
+
 @dataclass(frozen=True)
 class Heading:
     level: int
@@ -279,6 +512,29 @@ def group_course_ids(group_row: str) -> set[str]:
     if len(cells) < 5:
         raise ContextPacketError("learning_path 课程组索引行列数不足")
     return set(re.findall(r"[A-Za-z0-9][A-Za-z0-9_-]*", cells[2]))
+
+
+def optional_component_id(label: str) -> str:
+    """Map a selection label to its optional-component id（'' = 不可关段）。"""
+    for cid, prefix, _ in OPTIONAL_L0_COMPONENTS:
+        if label == prefix or label.startswith(prefix):
+            return cid
+    return ""
+
+
+def parse_optional_off(profile: str) -> tuple[str, ...]:
+    """Read the student's opt-out list; unknown ids fail closed（拼错不静默丢弃）。"""
+    raw = frontmatter_text(profile).get("l0_optional_off", "")
+    raw = raw.strip().strip("[]")
+    if not raw:
+        return ()
+    ids = tuple(tok for tok in re.split(r"[,\s]+", raw) if tok)
+    unknown = [tok for tok in ids if tok not in OPTIONAL_L0_IDS]
+    if unknown:
+        raise ContextPacketError(
+            f"unknown l0_optional_off ids: {unknown}; legal: {sorted(OPTIONAL_L0_IDS)}"
+        )
+    return ids
 
 
 def memory_value(memory: str, label: str) -> str:
@@ -1715,6 +1971,14 @@ def build_critical_packet(
     scan_pending = (
         isinstance(action_payload, dict) and scope_scan_pending(action_payload)
     )
+    # P-0070 (W4): the stop-point carriers are checked for a stale *view* before
+    # anything copy-ready leaves the packet.  Narrow by design — two files, two
+    # subprocess spawns.  A confirmed divergence blocks teaching exactly like a
+    # pending scope scan does; a bookkeeping lag only annotates.
+    freshness = observe_freshness(cache, (progress_path, activity_path))
+    stale_blocking = [f for f in freshness if f.blocking]
+    if stale_blocking and isinstance(action_payload, dict):
+        action_payload = withhold_stale_view_teaching_payload(action_payload, freshness)
     if scan_pending:
         action_payload = withhold_pending_scope_scan_teaching_payload(action_payload)
         critical_status = CRITICAL_STATUS_ROUTE_READY
@@ -1722,6 +1986,9 @@ def build_critical_packet(
     else:
         critical_status = CRITICAL_STATUS_READY
         blocking_teach = False
+    if stale_blocking:
+        critical_status = CRITICAL_STATUS_ROUTE_READY
+        blocking_teach = True
     packet = {
         "status": critical_status,
         "course_id": resolved_course,
@@ -1743,6 +2010,11 @@ def build_critical_packet(
         ),
         "classroom_creativity_policy": classroom_creativity_policy(),
         "sources_unchanged": True,
+        "view_freshness": {
+            "checked": [cache.relative(p) for p in (progress_path, activity_path)],
+            "stale_view_suspected": bool(stale_blocking),
+            "findings": [f.as_dict() for f in freshness],
+        },
         "source_sha256": public_source_sha256(
             cache,
             progress_path=progress_path,
@@ -2299,6 +2571,34 @@ def build_packet(
         "progress": progress_path,
         "teacher_overlay": overlay_path,
     }
+    # TB Batch C：按学生自选关掉可选段。不可关段（停点/进度/教材窗口/指针）不在注册表里，
+    # 因此**关不掉**——旋钮只交出成本，不交出恢复链。
+    optional_off = parse_optional_off(profile)
+    optional_components_state = []
+    kept: list[Selection] = []
+    for item in selections:
+        cid = optional_component_id(item.label)
+        if cid and cid in optional_off:
+            optional_components_state.append(
+                {
+                    "id": cid,
+                    "label": item.label,
+                    "state": "off",
+                    "bytes_if_on": len(item.content.encode("utf-8")),
+                }
+            )
+            continue
+        if cid:
+            optional_components_state.append(
+                {
+                    "id": cid,
+                    "label": item.label,
+                    "state": "on",
+                    "bytes_if_on": len(item.content.encode("utf-8")),
+                }
+            )
+        kept.append(item)
+    selections = kept
     packet: dict[str, object] = {
         "schema_version": 2,
         "status": "ready",
@@ -2351,10 +2651,16 @@ def build_packet(
             ),
             "serialized_l0_markdown_chars": 0,
             "serialized_l0_plus_l1_markdown_chars": 0,
+            # C-1 已裁（2026-08-21）：字符账与字节账**两套并存、分别报**，不合并成
+            # 单一数字——chars 是既有软预算的量纲，bytes 是「实际塞进上下文多少」的量纲，
+            # 中文语料下两者比值约 1:1.7，任何一套单独都会误导。
+            "serialized_l0_markdown_bytes": 0,
+            "serialized_l0_plus_l1_markdown_bytes": 0,
             "soft_char_budget": soft_char_budget,
             "l0_budget_state": "PENDING",
             "l0_plus_l1_budget_state": "PENDING",
         },
+        "optional_components": optional_components_state,
         "selections": [item.as_dict() for item in selections],
         "l1_selections": [item.as_dict() for item in l1_selections],
         "l1_empty_reason": first_step_empty_reason(route),
@@ -2476,12 +2782,67 @@ def render_markdown(
                 f"`{cost['l0_plus_l1_budget_state']} / "
                 f"{cost['soft_char_budget']}`"
             ),
+            (
+                "- serialized_l0_markdown_bytes: "
+                f"`{cost.get('serialized_l0_markdown_bytes', 0)}`"
+            ),
+            (
+                "- serialized_l0_plus_l1_markdown_bytes: "
+                f"`{cost.get('serialized_l0_plus_l1_markdown_bytes', 0)}`"
+            ),
             "",
             (
                 "> `reference_inventory_chars` 是当前来源库存对照，不是旧 Prompt "
                 "实测；库存省略比例不等于端到端 Token 降幅。"
             ),
+            (
+                "> 字符账与字节账**分别报、不合并**（C-1 裁决 2026-08-21）：软预算按 chars "
+                "判 PASS/REVIEW；bytes 只如实报，不设门——中文语料下两者比值约 1:1.7，"
+                "任何一套单独都会误导。"
+            ),
         ]
+        optional_state = packet.get("optional_components", [])
+        if optional_state:
+            on_items = [c for c in optional_state if c["state"] == "on"]
+            off_items = [c for c in optional_state if c["state"] == "off"]
+            savable = sum(int(c["bytes_if_on"]) for c in on_items)
+            saved = sum(int(c["bytes_if_on"]) for c in off_items)
+            lines.extend(
+                [
+                    "",
+                    "## 可选组件（你可以自己关）",
+                    "",
+                    (
+                        "> 下列段落**关掉不影响恢复链**（停点、进度、教材窗口、指针一律"
+                        "不可关，故不在此表）。关掉后该来源改为按需读取，省的是每轮成本、"
+                        "赌的是每轮自觉——本仓已有散文义务衰减的先例（P-0014），"
+                        "请按你自己的账取舍。"
+                    ),
+                    (
+                        "> 关法：`main/10_student/profile/profile.md` frontmatter 加一行 "
+                        "`l0_optional_off: contract, reflections`（逗号分隔；写错 id 会"
+                        "直接报错，不静默忽略）。"
+                    ),
+                    "",
+                    "| id | 组件 | 当前 | 本段字节 |",
+                    "|---|---|---|---:|",
+                ]
+            )
+            for comp in optional_state:
+                mark = "开" if comp["state"] == "on" else "**关**"
+                lines.append(
+                    f"| `{comp['id']}` | {comp['label']} | {mark} | "
+                    f"{comp['bytes_if_on']} |"
+                )
+            lines.extend(
+                [
+                    "",
+                    (
+                        f"- 现开着的可选段共 `{savable}` 字节（全关可省这么多）；"
+                        f"已关省下 `{saved}` 字节。"
+                    ),
+                ]
+            )
     for index, item in enumerate(packet.get("selections", []), start=1):
         lines.extend(
             (
@@ -2542,8 +2903,14 @@ def finalize_serialized_cost(packet: dict[str, object]) -> None:
     cost = packet["cost"]
     budget = cost["soft_char_budget"]
     for _ in range(12):
-        l0_chars = len(render_markdown(packet, include_l1=False))
-        combined_chars = len(render_markdown(packet, include_l1=True))
+        l0_text = render_markdown(packet, include_l1=False)
+        combined_text = render_markdown(packet, include_l1=True)
+        cost["serialized_l0_markdown_bytes"] = len(l0_text.encode("utf-8"))
+        cost["serialized_l0_plus_l1_markdown_bytes"] = len(
+            combined_text.encode("utf-8")
+        )
+        l0_chars = len(l0_text)
+        combined_chars = len(combined_text)
         l0_state = "PASS" if l0_chars <= budget else "REVIEW"
         combined_state = "PASS" if combined_chars <= budget else "REVIEW"
         before = (

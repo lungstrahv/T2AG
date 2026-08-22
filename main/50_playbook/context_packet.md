@@ -197,6 +197,8 @@ progress.md
 - `serialized_l0_markdown_chars`：默认 Markdown 的完整字符数，包含标题、路径、原始字节
   SHA、路由与 L2 表；
 - `serialized_l0_plus_l1_markdown_chars`：附加首个 L1 后的完整 Markdown 字符数；
+- `serialized_l0_markdown_bytes` / `serialized_l0_plus_l1_markdown_bytes`：同两项的 UTF-8
+  字节数（见 §五·A，与字符账分别报、不设门）；
 - 每个来源的原始文件字节 SHA-256 与选择标签。
 
 若没有保存旧 Prompt 的真实序列化结果，本工具不得给出端到端降低百分比。字符数仍是
@@ -216,6 +218,29 @@ tokenizer 无关的代理，不等于模型 Token 或账单。验收必须同时
 
 默认软预算为 16,000 个实际序列化 Markdown 字符，分别检查 L0 与 L0+首个 L1。超过时
 只输出 `REVIEW`，由维护者检查是否存在新的重复存量；不得静默丢字段。
+
+### 五·A　字符账与字节账分别报（C-1 裁决 2026-08-21）
+
+`serialized_l0_markdown_bytes` / `serialized_l0_plus_l1_markdown_bytes` 与上述字符字段
+**并列存在、各报各的，不合并成单一数字，字节侧不设门**。理由：软预算的量纲是字符，
+「实际塞进上下文多少」的量纲是字节，中文语料下两者比值约 1:1.7——历史上 EV-0020 工单
+写 ≤40,960 bytes、代码写 16,000 chars，两个数从未对齐且互相更严，合并只会掩盖这一点。
+
+### 五·B　可选组件：旋钮交给学生（TB Batch C 裁决 2026-08-21）
+
+系统**不替学生裁掉任何段**。四段登记为可选：`contract`（学生教学契约）、`reflections`
+（课程感想与提炼）、`overlay`（教师 overlay）、`template`（教师模板）。它们的共同点是
+**关掉不破坏恢复链**；停点、进度、教材窗口与当前指针不在注册表内，因而**关不掉**——
+旋钮交出的是成本，不是恢复链。
+
+- 开关：学生 `profile.md` frontmatter `l0_optional_off: contract, reflections`
+  （逗号或空格分隔；**未知 id 直接报错**，不静默忽略——静默会让学生以为关了其实没关）；
+- 每次渲染在包头「可选组件」表如实印出：id、当前开关、该段字节、可省合计；
+- **诚实边界**：关掉＝该来源改为按需读取，省的是每轮成本、赌的是每轮自觉；本仓已有散文
+  义务衰减先例（P-0014）。表中直书此代价，由学生按自己的账取舍，工具不做劝导也不代选。
+
+enforcement: check=runtime.context_packet
+enforcement: prose_accepted（理由：机器可验开关解析与表在场，无法验证「关掉后模型真的去读了原文件」；该失败面由学生抽查与教学质量反馈发现）
 
 ## 六、降级
 
