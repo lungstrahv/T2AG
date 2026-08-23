@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "t2ag.answers.v1",
+  "title": "T2AG 首次启动答案",
+  "description": "answers.json 的字段表。配套 answers.example.json 是合法 JSON，并带 example_only 拒绝标记。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "example_only": {
+      "type": "boolean",
+      "description": "只用于示例文件；值为 true 时 t2ag_init.py 必须拒绝消费。",
+      "examples": [true]
+    },
+    "nickname": {"type": "string", "description": "学生希望被怎么称呼。", "examples": ["小林"]},
+    "school": {"type": "string", "description": "学校名。", "examples": ["示例大学"]},
+    "stage": {"type": "string", "description": "所处学习阶段。", "examples": ["本科三年级"]},
+    "direction": {"type": "string", "description": "学习方向或专业。", "examples": ["计算机科学"]},
+    "weekly_time": {"type": "string", "description": "每周可投入时间及其分布。", "examples": ["每周 10 小时"]},
+    "goals": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"},
+      "description": "至少一项、由用户确认的学习目标。",
+      "examples": [["完成第一门课的完整闭环"]]
+    },
+    "tutoring_preference": {"type": "string", "description": "辅导偏好。", "examples": ["先地图、后逐支"]},
+    "long_explanation_mode": {
+      "enum": ["map-first", "continuous", "user-defined"],
+      "description": "多块长篇讲解的组织方式。",
+      "examples": ["map-first"]
+    },
+    "branch_confirmation": {"type": "string", "description": "怎样确认后再继续。", "examples": ["每支讲完确认"]},
+    "cycle_structure": {"type": "string", "description": "循环形状。", "examples": ["3-1-3"]},
+    "small_adjustment": {"type": "string", "description": "小调整频率与范围。", "examples": ["每循环两次"]},
+    "big_adjustment": {"type": "string", "description": "大调整窗口频率。", "examples": ["每三个循环一次"]},
+    "aged_review_mode": {
+      "enum": ["off", "suggest", "auto"],
+      "description": "陈旧项复习的触发方式。",
+      "examples": ["suggest"]
+    },
+    "existing_basis": {"type": "string", "description": "既有基础；没有就写「无」。", "examples": ["无"]},
+    "current_difficulty": {"type": "string", "description": "当前困难；未提供就写「未提供」。", "examples": ["未提供"]},
+    "teaching_notes": {"type": "string", "description": "教学注意事项；未提供就写「未提供」。", "examples": ["未提供"]},
+    "exercise_hint_gate": {
+      "enum": ["enabled", "disabled"],
+      "description": "练习提示闸门，必须由学生选择。",
+      "examples": ["enabled"]
+    },
+    "learning_timezone": {"type": "string", "description": "IANA 时区名。", "examples": ["America/New_York"]},
+    "learning_day_cutoff": {"type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$", "description": "学习日切分时刻。", "examples": ["04:00"]},
+    "lesson_actual_review": {"enum": ["on", "off"], "description": "课堂实况复盘开关。", "examples": ["on"]},
+    "lesson_student_feedback": {"enum": ["on", "off"], "description": "学生反馈采集开关。", "examples": ["on"]},
+    "lesson_knowledge_absorption": {"enum": ["on", "off"], "description": "知识吸收记录开关。", "examples": ["on"]},
+    "exercise_problem_review": {"enum": ["on", "off"], "description": "习题复盘开关。", "examples": ["on"]},
+    "exercise_knowledge_mastery": {"enum": ["on", "off"], "description": "习题掌握度记录开关。", "examples": ["on"]},
+    "updated": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "实际确认日期，格式 YYYY-MM-DD。", "examples": ["2026-01-01"]},
+    "agent_pool_limit": {"type": "integer", "minimum": 1, "maximum": 6, "default": 6, "description": "可选；含 Main 的身份池容量。"},
+    "agent_max_active": {"type": "integer", "minimum": 1, "maximum": 3, "default": 3, "description": "可选；含 Main 的同时运行上限，不得超过 agent_pool_limit。"},
+    "agent_parallel_startup": {"enum": ["enabled", "disabled"], "default": "enabled", "description": "可选；是否并行启动编队。"},
+    "agent_startup_readiness": {"type": "string", "default": "learning_ready_first", "description": "可选。"},
+    "agent_background_reporting": {"type": "string", "default": "blockers_only", "description": "可选。"}
+  },
+  "required": [
+    "nickname", "school", "stage", "direction", "weekly_time", "goals",
+    "tutoring_preference", "long_explanation_mode", "branch_confirmation",
+    "cycle_structure", "small_adjustment", "big_adjustment", "aged_review_mode",
+    "existing_basis", "current_difficulty", "teaching_notes", "exercise_hint_gate",
+    "learning_timezone", "learning_day_cutoff", "lesson_actual_review",
+    "lesson_student_feedback", "lesson_knowledge_absorption", "exercise_problem_review",
+    "exercise_knowledge_mastery", "updated"
+  ]
+}

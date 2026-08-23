@@ -127,6 +127,28 @@ Feedback the student expresses
         └── system improvement tasks
 ```
 
+## 0. The full Exercise close tree
+
+Exercise and Lesson share the same close transaction—pending, student review, terminal confirmation,
+transactional write-back—but use separate close-tree variants selected by `activity_type`. Passing a
+Lesson section to Exercise, or the reverse, is rejected as an unknown section.
+
+Exercise-only sections are:
+
+- `actual_exercise_process`: problems attempted, teaching reordering versus source order, hint-gate
+  use, and plan differences;
+- `question_coverage`: account for every problem and subpart against textbook `source_order`, not the
+  freely reordered `teaching_sequence`;
+- `mastery_ledger`: summarize existing Attempt/Review verdicts only; close creates no new rating;
+- `byproduct_audit`: unresolved discussion chains, retest hooks, idea routing, and Attempt/Review
+  completeness. Routed byproducts do not block `completed`; only unfinished problems and unconfirmed
+  scope changes are blockers;
+- `learning_transition`: spaced retest, return to the Lesson trunk by default, and later consumption
+  of student ideas. Routing directly to another exercise must be explicit.
+
+The student explicitly initiates close. The system presents all four accounts; existing mandatory
+evidence and blocker rules decide completeness. Enforcement: `main/70_tools/activity_close.py`.
+
 ## 1. Resolve the single activity before closing
 
 Run the read-only route first:

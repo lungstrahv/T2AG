@@ -19,10 +19,27 @@ hand-copy files from this document:
 ```powershell
 python -B main/70_tools/t2ag_init.py init --answers answers.json
 python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <name> ... --date YYYY-MM-DD
-python -B main/70_tools/t2ag_init.py new-group --group-id G01 --members <ID> --status active --date YYYY-MM-DD
+python -B main/70_tools/t2ag_init.py new-group --group-id G01 --members <ID> --container-mode progress --date YYYY-MM-DD
+# the group-forming ritual happens here, in plan.md / calendar.md, by the user
+python -B main/70_tools/t2ag_init.py activate-group --group-id G01 --date YYYY-MM-DD
 ```
 
-`answers.json` records the item-by-item confirmations from step 3. The tool
+A group is always born `planned`; `new-group` cannot produce `active`. Between the
+two commands sits the group-forming ritual: the user settles the capacity
+parameters (the three `TBD` values in `calendar.md`) and, for a `progress`
+group, replaces the template rows under "Keystone sequence" in `plan.md` with
+real keystone rows. `activate-group` then notarizes that evidence — it refuses
+placeholder rows, counts the real ones and writes `keystone_total_frozen`
+(`course_group_rules.md` §4.3). A flag that manufactured `active` would produce
+the state without the judgment, which is the defect family P-0077 records.
+
+`answers.json` records the item-by-item confirmations from step 3. **Copy the field
+shapes from `main/70_tools/answers.example.json`** (valid JSON, readable as-is) and
+read the field descriptions, enums and defaults in
+**`main/70_tools/answers.schema.json`** (JSON has no comments, so the example and
+its documentation are two files). The example carries `example_only: true` and the
+tool refuses to consume it directly — confirm each item with the user, save your
+own copy, and delete that key. The tool
 refuses to run if any required answer is missing; it never fills in a default.
 It also never creates `.venv`, installs dependencies, downloads textbooks,
 generates Engagements, or performs git writes. The model's job is to ask, write

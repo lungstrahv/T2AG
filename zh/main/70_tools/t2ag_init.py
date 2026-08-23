@@ -199,6 +199,14 @@ def load_answers(args: argparse.Namespace) -> dict[str, object]:
         raise fail("init 需要 --answers 或 --answers-json；不得由工具代填学生答案")
     if not isinstance(payload, dict):
         raise fail("answers 必须是 JSON 对象")
+    # 示例必须保持为合法 JSON，才能真实展示输入形状；也因此必须按键拒绝，
+    # 不能依赖文件名（重命名不应把示例值变成用户确认）。
+    if payload.get("example_only") is True:
+        raise fail(
+            "这是 answers.example.json 的示例值，不是学生的确认（example_only: true）。"
+            "逐项与用户确认后另存为自己的 answers.json，并删除 example_only 键。"
+            "字段说明见 main/70_tools/answers.schema.json"
+        )
     missing = [key for key in PROFILE_REQUIRED_ANSWERS if key not in payload]
     if missing:
         raise fail(f"answers 缺必答项（这些必须由用户确认，不能默认）：{missing}")

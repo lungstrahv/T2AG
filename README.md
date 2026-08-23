@@ -4,8 +4,8 @@ One repository, two editions of the same release. Pick your language and go.
 
 | Edition | Entry | Source |
 |---|---|---|
-| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | 0.2.3 skeleton, commit `286f4fb` |
-| English (translated edition) | [`en/README.md`](en/README.md) | 0.2.3 skeleton-en, commit `1e0b78e` |
+| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | 0.2.3 skeleton, commit `ebfddcb` |
+| English (translated edition) | [`en/README.md`](en/README.md) | 0.2.3 skeleton-en, commit `a539db7` |
 
 ## English
 

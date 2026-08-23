@@ -114,6 +114,8 @@ BASE_VALIDATION_FILES = (
     "main/50_playbook/test_strategy.md",
     "main/50_playbook/validation_flow.md",
     "main/70_tools/t2ag_doctor.py",
+    "main/70_tools/answers.example.json",
+    "main/70_tools/answers.schema.json",
     "main/70_tools/t2ag_test.py",
     "main/70_tools/sync_lite.py",
     "main/70_tools/test_dependencies.json",
@@ -7027,6 +7029,7 @@ def cross_edition_identifiers(root: Path) -> tuple[dict[str, set[str]], list[str
     """
     identifiers: dict[str, set[str]] = {
         "doctor_handler": set(), "doctor_check": set(), "profile_check": set(),
+        "init_cli": set(),
     }
     unreadable: list[str] = []
     doctor = root / "main/70_tools/t2ag_doctor.py"
@@ -7036,6 +7039,22 @@ def cross_edition_identifiers(root: Path) -> tuple[dict[str, set[str]], list[str
         )
     else:
         unreadable.append("main/70_tools/t2ag_doctor.py（缺失）")
+    # CE-GATE-1（2026-08-22 裁）：生成入口的 CLI 面也是语言无关标识符。
+    # 不加这一类，P-0078 那种分叉就对本闸门完全不可见——英文面曾多出
+    # `--status active`、少 `activate-group` 与 `--container-mode`，
+    # 三处都在 doctor/workflow 之外，闸门当时一条都报不出来。子命令名与
+    # 旗标名两侧本就同为英文，比对它们不引入任何翻译判断。
+    init = root / "main/70_tools/t2ag_init.py"
+    if init.is_file():
+        init_text = init.read_text(encoding="utf-8")
+        identifiers["init_cli"] = {
+            f"subcommand:{name}"
+            for name in re.findall(r"sub\.add_parser\(\s*\n?\s*\"([a-z][a-z-]*)\"", init_text)
+        } | {
+            f"flag:{flag}" for flag in re.findall(r"add_argument\(\s*\"(--[a-z][a-z-]*)\"", init_text)
+        }
+    else:
+        unreadable.append("main/70_tools/t2ag_init.py（缺失）")
     workflow = root / "main/70_tools/validation_workflow.json"
     if not workflow.is_file():
         unreadable.append("main/70_tools/validation_workflow.json（缺失）")
@@ -7079,14 +7098,6 @@ _CE_EXEMPT_GROUPS: dict[str, tuple[tuple[str, str], ...]] = {
         ("section", "main/50_playbook/exam_protocol.md#13.4"),
         ("section", "main/50_playbook/exam_protocol.md#14"),
     ),
-    "课程组 §4 容器形状与碑序列锚（08-18 裁、08-22 施工 28ed652/1bb3433）；"
-    "回填条件=BACKPORT 工单执行": (
-        ("doctor_handler", "check_container_mode"),
-        ("doctor_handler", "check_keystone_ledger"),
-        ("section", "main/50_playbook/course_group_rules.md#4.1"),
-        ("section", "main/50_playbook/course_group_rules.md#4.2"),
-        ("section", "main/50_playbook/course_group_rules.md#4.3"),
-    ),
     "ELI5 上匝道（08-22 施工 082de2f，context_packet §七/§八）；回填条件=BACKPORT 工单执行": (
         ("section", "main/50_playbook/context_packet.md#8"),
     ),
@@ -7099,23 +7110,15 @@ _CE_EXEMPT_GROUPS: dict[str, tuple[tuple[str, str], ...]] = {
         ("doctor_handler", "check_constitution_parity"),
         ("doctor_handler", "check_playbook_usage"),
         ("doctor_handler", "check_domain_tier_reconciliation"),
-        ("doctor_handler", "check_recommendation_ledger"),
-        ("doctor_handler", "check_gate_visibility"),
         ("doctor_check", "release.constitution_parity"),
         ("doctor_check", "runtime.playbook_usage"),
         ("doctor_check", "runtime.domain_tier_reconciliation"),
-        ("doctor_check", "runtime.recommendation_ledger"),
-        ("doctor_check", "runtime.gate_visibility"),
         ("profile_check", "release:release.constitution_parity"),
         ("profile_check", "runtime:runtime.playbook_usage"),
         ("profile_check", "runtime:runtime.domain_tier_reconciliation"),
-        ("profile_check", "runtime:runtime.recommendation_ledger"),
-        ("profile_check", "runtime:runtime.gate_visibility"),
     ),
 }
-CROSS_EDITION_EXEMPT: dict[tuple[str, str], str] = {
-    key: reason for reason, keys in _CE_EXEMPT_GROUPS.items() for key in keys
-}
+CROSS_EDITION_EXEMPT: dict[tuple[str, str], str] = {}
 # Whole files excluded from the section comparator, with the reason.  Two are
 # main-only by the same ruling that exempts them from byte parity; the third is
 # the one place where translation legitimately re-rooted the numbering tree, and
@@ -7184,6 +7187,7 @@ def cross_edition_parity_findings(
         "doctor_handler": "doctor handler",
         "doctor_check": "doctor 检查 ID",
         "profile_check": "profile 检查登记",
+        "init_cli": "生成入口 CLI 面",
     }
     for kind, label_prefix in kind_labels.items():
         mine, theirs = main_ids[kind], edition_ids[kind]
@@ -7415,6 +7419,44 @@ def manifest_package_drift(archive: Path) -> str:
     return ""
 
 
+PACKAGE_ROOT_ANCHORS = ("README.md", "main/")
+
+
+def package_shape_finding(names: list[str]) -> str:
+    """"" if the archive has the shape path-keyed policy assumes, else why not. Pure.
+
+    Path-keyed package policy assumes one top-level root with the repository
+    anchors (`README.md` and `main/`) directly beneath it.  A bilingual bundle
+    can still have one top-level root while interposing `zh/` and `en/`, which
+    makes every repo-relative lookup silently miss (P-0084).
+    """
+    if not [name for name in names if name.strip()]:
+        return "发行包为空，无法判定形制"
+    prefix = package_root_prefix(names)
+    stripped = [
+        name[len(prefix):] if prefix and name.startswith(prefix) else name
+        for name in names
+    ]
+    missing = [
+        anchor for anchor in PACKAGE_ROOT_ANCHORS
+        if not any(
+            entry == anchor if not anchor.endswith("/") else entry.startswith(anchor)
+            for entry in stripped
+        )
+    ]
+    if not missing:
+        return ""
+    interposed = sorted({
+        entry.split("/", 1)[0] for entry in stripped if "/" in entry
+    })[:4]
+    root_note = f"顶层根 `{prefix.rstrip('/')}`" if prefix else "无单一顶层根（扁平包）"
+    return (
+        f"发行包形制不受支持：{root_note} 之下未直接出现仓根锚 {missing}；"
+        f"实际下一层是 {interposed}。按包内相对路径查表的策略（隐私豁免等）对此形制"
+        "全体失效，且失效方向不可预测——拒绝扫描，不出具清洁判定（P-0084）"
+    )
+
+
 def skeleton_package_findings(archive: Path) -> list[str]:
     """Policy findings for one built Skeleton package. Pure; caller reports.
 
@@ -7428,6 +7470,9 @@ def skeleton_package_findings(archive: Path) -> list[str]:
     try:
         with zipfile.ZipFile(archive) as bundle:
             names = bundle.namelist()
+            shape = package_shape_finding(names)
+            if shape:
+                return [f"{shape}：{archive.name}"]
             prefix = package_root_prefix(names)
             if any(part in name for name in names for part in ("/.git/", "/__pycache__/", "/.cache/")):
                 # Subsumes the per-file scan: once history ships, every redacted
@@ -7461,15 +7506,27 @@ def skeleton_package_findings(archive: Path) -> list[str]:
 SKELETON_RELEASE_NAME = "t2ag-skeleton"
 
 
+PACKAGE_SEARCH_ROOTS = (".", "artifacts/releases")
+
+
 def built_skeleton_packages(root: Path) -> list[Path]:
-    """Every built Skeleton archive sitting next to the release trees.
+    """Every built Skeleton archive in the workspace. Pure.
 
     Deliberately independent of the current flavor: a Main-side release review is
     exactly when someone should be told the Skeleton package carries history.
     `.bak-*` suffixes fall outside `*.zip` and are left alone — a quarantined
     package is evidence of what was shipped before, not a thing to re-flag.
+    Searches the workspace root and the canonical artifact tree.  Keeping the
+    search roots explicit prevents a tidy-up from turning the guard into an
+    empty scan while packages still exist (P-0085).
     """
-    return sorted(root.parent.glob(f"{SKELETON_RELEASE_NAME}*.zip"))
+    workspace = root.parent
+    found: set[Path] = set()
+    for relative in PACKAGE_SEARCH_ROOTS:
+        base = workspace / relative if relative != "." else workspace
+        if base.is_dir():
+            found.update(base.rglob(f"{SKELETON_RELEASE_NAME}*.zip"))
+    return sorted(found)
 
 
 def check_release_package_surface() -> None:
@@ -7485,7 +7542,12 @@ def check_release_package_surface() -> None:
     """
     packages = built_skeleton_packages(ROOT)
     if not packages:
-        report("INFO", "release package surface: 工作区没有已构建的 Skeleton 发行包")
+        searched = "、".join(PACKAGE_SEARCH_ROOTS)
+        report(
+            "INFO",
+            f"release package surface: 未发现 Skeleton 发行包；已搜索 {searched}"
+            "（相对工作区根）——若包在别处，是搜索根陈旧而非发行面清洁",
+        )
         return
     clean = 0
     for archive in packages:

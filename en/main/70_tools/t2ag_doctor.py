@@ -114,6 +114,8 @@ BASE_VALIDATION_FILES = (
     "main/50_playbook/test_strategy.md",
     "main/50_playbook/validation_flow.md",
     "main/70_tools/t2ag_doctor.py",
+    "main/70_tools/answers.example.json",
+    "main/70_tools/answers.schema.json",
     "main/70_tools/t2ag_test.py",
     "main/70_tools/sync_lite.py",
     "main/70_tools/test_dependencies.json",
@@ -137,11 +139,13 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_skin_system",
     "check_authorization_governance", "discover_courses", "check_groups",
     "check_activity_ledgers", "check_engagements_and_activities",
-    "check_question_banks", "check_knowledge_ledgers", "check_project_verification",
+    "check_question_banks", "check_knowledge_ledgers", "check_exam_banks",
+    "check_project_verification",
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
     "check_registry", "check_textbook_preparation", "check_canonical_teaching_carrier",
     "check_scope_page_cache",
     "check_checkpoint_block_routing", "check_gate_ledger",
+    "check_recommendation_ledger", "check_gate_visibility",
     "check_problemlog_closure", "check_rule_enforcement_integrity",
     "check_external_source_backlink",
     "check_trading_boundary", "check_external_references",
@@ -157,8 +161,9 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_migration_021_evidence", "check_activity_migration_021_evidence",
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_playbook_taxonomy", "check_playbook_taxonomy_parity",
+    "check_playbook_usage", "check_domain_tier_reconciliation",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
-    "check_skeleton_textbook", "check_distribution_parity",
+    "check_skeleton_textbook", "check_distribution_parity", "check_constitution_parity",
     "check_cross_edition_parity",
     "check_skeleton_privacy", "check_release_package_surface",
     "check_decision_record_citations",
@@ -183,6 +188,12 @@ ALLOWED_COURSE_LIFECYCLES = {"planned", "ongoing", "paused", "completed", "dropp
 ALLOWED_COURSE_TYPES = {"mastery", "project", "praxis"}
 ALLOWED_COURSE_DRIVERS = {"textbook", "goal", "project", "praxis"}
 ALLOWED_BINDING_STATES = {"idle", "active", "paused", "closed"}
+ALLOWED_CONTAINER_MODES = {"schedule", "progress"}
+# A coarse criterion carries a light consequence: a stall only triggers one triage
+# question (no points lost, nothing blocked), so calendar days are threshold enough.
+# The precise learning-day cursor is left to the rulings that *do* count toward the
+# evaluation — that is where it is needed.
+STALL_TRIAGE_DAYS = 14
 ALLOWED_ATTEMPT_MODES = {"text", "image", "mixed"}
 ALLOWED_ATTEMPT_STATES = {"submitted", "withdrawn"}
 ALLOWED_HINT_GATE_MODES = {"enabled", "disabled"}
@@ -193,6 +204,18 @@ ALLOWED_REVIEWERS = {"teacher", "student", "joint"}
 ALLOWED_REVIEW_STATES = {"recorded", "amended"}
 ALLOWED_REVIEW_RESULTS = {"correct", "partial", "incorrect", "unresolved"}
 ALLOWED_MISTAKE_STATES = {"active", "maintenance", "aged"}
+ALLOWED_EXAM_DEBT_STATES = {"open", "in_remediation", "settled", "archived"}
+RETIRE_LOOP_DECAY_KEYS = ("domain", "timing", "attribution layer", "consumer", "exit", "re-entry")
+EXAM_META_COLUMNS = (
+    ("Problem no.", "题号"),
+    ("Type", "类型"),
+    ("Knowledge node", "知识节点"),
+    ("Difficulty tier", "难度档"),
+    ("Used in teaching", "已用于教学"),
+    ("Sat", "已考"),
+    ("Solution page", "解答页码"),
+    ("Pre-exam check note", "考前检查备注"),
+)
 ALLOWED_PROJECT_MODES = {"A", "B", "B-K"}
 EXPECTED_FLOWS = {
     "first_run", "panorama", "teaching_loop", "authority_chain", "cycles",
@@ -1397,6 +1420,361 @@ def cached_progress_content(course_id: str, folder: Path) -> str:
     return read(folder / "progress.md")
 
 
+# ---------------------------------------------------------------------------
+# P-0068: the audit-zero-loss check for the gate-visibility switch (2026-08-21)
+#
+# `gate_visibility: quiet` moves the four beats from the conversational rhythm
+# into the ledger; it **removes no evidence**. So a quiet course has to prove its
+# audit actually landed on disk -- otherwise quiet is a covert loosening of
+# authority, and that is one of the three floor gates, not an experience knob.
+#
+# Only the whole-course two-value form is recognised. Per-domain tiering
+# (P-0073 N6) is unauthorised this round, and writing it is judged invalid rather
+# than silently accepted: an unimplemented syntax quietly swallowed belongs to the
+# "the guarantee is narrower than the claim" family (P-0067).
+# ---------------------------------------------------------------------------
+
+GATE_VISIBILITY_VALUES: frozenset[str] = frozenset({"explicit", "quiet"})
+GATE_LEDGER_ROW_RE = re.compile(r"^\|\s*GT-\d+\s*\|", re.MULTILINE)
+
+RECOMMENDATION_STATUSES: frozenset[str] = frozenset(
+    {"proposed", "deferred", "adopted", "retired"}
+)
+RECOMMENDATION_SCOPES: frozenset[str] = frozenset({"system", "group", "course"})
+RECOMMENDATION_REQUIRED_FIELDS: tuple[str, ...] = (
+    "scope",
+    "target",
+    "status",
+    "provenance",
+    "revisit_when",
+)
+
+
+def gate_visibility_findings(
+    courses: dict[str, tuple[str, list[str]]],
+) -> list[tuple[str, str, str]]:
+    """Verdict over ``course_id -> (declared_value, lesson_texts)``.
+
+    Absent value means ``explicit`` (the default), which needs no evidence beyond
+    what the ordinary gate-ledger check already requires.
+    """
+    findings: list[tuple[str, str, str]] = []
+    quiet: list[str] = []
+    for course_id, (declared, lessons) in sorted(courses.items()):
+        value = (declared or "explicit").strip()
+        if value not in GATE_VISIBILITY_VALUES:
+            findings.append(
+                (
+                    "GV-001",
+                    "WARN",
+                    f"{course_id} gate_visibility value is invalid: {value!r} (the two "
+                    f"legal values are {sorted(GATE_VISIBILITY_VALUES)}; per-domain "
+                    "tiering = P-0073 N6, unauthorised this round, and an extended "
+                    "syntax must not be drawn on in advance)",
+                )
+            )
+            continue
+        if value != "quiet":
+            continue
+        quiet.append(course_id)
+        if not any(GATE_LEDGER_ROW_RE.search(text) for text in lessons):
+            findings.append(
+                (
+                    "GV-002",
+                    "WARN",
+                    f"{course_id} declares quiet but its lesson gate ledger holds no GT "
+                    "row: quiet moves the four beats from the conversation into the "
+                    "ledger, so an empty ledger is a net audit loss -- that is a covert "
+                    "loosening of authority (a floor gate, not an experience knob)",
+                )
+            )
+    if quiet:
+        findings.append(
+            (
+                "GV-000",
+                "INFO",
+                f"gate-visibility experiment in progress (P-0068 arrangement B): "
+                f"{', '.join(quiet)}; friction evidence goes into lesson_thoughts, and "
+                "whether the protocol text itself changes is still the student's final call",
+            )
+        )
+    return findings
+
+
+def check_gate_visibility() -> None:
+    """P-0068: a quiet course's audit must land on disk (WARN-only)."""
+    course_root = MAIN / "40_course"
+    if not course_root.is_dir():
+        return
+    courses: dict[str, tuple[str, list[str]]] = {}
+    for folder in sorted(course_root.iterdir()):
+        if not folder.is_dir() or folder.name.startswith("_"):
+            continue
+        course_file = folder / "course.md"
+        if not course_file.is_file():
+            continue
+        declared = frontmatter(course_file).get("gate_visibility", "")
+        if not declared:
+            continue  # undeclared = the explicit default; no extra evidence needed
+        lessons = [
+            read(path) for path in sorted(folder.glob("lessons/*/lesson*.md"))
+        ]
+        courses[folder.name] = (declared, lessons)
+    for _code, severity, message in gate_visibility_findings(courses):
+        report(severity, message)
+
+
+def recommendation_entries(text: str) -> list[tuple[str, dict[str, str], str]]:
+    """Parse ``## R-NNNN`` blocks into ``(id, fields, body)``, fenced-block safe."""
+    body = strip_fenced_blocks(text)
+    entries: list[tuple[str, dict[str, str], str]] = []
+    matches = list(re.finditer(r"^## (R-\d{4})\b(.*)$", body, re.MULTILINE))
+    for index, match in enumerate(matches):
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
+        block = body[start:end]
+        fields: dict[str, str] = {}
+        for line in block.splitlines():
+            field = re.fullmatch(r"-\s*([a-z_]+):\s*(.*)", line.strip())
+            if field:
+                fields.setdefault(field.group(1), field.group(2).strip())
+        entries.append((match.group(1), fields, block))
+    return entries
+
+
+def recommendation_findings(
+    entries: list[tuple[str, dict[str, str], str]],
+    *,
+    ledger_present: bool,
+) -> list[tuple[str, str, str]]:
+    """Pure format verdict for the recommendation ledger (WARN-only)."""
+    findings: list[tuple[str, str, str]] = []
+    if not ledger_present:
+        # No ledger = an instance that never built one (Skeleton, a new trial
+        # user); that is not a defect.
+        return findings
+    if not entries:
+        findings.append(
+            (
+                "REC-000",
+                "INFO",
+                "the recommendation ledger is present but holds no entry (observational "
+                "state; an empty ledger is not judged a defect)",
+            )
+        )
+        return findings
+    seen: set[str] = set()
+    for entry_id, fields, block in entries:
+        if entry_id in seen:
+            findings.append(
+                (
+                    "REC-004",
+                    "WARN",
+                    f"{entry_id} entry ID is duplicated (references become ambiguous, "
+                    "same as P-0072)",
+                )
+            )
+        seen.add(entry_id)
+        missing = [
+            name for name in RECOMMENDATION_REQUIRED_FIELDS if not fields.get(name)
+        ]
+        if missing:
+            findings.append(
+                (
+                    "REC-001",
+                    "WARN",
+                    f"{entry_id} is missing required fields: {', '.join(missing)} "
+                    "(a missing revisit_when = a dead entry; a missing provenance = "
+                    "ownerless accumulation)",
+                )
+            )
+        status = fields.get("status", "")
+        if status and status not in RECOMMENDATION_STATUSES:
+            findings.append(
+                (
+                    "REC-002",
+                    "WARN",
+                    f"{entry_id} status is invalid: {status!r} is not in the four legal "
+                    f"values {sorted(RECOMMENDATION_STATUSES)}",
+                )
+            )
+        scope = fields.get("scope", "")
+        if scope and scope not in RECOMMENDATION_SCOPES:
+            findings.append(
+                (
+                    "REC-005",
+                    "WARN",
+                    f"{entry_id} scope is invalid: {scope!r} is not in "
+                    f"{sorted(RECOMMENDATION_SCOPES)}",
+                )
+            )
+        provenance = fields.get("provenance", "")
+        if provenance and not re.match(r"(student|model)\b", provenance):
+            findings.append(
+                (
+                    "REC-006",
+                    "WARN",
+                    f"{entry_id} provenance must start with student or model (got "
+                    f"{provenance!r}): model suggestions accumulating unmarked is a "
+                    "known failure mode",
+                )
+            )
+        if status == "adopted" and not re.search(r"main/\S+\.md", block):
+            findings.append(
+                (
+                    "REC-003",
+                    "WARN",
+                    f"{entry_id} is marked adopted but the block names no plan/progress "
+                    "landing reference: claiming adoption while unable to point at the "
+                    "corresponding change = adoption on paper only",
+                )
+            )
+    return findings
+
+
+def check_recommendation_ledger() -> None:
+    """P-0069: format check for the recommendation ledger (WARN-only; semantics stay human)."""
+    ledger = MAIN / "30_group/recommendations.md"
+    if not ledger.is_file():
+        return
+    for _code, severity, message in recommendation_findings(
+        recommendation_entries(read(ledger)), ledger_present=True
+    ):
+        report(severity, message)
+
+
+def check_container_mode(
+    group_id: str,
+    folder: Path,
+    meta: dict[str, str],
+    members: list[str],
+    courses: dict[str, tuple[Path, dict[str, str]]],
+) -> None:
+    """Runtime: container anchors present, and stalled progress gets triaged.
+
+    Two container shapes are legal (schedule / progress); having *no* container
+    is not.  So the stop-loss anchor of whichever shape the group declared must
+    exist -- for ``progress`` that is the per-keystone dwell budget, which is the
+    only thing standing between "paced by ability" and "never ends".
+
+    The stall probe deliberately does **not** judge fault.  Pausing is legitimate
+    (a training camp, a bad month), and the adjudicated consequence is one triage
+    question that costs the student nothing.  What gets a WARN is the third
+    outcome: neither ``paused`` nor a review -- drifting silently.
+    """
+    calendar = folder / "calendar.md"
+    cal = frontmatter(calendar) if calendar.is_file() else {}
+    mode = meta.get("container_mode", "")
+
+    if mode == "progress":
+        if not cal.get("keystone_dwell_budget_cycles"):
+            report(
+                "FAIL",
+                f"{group_id} progress container lacks the stop-loss anchor"
+                " keystone_dwell_budget_cycles: a by-progress mode without a budget has no"
+                " container (course_group_rules.md §4.1)",
+            )
+    elif mode == "schedule":
+        if "cycle_anchor_learning_day" not in cal:
+            report(
+                "WARN",
+                f"{group_id} schedule container lacks the cycle_anchor_learning_day field"
+                " (TBD is a legal value; a missing field is not)",
+            )
+
+    if mode != "progress" or meta.get("status") != "active":
+        return
+
+    check_keystone_ledger(group_id, folder, meta)
+
+    today = dt.date.today()
+    for course_id in members:
+        if course_id not in courses:
+            continue
+        _course_folder, course_meta = courses[course_id]
+        if course_meta.get("lifecycle_status", "") != "ongoing":
+            continue  # paused/completed is already a triage outcome; do not ask again
+        raw = str(course_meta.get("updated", ""))[:10]
+        try:
+            last = dt.date.fromisoformat(raw)
+        except ValueError:
+            continue
+        idle = (today - last).days
+        if idle >= STALL_TRIAGE_DAYS:
+            report(
+                "WARN",
+                f"STALL-TRIAGE-001 {group_id}/{course_id} has not moved for {idle} days,"
+                " awaiting triage: stuck → emergency review | no time → switch to paused and"
+                " record the resumption condition | the triage counts toward neither the grade"
+                " nor the mastery evaluation (course_group_rules.md §4.2)",
+            )
+
+
+def check_keystone_ledger(group_id: str, folder: Path, meta: dict[str, str]) -> None:
+    """Scope-drift ledger reconciliation (course_group_rules.md §4.3).
+
+    §4.2 guards against silent drift in *time*; this guards against silent
+    drift in *scope* -- same invariant: changes are fine, unlogged changes are
+    not.  The machine never judges whether a cut was right (that adjudication
+    lives in the review the ledger row came from).  It only enforces "no cut
+    without a ledger row": current keystones plus logged cuts must equal the
+    frozen anchor.  Deliberately coarse -- no review-ID binding, same judgment
+    call as the 14-day stall probe.
+    """
+    plan = folder / "plan.md"
+    text = read(plan) if plan.is_file() else ""
+
+    raw_frozen = meta.get("keystone_total_frozen", "")
+    if not raw_frozen:
+        report(
+            "FAIL",
+            f"{group_id} is an active progress group but lacks the keystone count anchor"
+            " keystone_total_frozen: the freeze happens at the group-forming ritual, and"
+            " without the anchor there is nothing to reconcile against"
+            " (course_group_rules.md §4.3)",
+        )
+        return
+    try:
+        frozen = int(raw_frozen)
+    except ValueError:
+        report(
+            "FAIL",
+            f"{group_id} keystone_total_frozen is invalid: {raw_frozen} (must be an integer)",
+        )
+        return
+
+    def section(title: str) -> str:
+        match = re.search(rf"^#+\s.*{title}.*$", text, flags=re.M)
+        if not match:
+            return ""
+        rest = text[match.end():]
+        nxt = re.search(r"^#+\s", rest, flags=re.M)
+        return rest[: nxt.start()] if nxt else rest
+
+    keystones = re.findall(r"^-\s+K\d+\b", section("Keystone sequence"), flags=re.M)
+    if not keystones:
+        report(
+            "FAIL",
+            f"{group_id} plan.md has no \"Keystone sequence\" section, or the section holds no"
+            " `- Knn` rows (course_group_rules.md §4.3: for a progress group that table is the"
+            " container)",
+        )
+        return
+    ledger = section("Keystone change ledger")
+    cut_rows = [
+        row for row in re.findall(r"^\|.*\d{4}-\d{2}-\d{2}.*\|$", ledger, flags=re.M)
+        if re.search(r"\|\s*cut\s*\|", row, flags=re.I)
+    ]
+    if len(keystones) + len(cut_rows) != frozen:
+        report(
+            "FAIL",
+            f"{group_id} keystone sequence does not reconcile: {len(keystones)} current"
+            f" keystones + {len(cut_rows)} logged cut rows ≠ the anchor {frozen}"
+            " (§4.3: the only legal entry for a cut is one ledger row; adding a keystone must"
+            " raise the anchor and leave an \"add\" row)",
+        )
+
+
 def check_groups(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
     root = MAIN / "30_group"
     groups: list[tuple[str, Path, dict[str, str]]] = []
@@ -1417,7 +1795,7 @@ def check_groups(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
     expected = 0 if FLAVOR == "skeleton" else 1
     if len(active) != expected:
         report("FAIL", f"active group count should be {expected}, actual {len(active)}")
-    for group_id, _, meta in active:
+    for group_id, active_folder, meta in active:
         members = list_value(meta.get("course_members", "[]"))
         if not members:
             report("FAIL", f"active group has no course member: {group_id}")
@@ -1431,6 +1809,36 @@ def check_groups(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
         current = meta.get("current_course", "")
         if current and current not in members:
             report("FAIL", f"{group_id} current_course is not among the members: {current}")
+        check_container_mode(group_id, active_folder, meta, members, courses)
+    for group_id, folder, meta in groups:
+        mode = meta.get("container_mode", "")
+        if not mode:
+            report(
+                "FAIL",
+                f"{group_id} plan.md lacks container_mode (course_group_rules.md §4.1: the"
+                " container shape is a choice, having a container is not)",
+            )
+        elif mode not in ALLOWED_CONTAINER_MODES:
+            report(
+                "FAIL",
+                f"{group_id} container_mode is invalid: {mode}"
+                f" (legal values are {sorted(ALLOWED_CONTAINER_MODES)})",
+            )
+        calendar = folder / "calendar.md"
+        if calendar.is_file():
+            cal_mode = frontmatter(calendar).get("container_mode", "")
+            if mode and cal_mode and cal_mode != mode:
+                report(
+                    "FAIL",
+                    f"{group_id} container_mode disagrees in two places:"
+                    f" plan={mode} calendar={cal_mode}",
+                )
+            elif mode and not cal_mode:
+                report(
+                    "WARN",
+                    f"{group_id} calendar.md does not declare container_mode (the trigger"
+                    " anchor cannot decide which field set applies)",
+                )
     group_ids = {group_id for group_id, _, _ in groups}
     binding_ids: set[str] = set()
     for binding in sorted(root.glob("G*/bindings/*.md")) if root.exists() else []:
@@ -1771,6 +2179,107 @@ def check_knowledge_ledgers(courses: dict[str, tuple[Path, dict[str, str]]]) -> 
             ).search(block)
             if not state:
                 report("FAIL", f"reasoning pattern lacks a valid status: {match.group(1)}")
+
+
+def check_exam_banks(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
+    """Runtime: enforce exam-ledger shape and assessment-pool isolation.
+
+    Empty banks are a valid cold-start state.  Isolation is FAIL because a leaked
+    assessment problem burns the paper; registration and metadata drift are WARN.
+    """
+    decay_keys = (
+        ("domain", "域"), ("timing", "时机"),
+        ("attribution layer", "归因层"), ("consumer", "消费方"),
+        ("exit", "退出"), ("re-entry", "再入"),
+    )
+    for course_id, (folder, _) in courses.items():
+        exam_root = folder / "_exam"
+        if not exam_root.is_dir():
+            continue
+        ledger = exam_root / "exam_ledger.md"
+        if not ledger.is_file():
+            report("FAIL", f"_exam/ exists but exam_ledger.md is missing: {course_id}")
+        else:
+            meta = frontmatter(ledger)
+            if meta.get("truth_scope") != "exam_settlement":
+                report("FAIL", f"exam_ledger truth_scope must be exam_settlement: {course_id}")
+            content = read(ledger)
+            body = without_fenced_code(content)
+            has_decay = "【模式】复利回路·衰减" in body or "retire loop" in body.lower() and "decay" in body.lower()
+            if not has_decay:
+                report("FAIL", f"exam_ledger lacks the retire-loop decay marker: {course_id}")
+            else:
+                missing = [aliases[0] for aliases in decay_keys if not any(f"{key}=" in body for key in aliases)]
+                if missing:
+                    report("FAIL", f"exam_ledger decay parameters lack keys {missing}: {course_id}")
+            state = re.search(
+                r"^\|\s*(?:Exam debt status|考核债状态)\s*\|\s*`([a-z_]+)`",
+                body, re.MULTILINE | re.IGNORECASE,
+            )
+            if not state:
+                report("FAIL", f"exam_ledger lacks exam-debt status: {course_id}")
+            elif state.group(1) not in ALLOWED_EXAM_DEBT_STATES:
+                report("FAIL", f"illegal exam-debt status: {course_id} -> {state.group(1)}")
+            ids = [int(value) for value in re.findall(r"^###\s+EX-(\d{4})", body, re.MULTILINE)]
+            if len(ids) != len(set(ids)):
+                report("FAIL", f"duplicate exam sitting ID: {course_id}")
+            next_id = re.search(r"^next_id:\s*(\d+)\s*$", content, re.MULTILINE)
+            if not next_id:
+                report("FAIL", f"exam_ledger lacks next_id: {course_id}")
+            elif ids and int(next_id.group(1)) <= max(ids):
+                report("FAIL", f"exam_ledger next_id does not exceed the largest EX ID: {course_id}")
+
+        index_file = exam_root / "index.md"
+        if not index_file.is_file():
+            report("FAIL", f"_exam/ exists but index.md is missing: {course_id}")
+            continue
+        registered: dict[str, str] = {}
+        for line in without_fenced_code(read(index_file)).splitlines():
+            if not line.startswith("|"):
+                continue
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if len(cells) < 10:
+                continue
+            paper_id = cells[0]
+            if not paper_id or paper_id in {"Paper ID", "卷ID"} or set(paper_id) <= set("-: "):
+                continue
+            registered[paper_id] = cells[8]
+        papers_root = exam_root / "papers"
+        folders = sorted(entry.name for entry in papers_root.iterdir() if entry.is_dir()) if papers_root.is_dir() else []
+        if not registered and not folders:
+            continue
+        for name in folders:
+            if name not in registered:
+                report("WARN", f"paper folder is not registered in index.md: {course_id}/{name}")
+                continue
+            meta_file = papers_root / name / "meta.md"
+            if not meta_file.is_file():
+                report("WARN", f"paper folder lacks meta.md: {course_id}/{name}")
+                continue
+            meta_text = read(meta_file)
+            absent = [aliases[0] for aliases in EXAM_META_COLUMNS if not any(label in meta_text for label in aliases)]
+            if absent:
+                report("WARN", f"meta.md lacks columns {absent}: {course_id}/{name}")
+        for paper_id in registered:
+            if paper_id not in folders:
+                report("WARN", f"registered paper has no paper folder: {course_id}/{paper_id}")
+        assessment = {
+            paper_id for paper_id, pool in registered.items()
+            if "assessment" in pool.lower() or "考核" in pool
+        }
+        for space in ("lessons", "exercises"):
+            space_root = folder / space
+            if not space_root.is_dir():
+                continue
+            for path in sorted(space_root.rglob("*.md")):
+                text = without_fenced_code(read(path))
+                for paper_id in sorted(assessment):
+                    if re.search(rf"{re.escape(paper_id)}\s*#\s*\S", text):
+                        report(
+                            "FAIL",
+                            f"assessment-pool problem reference leaked into teaching: "
+                            f"{course_id} -> {paper_id} @ {path.relative_to(folder)}",
+                        )
 
 
 def _validate_project_closure_record(
@@ -3762,6 +4271,70 @@ def playbook_taxonomy_findings(
     return findings
 
 
+PLAYBOOK_USAGE_MARK_DAYS = 14
+PLAYBOOK_USAGE_ARCHIVE_DAYS = 40
+PLAYBOOK_USAGE_EXEMPT = {
+    "host_g1_optional.md": "optional host dormancy document; dormancy is normal",
+}
+USAGE_DATE_TOKEN = re.compile(r"\b(20\d{2}-\d{2}-\d{2})\b")
+USAGE_MANAGED_BY = re.compile(r"^(?:>\s*)?managed_by:", re.MULTILINE)
+
+
+def playbook_usage_last_seen(
+    sources: list[tuple[str, str, "dt.date | None"]],
+    names: frozenset[str],
+) -> dict[str, "dt.date"]:
+    """Return the latest dated reference to each playbook filename."""
+    last: dict[str, dt.date] = {}
+    for _label, body, seed in sources:
+        cursor = seed
+        for line in body.splitlines():
+            tokens = USAGE_DATE_TOKEN.findall(line)
+            if tokens:
+                try:
+                    cursor = max(dt.date.fromisoformat(token) for token in tokens)
+                except ValueError:
+                    pass
+            if cursor is None:
+                continue
+            for name in names:
+                if name in line and (name not in last or cursor > last[name]):
+                    last[name] = cursor
+    return last
+
+
+def playbook_usage_findings(
+    names: frozenset[str],
+    last_seen: dict[str, "dt.date"],
+    today: "dt.date",
+) -> list[tuple[str, str, str]]:
+    """WARN-only depreciation verdict; never removes the sole copy."""
+    findings: list[tuple[str, str, str]] = []
+    unseen = sorted(name for name in names if name not in last_seen)
+    if unseen:
+        findings.append((
+            "PB-USE-003", "INFO",
+            "no dated reference data (observing, not calling cold): " + ", ".join(unseen),
+        ))
+    for name in sorted(names):
+        seen = last_seen.get(name)
+        if seen is None:
+            continue
+        age = (today - seen).days
+        if age > PLAYBOOK_USAGE_ARCHIVE_DAYS:
+            findings.append((
+                "PB-USE-002", "WARN",
+                f"archive candidate: {name}, last referenced {seen} ({age} days ago); "
+                "the host may git-move it into archive/, but must not delete the sole copy",
+            ))
+        elif age > PLAYBOOK_USAGE_MARK_DAYS:
+            findings.append((
+                "PB-USE-001", "WARN",
+                f"cold marker: {name}, last referenced {seen} ({age} days ago)",
+            ))
+    return findings
+
+
 def playbook_level_sets(
     playbook_dir: Path,
 ) -> tuple[dict[str, str], dict[str, str]]:
@@ -3853,6 +4426,156 @@ def check_playbook_taxonomy_parity() -> None:
     if len(edition_dirs) != len(distribution_release_names()):
         return
     for _code, severity, message in playbook_taxonomy_parity_findings(edition_dirs):
+        report(severity, message)
+
+
+def check_playbook_usage() -> None:
+    """Runtime: WARN-only depreciation scan for ordinary playbooks."""
+    playbook_dir = MAIN / "50_playbook"
+    course_dir = MAIN / "40_course"
+    if not playbook_dir.is_dir():
+        return
+    has_courses = course_dir.is_dir() and any(
+        child.is_dir() and not child.name.startswith("_") for child in course_dir.iterdir()
+    )
+    if not has_courses:
+        report("INFO", "PB-USE-000 no course instance; skipping playbook depreciation (cold-start guard)")
+        return
+    names: set[str] = set()
+    for path in sorted(playbook_dir.glob("*.md")):
+        if path.name == TAXONOMY_README_EXEMPT or path.name in PLAYBOOK_USAGE_EXEMPT:
+            continue
+        body = read(path)
+        legal, _illegal = parse_playbook_protection_levels(body)
+        if {value for _, value in legal} != {"playbook"}:
+            continue
+        if USAGE_MANAGED_BY.search(strip_fenced_blocks(body)):
+            continue
+        names.add(path.name)
+    if not names:
+        return
+    sources: list[tuple[str, str, dt.date | None]] = []
+    changelog = MAIN / "00_core/t2ag_changelog.md"
+    if changelog.is_file():
+        sources.append(("changelog", read(changelog), None))
+    journal_dir = MAIN / "60_journal"
+    if journal_dir.is_dir():
+        for path in sorted(journal_dir.glob("*.md")):
+            sources.append((f"journal:{path.name}", read(path), None))
+    handoffs = ROOT.parent / "docs" / "handoffs"
+    if handoffs.is_dir():
+        for path in sorted(handoffs.glob("*.md")):
+            token = USAGE_DATE_TOKEN.search(path.name)
+            seed = None
+            if token:
+                try:
+                    seed = dt.date.fromisoformat(token.group(1))
+                except ValueError:
+                    pass
+            sources.append((f"handoff:{path.name}", read(path), seed))
+    last_seen = playbook_usage_last_seen(sources, frozenset(names))
+    for _code, severity, message in playbook_usage_findings(
+        frozenset(names), last_seen, dt.date.today()
+    ):
+        report(severity, message)
+
+
+TIER_LEGAL_VALUES: frozenset[str] = frozenset(
+    {"distant", "semi-familiar", "mastered", "远", "半熟", "精熟"}
+)
+TIER_TOP_VALUES: frozenset[str] = frozenset({"mastered", "精熟"})
+TIER_DEFAULT_VALUES: frozenset[str] = frozenset({"distant", "远"})
+TIER_TABLE_HEADINGS = ("Domain trust tiers", "领域信任档位")
+
+
+def domain_tier_rows(profile_text: str) -> list[tuple[str, str, str, str]]:
+    """Parse (domain, tier, evidence_ref, updated) from the profile table."""
+    body = strip_fenced_blocks(profile_text)
+    starts = [body.find(f"## {heading}") for heading in TIER_TABLE_HEADINGS]
+    starts = [start for start in starts if start >= 0]
+    if not starts:
+        return []
+    section = body[min(starts):]
+    nxt = section.find("\n## ", 1)
+    if nxt > 0:
+        section = section[:nxt]
+    aliases = {
+        "domain": ("Domain", "领域"),
+        "tier": ("Tier", "档位"),
+        "evidence": ("Evidence pointer", "证据指针"),
+        "updated": ("Updated", "更新日"),
+    }
+    header: list[str] | None = None
+    rows: list[tuple[str, str, str, str]] = []
+    for line in section.splitlines():
+        if not line.strip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if header is None:
+            if any(label in cells for label in aliases["domain"]) and any(
+                label in cells for label in aliases["tier"]
+            ):
+                header = cells
+            continue
+        if all(set(cell) <= {"-", ":"} for cell in cells if cell):
+            continue
+        record = dict(zip(header, cells))
+        value = lambda key: next((record.get(label, "") for label in aliases[key] if label in record), "")
+        domain = value("domain")
+        if not domain or domain.startswith("<"):
+            continue
+        rows.append((domain, value("tier"), value("evidence").strip("`"), value("updated")))
+    return rows
+
+
+def domain_tier_findings(
+    rows: list[tuple[str, str, str, str]],
+    evidence: dict[str, str | None],
+) -> list[tuple[str, str, str]]:
+    """WARN-only reconciliation of declared trust tiers against evidence."""
+    if not rows:
+        return [(
+            "TIER-000", "INFO",
+            "the profile has no domain trust-tier table; skipping reconciliation (cold-start guard)",
+        )]
+    findings: list[tuple[str, str, str]] = []
+    for domain, tier, ref, _updated in rows:
+        if tier not in TIER_LEGAL_VALUES:
+            findings.append(("TIER-003", "WARN", f"{domain} has an illegal tier value: {tier!r}"))
+            continue
+        if tier in TIER_DEFAULT_VALUES:
+            continue
+        body = evidence.get(ref)
+        if not ref or body is None:
+            detail = "empty" if not ref else f"unresolvable ({ref})"
+            findings.append((
+                "TIER-002", "WARN",
+                f"{domain} is self-rated {tier}, but its evidence pointer is {detail}; "
+                "the registration is currently an assertion with nothing to reconcile",
+            ))
+            continue
+        if tier in TIER_TOP_VALUES and domain not in body:
+            findings.append((
+                "TIER-001", "WARN",
+                f"{domain} is self-rated {tier}, but evidence {ref} never mentions the domain; "
+                "the top-tier claim does not reconcile with the cited record",
+            ))
+    return findings
+
+
+def check_domain_tier_reconciliation() -> None:
+    """Runtime: reconcile domain trust self-ratings against their cited evidence."""
+    profile_path = MAIN / "10_student/profile/profile.md"
+    if not profile_path.is_file():
+        return
+    rows = domain_tier_rows(read(profile_path))
+    evidence: dict[str, str | None] = {}
+    for _domain, _tier, ref, _updated in rows:
+        if not ref or ref in evidence:
+            continue
+        target = ROOT / ref
+        evidence[ref] = read(target) if target.is_file() else None
+    for _code, severity, message in domain_tier_findings(rows, evidence):
         report(severity, message)
 
 
@@ -6514,6 +7237,150 @@ def check_distribution_parity() -> None:
         )
 
 
+CONSTITUTION_PARITY_TARGETS = (
+    "main/t2ag.md",
+    "main/00_core/domain_model.md",
+    "main/00_core/learning_activity_model.md",
+    "main/00_core/pattern_retire_loop.md",
+)
+CONSTITUTION_PARITY_EXEMPT = {
+    ("main/t2ag.md", "6. 修改、迁移与发布闸门"):
+        "the Skeleton de-instantiates the handoff-inventory pointer (H4)",
+}
+CONSTITUTION_PARITY_FILE_EXEMPT = {
+    "AGENTS.md": "Main and Skeleton address different audiences",
+}
+CONSTITUTION_SECTION_MARKER = re.compile(
+    r"^## +(?P<title>.+?)(?:\s+\[max \d+\])?\s*$"
+)
+
+
+def constitution_section_digests(data: bytes) -> tuple[dict[str, str], list[str]]:
+    """Split a constitution-family file into byte-hashed level-two sections."""
+    chunks: list[tuple[str, list[bytes]]] = [("<preamble>", [])]
+    for line in data.splitlines(keepends=True):
+        text_line = line.decode("utf-8", errors="replace").rstrip("\r\n")
+        match = CONSTITUTION_SECTION_MARKER.match(text_line)
+        if match:
+            chunks.append((match.group("title").strip(), [line]))
+        else:
+            chunks[-1][1].append(line)
+    merged: dict[str, bytes] = {}
+    duplicates: list[str] = []
+    for title, lines in chunks:
+        if title == "<preamble>" and not lines:
+            continue
+        if title in merged:
+            duplicates.append(title)
+            merged[title] += b"".join(lines)
+        else:
+            merged[title] = b"".join(lines)
+    return (
+        {title: hashlib.sha256(blob).hexdigest() for title, blob in merged.items()},
+        sorted(set(duplicates)),
+    )
+
+
+def constitution_parity_findings(
+    main_root: Path,
+    skeleton_root: Path,
+    *,
+    targets: tuple[str, ...] = CONSTITUTION_PARITY_TARGETS,
+    exempt: dict[tuple[str, str], str] | None = None,
+    file_exempt: dict[str, str] | None = None,
+) -> list[tuple[str, str, str]]:
+    """Compare Main and Skeleton by constitution-family section bytes."""
+    if exempt is None:
+        exempt = CONSTITUTION_PARITY_EXEMPT
+    if file_exempt is None:
+        file_exempt = CONSTITUTION_PARITY_FILE_EXEMPT
+    findings: list[tuple[str, str, str]] = []
+    for rel in sorted(file_exempt):
+        main_file, skeleton_file = main_root / rel, skeleton_root / rel
+        if (
+            main_file.is_file() and skeleton_file.is_file()
+            and main_file.read_bytes() == skeleton_file.read_bytes()
+        ):
+            findings.append((
+                "CONST-PAR-003", "WARN",
+                f"whole-file exemption is stale; both sides now agree: {rel}",
+            ))
+        else:
+            findings.append((
+                "CONST-PAR-000", "INFO",
+                f"whole-file exemption: {rel} — {file_exempt[rel]}",
+            ))
+    seen_exempt: set[tuple[str, str]] = set()
+    for rel in targets:
+        main_file, skeleton_file = main_root / rel, skeleton_root / rel
+        if not main_file.is_file() or not skeleton_file.is_file():
+            side = "Main" if not main_file.is_file() else "Skeleton"
+            findings.append((
+                "CONST-PAR-004", "FAIL",
+                f"constitution-parity target missing from {side}: {rel}",
+            ))
+            continue
+        main_digests, main_dupes = constitution_section_digests(main_file.read_bytes())
+        skeleton_digests, skeleton_dupes = constitution_section_digests(skeleton_file.read_bytes())
+        for edition, duplicates in (("Main", main_dupes), ("Skeleton", skeleton_dupes)):
+            if duplicates:
+                findings.append((
+                    "CONST-PAR-005", "FAIL",
+                    f"duplicate section titles make parity undecidable: {rel} ({edition}) -> {duplicates}",
+                ))
+        for title in sorted(set(main_digests) | set(skeleton_digests)):
+            key = (rel, title)
+            one_sided = (title in main_digests) != (title in skeleton_digests)
+            drifted = not one_sided and main_digests[title] != skeleton_digests[title]
+            if key in exempt:
+                seen_exempt.add(key)
+                if not one_sided and not drifted:
+                    findings.append((
+                        "CONST-PAR-003", "WARN",
+                        f"section exemption is stale; both sides now agree: {rel} § {title}",
+                    ))
+                continue
+            if one_sided:
+                side = "Skeleton lacks section" if title in main_digests else "Skeleton has extra section"
+                findings.append((
+                    "CONST-PAR-002", "FAIL",
+                    f"Main/Skeleton section-set fork ({side}): {rel} § {title}",
+                ))
+            elif drifted:
+                findings.append((
+                    "CONST-PAR-001", "FAIL",
+                    f"Main/Skeleton constitution-section drift: {rel} § {title}",
+                ))
+    for rel, title in sorted(set(exempt) - seen_exempt):
+        if rel in targets:
+            findings.append((
+                "CONST-PAR-003", "WARN",
+                f"dangling section exemption; neither side has it: {rel} § {title}",
+            ))
+    return findings
+
+
+def check_constitution_parity() -> None:
+    """Release: keep Main and the Chinese Skeleton section-identical."""
+    if FLAVOR != "main":
+        return
+    skeleton = ROOT.parent / "t2ag-skeleton"
+    if not skeleton.is_dir():
+        report("INFO", "constitution parity: t2ag-skeleton is not mounted; skipping")
+        return
+    findings = constitution_parity_findings(ROOT, skeleton)
+    for _code, severity, message in findings:
+        report(severity, message)
+    if not any(severity == "FAIL" for _code, severity, _message in findings):
+        report(
+            "INFO",
+            "constitution parity: "
+            f"{len(CONSTITUTION_PARITY_TARGETS)} sectioned targets, "
+            f"{len(CONSTITUTION_PARITY_EXEMPT)} section exemption(s) + "
+            f"{len(CONSTITUTION_PARITY_FILE_EXEMPT)} whole-file exemption(s)",
+        )
+
+
 # --- Cross-edition (translated fork) parity: CE, 2026-08-22 ------------------
 # check_distribution_parity compares bytes; check_constitution_parity compares
 # section *titles*.  A translated edition can satisfy neither, and this repo's own
@@ -6751,9 +7618,7 @@ _CE_EXEMPT_GROUPS: dict[str, tuple[tuple[str, str], ...]] = {
         ("profile_check", "runtime:runtime.gate_visibility"),
     ),
 }
-CROSS_EDITION_EXEMPT: dict[tuple[str, str], str] = {
-    key: reason for reason, keys in _CE_EXEMPT_GROUPS.items() for key in keys
-}
+CROSS_EDITION_EXEMPT: dict[tuple[str, str], str] = {}
 # Whole files excluded from the section comparator, with the reason.  Two are
 # Chinese-side-only by the same ruling that exempts them from byte parity; the
 # third is the one place where translation legitimately re-rooted the numbering
@@ -7003,6 +7868,73 @@ SKELETON_PRIVACY_EXEMPT = {
 # version from now on; no more whole-file exemptions.
 
 
+def package_root_prefix(names: list[str]) -> str:
+    """Read the archive's own root directory from its entries. Pure."""
+    roots = {name.split("/", 1)[0] for name in names if name.strip()}
+    if len(roots) != 1:
+        return ""
+    root = roots.pop()
+    if not any(name.startswith(f"{root}/") for name in names):
+        return ""
+    return f"{root}/"
+
+
+def manifest_package_drift(archive: Path) -> str:
+    """Cross-check a package against the manifest that claims to describe it. Pure."""
+    for candidate in sorted(archive.parent.glob("*.manifest.json")):
+        try:
+            claim = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            return f"release manifest is unreadable: {candidate.name} {error}"
+        if not isinstance(claim, dict) or claim.get("package") != archive.name:
+            continue
+        declared = str(claim.get("zip_sha256", ""))
+        if not declared:
+            return f"{candidate.name} claims {archive.name} but has no zip_sha256"
+        actual = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if declared != actual:
+            return (
+                f"release package and manifest disagree: {archive.name} actual sha256 "
+                f"{actual[:12]}…, {candidate.name} declares {declared[:12]}…. "
+                "One is stale; confirm the intended release bytes and align the other."
+            )
+        return ""
+    return ""
+
+
+PACKAGE_ROOT_ANCHORS = ("README.md", "main/")
+
+
+def package_shape_finding(names: list[str]) -> str:
+    """"" for the supported single-repository shape, otherwise the reason. Pure."""
+    if not [name for name in names if name.strip()]:
+        return "the release package is empty; its shape cannot be determined"
+    prefix = package_root_prefix(names)
+    stripped = [
+        name[len(prefix):] if prefix and name.startswith(prefix) else name
+        for name in names
+    ]
+    missing = [
+        anchor for anchor in PACKAGE_ROOT_ANCHORS
+        if not any(
+            entry == anchor if not anchor.endswith("/") else entry.startswith(anchor)
+            for entry in stripped
+        )
+    ]
+    if not missing:
+        return ""
+    interposed = sorted({
+        entry.split("/", 1)[0] for entry in stripped if "/" in entry
+    })[:4]
+    root_note = f"top-level root `{prefix.rstrip('/')}`" if prefix else "no single top-level root (flat package)"
+    return (
+        f"unsupported release package shape: {root_note} does not directly contain "
+        f"repository anchors {missing}; its next level is {interposed}. Repo-relative "
+        "policy (including privacy exemptions) is unreliable for this shape, so the "
+        "scanner refuses to issue a cleanliness verdict (P-0084)"
+    )
+
+
 def skeleton_package_findings(archive: Path) -> list[str]:
     """Policy findings for one built Skeleton package. Pure; caller reports.
 
@@ -7016,19 +7948,10 @@ def skeleton_package_findings(archive: Path) -> list[str]:
     try:
         with zipfile.ZipFile(archive) as bundle:
             names = bundle.namelist()
-            # LV-5 (2026-08-20): read the prefix from the archive's own single
-            # top-level directory, not from its filename.  Deriving it from
-            # `stem.split('-0.')[0]` meant any package whose filename differed
-            # from its internal root lost every SKELETON_PRIVACY_EXEMPT entry and
-            # reported a false leak -- a guard keyed on the carrier's name rather
-            # than its content, the exact `carrier_mismatch` family this check
-            # exists to catch.
-            tops = {name.split("/")[0] for name in names if "/" in name}
-            prefix = (
-                f"{tops.pop()}/"
-                if len(tops) == 1
-                else f"{archive.stem.split('-0.')[0]}/"
-            )
+            shape = package_shape_finding(names)
+            if shape:
+                return [f"{shape}: {archive.name}"]
+            prefix = package_root_prefix(names)
             if any(part in name for name in names for part in ("/.git/", "/__pycache__/", "/.cache/")):
                 # Subsumes the per-file scan: once history ships, every redacted
                 # blob is reachable, so listing each .git file adds noise only.
@@ -7061,15 +7984,29 @@ def skeleton_package_findings(archive: Path) -> list[str]:
 SKELETON_RELEASE_NAME = "t2ag-skeleton"
 
 
+PACKAGE_SEARCH_ROOTS = (".", "artifacts/releases")
+
+
 def built_skeleton_packages(root: Path) -> list[Path]:
-    """Every built Skeleton archive sitting next to the release trees.
+    """Every built Skeleton archive in the workspace. Pure.
 
     Deliberately independent of the current flavor: a Main-side release review is
     exactly when someone should be told the Skeleton package carries history.
     `.bak-*` suffixes fall outside `*.zip` and are left alone — a quarantined
     package is evidence of what was shipped before, not a thing to re-flag.
+    Searches the workspace root and the canonical artifact tree, so moving a
+    package cannot silently empty the guard's scope (P-0085).
     """
-    return sorted(root.parent.glob(f"{SKELETON_RELEASE_NAME}*.zip"))
+    workspace = root.parent
+    pattern = f"{SKELETON_RELEASE_NAME}*.zip"
+    # The workspace root is scanned flat and `artifacts/releases` recursively, on
+    # purpose: recursing from the root would walk every checked-out repo (minutes,
+    # not milliseconds), and a check nobody waits for is a check nobody runs.
+    found: set[Path] = set(workspace.glob(pattern))
+    releases = workspace / "artifacts/releases"
+    if releases.is_dir():
+        found.update(releases.rglob(pattern))
+    return sorted(found)
 
 
 def check_release_package_surface() -> None:
@@ -7085,14 +8022,23 @@ def check_release_package_surface() -> None:
     """
     packages = built_skeleton_packages(ROOT)
     if not packages:
-        report("INFO", "release package surface: the workspace has no built Skeleton release package")
+        searched = ", ".join(PACKAGE_SEARCH_ROOTS)
+        report(
+            "INFO",
+            "release package surface: no Skeleton package found; searched "
+            f"{searched} relative to the workspace root. A package elsewhere means "
+            "the search roots are stale, not that the release surface is clean",
+        )
         return
     clean = 0
     for archive in packages:
         findings = skeleton_package_findings(archive)
         for finding in findings:
             report("FAIL", f"{finding}(this package must not be distributed)")
-        if not findings:
+        drift = manifest_package_drift(archive)
+        if drift:
+            report("FAIL", drift)
+        if not findings and not drift:
             clean += 1
     report(
         "INFO",
@@ -8195,11 +9141,16 @@ def execute_doctor_checks(
         "check_core_playbooks": check_core_playbooks,
         "check_playbook_taxonomy": check_playbook_taxonomy,
         "check_playbook_taxonomy_parity": check_playbook_taxonomy_parity,
+        "check_playbook_usage": check_playbook_usage,
+        "check_domain_tier_reconciliation": check_domain_tier_reconciliation,
+        "check_recommendation_ledger": check_recommendation_ledger,
+        "check_gate_visibility": check_gate_visibility,
         "check_candidate_replay_contract": check_candidate_replay_contract,
         "check_tracked_environment": check_tracked_environment,
         "check_dirty_tree": check_dirty_tree,
         "check_skeleton_textbook": check_skeleton_textbook_gate,
         "check_distribution_parity": check_distribution_parity,
+        "check_constitution_parity": check_constitution_parity,
         "check_cross_edition_parity": check_cross_edition_parity,
         "check_skeleton_privacy": check_skeleton_privacy,
         "check_release_package_surface": check_release_package_surface,
@@ -8212,6 +9163,7 @@ def execute_doctor_checks(
         "check_activity_ledgers": check_activity_ledgers,
         "check_question_banks": check_question_banks,
         "check_knowledge_ledgers": check_knowledge_ledgers,
+        "check_exam_banks": check_exam_banks,
         "check_project_verification": check_project_verification,
         "check_exercises": check_exercises,
         "check_textbook_preparation": check_textbook_preparation,

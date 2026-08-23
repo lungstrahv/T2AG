@@ -237,13 +237,43 @@ The default soft budget is 16,000 actual serialized Markdown characters, checked
 and for L0 plus the first L1. On exceeding it, output `REVIEW` only, and let the maintainer check
 whether a new duplicated inventory has appeared; never silently drop a field.
 
+### Character and byte accounts are reported separately
+
+`serialized_l0_markdown_bytes` and `serialized_l0_plus_l1_markdown_bytes` sit beside the character
+fields. They are never collapsed into one number, and the byte side has no gate: the soft budget is
+measured in characters while actual context transport is measured in bytes.
+
+### Optional components: the student owns the switches
+
+Four sections may be disabled: `contract`, `reflections`, `overlay`, and `template`. Disabling one
+must not break the recovery chain; stopping point, progress, textbook window and current pointers
+are therefore not switchable. The profile key is `l0_optional_off`, with comma- or space-separated
+IDs. An unknown ID is an error, never silently ignored. Every render reports each component's state,
+bytes, and total avoidable cost. Turning one off changes it to read-on-demand; it saves recurring
+cost while relying on the agent to fetch it when needed, and the tool must state that tradeoff.
+
 ## 6. Degradation
 
 - The profile is uninitialized, still contains required placeholders, or the memory date is `—`: output `first_run_required` and route to `first_run.md`; do not generate a fake course packet.
 - Critical's current course does not exist, is not `ongoing`, does not belong to the active Group, activity routing failed, the ledger and progress conflict, or a source changed during reading: return `status=blocked`; the background command still exits non-zero, and the authority chain is repaired first.
 - The tool cannot execute: do the layered excerpting by hand per the section of the same name in `lesson_recover.md`; never fall back to an undifferentiated full-repository read.
 
-## 7. Related files
+## 7. On-ramp rendering (ELI5 form)
+
+An on-ramp is a low-cost trunk projection shown before heavy work. It supplies structure and very
+few words; it never replaces the explanation. `preview` uses the existing lesson-opening overview
+and ASCII knowledge tree; `resume` shows where the student is. Every textual node must be selected
+from a keystone row, a textbook contents heading, or a listed lesson objective—no new factual claim
+may be generated. A progress group anchors on keystones; a schedule group falls back to course
+section numbers. `crosstext` uses canonical source-page anchors and is manual-only.
+
+Only `preview` is frozen before blind extraction and may not be regenerated mid-problem. The profile
+switch `onramp_off` accepts `preview` and `crosstext`; unknown IDs fail. After the first preview, the
+student judges once whether it compresses or dilutes; dilution turns that slot off. Projections are
+not persisted: their source content already has an authority, and storing the rearrangement would
+create a second truth source.
+
+## 8. Related files
 
 - `main/t2ag.md`: the startup entry point and daily takeover.
 - `main/50_playbook/lesson_recover.md`: course recovery and the L1/L2 triggers.
@@ -251,6 +281,8 @@ whether a new duplicated inventory has appeared; never silently drop a field.
 - `main/50_playbook/startup_orchestration.md`: the three-agent startup, join and degradation.
 - `main/70_tools/t2ag_context.py`: the read-only context packet generator.
 - `main/70_tools/t2ag_activity.py`: the single activity router.
+- `main/50_playbook/course_group_rules.md`: keystone anchors and the schedule fallback.
+- `main/50_playbook/source_page_assets.md`: canonical page anchors for `crosstext`.
 
 ## Main consumption discipline and course selection (canonical; sunk from constitution §3.2 on 2026-08-08 / EV-0020)
 

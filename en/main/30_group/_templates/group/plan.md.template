@@ -5,6 +5,7 @@ status: planned
 course_members: [COURSE_ID]
 engagement_members: []
 current_course: CURRENT_COURSE
+container_mode: progress
 updated: YYYY-MM-DD
 ---
 
@@ -58,3 +59,24 @@ None yet.
 - Time budget: total hours per cycle and their allocation; the actual deviation is recorded in `review.md`.
 - Overload handling: lower the frequency of non-red-line members first and never cut the red line first;
   two consecutive cycles below target trigger a review of the whole combination.
+
+---
+
+## 4. Keystone sequence (required for a `progress` group; a `schedule` group has no such section — the generator deletes it by mode)
+
+> The planned stage holds a draft; the freeze happens at activation (the group-forming ritual). The
+> machine entry point is `t2ag_init.py activate-group`: it verifies that this table already holds real
+> keystone rows (a remaining `keystone description` placeholder is refused), counts them, and writes
+> `keystone_total_frozen: N` into the frontmatter (N = the number of rows below). The anchor is never
+> written by hand.
+> Once frozen, the only entry for cutting a keystone is the ledger in the next section
+> (`course_group_rules.md` §4.3); doctor reconciles: current keystones + logged cut rows = the anchor.
+
+- K01 keystone description (which course it belongs to, and which line of that course's progress.md its completion criterion points at)
+- K02 keystone description
+
+## 5. Keystone change ledger
+
+| Date | Keystone | Type (cut/add) | Trigger (review / triage exit / group-closing ritual) | Destination group or note |
+|---|---|---|---|---|
+| | | | | |

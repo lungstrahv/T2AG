@@ -49,6 +49,10 @@ python -B main/70_tools/t2ag_init.py activate-group --group-id G01 --date YYYY-M
    同时确认讲解语言 `teaching_language`（单值，如 `zh-CN`）；`t2ag_init.py` answers
    schema 未含此项前不入 `answers.json`，由模型在第 4 步完成后直写 profile
    frontmatter（LV-2，2026-08-18）。
+   **字段形状照抄 `main/70_tools/answers.example.json`**（合法 JSON，可直接读），
+   **字段说明、枚举与示例见 `main/70_tools/answers.schema.json`**（JSON 无注释，
+   所以说明与示例分两个文件）。示例带 `example_only: true`，工具会拒绝直接消费它——
+   逐项与用户确认后另存并删掉该键。
    当前困难与特殊要求是可选信息；未提供时明确写“未提供”，不得保留“待填写”。
 4. 运行 `t2ag_init.py init`（对应本步与第 8 步）。它将 profile 从模板改为
    `initialization_status: initialized`，并写入

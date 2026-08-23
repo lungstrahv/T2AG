@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "t2ag.answers.v1",
+  "title": "T2AG first-run answers",
+  "description": "The field table for the first-run answers.json. Descriptions, enums and examples live here because standard JSON has no comments — putting them inside answers.example.json would stop it being valid JSON, and that file must be readable by json.loads as-is. Companion file: answers.example.json (valid JSON, real field shapes, carrying the example_only refusal marker).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "example_only": {
+      "type": "boolean",
+      "description": "Appears only in answers.example.json. t2ag_init.py explicitly refuses to consume a payload carrying this marker as true — an example value is not the student's confirmation. Do not put this key in a real answers.json (false would also work, but deleting it is cleaner)."
+    },
+
+    "nickname": { "type": "string", "description": "What the student wants to be called." },
+    "school": { "type": "string", "description": "School name." },
+    "stage": { "type": "string", "description": "Stage of study, e.g. \"third-year undergraduate\"." },
+    "direction": { "type": "string", "description": "Field of study." },
+    "weekly_time": { "type": "string", "description": "Weekly time available and how it is distributed; free text." },
+    "goals": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "Non-empty list. The tool writes each item into the profile."
+    },
+    "tutoring_preference": { "type": "string", "description": "Tutoring preference; free text." },
+    "long_explanation_mode": {
+      "enum": ["map-first", "continuous", "user-defined"],
+      "description": "How a multi-part long explanation is organised; the default \"map first, then branch by branch\" is map-first."
+    },
+    "branch_confirmation": { "type": "string", "description": "How the student wants to confirm before continuing." },
+    "cycle_structure": { "type": "string", "description": "Cycle shape, e.g. 3-1-3." },
+    "small_adjustment": { "type": "string", "description": "Minor-adjustment frequency and scope." },
+    "big_adjustment": { "type": "string", "description": "Major-adjustment window frequency." },
+    "aged_review_mode": {
+      "enum": ["off", "suggest", "auto"],
+      "description": "How review of aged items is triggered."
+    },
+    "existing_basis": { "type": "string", "description": "Prior background; write \"none\" honestly if there is none." },
+    "current_difficulty": {
+      "type": "string",
+      "description": "Optional information. When not provided, write \"not provided\" explicitly; never leave \"to be filled in\" (first_run.md step 3)."
+    },
+    "teaching_notes": { "type": "string", "description": "Teaching notes; as above, write \"not provided\" when there are none." },
+    "exercise_hint_gate": {
+      "enum": ["enabled", "disabled"],
+      "description": "The exercise hint gate. **The model must not choose this on the student's behalf** (first_run.md step 3)."
+    },
+    "learning_timezone": { "type": "string", "description": "IANA timezone name, e.g. America/New_York." },
+    "learning_day_cutoff": { "type": "string", "description": "The learning-day cutoff time, e.g. 04:00. Cycles are counted in learning days, not calendar days." },
+
+    "lesson_actual_review": { "enum": ["on", "off"], "description": "Lesson actual-run review switch." },
+    "lesson_student_feedback": { "enum": ["on", "off"], "description": "Student-feedback collection switch." },
+    "lesson_knowledge_absorption": { "enum": ["on", "off"], "description": "Knowledge-absorption recording switch." },
+    "exercise_problem_review": { "enum": ["on", "off"], "description": "Exercise review switch." },
+    "exercise_knowledge_mastery": { "enum": ["on", "off"], "description": "Exercise mastery recording switch." },
+
+    "updated": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "YYYY-MM-DD. Write the real current date — carrying an opening reading across a session that crosses midnight mis-dates a whole batch by one day (P-0074)."
+    },
+
+    "agent_pool_limit": { "type": "integer", "minimum": 1, "maximum": 6, "default": 6, "description": "Optional. Identity-pool capacity, including Main." },
+    "agent_max_active": { "type": "integer", "minimum": 1, "maximum": 3, "default": 3, "description": "Optional. Concurrent-run ceiling including Main; must not exceed agent_pool_limit." },
+    "agent_parallel_startup": { "enum": ["enabled", "disabled"], "default": "enabled", "description": "Optional. Whether the startup formation runs in parallel." },
+    "agent_startup_readiness": { "type": "string", "default": "learning_ready_first", "description": "Optional." },
+    "agent_background_reporting": { "type": "string", "default": "blockers_only", "description": "Optional." }
+  },
+  "required": [
+    "nickname", "school", "stage", "direction", "weekly_time", "goals",
+    "tutoring_preference", "long_explanation_mode", "branch_confirmation",
+    "cycle_structure", "small_adjustment", "big_adjustment", "aged_review_mode",
+    "existing_basis", "current_difficulty", "teaching_notes", "exercise_hint_gate",
+    "learning_timezone", "learning_day_cutoff",
+    "lesson_actual_review", "lesson_student_feedback", "lesson_knowledge_absorption",
+    "exercise_problem_review", "exercise_knowledge_mastery",
+    "updated"
+  ],
+  "x-not-in-this-schema": {
+    "teaching_language": "**Deliberately absent** (ruling LV-2, 2026-08-18). The teaching language is confirmed with the student at first_run step 3, but the model writes it **directly into the profile frontmatter** after step 4; it does not travel through answers.json. \"Helpfully\" adding it to this schema would overturn that ruling — if it should change, re-adjudicate rather than patching it in here."
+  }
+}

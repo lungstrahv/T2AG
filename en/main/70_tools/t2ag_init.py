@@ -198,6 +198,19 @@ def load_answers(args: argparse.Namespace) -> dict[str, object]:
         payload = json.loads(args.answers_json)
     else:
         raise fail("init requires --answers or --answers-json; the tool must never fill in the student's answers for them")
+    # The example file has to be valid JSON (otherwise an agent must strip comments
+    # before it runs, which is no example at all), and being valid JSON means it can
+    # be fed straight back in. This marker is the seam between the two: copy the
+    # shape, never the values. Refusing on the key rather than the filename is
+    # deliberate — a rename escapes a filename check, not a key.
+    if isinstance(payload, dict) and payload.get("example_only") is True:
+        raise fail(
+            "these are the example values from answers.example.json, not the student's "
+            "confirmation (example_only: true). The example exists to copy the field "
+            "shapes from; confirm each item with the user, save your own answers.json, "
+            "and delete the example_only key. Field descriptions live in "
+            "main/70_tools/answers.schema.json"
+        )
     if not isinstance(payload, dict):
         raise fail("answers must be a JSON object")
     missing = [key for key in PROFILE_REQUIRED_ANSWERS if key not in payload]
@@ -756,7 +769,36 @@ def cmd_new_course(args: argparse.Namespace) -> int:
     return 0
 
 
+def drop_keystone_sections(plan: str) -> str:
+    """Remove the keystone sequence and the keystone change ledger from a schedule plan.
+
+    The template tells a schedule group to delete both sections (the keystone
+    ledger is a progress-container instrument; a schedule group bounds scope by
+    deadline instead, course_group_rules.md §4.3). Leaving template keystone rows
+    inside a schedule plan would be dead prose at best and a fake anchor surface
+    at worst, so the generator applies the template's own instruction.
+    """
+    match = re.search(r"^#+\s.*Keystone sequence.*$", plan, flags=re.MULTILINE)
+    if not match:
+        return plan
+    ledger = re.search(r"^#+\s.*Keystone change ledger.*$", plan, flags=re.MULTILINE)
+    scan_from = ledger.end() if ledger and ledger.start() > match.start() else match.end()
+    nxt = re.search(r"^#+\s", plan[scan_from:], flags=re.MULTILINE)
+    end = scan_from + nxt.start() if nxt else len(plan)
+    return plan[: match.start()] + plan[end:]
+
+
 def cmd_new_group(args: argparse.Namespace) -> int:
+    """Create a Group — always planned, never active.
+
+    Birth and activation are deliberately separate commands (user ruling
+    2026-08-22). `active` is post-ritual state: for a progress group it implies
+    a keystone anchor, and the anchor is the receipt of a judgment
+    (per-keystone confirmation at the group-forming ritual) that no flag can
+    substitute for. A command that births `active` produces the state without
+    the evidence — exactly the P-0077/P-0078 family. Activation lives in
+    `activate-group`, which refuses to run until the evidence is on disk.
+    """
     root = require_root(Path(args.root))
     if not GROUP_ID_RE.match(args.group_id):
         raise fail(f"group_id must look like G01: {args.group_id}")
@@ -771,43 +813,12 @@ def cmd_new_group(args: argparse.Namespace) -> int:
     for course_id in members:
         if not (root / f"main/40_course/{course_id}/progress.md").is_file():
             raise fail(f"the member course does not exist: {course_id}")
-    if args.status == "active":
-        existing = [
-            path.parent.name
-            for path in (root / "main/30_group").glob("G*/plan.md")
-            if re.search(r"^status:\s*active\s*$", read_text(path), re.MULTILINE)
-        ]
-        if existing:
-            raise fail(f"an active course group already exists; refusing to create a second: {existing}")
-        for course_id in members:
-            lifecycle = re.search(
-                r"^lifecycle_status:\s*(\S+)\s*$",
-                read_text(root / f"main/40_course/{course_id}/progress.md"),
-                re.MULTILINE,
-            )
-            if lifecycle and lifecycle.group(1) in {"planned", "completed", "dropped"}:
-                raise fail(
-                    f"an active course group must not contain a {lifecycle.group(1)} course: {course_id}"
-                )
-
-    current_course = args.current_course or (members[0] if len(members) == 1 else "")
-    if args.status == "active":
-        if not current_course:
-            raise fail(
-                "a multi-member active group needs the user to name the current foreground course: --current-course"
-            )
-        if current_course not in members:
-            raise fail(f"--current-course is not among the members: {current_course}")
-    elif args.current_course:
-        raise fail("a planned course group must not preset a current foreground course")
-    else:
-        current_course = "none"
 
     templates = root / GROUP_TEMPLATES
     mapping = {
         "GROUP_ID": args.group_id,
         "COURSE_ID": members[0],
-        "CURRENT_COURSE": current_course,
+        "CURRENT_COURSE": "none",
         "CYCLE_SHAPE": args.cycle,
         "YYYY-MM-DD": args.date,
     }
@@ -820,17 +831,192 @@ def cmd_new_group(args: argparse.Namespace) -> int:
         materialize(templates, relative, group / target, mapping)
 
     plan = read_text(group / "plan.md")
-    plan = replace_field(plan, "status", args.status)
     plan = replace_field(plan, "course_members", "[" + ", ".join(members) + "]")
+    plan = replace_field(plan, "container_mode", args.container_mode)
+    if args.container_mode == "schedule":
+        plan = drop_keystone_sections(plan)
     write_text(group / "plan.md", plan, allow_overwrite=True)
-    for name in ("calendar.md", "review.md"):
-        path = group / name
-        status = args.status if name == "calendar.md" else (
-            "open" if args.status == "active" else "planned"
-        )
-        write_text(path, replace_field(read_text(path), "status", status), allow_overwrite=True)
+    calendar = read_text(group / "calendar.md")
+    calendar = replace_field(calendar, "container_mode", args.container_mode)
+    write_text(group / "calendar.md", calendar, allow_overwrite=True)
 
-    print(f"[OK] group {args.group_id} generated ({args.status}), members={members}")
+    print(
+        f"[OK] group {args.group_id} generated (planned, {args.container_mode}), "
+        f"members={members}"
+    )
+    print(
+        "\nNext steps:\n"
+        "  1. Group-forming ritual: settle the capacity parameters with the user "
+        "(the three TBD values in calendar.md)"
+        + (
+            ", and replace the template rows under \"Keystone sequence\" in plan.md\n"
+            "     with the real keystone rows confirmed one by one\n"
+            if args.container_mode == "progress"
+            else "\n"
+        )
+        + "  2. python -B main/70_tools/t2ag_init.py activate-group --group-id "
+        f"{args.group_id} --date YYYY-MM-DD\n"
+        "  3. python -B main/70_tools/t2ag_state_refresh.py --write\n"
+        "  4. python -B main/70_tools/t2ag_doctor.py --profile runtime"
+    )
+    return 0
+
+
+TEMPLATE_KEYSTONE_RE = re.compile(r"^-\s+K\d+\s+keystone description", re.MULTILINE)
+KEYSTONE_ROW_RE = re.compile(r"^-\s+K\d+\b", re.MULTILINE)
+
+
+def plan_section(text: str, title: str) -> str:
+    """Extract a section body by heading keyword — mirrors doctor's parser.
+
+    Keeping the two parsers shape-identical matters: if activation counted
+    keystones one way and reconciliation another, the anchor would be wrong the
+    moment it was notarized.
+    """
+    match = re.search(rf"^#+\s.*{title}.*$", text, flags=re.MULTILINE)
+    if not match:
+        return ""
+    rest = text[match.end():]
+    nxt = re.search(r"^#+\s", rest, flags=re.MULTILINE)
+    return rest[: nxt.start()] if nxt else rest
+
+
+def cmd_activate_group(args: argparse.Namespace) -> int:
+    """Closing the group-forming ritual: planned → active, notarizing not judging.
+
+    The judgment (which keystones, which capacity parameters) happens in the
+    files, by the user, before this command runs. The command only checks that
+    the evidence exists — real keystone rows, eligible member courses, a single
+    active group — then notarizes it: counts the rows, writes
+    `keystone_total_frozen`, flips the status. It can verify form, not thought;
+    that boundary is the system's own (adjudication belongs to the human; the
+    machine only rules on whether the gate was walked through, §4.3).
+    """
+    root = require_root(Path(args.root))
+    if not DATE_RE.match(args.date):
+        raise fail("--date must be YYYY-MM-DD")
+    group = root / f"main/30_group/{args.group_id}"
+    plan_path = group / "plan.md"
+    if not plan_path.is_file():
+        raise fail(f"the course group does not exist: {plan_path}")
+    plan = read_text(plan_path)
+
+    status = re.search(r"^status:\s*(\S+)\s*$", plan, re.MULTILINE)
+    if not status or status.group(1) != "planned":
+        raise fail(
+            f"only a planned group can be activated; {args.group_id} currently has status="
+            f"{status.group(1) if status else 'missing'}"
+        )
+    existing = [
+        path.parent.name
+        for path in (root / "main/30_group").glob("G*/plan.md")
+        if re.search(r"^status:\s*active\s*$", read_text(path), re.MULTILINE)
+    ]
+    if existing:
+        raise fail(
+            f"an active course group already exists; refusing to activate a second: {existing}"
+        )
+
+    mode = re.search(r"^container_mode:\s*(\S+)\s*$", plan, re.MULTILINE)
+    if not mode or mode.group(1) not in {"progress", "schedule"}:
+        raise fail(
+            f"container_mode is invalid or missing: {mode.group(1) if mode else 'missing'}"
+            " (legal values are progress/schedule; having no container is not a mode)"
+        )
+    container_mode = mode.group(1)
+
+    members_match = re.search(r"^course_members:\s*\[(.*)\]\s*$", plan, re.MULTILINE)
+    members = [
+        item.strip() for item in (members_match.group(1) if members_match else "").split(",")
+        if item.strip()
+    ]
+    if not members:
+        raise fail("the course group has no member course and cannot be activated")
+    for course_id in members:
+        progress = root / f"main/40_course/{course_id}/progress.md"
+        if not progress.is_file():
+            raise fail(f"the member course does not exist: {course_id}")
+        lifecycle = re.search(
+            r"^lifecycle_status:\s*(\S+)\s*$", read_text(progress), re.MULTILINE
+        )
+        if lifecycle and lifecycle.group(1) in {"planned", "completed", "dropped"}:
+            raise fail(
+                f"an active course group must not contain a {lifecycle.group(1)} course: {course_id}"
+                " (a planned course needs the user's confirmation to become ongoing"
+                " before the group is activated)"
+            )
+
+    current_course = args.current_course or (members[0] if len(members) == 1 else "")
+    if not current_course:
+        raise fail(
+            "a multi-member course group needs the user to name the current foreground"
+            " course: --current-course"
+        )
+    if current_course not in members:
+        raise fail(f"--current-course is not among the members: {current_course}")
+
+    if container_mode == "progress":
+        if re.search(r"^keystone_total_frozen:", plan, re.MULTILINE):
+            raise fail(
+                "a planned group should not already carry keystone_total_frozen"
+                " (nothing is frozen at the planned stage, §4.3); that anchor is written"
+                " only by this command, at activation"
+            )
+        section = plan_section(plan, "Keystone sequence")
+        if not section:
+            raise fail(
+                "plan.md has no \"Keystone sequence\" section: for a progress group that"
+                " table is the container (§4.3)"
+            )
+        template_rows = TEMPLATE_KEYSTONE_RE.findall(section)
+        if template_rows:
+            raise fail(
+                f"the keystone sequence still holds {len(template_rows)} template"
+                " placeholder rows (`keystone description`): before activation they must be"
+                " confirmed one by one at the group-forming ritual and written as real"
+                " keystone rows (which course it belongs to, and which line of that course's"
+                " progress.md its completion criterion points at)"
+            )
+        keystones = KEYSTONE_ROW_RE.findall(section)
+        if not keystones:
+            raise fail(
+                "the keystone sequence section holds no `- Knn` rows; there is nothing to"
+                " freeze, so activation is refused"
+            )
+        plan = re.sub(
+            r"^(container_mode:.*)$",
+            rf"\1\nkeystone_total_frozen: {len(keystones)}",
+            plan,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        anchor_note = f", keystone_total_frozen={len(keystones)}"
+    else:
+        anchor_note = ""
+
+    plan = replace_field(plan, "status", "active")
+    plan = replace_field(plan, "current_course", current_course)
+    plan = replace_field(plan, "updated", args.date)
+    write_text(plan_path, plan, allow_overwrite=True)
+    calendar_path = group / "calendar.md"
+    if calendar_path.is_file():
+        write_text(
+            calendar_path,
+            replace_field(read_text(calendar_path), "status", "active"),
+            allow_overwrite=True,
+        )
+    review_path = group / "review.md"
+    if review_path.is_file():
+        write_text(
+            review_path,
+            replace_field(read_text(review_path), "status", "open"),
+            allow_overwrite=True,
+        )
+
+    print(
+        f"[OK] group {args.group_id} activated ({container_mode}"
+        f"{anchor_note}), current_course={current_course}"
+    )
     print(
         "\nNext steps:\n"
         "  python -B main/70_tools/t2ag_state_refresh.py --write\n"
@@ -888,14 +1074,37 @@ def build_parser() -> argparse.ArgumentParser:
     course.add_argument("--date", required=True, help="YYYY-MM-DD")
     course.set_defaults(handler=cmd_new_course)
 
-    group = sub.add_parser("new-group", help="create a course group")
+    group = sub.add_parser(
+        "new-group",
+        help="create a course group (planned only; activation goes through activate-group)",
+    )
     group.add_argument("--group-id", required=True)
     group.add_argument("--members", required=True, help="comma-separated course_id values")
-    group.add_argument("--status", default="planned", choices=("planned", "active"))
-    group.add_argument("--current-course", help="the current foreground course of an active group")
+    # Required on purpose, no default: the container shape (deadline-bounded
+    # schedule vs budget-bounded progress) is an intent the user knows at
+    # creation and the tool must not guess — same criterion as new-course's
+    # --source-language (course_group_rules.md §4.1: having *no* container is
+    # not a mode, so silence is not an answer either).
+    group.add_argument(
+        "--container-mode", required=True, choices=("progress", "schedule"),
+        help="container shape: progress = fixed budget with open time; "
+             "schedule = fixed deadline with open scope",
+    )
     group.add_argument("--cycle", default="to be confirmed")
     group.add_argument("--date", required=True, help="YYYY-MM-DD")
     group.set_defaults(handler=cmd_new_group)
+
+    activate = sub.add_parser(
+        "activate-group",
+        help="close the group-forming ritual: planned → active (notarizing: a progress "
+             "group is verified to hold real keystone rows, and the anchor is written)",
+    )
+    activate.add_argument("--group-id", required=True)
+    activate.add_argument(
+        "--current-course", help="required for a multi-member group: the current foreground course"
+    )
+    activate.add_argument("--date", required=True, help="YYYY-MM-DD")
+    activate.set_defaults(handler=cmd_activate_group)
     return parser
 
 

@@ -89,11 +89,128 @@ each by its own standard; the two must never be converted into each other.
 
 | Dimension | Rule |
 |---|---|
-| Cycle | **Rigid**. The execution parameters must name the cycle container; the end-of-term node does not move back, and slippage is absorbed by the buffer or a major-adjustment window |
-| Frequency red line | **Rigid**. A cycle that breaks the line counts toward the final evaluation, and two consecutive breaking cycles trigger an emergency review |
+| Container | **Rigid**. Every group must state its `container_mode` in `plan.md`, together with its container and its stop-loss; the container *shape* is a choice, **having a container is not** (the two shapes are in §4.1) |
+| Frequency red line | **Rigid**. A cycle that breaks the line counts toward the final evaluation, and two consecutive breaking cycles trigger an emergency review. It governs **"had the time and did not do it" only**; the consequence boundary against stalled progress is in §4.2 |
 | Rituals | **Rigid**. The review, the adjustment, the written examination, the group-level evaluation and the group-closing ritual may not be skipped; their exact frequency is set by the student's execution parameters |
 | Scope | **Elastic**. Content may be cut into the next group, and a cut must leave a trace (progress records "what was not finished and where it went") |
 | Recipe | **Fluid between groups, frozen within one**. Adding or removing a member, changing a textbook, or promoting a course's status happens only at the group-closing ritual; inside a group, only the minor/major adjustment channels are used |
+
+### 4.1 The two container shapes (`container_mode`)
+
+A group-level parameter, **registered at the group-forming ritual and frozen inside the group**; it changes
+only at the group-closing ritual (recipe level). A new group defaults to `progress`. It is unrelated to a
+binding's `execution_mode: flexible` — do not conflate the two.
+
+| | `schedule` — strict calendar | `progress` — by progress |
+|---|---|---|
+| Container | The cycle calendar (for example 14 cycles) | The milestone sequence (the trunk keystones) |
+| Rigid anchor | **The dates do not move** | **The dwell budget per keystone does not move** |
+| Elastic face | Scope: you are examined on what you reached | Time: free within the budget |
+| End of term | The calendar node does not move back; progress only gates the paper's scope | The paper opens once the keystone is reached, and the scope is not shrunk |
+| Quiz / bank build | Triggered by cycle number | Triggered every N trunk keystones |
+| Overrun | Uncovered content is cut into the next group, leaving a trace | Enters the §4.2 triage |
+
+The principle is unchanged, only the coordinates differ: `schedule` fixes the deadline and opens the scope;
+`progress` fixes the budget and opens the time.
+**Neither shape permits "bounded by neither time nor scope"** — that is not a mode, it is the absence of a
+container.
+
+#### The container parameters are produced by the group-forming ritual; the template does not pre-fill them (P-0077 corollary, 2026-08-22)
+
+The three container parameters in `calendar.md` — `cycle_length_learning_days`,
+`keystone_dwell_budget_cycles` and `cycle_count` — **have no single correct answer**: they are
+*negotiated* at the group-forming ritual from the previous group's closing evidence and the user's
+confirmation, and they are not something a creation command can answer in one shot.
+So the template leaves the literal `TBD`, and `t2ag_init.py new-group` **gives them no CLI parameter and
+certainly no default**.
+
+The contrast with `--source-language` is the same criterion seen from both sides:
+
+| | `--source-language` | The three container parameters |
+|---|---|---|
+| Is there a single correct answer? | **Yes** (the textbook's language is an objective fact) | **No** (it is the product of a judgment) |
+| May the model guess? | It cannot | It should not |
+| Cost of getting it wrong | **A silent error**: the T001 §9 terminology discipline runs against the wrong language | None — `TBD` is visible debt |
+| Conclusion | **Required, no default** | **The template leaves `TBD`; it is not a parameter** |
+
+The criterion in one line: **give a required parameter to what has a single correct answer the model
+cannot guess; leave a visible placeholder for what has no single correct answer.** Making the latter
+required only forces out a casually filled fake value — that moves the silent error from one place to
+another instead of removing it.
+
+While a `TBD` is unfilled: under `container_mode: progress`, `cycle_count` does not take part in any
+ruling anyway; if `keystone_dwell_budget_cycles` is undecided then the budget criterion of the §4.2 triage
+cannot be computed, and it is reported honestly as "the anchor is unset" — **no guessing, and the group's
+creation date is never substituted for it** (the same discipline as `cycle_anchor_learning_day: TBD` in
+`calendar.md`).
+
+### 4.2 Breaking the frequency red line ≠ stalled progress (a consequence boundary; do not merge them)
+
+Both look like "falling behind", and their consequences are **completely different**; merging them
+injures the wrong person:
+
+| | Frequency red line broken | Progress stalled |
+|---|---|---|
+| Meaning | **Had the time and did not do it** | **Had no time**, or **could not move** |
+| Criterion | Study frequency below the execution-parameter red line | Two consecutive cycles with no evidence of movement on the current trunk keystone |
+| Consequence | Counts toward the final evaluation; two consecutive cycles trigger an emergency review | **Counts toward neither the grade nor the mastery evaluation**; it triggers one triage question |
+
+The triage has only three exits, the student answers in one sentence, and **no answer costs points**:
+
+```text
+two consecutive cycles with no movement
+      │
+      ├─ "I'm stuck"    ──▶ emergency review channel: diagnose the dependency chain,
+      │                      cut scope or backfill the prerequisite
+      ├─ "No time"      ──▶ switch to lifecycle_status: paused (progress_tracking.md)
+      │                      record the stop point and the resumption condition;
+      │                      the clock stops and the group's capacity is released
+      └─ no answer      ──▶ stalled and un-triaged: doctor **WARN**, non-blocking
+```
+
+**The red line does not guard against pausing; it guards against silent drift.** A training camp, a family
+matter, a month when everything collapsed — all are legitimate pauses; the constitution's preamble already
+assumes the operator will be tired, and counting a pause as lost points would mean using the system to
+punish exactly the kind of day it claims to catch. The only case nobody has taken responsibility for is
+"neither declared a pause, nor entered a review, just drifting" — that, and only that, is what the WARN is
+aimed at.
+
+A `paused` member carries over into the next group at the group-closing ritual and **is not counted as
+unfinished debt**; it is not on the §6 "illegal member lifecycle" list (planned/completed/dropped), and the
+group-closing ritual is itself a recipe-level release valve.
+
+### 4.3 The keystone sequence anchor (`progress` groups; against silent scope shrinkage)
+
+§4.2 guards against silent drift in *time*; this section guards against silent drift in *scope* — the same
+invariant: the system does not fear change, it fears unlogged change. The machine never rules on whether a
+particular cut was right (that adjudication belongs to the human, inside the review); it only rules on
+whether the cut walked through the gate. Three pieces:
+
+1. **The keystone sequence anchor**: when a `progress` group is activated (the group-forming ritual), the
+   trunk keystone sequence is frozen into this group's `plan.md` under the "Keystone sequence" section (one
+   row per keystone, in the form `- K01 description`), and the frontmatter records the count anchor
+   `keystone_total_frozen: N`. At the planned stage the keystone table is a draft: nothing is frozen and no
+   anchor is recorded.
+   **The only machine entry point for activation is `t2ag_init.py activate-group`** (user ruling
+   2026-08-22): a group can only be born planned (`new-group` does not accept active — active is the
+   product of a ritual, and a flag that manufactures it is "the state appears before the judgment happens",
+   the P-0077 family); `activate-group` is a notary rather than a judge — it refuses template placeholder
+   rows, counts the real keystone rows and writes the anchor, and the anchor is never written by hand.
+   Confirming the keystones one by one is still a human act, and it happens in the `plan.md` edit that sits
+   between the two commands.
+2. **The keystone change ledger**: the only legal entry for cutting a keystone is one added row in the
+   `plan.md` "Keystone change ledger" table (date | keystone | trigger = review / triage exit |
+   destination group). **Deliberately coarse**: it does not force a binding to a review record ID — the
+   consequence only reaches as far as reconciliation, which does not justify building a reference check for
+   it (the same judgment call as the 14-day stall probe in §4.2).
+3. **The reconciliation check** (doctor, extending `check_groups` without adding a new ID): for an active
+   `progress` group, "current keystone count + logged cut rows = the anchor"; a mismatch → FAIL; a missing
+   anchor or a missing sequence section → FAIL.
+
+**Adding a keystone has no gate**: scope may only spring back from being cut, and adding a keystone adds
+scope — one ledger row is enough (the anchor is raised accordingly and the trace remains).
+§4.3 does not apply to a `schedule` group — its scope is the elastic face to begin with, and cutting into
+the next group follows the existing trace discipline in §4.
 
 > **The adjustment-tier boundary**: a minor adjustment = a runtime parameter; a major adjustment = scope-level; recipe-level = group membership / textbook / course lifecycle, which happens only at the group-closing ritual or in a capacity reorganization the user initiates explicitly.
 > The mechanical test: any adjustment that requires touching the group file's member table or a progress lifecycle field is at least a major adjustment; anything that adds or removes a course, or swaps a textbook, is recipe-level.

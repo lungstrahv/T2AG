@@ -70,10 +70,24 @@ Drawing quiz problems: unused problems from the practice pool → check each →
 
 Assembling the final paper: unused problems from the assessment pool → check each → draw randomly once the ratio constraints of `exam_protocol` §7 are satisfied.
 
-## 5. Doctor checks proposed for a later version (not executed in 0.2.0)
+## 5. Doctor checks (implemented as `runtime.exam_banks`)
 
 | Check | Level |
 |---|---|
 | a problem-number reference from an assessment-pool paper appears in any lesson / practice file | FAIL |
 | a paper folder exists under `papers/` but is not registered in `index.md` | WARN |
 | `meta.md` is missing a column or a solution page number | WARN |
+
+An empty bank short-circuits to PASS. Zero registered papers is the valid initial state under the
+skeleton-first ruling; warning on it would make every new course noisy and teach users to ignore Doctor.
+
+## 6. Boundary with exam_ledger
+
+| | `index.md` (this file) | `exam_ledger.md` (`exam_protocol.md` §13) |
+|---|---|---|
+| truth_scope | `exam_pool_state` | `exam_settlement` |
+| Owns | papers, pools, used/sat status | sittings, verdicts, resit path, hint account |
+| Loop role | none (registration table only) | retire-loop **decay instance** |
+
+Assembly reads papers from the index. The index changes only after a paper has actually been sat;
+neither file moves PDFs, because moving them would break references.

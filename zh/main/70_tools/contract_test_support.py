@@ -1502,7 +1502,8 @@ def test_skeleton_package_surface_is_enforced(root: Path) -> None:
         archive = root / name
         archive.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(archive, "w") as bundle:
-            for relative, text in entries.items():
+            shaped = {"README.md": "# skeleton\n", **entries}
+            for relative, text in shaped.items():
                 bundle.writestr(f"t2ag-skeleton/{relative}", text)
         return archive
 
@@ -1539,6 +1540,16 @@ def test_skeleton_package_surface_is_enforced(root: Path) -> None:
     if doctor.skeleton_package_findings(exempt):
         raise AssertionError("the detector's own literals must stay exempt inside packages")
 
+    nested = root / "t2ag-skeleton-bundle.zip"
+    with zipfile.ZipFile(nested, "w") as bundle:
+        bundle.writestr("t2ag-skeleton-bundle/zh/README.md", "# zh\n")
+        bundle.writestr("t2ag-skeleton-bundle/zh/main/t2ag.md", "# t2ag\n")
+        bundle.writestr("t2ag-skeleton-bundle/en/README.md", "# en\n")
+        bundle.writestr("t2ag-skeleton-bundle/en/main/t2ag.md", "# t2ag\n")
+    findings = doctor.skeleton_package_findings(nested)
+    if len(findings) != 1 or "形制不受支持" not in findings[0]:
+        raise AssertionError(f"nested bilingual bundle must fail fast on shape: {findings}")
+
     broken = root / "t2ag-skeleton-broken.zip"
     broken.parent.mkdir(parents=True, exist_ok=True)
     broken.write_bytes(b"not a zip")
@@ -1572,9 +1583,20 @@ def test_release_package_surface_severity_split(root: Path) -> None:
     if doctor.warns:
         raise AssertionError(f"release must not downgrade the finding: {doctor.warns}")
 
+    # Moving the package into the canonical artifact tree must not empty discovery.
+    artifact = root / "artifacts/releases/t2ag/0.9.9/t2ag-skeleton-0.9.9-deadbee.zip"
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    contaminated.rename(artifact)
+    if doctor.built_skeleton_packages(repo) != [artifact]:
+        raise AssertionError(
+            f"artifact-tree package discovery failed: {doctor.built_skeleton_packages(repo)}"
+        )
+    run_silently(doctor.check_release_package_surface)
+    assert_message(doctor.fails, "不得对外分发")
+
     # A quarantined `.bak-*` copy is evidence of what shipped before, not a new finding.
     reset(repo, "skeleton")
-    contaminated.rename(root / "t2ag-skeleton.zip.bak-20260809")
+    artifact.rename(root / "t2ag-skeleton.zip.bak-20260809")
     run_silently(doctor.check_release_package_surface)
     if doctor.fails:
         raise AssertionError(f"a quarantined .bak copy must not be re-flagged: {doctor.fails}")
@@ -5716,6 +5738,10 @@ def _cross_edition_editions(root: Path) -> tuple[Path, Path]:
             root / name / "main/70_tools/t2ag_doctor.py",
             "def check_alpha() -> None:\n    pass\n",
         )
+        write(
+            root / name / "main/70_tools/t2ag_init.py",
+            'sub.add_parser("alpha")\nparser.add_argument("--root")\n',
+        )
         write(root / name / "main/70_tools/validation_workflow.json", workflow)
         write(root / name / "main/50_playbook/handbook.md", body)
     return root / "t2ag", root / "t2ag-skeleton-en"
@@ -6071,6 +6097,44 @@ def test_activity_genesis_transition_from_planned(root: Path) -> None:
     assert entry is not None and entry.state == "ongoing", index
     assert entry.binding_status == "unbound", entry.binding_status
     assert entry.last_event_id == "ALE-000001", entry.last_event_id
+
+
+def test_init_example_payload_is_documented_and_rejected(root: Path) -> None:
+    """The public example has the real shape but can never become user consent."""
+    del root
+    spec_init = importlib.util.spec_from_file_location(
+        "t2ag_init_example_contract", SCRIPT.with_name("t2ag_init.py")
+    )
+    init_mod = importlib.util.module_from_spec(spec_init)
+    assert spec_init and spec_init.loader
+    spec_init.loader.exec_module(init_mod)
+    example = SCRIPT.with_name("answers.example.json")
+    schema_path = SCRIPT.with_name("answers.schema.json")
+    payload = json.loads(example.read_text(encoding="utf-8"))
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    required = set(init_mod.PROFILE_REQUIRED_ANSWERS)
+    if set(schema.get("required", [])) != required:
+        raise AssertionError("answers.schema.json required fields drifted from t2ag_init")
+    optional = set(init_mod.AGENT_DEFAULTS)
+    if schema.get("additionalProperties") is not False:
+        raise AssertionError("answers.schema.json must reject misspelled/unknown fields")
+    if set(schema.get("properties", {})) != required | optional | {"example_only"}:
+        raise AssertionError("answers.schema.json properties drifted from required + optional inputs")
+    if set(payload) != required | {"example_only"} or payload["example_only"] is not True:
+        raise AssertionError("answers.example.json must carry exactly the real shape plus the refusal marker")
+    args = type("Args", (), {"answers": str(example), "answers_json": None})()
+    try:
+        init_mod.load_answers(args)
+    except init_mod.GenerationError as exc:
+        if "example_only" not in str(exc):
+            raise AssertionError(f"the refusal must name the marker: {exc}") from exc
+    else:
+        raise AssertionError("the example payload was accepted as user-confirmed answers")
+    customized = {key: value for key, value in payload.items() if key != "example_only"}
+    customized.update({"agent_pool_limit": 2, "agent_max_active": 1})
+    rendered = init_mod.render_profile(customized)
+    if "agent_pool_limit: 2" not in rendered or "agent_max_active: 1" not in rendered:
+        raise AssertionError("documented optional agent overrides were silently ignored")
 
 
 def run_contract_tests(tests: tuple, *, suite_name: str) -> int:

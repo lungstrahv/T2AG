@@ -10,14 +10,21 @@
 AR、书籍、sidecar、候选贡献或消费回执。两个系统始终各写各仓。
 
 本 Skeleton 按可复用开源基础的方向持续维护，通用教学机制由真实实例反馈验证后再吸收，
-但不携带真实学生、课程进度或个人原话。仓库根目前尚无明确开源许可证；正式对外分发前
-仍需单独选择并加入 LICENSE，不能仅凭“开源方向”推定使用权限。
+但不携带真实学生、课程进度或个人原话。
+
+**使用许可**：当前对外形态是**受邀试用**，不是一般开源授权。先读仓库根的
+`INVITED_USE_GRANT.md`（授权范围与边界）与 `LICENSING.md`（各层许可证的适用面）。
+「按开源方向维护」是路线陈述，**不构成使用许可**；未落在受邀授权范围内的用途，
+不能凭这句话推定。
 
 ## 一分钟启动与 Agent 偏好
 
 默认可使用三个 Agent：一个主 Agent负责欢迎、用户交互、join 与唯一写回；Runtime
 Sentinel 只读检查 runtime Doctor 和 state；Context Prefetcher 只读消费 L0 并回交最小
-结构化 handoff。健康实例目标为 60 秒内出现第一条可执行学习内容；辅助 Agent 不可用时
+结构化 handoff。健康实例的时间目标按驱动分档（canonical 在 `startup_orchestration.md` §一）：
+critical route ≤10 秒；**非 textbook** 第一条可执行学习内容 ≤15 秒；**textbook** 须先完成同
+snapshot 的 Scope 文本与视觉消费，与完整 `recovery-settled` 一并以 45–60 秒为目标。
+辅助 Agent 不可用时
 降级，但不得跳过闸门。空模板 profile 使用 `agent_collaboration_preferences.v1` 的通用默认
 `agent_pool_limit: 6`、`agent_max_active: 3`、`agent_parallel_startup: enabled`；前者是含
 Main 的身份池容量，后者是含 Main 的同时运行上限，首次启动时可由学生覆盖。该偏好
@@ -28,16 +35,24 @@ Main 的身份池容量，后者是含 Main 的同时运行上限，首次启动
 
 ## 快速开始
 
-1. 复制整个目录到新的目标目录。
-2. 在目标目录按 `startup_orchestration.md` 并行运行三条只读启动路径；单 Agent 环境才按
-   下列命令顺序降级：
+1. 复制目录内容到新的目标目录，**排除 `.git/`**——否则副本会连本仓的提交历史与
+   维护者 remote 一起带走，并在其上继续提交：
 
    ```powershell
-python -B main/70_tools/t2ag_doctor.py --profile runtime
+   robocopy .\t2ag-skeleton .\my-t2ag /E /XD .git
+   ```
+
+2. 在目标目录按 `startup_orchestration.md` 并行运行三条只读启动支路
+   （Main welcome ／ Runtime Sentinel ／ Context Prefetcher）。单 Agent 环境才降级为
+   下列顺序执行——**注意五条命令属于上述三条支路，不是五条支路**，且
+   **critical 必须先跑**（canonical 健康路径是 critical-first，Markdown 全量在其后）：
+
+   ```powershell
+   python -B main/70_tools/t2ag_context.py --format critical
+   python -B main/70_tools/t2ag_doctor.py --profile runtime
    python -B main/70_tools/t2ag_state_refresh.py --check
    python -B main/70_tools/t2ag_context.py --format markdown
    python -B main/70_tools/t2ag_context.py --include-l1 --format markdown
-   python -B main/70_tools/t2ag_test.py --component doctor --tier fast --plan-only
    ```
 
 3. 空模板的上下文命令必须返回 `first_run_required`；随后读取 `main/t2ag.md` 和

@@ -3,6 +3,11 @@ type: group_calendar
 group_id: GROUP_ID
 status: planned
 cycle: CYCLE_SHAPE
+container_mode: progress
+cycle_length_learning_days: TBD
+keystone_dwell_budget_cycles: TBD
+cycle_count: TBD
+cycle_anchor_learning_day: TBD
 updated: YYYY-MM-DD
 ---
 # GROUP_ID calendar
@@ -41,3 +46,20 @@ The closing review reads this section, and the conditions must be mechanically d
 This calendar schedules study and audit activities only. A fact belonging to an external system (trading,
 work, health, and so on) is still governed by its own external source of truth; see
 `main/50_playbook/cross_repo_reference.md`.
+
+## The container anchors (machine-read)
+
+`container_mode` decides which set of frontmatter fields applies
+(`course_group_rules.md` §4.1), and it must hold the same value as `plan.md`:
+
+- `schedule`: uses `cycle_count` / `cycle_anchor_learning_day`
+- `progress`: uses `keystone_dwell_budget_cycles`
+
+Leave the set you do not use empty, or delete it. Cycles are counted in **learning days**, not in
+calendar weeks (the rule is canonically owned by the student profile, §Execution parameters).
+While `cycle_anchor_learning_day` is still `TBD`, report honestly that the anchor is unset — never
+guess it, and never substitute the group's creation date.
+
+The three `TBD` values above are settled at the **group-forming ritual** and filled in afterwards; they
+are not parameters of the creation command. The criterion is in `course_group_rules.md` §4.1, "The
+container parameters are produced by the group-forming ritual".

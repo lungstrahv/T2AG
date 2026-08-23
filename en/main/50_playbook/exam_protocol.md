@@ -75,11 +75,43 @@ The final paper is drawn mechanically from the assessment pool; if it cannot be 
 
 ## 8. Grading and thresholds
 
-- Score problem by problem against the official solution/marking scheme; the student self-assesses first, the teacher reviews, and disputed problems get a detailed walkthrough.
-- Proof problems are scored by step, never all-or-nothing.
-- The language-track final mark: 70% written paper, 30% process indicators (recurrence rate, instant counterexample recall, and so on).
-- Post-exam mistakes enter the mistake_bank by root cause.
-- A mistake_bank variant is only ever produced through the controlled transformation and the three safety gates of `mistake_retest.md`; a self-produced variant must never be used in a final or a resit.
+### 8.1 The grading pipeline (the order is contractual)
+
+Grading follows the same "compile, do not generate" rule: criteria come from the official solution;
+the model extracts and checks them, and does not invent them.
+
+```text
+official solution -> blind extraction -> scoring-point table with solution-page references
+student script -> student self-mapping -> point-by-point teacher check
+                                      -> hit / miss / equivalent-alternative flag
+optimization feedback -> separate output, never part of the score
+```
+
+The scoring-point table is completed before the student script is opened, preventing hindsight from
+reshaping the rubric around the student's route. The student maps their own steps first. Each point is
+then judged hit, miss, or equivalent alternative; proof problems receive step credit. Correctness and
+elegance remain separate: a nicer route is feedback for review, not a score change.
+
+### 8.2 The equivalent-alternative flag
+
+When the student uses a proof route outside the official solution, the model may not score it alone.
+It records which theorem or lemma was substituted and where the logical chain reconnects. The point
+remains pending until a detailed walkthrough and student sign-off. A disagreement between student
+self-mapping and model review follows the same channel. Model dependence is therefore confined to
+two explicit, reviewable slots instead of being hidden throughout grading.
+
+### 8.3 The replayable grading record
+
+Each sitting appends to `_exam/exam_ledger.md`: the scoring-point table and page references, student
+self-mapping, three-valued decisions, equivalent-alternative flags and sign-offs, disagreements, and
+walkthrough conclusions. The record must let a future person or model replay the grading; otherwise
+the sitting cannot settle.
+
+### 8.4 Score composition and recovery
+
+- Language-track final mark: 70% written paper, 30% process indicators.
+- Post-exam mistakes enter `mistake_bank.md` by root cause.
+- Variants follow `mistake_retest.md`; self-produced variants never enter a final or resit.
 
 ## 9. Time limits and resits
 
@@ -116,6 +148,64 @@ These clauses are the protocol-layer defaults. If the relaxation coefficients (2
 
 A quiz may be added on a major-adjustment window day: draw 3 problems from the practice pool by random seed, with the time limit per this protocol's "cycle quiz" rule; it is process monitoring only and carries no weight.
 
-## 13. Doctor checks
+## 13. Trigger and settlement gate
 
-Doctor checks assessment-pool isolation, paper-folder registration, and meta completeness per `exam_bank_spec.md`.
+### 13.1 Trigger
+
+| Sitting | `schedule` | `progress` |
+|---|---|---|
+| bank build | D7 of cycles 2/5/8/11 | every `exam_keystones_per_bank_build` completed keystones |
+| cycle quiz | cycles 3/6/9/12 | every `exam_keystones_per_quiz` completed keystones |
+| final | calendar node plus the §7 scope gate | all trunk keystones completed |
+| resits | settlement gate reads the previous verdict | same |
+
+The fields in group `calendar.md` are the only machine trigger source. A schedule cycle counts six
+actual learning dates, not calendar weeks; the same date counts once and the rest day does not count.
+Without `cycle_anchor_learning_day`, report the missing anchor and do not guess. Progress-mode stalls
+route to the §4.2 triage in `course_group_rules.md`; they neither reduce the exam scope nor affect marks.
+
+### 13.2 Settlement gate (exactly one consumer)
+
+`_exam/exam_ledger.md` is a retire-loop decay instance. Its sole consumer is the settlement gate:
+it reads the prior verdict, dispatches review units and resits, then settles or archives the debt.
+
+```text
+sitting -> grading -> settlement gate
+                     | pass -> settled
+                     ` fail -> review 1 -> resit 1 -> review 2 -> resit 2
+                                                        | pass -> settled
+                                                        ` fail -> archived (not passed)
+```
+
+The number of review units is a student parameter (0/1/2, default 2). Group `review.md` may read this
+ledger but cannot drive transitions. Re-entry from archived requires a new retake project, a new
+cycle placement and a new assessment-pool paper; the mistake bank is not cleared.
+
+### 13.3 Two-layer attribution
+
+| Layer | Owner | Landing point |
+|---|---|---|
+| process | `exam_ledger.md` | capacity, broken cycle, missed review unit, insufficient bank |
+| concept | the course `mistake_bank.md` | the ledger keeps only an `M-xxxx` pointer; the M entry cites `EX-NNNN` |
+
+Luck, "the paper was too hard", and model randomness are not accepted causes. Concept debt keeps one
+consumer in the mistake bank; the exam ledger must not create a second review loop.
+
+### 13.4 Evidence fixed before the event
+
+At paper assembly, first record covered nodes, difficulty distribution, time baseline, random seed,
+suitability PASS/REJECT decisions, and source references. That block is immutable after the exam;
+settlement is appended beneath it. The difference between the prior commitment and the actual result
+is the evidence for process attribution.
+
+## 14. Doctor checks
+
+`runtime.exam_banks` enforces the following from `exam_bank_spec.md`:
+
+| Check | Level |
+|---|---|
+| an assessment-pool problem reference appears in a lesson or exercise | **FAIL** |
+| a folder under `papers/` is absent from `index.md` | WARN |
+| `meta.md` lacks a required column or solution-page reference | WARN |
+
+An empty bank returns PASS; it is a valid initial state, not a fault.

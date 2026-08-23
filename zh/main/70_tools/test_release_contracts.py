@@ -23,6 +23,7 @@ TESTS = (
     contracts.test_cross_edition_parity_r5_unreadable_source_fails_loudly,
     contracts.test_cross_edition_parity_r6_peer_resolution_is_symmetric,
     contracts.test_manifest_package_drift_pairs_by_claim_not_filename,
+    contracts.test_init_example_payload_is_documented_and_rejected,
 )
 
 

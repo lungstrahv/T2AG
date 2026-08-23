@@ -5,6 +5,30 @@
 
 ---
 
+## [2026-08-23] English backport debt closed; no version bump
+
+- **Scope**: backported the frozen cross-edition machine list: the exam-bank runtime gate,
+  ordinary-playbook usage instrumentation, domain-tier reconciliation, constitution parity,
+  the on-ramp/context §8, the full Exercise close tree, and exam protocol §§8.1–8.4,
+  13.1–13.4 and 14. Existing group lifecycle, gate-visibility and recommendation-ledger work
+  is now included in the same parity claim.
+- **Onboarding safety**: added the real first-run answer shape, a JSON schema and an
+  `example_only: true` refusal so an example can never stand in for student confirmation.
+- **Release shape**: the package scanner rejects a wrapper that interposes `zh/` or `en/`
+  between the single top-level root and the repository anchors, and searches the canonical
+  artifact tree as well as the workspace root.
+- **Verification**: cross-edition parity has no backport debt and only the adjudicated
+  `lesson_recover.md` numbering exemption; release contracts 13/13, runtime contracts 92/92,
+  activity contracts 20/20.
+
+#### Anchored assertions (required)
+
+- runtime plan sha256 = 1c62ce53564266964dd3fec8ae87fe031f53467de35ca58d964a2d40a0ca5755
+- runtime checks = 46
+- doctor_checks atom set sha256 = e83bc543bcf6aa013dd9b60ae36bbc4e0bcd1c80abfbd8a6b89043bea91fa6db (n=65)
+
+---
+
 ## [2026-08-22] English-edition user-facing strings, batch one (P-0082); no version bump
 
 - **Scope**: 14 string literals in `main/70_tools/t2ag_context.py` — the first-run strings a

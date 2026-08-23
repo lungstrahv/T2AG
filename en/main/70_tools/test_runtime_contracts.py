@@ -97,6 +97,7 @@ TESTS = (
     contracts.test_canon_r5_ledger_row_without_block_warns,
     contracts.test_canon_g1_empty_state_is_silent,
     contracts.test_canon_g2_valid_chain_is_silent,
+    contracts.test_english_backport_observers_are_executable,
 )
 
 

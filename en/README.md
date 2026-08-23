@@ -62,9 +62,13 @@ language in diagnostics. Those are the most useful things you can report back.
 Three agents are available by default: a main agent handles the welcome, user
 interaction, joining, and is the sole writer; a Runtime Sentinel does read-only
 checks of the runtime doctor and state; a Context Prefetcher read-only-consumes L0
-and returns a minimal structured handoff. A healthy instance targets the first
-actionable piece of learning content within 60 seconds. Degrade when helper agents
-are unavailable, but never skip a gate.
+and returns a minimal structured handoff. A healthy instance's timing targets are
+split by driver (canonical in `startup_orchestration.md` §1): the critical route
+≤10 seconds; for a **non-textbook** course, the first actionable piece of learning
+content ≤15 seconds; a **textbook** course must first consume the Scope text and
+visuals of the same snapshot, and targets 45–60 seconds together with a complete
+`recovery-settled`. Degrade when helper agents are unavailable, but never skip a
+gate.
 
 The empty-template profile uses the generic defaults from
 `agent_collaboration_preferences.v1`: `agent_pool_limit: 6`,
@@ -82,17 +86,28 @@ live in `main/50_playbook/startup_orchestration.md`.
 
 ## Quick start
 
-1. Copy the whole directory to a new target directory.
-2. In the target directory, run the three read-only startup paths in parallel per
-   `startup_orchestration.md`. Only single-agent environments degrade to running
-   the commands below in sequence:
+1. Copy the directory's contents to a new target directory, **excluding `.git/`** —
+   otherwise the copy carries this repository's commit history and the
+   maintainer's remote along with it, and goes on committing onto them:
 
    ```powershell
-python -B main/70_tools/t2ag_doctor.py --profile runtime
+   robocopy .\t2ag-skeleton-en .\my-t2ag /E /XD .git
+   ```
+
+2. In the target directory, run the three read-only startup branches in parallel
+   per `startup_orchestration.md` (Main welcome / Runtime Sentinel / Context
+   Prefetcher). Only single-agent environments degrade to running the commands
+   below in sequence — note that these five commands belong to those three
+   branches rather than being five branches of their own, and that **critical
+   must run first** (the canonical healthy path is critical-first; the full
+   Markdown packet comes after it):
+
+   ```powershell
+   python -B main/70_tools/t2ag_context.py --format critical
+   python -B main/70_tools/t2ag_doctor.py --profile runtime
    python -B main/70_tools/t2ag_state_refresh.py --check
    python -B main/70_tools/t2ag_context.py --format markdown
    python -B main/70_tools/t2ag_context.py --include-l1 --format markdown
-   python -B main/70_tools/t2ag_test.py --component doctor --tier fast --plan-only
    ```
 
 3. On an empty template the context command must return `first_run_required`.

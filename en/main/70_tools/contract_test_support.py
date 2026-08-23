@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import datetime as dt
 import hashlib
 import importlib.util
 import io
@@ -1534,7 +1535,8 @@ def test_skeleton_package_surface_is_enforced(root: Path) -> None:
         archive = root / name
         archive.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(archive, "w") as bundle:
-            for relative, text in entries.items():
+            shaped = {"README.md": "# skeleton\n", **entries}
+            for relative, text in shaped.items():
                 bundle.writestr(f"t2ag-skeleton/{relative}", text)
         return archive
 
@@ -1571,6 +1573,16 @@ def test_skeleton_package_surface_is_enforced(root: Path) -> None:
     if doctor.skeleton_package_findings(exempt):
         raise AssertionError("the detector's own literals must stay exempt inside packages")
 
+    nested = root / "t2ag-skeleton-bundle.zip"
+    with zipfile.ZipFile(nested, "w") as bundle:
+        bundle.writestr("t2ag-skeleton-bundle/zh/README.md", "# zh\n")
+        bundle.writestr("t2ag-skeleton-bundle/zh/main/t2ag.md", "# t2ag\n")
+        bundle.writestr("t2ag-skeleton-bundle/en/README.md", "# en\n")
+        bundle.writestr("t2ag-skeleton-bundle/en/main/t2ag.md", "# t2ag\n")
+    findings = doctor.skeleton_package_findings(nested)
+    if len(findings) != 1 or "unsupported release package shape" not in findings[0]:
+        raise AssertionError(f"nested bilingual bundle must fail fast on shape: {findings}")
+
     broken = root / "t2ag-skeleton-broken.zip"
     broken.parent.mkdir(parents=True, exist_ok=True)
     broken.write_bytes(b"not a zip")
@@ -1604,9 +1616,20 @@ def test_release_package_surface_severity_split(root: Path) -> None:
     if doctor.warns:
         raise AssertionError(f"release must not downgrade the finding: {doctor.warns}")
 
+    # Moving the package into the canonical artifact tree must not empty discovery.
+    artifact = root / "artifacts/releases/t2ag/0.9.9/t2ag-skeleton-0.9.9-deadbee.zip"
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    contaminated.rename(artifact)
+    if doctor.built_skeleton_packages(repo) != [artifact]:
+        raise AssertionError(
+            f"artifact-tree package discovery failed: {doctor.built_skeleton_packages(repo)}"
+        )
+    run_silently(doctor.check_release_package_surface)
+    assert_message(doctor.fails, "must not be distributed")
+
     # A quarantined `.bak-*` copy is evidence of what shipped before, not a new finding.
     reset(repo, "skeleton")
-    contaminated.rename(root / "t2ag-skeleton.zip.bak-20260809")
+    artifact.rename(root / "t2ag-skeleton.zip.bak-20260809")
     run_silently(doctor.check_release_package_surface)
     if doctor.fails:
         raise AssertionError(f"a quarantined .bak copy must not be re-flagged: {doctor.fails}")
@@ -2661,12 +2684,33 @@ def generate_synthetic_exercise_first(fixture: Path, cli) -> str:
         if fixture.resolve() not in existing.resolve().parents:
             raise AssertionError(f"refusing to remove a group outside the fixture: {existing}")
         shutil.rmtree(existing)
+    # Birth and activation are separate commands (course_group_rules.md §4.3,
+    # user ruling 2026-08-22): new-group only births planned; active requires the
+    # ritual. The keystone substitution below stands in for that ritual — it is
+    # the human act the fixture has to imitate, and activate-group refuses to run
+    # while the template placeholder rows are still there.
     cli(
         "t2ag_init.py", "--root", str(fixture), "new-group",
         "--group-id", "G01",
         "--members", course_id,
-        "--status", "active",
+        "--container-mode", "progress",
         "--cycle", "synthetic",
+        "--date", "2026-07-26",
+    )
+    plan_path = fixture / "main/30_group/G01/plan.md"
+    plan_text = plan_path.read_text(encoding="utf-8-sig")
+    plan_text = plan_text.replace(
+        "- K01 keystone description (which course it belongs to, and which line of that"
+        " course's progress.md its completion criterion points at)\n- K02 keystone description\n",
+        f"- K01 {course_id} exercise01 closed (criterion: the current completed-node line in"
+        f" {course_id}/progress.md)\n",
+    )
+    if re.search(r"^-\s+K\d+\s+keystone description", plan_text, re.MULTILINE):
+        raise AssertionError("synthetic keystone substitution missed the template rows")
+    plan_path.write_text(plan_text, encoding="utf-8", newline="\n")
+    cli(
+        "t2ag_init.py", "--root", str(fixture), "activate-group",
+        "--group-id", "G01",
         "--date", "2026-07-26",
     )
     # Main's artifact_registry keeps 0.2.0 tombstones whose successors still
@@ -5099,6 +5143,77 @@ def test_activity_genesis_transition_from_planned(root: Path) -> None:
     assert entry is not None and entry.state == "ongoing", index
     assert entry.binding_status == "unbound", entry.binding_status
     assert entry.last_event_id == "ALE-000001", entry.last_event_id
+
+
+def test_init_example_payload_is_documented_and_rejected(root: Path) -> None:
+    """The public example has the real shape but can never become user consent."""
+    del root
+    spec_init = importlib.util.spec_from_file_location(
+        "t2ag_init_example_contract", SCRIPT.with_name("t2ag_init.py")
+    )
+    init_mod = importlib.util.module_from_spec(spec_init)
+    assert spec_init and spec_init.loader
+    spec_init.loader.exec_module(init_mod)
+    example = SCRIPT.with_name("answers.example.json")
+    schema_path = SCRIPT.with_name("answers.schema.json")
+    payload = json.loads(example.read_text(encoding="utf-8"))
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    required = set(init_mod.PROFILE_REQUIRED_ANSWERS)
+    if set(schema.get("required", [])) != required:
+        raise AssertionError("answers.schema.json required fields drifted from t2ag_init")
+    optional = set(init_mod.AGENT_DEFAULTS)
+    if schema.get("additionalProperties") is not False:
+        raise AssertionError("answers.schema.json must reject misspelled/unknown fields")
+    if set(schema.get("properties", {})) != required | optional | {"example_only"}:
+        raise AssertionError("answers.schema.json properties drifted from required + optional inputs")
+    if set(payload) != required | {"example_only"} or payload["example_only"] is not True:
+        raise AssertionError("answers.example.json must carry exactly the real shape plus the refusal marker")
+    args = type("Args", (), {"answers": str(example), "answers_json": None})()
+    try:
+        init_mod.load_answers(args)
+    except init_mod.GenerationError as exc:
+        if "example_only" not in str(exc):
+            raise AssertionError(f"the refusal must name the marker: {exc}") from exc
+    else:
+        raise AssertionError("the example payload was accepted as user-confirmed answers")
+    customized = {key: value for key, value in payload.items() if key != "example_only"}
+    customized.update({"agent_pool_limit": 2, "agent_max_active": 1})
+    rendered = init_mod.render_profile(customized)
+    if "agent_pool_limit: 2" not in rendered or "agent_max_active: 1" not in rendered:
+        raise AssertionError("documented optional agent overrides were silently ignored")
+
+
+def test_english_backport_observers_are_executable(root: Path) -> None:
+    """Batch 4 smoke: each newly registered observer reaches a real verdict path."""
+    reset(root)
+    course = root / "main/40_course/C01"
+    (course / "_exam").mkdir(parents=True)
+    run_silently(doctor.check_exam_banks, {"C01": (course, {})})
+    assert_message(doctor.fails, "exam_ledger.md")
+    assert_message(doctor.fails, "index.md")
+
+    usage = doctor.playbook_usage_findings(
+        frozenset({"old.md"}), {"old.md": dt.date(2026, 1, 1)}, dt.date(2026, 3, 1)
+    )
+    if not any(code == "PB-USE-002" and severity == "WARN" for code, severity, _ in usage):
+        raise AssertionError(f"stale playbook did not become an archive candidate: {usage}")
+
+    tiers = doctor.domain_tier_findings(
+        [("algebra", "mastered", "evidence.md", "2026-01-01")],
+        {"evidence.md": "geometry only"},
+    )
+    if not any(code == "TIER-001" and severity == "WARN" for code, severity, _ in tiers):
+        raise AssertionError(f"unsupported top-tier claim did not warn: {tiers}")
+
+    main_root, skeleton_root = root / "main-side", root / "skeleton-side"
+    rel = "main/t2ag.md"
+    write(main_root / rel, "# T2AG\n\n## 1. Rule\n\none\n")
+    write(skeleton_root / rel, "# T2AG\n\n## 1. Rule\n\ntwo\n")
+    parity = doctor.constitution_parity_findings(
+        main_root, skeleton_root, targets=(rel,), exempt={}, file_exempt={}
+    )
+    if not any(code == "CONST-PAR-001" and severity == "FAIL" for code, severity, _ in parity):
+        raise AssertionError(f"constitution section drift did not fail: {parity}")
 
 
 def run_contract_tests(tests: tuple, *, suite_name: str) -> int:

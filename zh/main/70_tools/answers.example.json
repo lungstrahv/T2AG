@@ -1,0 +1,31 @@
+{
+  "example_only": true,
+  "nickname": "示例昵称",
+  "school": "示例学校",
+  "stage": "本科三年级",
+  "direction": "示例方向（如：计算机科学 / 数据工程）",
+  "weekly_time": "每周 10 小时，工作日晚间为主",
+  "goals": [
+    "示例目标一：完成第一门课的完整闭环",
+    "示例目标二：建立可持续的每周学习节奏"
+  ],
+  "tutoring_preference": "先给整体地图，再逐支展开；每步结束后确认再继续",
+  "long_explanation_mode": "map-first",
+  "branch_confirmation": "每讲完一支停下来确认，不连讲",
+  "cycle_structure": "3-1-3（块 A 输入、休息日、块 B 整合）",
+  "small_adjustment": "每循环两次，每次至多改一处运行参数",
+  "big_adjustment": "每三个循环一次调整窗口",
+  "aged_review_mode": "suggest",
+  "existing_basis": "示例既有基础；没有就如实写「无」",
+  "current_difficulty": "未提供",
+  "teaching_notes": "示例教学注意事项；没有就写「未提供」",
+  "exercise_hint_gate": "enabled",
+  "learning_timezone": "America/New_York",
+  "learning_day_cutoff": "04:00",
+  "lesson_actual_review": "on",
+  "lesson_student_feedback": "on",
+  "lesson_knowledge_absorption": "on",
+  "exercise_problem_review": "on",
+  "exercise_knowledge_mastery": "on",
+  "updated": "2026-01-01"
+}

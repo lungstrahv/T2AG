@@ -89,6 +89,21 @@ reverse is not allowed: doctor must not probe an assumption that is not register
   **Misreading this entry as "anything PDF-related goes to the host" causes unnecessary blocking** — that misreading
   has already happened once, in stage A1 of that report.
 
+- **The three-way split (added 2026-08-23, against the mirror misreading)**: the entry above guards against
+  "send everything to the host"; this one guards against its mirror — "`pdftoppm` can stand in for `fitz`".
+  **It can stand in for rendering, not for geometry**:
+
+  | Purpose | Means available here | Without `fitz` |
+  |---|---|---|
+  | **Rendering** (re-rendering page images) | `fitz` or `pdftoppm` | **Can proceed** — see the page-image cache under `book/.cache/` |
+  | **PPI back-calculation** (the geometry gate of `source_pages prepare`; reads the MediaBox) | **currently `fitz` only** | **Fail-closed; must go to the host** |
+  | **Other read-only analysis** (fonts / text layer / image objects / page dimensions) | `pypdf` / `pdfplumber` / `pdftotext` / `pdfimages` / `pdffonts` / `qpdf` | Can proceed |
+
+  Until a `pypdf` / `pdfinfo` MediaBox fallback is actually implemented, neither doctor nor any document may
+  describe `pdftoppm` as a fallback that lets `prepare` continue — that would leave people believing the gate
+  passed when in fact it never ran. Whether to implement that fallback is a scheduling question, not an
+  adjudication; while it is unimplemented, stating the three rows honestly is enough.
+
 ### EA-0003 | Some mounts can create files but cannot unlink (**scope is the whole mount, not just `.git`**)
 
 > **Scope correction (2026-08-07 22:1x, measured)**: this entry originally read "can create files under `.git` but

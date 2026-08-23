@@ -84,6 +84,19 @@ doctor 原子项 `runtime.environment` 实现本表中标注「已探测」的�
   **误把本条读成「PDF 相关一律上宿主机」会造成不必要的阻塞**——该误读已在
   该报告的 A1 环节实际发生过一次。
 
+- **三分法（2026-08-23 补，防反向误读）**：上一条防的是「什么都上宿主机」，本条防它的
+  镜像误读——「`pdftoppm` 能顶 `fitz`」。**能顶渲图，顶不了几何**：
+
+  | 用途 | 本环境可用手段 | 缺 `fitz` 时 |
+  |---|---|---|
+  | **渲图**（页图补渲） | `fitz` 或 `pdftoppm` | **可继续**——见页图缓存 `book/.cache/` |
+  | **PPI 反算**（`source_pages prepare` 的几何闸门，读 MediaBox） | **当前仅 `fitz`** | **fail-closed，必须上宿主机** |
+  | **其它只读分析**（字体／文本层／图像对象／页面尺寸） | `pypdf`／`pdfplumber`／`pdftotext`／`pdfimages`／`pdffonts`／`qpdf` | 可继续 |
+
+  在 `pypdf` / `pdfinfo` 的 MediaBox fallback **真正实现之前**，doctor 与任何文档
+  **不得**把 `pdftoppm` 写成能让 `prepare` 继续的兜底——那会让人以为闸门过了，
+  而实际上它只是没跑。是否实现该 fallback 是排期题，不是裁决题；未实现期间如实分三行写即可。
+
 ### EA-0003｜某些挂载环境可建文件但不能 unlink（**范围为整个挂载，不限于 `.git`**）
 
 > **范围更正（2026-08-07 22:1x，实测）**：本条原表述为「可在 `.git` 下建文件但不能 unlink」，
