@@ -8,16 +8,18 @@ created: YYYY-MM-DD
 ---
 # Udddd Exercise
 
-## 学习范围
+## Study scope
 
-- 来源：SOURCE_SCOPE
-- 当前题目：PROBLEM_ID
-- 精确停点：START_POSITION
+- Source: SOURCE_SCOPE
+- Current problem: PROBLEM_ID
+- Exact stop: START_POSITION
 
-## 证据索引
+## Evidence index
 
-- 真实提交后登记 Attempt / Review；不得预造证据。
+- An Attempt / Review is registered after a real submission; evidence must never be pre-created.
 
-## 学习记录
+## Learning record
 
-- 保存做题推进、提示、确认门与证据指针；原始作答以 Attempt 为准。
+- Holds the solving progress, the hints, the confirmation gates and the evidence pointers; the original
+  answer is governed by the Attempt.
+

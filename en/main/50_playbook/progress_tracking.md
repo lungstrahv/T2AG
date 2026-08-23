@@ -1,245 +1,259 @@
-# 进度节点与自动存档流程（progress_tracking）
+# Progress nodes and the auto-archive flow (progress_tracking)
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> 本流程定义课程生命周期、容量组合、细粒度恢复点与粗粒度完成节点。
-> `progress.md` 只拥有 Course 生命周期、唯一前台与精确停点；`activity_ledger.md` 拥有
-> Lesson/Exercise 生命周期。课程组只决定容量，不覆盖任何一类真相源。
+> This process defines the course lifecycle, the capacity composition, fine-grained recovery
+> points and coarse-grained completion nodes.
+> `progress.md` owns only the Course lifecycle, the single foreground and the exact stopping
+> point; `activity_ledger.md` owns the Lesson/Exercise lifecycle. A course group decides capacity
+> only and overrides neither source of truth.
 
-## 一、两组彼此独立的状态
+## 1. Two independent sets of state
 
-### 1.0 当前学习活动
+### 1.0 The current learning activity
 
-`progress.md` 必须把课程生命周期与当前学习活动分开：
+`progress.md` must keep the course lifecycle and the current learning activity apart:
 
 ```yaml
 current_activity: lesson       # lesson / exercise
 current_activity_id: lesson01  # lessonNN / exerciseNN
 resume_path: main/40_course/COURSE_ID/lessons/lesson01/lesson01.md
-activity_position: 精确停点
+activity_position: the exact stopping point
 next_action_kind: resume
 next_activity_type: lesson
 next_activity_id: lesson01
 ```
 
-- 切换到 Exercise 时，`resume_path` 改指 `exercises/exerciseNN/exercise.md`。
-- 显式前台与 next_action 字段不得由 memory、目录扫描或退役的 `current_lesson` 补值。
-  历史 Lesson 上下文只能从 ledger 事件与 ContentGroup 关系按需解析，不能触发默认
-  Lesson/working-pages 恢复。
-- Lesson 与 Exercise 是同级活动；切换只改变当前恢复入口，不改变 ContentGroup 关系或
-  擅自关闭另一活动的未决问题。
-- `activity_position` 是两类活动共用的精确停点字段；不得继续用
-  `lesson_position` 保存 Exercise 或新 Lesson 状态。
-- planned 课程只写 `progress_nodes_status: lazy_on_activation`，
-  不携带 `current_activity / current_activity_id / resume_path / activity_position`。
-  激活时先创建真实载体，再原子写入完整活动字段。
+- When switching to an Exercise, `resume_path` points at `exercises/exerciseNN/exercise.md`.
+- The explicit foreground and the next_action fields must never be backfilled from memory, a directory scan, or the retired `current_lesson`. Historical Lesson context is resolved on demand from ledger events and ContentGroup relations only, and must never trigger a default Lesson/working-pages recovery.
+- Lesson and Exercise are sibling activities; switching changes only the current recovery entry point, and never the ContentGroup relations, nor closes the other activity's open questions on its own.
+- `activity_position` is the exact-stopping-point field shared by both activity kinds; `lesson_position` must not continue to hold an Exercise's or a new Lesson's state.
+- A planned course writes only `progress_nodes_status: lazy_on_activation`, and carries no `current_activity / current_activity_id / resume_path / activity_position`. On activation, create the real carrier first, then write the complete activity fields atomically.
 
-### 1.1 课程生命周期
+### 1.1 The course lifecycle
 
-每门课程在 `progress.md` 文件头使用：
+Every course uses this in the `progress.md` file header:
 
 ```yaml
-lifecycle_status: planned  # planned / ongoing / paused / completed / dropped（paused 于 2026-08-19 增：暂停非放弃，须在 activity_position 记停点与恢复条件，首例 CS1953）
+lifecycle_status: planned  # planned / ongoing / paused / completed / dropped (paused added 2026-08-19: paused is not abandoned, and activity_position must record the stopping point and the resume condition; first case CS1953)
 ```
 
-- `planned`：已有方案或档案，但尚未进入实际学习。
-- `ongoing`：课程已经开始且尚未结束；即使不在当前容量组合中，也可保持 ongoing。
-- `completed`：课程完成标准已经闭合。
-- `dropped`：用户明确终止，保留原因和历史。
+- `planned`: a plan or archive exists, but study has not actually begun.
+- `ongoing`: the course has started and has not ended; it may stay ongoing even while outside the current capacity composition.
+- `completed`: the course's completion criteria have closed.
+- `dropped`: the user explicitly terminated it; the reason and history are kept.
 
-### 1.2 当前容量组合
+### 1.2 The current capacity composition
 
-当前 active 的 `Gxx.md` 是用户确认的重点执行组合：组内课程获得时间预算、最低频率和里程碑承诺。
-组外 `ongoing` 课程仍可在用户明确提出时临时推进，但不得自动挤占组内预算，也不得因一次临时学习自动换组。
-系统可依据实际时长、启动失败、学习能力、截止期、依赖和项目限制提出调组建议；成员变更仍须用户确认。
+The currently active `Gxx.md` is the focused execution composition the user confirmed: courses
+inside it receive a time budget, a minimum frequency and milestone commitments.
+An `ongoing` course outside the group may still be advanced ad hoc when the user explicitly asks,
+but must never automatically crowd out the in-group budget, and one ad hoc session must never
+switch groups automatically.
+The system may propose group changes based on real durations, failed starts, learning capacity,
+deadlines, dependencies and project constraints; a membership change still requires user
+confirmation.
 
-## 二、两层进度节点
+## 2. Two layers of progress node
 
-### 2.1 checkpoint：到达节点
+### 2.1 checkpoint: the arrival node
 
-checkpoint 是细粒度恢复点，用来回答“具体讲到哪一句、哪个证明步骤或哪个项目动作”。
+A checkpoint is a fine-grained recovery point answering "which sentence, which proof step, or
+which project action exactly did we reach".
 
-- 教材课以当前 5–8 页工作窗口为范围；一页可有多个 checkpoint。Scope 规格 owner 为
-  `50_playbook/source_page_assets.md` §2 LessonScope，本文件不重复定义。
-- 项目/实践课按当前时间表、里程碑或项目顺序表的细步骤生成。
-- checkpoint 使用来源定位 ID，例如 `MATH1607H-B001-P026-N02`。
-- checkpoint 挂在 LessonMap 块下：一个块可有多个 checkpoint（学生可能在同一块内多次停顿）。
-  块引用使用稳定 ID `page_key#block_id`；同一 SourcePageAsset 的同一教材块跨 Scope 版本保持同 ID。
-- 到达 checkpoint 时静默自动保存，不要求学生说“保存进度”。
-- 状态至少区分 `queued / arrived / pending / confirmed / archived`。
-- checkpoint 只证明到达位置与确认状态，不等于完成一个教材小节或项目节点。
-- checkpoint 表格是权威真相源；frontmatter 的 `current_checkpoint` / `checkpoint_state`
-  由 `t2ag_state_refresh.py --write` 从表格生成（GENERATED 投影），手写无效。
+- A textbook course scopes it to the current 5–8 page working window; one page may hold several checkpoints. The Scope specification's owner is `50_playbook/source_page_assets.md` §2 LessonScope, and this file does not redefine it.
+- A project/practice course generates them from the fine steps of the current schedule, milestone or project order table.
+- A checkpoint uses a source-locating ID, such as `MATH1607H-B001-P026-N02`.
+- Checkpoints hang under a LessonMap block: one block may hold several (a student may stop more than once inside one block). A block reference uses the stable ID `page_key#block_id`; the same textbook block of the same SourcePageAsset keeps the same ID across Scope versions.
+- On reaching a checkpoint, save silently and automatically; the student is not required to say "save progress".
+- The status distinguishes at least `queued / arrived / pending / confirmed / archived`.
+- A checkpoint proves the position reached and the confirmation state only; it does not equal completing a textbook subsection or a project node.
+- The checkpoint table is the authoritative source of truth; the frontmatter `current_checkpoint` / `checkpoint_state` are generated from the table by `t2ag_state_refresh.py --write` (a GENERATED projection), and writing them by hand has no effect.
 
-### 2.2 completion node：完成节点
+### 2.2 completion node: the completion node
 
-completion node 是粗粒度、永久稳定的正式进度单元，通常跨若干 checkpoint 或若干页。
+A completion node is a coarse-grained, permanently stable unit of formal progress, usually
+spanning several checkpoints or several pages.
 
-- 教材课通常对应教材目录中的一个小节、完整定理链或其他自然内容边界。
-- `course_type: project` 的课对应项目计划中的稳定步骤或里程碑（轴定义见 `00_core/domain_model.md` §2.0）。
-- 实践课对应时间表中的行动/复盘单元。
-- ID 一经生成不得重排或复用；标题、页码或说明可修订。
-- 状态使用 `queued / in_progress / completed / superseded`。
-- 临时补充内容挂在父 completion node 下，不擅自改变主线顺序。
+- A textbook course usually maps it to one subsection of the textbook contents, a complete theorem chain, or another natural content boundary.
+- A `course_type: project` course maps it to a stable step or milestone in the project plan (the axis definition is in `00_core/domain_model.md` §2.0).
+- A practice course maps it to an action/review unit in the schedule.
+- Once generated, an ID must never be reordered or reused; the title, page number or description may be revised.
+- The status uses `queued / in_progress / completed / superseded`.
+- Temporary supplementary content hangs under its parent completion node and must never change the main sequence on its own.
 
-## 三、生成与滚动窗口
+## 3. Generation and the rolling window
 
-1. completion node 先从已核验教材目录、项目顺序表或实践时间表生成；不凭模型记忆猜结构。
-2. 教材课只为当前 Scope（5–8 页）生成 checkpoint。Scope 换版时：
-   (1) 当前 LessonMap 块成员关系派生路由，「离开块」= 新旧 Map 块 ID 集合差判定；
-   (2) `confirmed` checkpoint 保持 `confirmed`，Scope 换版不改写既有确认事实；
-   (3) 即将离开 Scope 的块若仍有 `queued / arrived / pending` checkpoint → fail-closed，
-       必须先确认闭合或学生明确 defer/retire；
-   (4) `archived` 只表示 checkpoint 本身被明确判定为重复、失效、被替代或不再恢复，
-       退役原因必须在对应 Lesson/活动记录中留痕；`archived` 不再是 Scope rollover 的自动清退机制。
+1. Completion nodes are generated first from the verified textbook contents, the project order table or the practice schedule; never guess the structure from model memory.
+2. A textbook course generates checkpoints only for the current Scope (5–8 pages). When the Scope version changes:
+   (1) the current LessonMap block membership derives the routing, and "leaving a block" is decided by the difference between the old and new Map block ID sets;
+   (2) a `confirmed` checkpoint stays `confirmed`; a Scope version change never rewrites an established confirmation;
+   (3) if a block about to leave Scope still has a `queued / arrived / pending` checkpoint -> fail-closed: it must first be closed by confirmation, or explicitly deferred/retired by the student;
+   (4) `archived` means only that the checkpoint itself was explicitly judged duplicate, void, superseded or no longer recoverable, and the retirement reason must leave a trace in the corresponding Lesson/activity record; `archived` is no longer an automatic clean-out mechanism for a Scope rollover.
 
-### 重分块与 block migration
+### Re-blocking and block migration
 
-教材的块划分不是静态的。同一个 SourcePageAsset 在后续 Scope 版本中可能被重新分块
-（如定义与例子拆成不同块、教材修订导致块边界移动）。块 ID 变更必须通过 **block migration 表**
-显式记录，不得静默覆盖旧 ID 或凭空创建新 ID 而不建立对应关系。
+A textbook's block division is not static. The same SourcePageAsset may be re-blocked in a later
+Scope version (a definition and its example split into different blocks; a textbook revision
+moving a block boundary). A block ID change must be recorded explicitly through a **block
+migration table**; silently overwriting an old ID, or inventing a new one with no correspondence
+established, is forbidden.
 
-block migration 表至少记录：
+The block migration table records at least:
 
-| 字段 | 说明 |
+| Field | Meaning |
 |---|---|
-| page_key | 不变的页级 ID |
-| old_block_id | 旧版块的短 ID（如 B02） |
-| new_block_id | 新版块的短 ID（如 B03） |
+| page_key | the unchanging page-level ID |
+| old_block_id | the old block's short ID (such as B02) |
+| new_block_id | the new block's short ID (such as B03) |
 | kind | `split / merge / renumber / boundary_shift / retired / new` |
-| successor_of | 旧块是否被完全包含或替代；一对多或多对一时必须解释 |
-| decision | 学生或教师确认的裁决（如「B03 替代 B02，旧 B03→B04」） |
+| successor_of | whether the old block is fully contained or superseded; a one-to-many or many-to-one relation must be explained |
+| decision | the adjudication the student or teacher confirmed (such as "B03 supersedes B02; the old B03 becomes B04") |
 
-规则：
-- 同一次 Scope 换版中，同一 `page_key` 下**存在一对多 successor 映射且无精确 successor
-  判定时，doctor 必须 fail-closed**（CKP-SCOPE-003），要求教师在迁移表中明确 successor。
-- `kind: retired` 的块：旧 checkpoint 可标 `archived`，并在对应 Lesson 记录退役原因。
-- `kind: new` 的块：未在任何已确认 completion node 出现过的新增内容，不继承任何旧 checkpoint。
+Rules:
 
-3. 非活跃课程只保留最小生命周期字段，首次激活或真正恢复时惰性生成节点。
-4. `node_id` 绑定来源身份；文件改名通过 artifact registry 解析，不重造节点 ID。
+- Within one Scope version change, when a one-to-many successor mapping exists under the same `page_key` **with no exact successor determination, doctor must fail closed** (CKP-SCOPE-003), requiring the teacher to state the successor explicitly in the migration table.
+- A `kind: retired` block: the old checkpoint may be marked `archived`, with the retirement reason recorded in the corresponding Lesson.
+- A `kind: new` block: content that never appeared in any confirmed completion node inherits no old checkpoint.
 
-## 三·五、学习日归属（04:00 边界）
+3. An inactive course keeps only the minimal lifecycle fields, and generates nodes lazily on first activation or genuine recovery.
+4. A `node_id` is bound to the source identity; a file rename is resolved through the artifact registry, and node IDs are never re-created.
 
-> **本节是 memory 决策段第 14 条（2026-07-31 暂定）的 canonical 落点。**
-> 该规则自 2026-07-31 起在治理行为，但直至 2026-08-07 全仓
-> `grep -rln "04:00\|凌晨" main/50_playbook/ main/00_core/ main/t2ag.md` **零命中**
-> ——它只活在 memory 里、无任何规范性载体，因而被墓碑挡住无法下沉。
-> 迁移登记见本文件 §六末 `rule_migration`。
+## 3.5 Learning-day attribution (the 04:00 boundary)
 
-**规则**：**本地凌晨 04:00 之前产生的任务进度，归属前一个学习日。**
+> **This section is the canonical landing point of item 14 in the memory decision section
+> (provisional, 2026-07-31).**
+> The rule has been governing behaviour since 2026-07-31, yet as late as 2026-08-07 a whole-repo
+> `grep -rln "04:00\|凌晨" main/50_playbook/ main/00_core/ main/t2ag.md` returned **zero hits**
+> — it lived only in memory with no normative carrier, and was therefore blocked by a tombstone
+> from sinking. The migration registration is in the `rule_migration` at the end of §6.
 
-例：实际保存于 2026-08-01 01 时的进度，归入 2026-07-31，并作为该学习日的最后一个任务关闭。
+**The rule**: **task progress produced before 04:00 local belongs to the previous learning day.**
 
-**作用域切割（这半句与规则本体同等重要，不得省略）**：
+Example: progress actually saved at 01:00 on 2026-08-01 is attributed to 2026-07-31, and closes
+as that learning day's last task.
 
-| 对象 | 用哪个日期 |
+**The scope split (this half matters as much as the rule itself and must never be omitted)**:
+
+| Object | Which date |
 |---|---|
-| **学习进度**（checkpoint、completion node、progress 记录、学习日收尾） | **04:00 学习日** |
-| **系统日志、月志、发行取证**（changelog、journal、release evidence、doctor 月度门） | **自然日期** |
+| **learning progress** (checkpoints, completion nodes, progress records, the learning-day wrap-up) | the **04:00 learning day** |
+| **system logs, monthly journals, release forensics** (changelog, journal, release evidence, the doctor monthly gate) | the **calendar date** |
 
-把 04:00 边界外推到取证链上是**错误**的——两套日期概念共用一个名字，正是 `P-0045`
-冲突的来源。
+Extending the 04:00 boundary onto the forensic chain is **wrong** — two date concepts sharing one
+name is exactly where the `P-0045` conflict came from.
 
-**跨月归属：双记 + 显式标注（`P-0045` 裁决，学生 2026-08-07）**
+**Cross-month attribution: record both, marked explicitly (`P-0045` adjudication, student, 2026-08-07)**
 
-当一条记录的**学习日与自然日期不同**（即产生于本地 00:00–04:00）时，
-**必须同时写两个日期**，不得只写其一：
+When a record's **learning day differs from its calendar date** (that is, it was produced between
+00:00 and 04:00 local), **both dates must be written**; writing only one is not permitted:
 
 ```
-学习日 2026-07-31（自然 2026-08-01 01:12）
+learning day 2026-07-31 (calendar 2026-08-01 01:12)
 ```
 
-两者相同时只写一个——**不为不跨界的记录制造噪声**，双记只在实际分叉时出现。
+When the two agree, write one — **no noise is manufactured for records that do not straddle the
+boundary**; the double entry appears only where the fork is real.
 
-**任何做周度/月度聚合的消费方，必须在自身文档里声明它用哪个日历。**
-未声明即为契约缺失，不得由读者猜测。
+**Any consumer doing weekly/monthly aggregation must declare in its own document which calendar it
+uses.** An undeclared consumer is a missing contract, and the reader must never be left to guess.
 
-> **为什么选双记而非「二选一」**：学生的理由是**长期降低各模型的使用成本**。
-> 只记一个日期，每个新接手的模型遇到跨界记录都要重新推导一遍「这里该用哪个日历」；
-> 双记把那次推导一次性消掉，写在记录里。这不是防错，是**防重复推导**——
-> 与本文件其它规则「让真相可直接读出而非反复重算」的取向一致。
+> **Why both rather than "pick one"**: the student's reason is **lowering the long-run cost for
+> every model**. With only one date recorded, every model that takes over has to re-derive "which
+> calendar applies here" on encountering a straddling record; the double entry pays that
+> derivation once and writes it into the record. This is not error prevention but **prevention of
+> repeated derivation** — the same orientation as this file's other rules, "make the truth
+> directly readable rather than repeatedly recomputed".
 >
-> 代价是跨界记录多一个括号。该情形约每月至多一次（学习会话恰好收尾于某日 00:00–04:00），
-> 成本可忽略。
+> The price is one extra parenthesis on a straddling record. That happens at most about once a
+> month (a study session that happens to wrap up between 00:00 and 04:00), so the cost is
+> negligible.
 
-**这不改变作用域切割**：上表仍然有效——学习进度的**归属**按 04:00 学习日，
-系统日志/月志/取证的**归属**按自然日期。双记解决的是「记录上写什么」，
-不是「归属算哪个」。两者不得混淆。
+**This does not change the scope split**: the table above still holds — the **attribution** of
+learning progress follows the 04:00 learning day, and the **attribution** of system logs /
+monthly journals / forensics follows the calendar date. The double entry settles "what is written
+on the record", not "which attribution applies". The two must never be conflated.
 
-## 四、保存与正式提升入口
+## 4. Saving and formal promotion entry points
 
-### 4.1 自动 checkpoint
+### 4.1 Automatic checkpoint
 
-进入 checkpoint 时立即更新 `progress.md` 的当前 checkpoint、精确停点和确认状态，并刷新机器生成缓存。
-这只保存位置，不得把父 completion node 写成 completed。
+On entering a checkpoint, immediately update the current checkpoint, the exact stopping point and
+the confirmation status in `progress.md`, and refresh the machine-generated caches. This saves the
+position only and must never write the parent completion node as completed.
 
-### 4.2 自动完成节点
+### 4.2 Automatic completion node
 
-completion node 的既有完成证据满足后，自动把该节点标为 completed，并把下一节点标为 in_progress。
+Once a completion node's existing completion evidence is satisfied, mark that node completed
+automatically and mark the next node in_progress.
 
-- 教材课：内容讲完，且没有悬空确认或未回答问题；不额外强制生成习题。额外习题默认
-  不自动生成，只在学生请求或明确 opt-in 后创建；课堂理解确认不算额外习题。
-- 教材原有例题/习题：继续执行习题闭环，但习题闭环不是每个完成节点的附加考试。
-- `course_type: project` 的课：以计划中已有的代码运行、文件产出或功能结果关闭——该结果须由**外部真相源**判定（`project_verification.md` §〇 三机制），不是教师自行确认。绑 `course_type` 而非 `default_driver`。
-- 实践课：以计划中已有的行动记录或复盘结果关闭。
-- 错题复测、章节卷与陈年卷保持独立，不与每个 completion node 捆绑。
+- Textbook course: the content is taught, with no dangling confirmation and no unanswered question; no extra exercises are forced. Extra exercises are not auto-generated by default and are created only after the student requests them or explicitly opts in; a classroom comprehension check is not an extra exercise.
+- The textbook's own worked examples and exercises: the exercise closure loop still runs, but it is not an additional exam attached to every completion node.
+- A `course_type: project` course: closed by code that runs, a file produced, or a functional result already in the plan — and that result must be judged by an **external source of truth** (`project_verification.md` §0, the three mechanisms), not confirmed by the teacher alone. Bound to `course_type`, not to `default_driver`.
+- Practice course: closed by an action record or a review result already in the plan.
+- Mistake retests, chapter sets and aged sets stay independent and are never bundled to each completion node.
 
-### 4.3 学生手动“保存进度”
+### 4.3 The student's manual "save progress"
 
-学生说“保存进度”时，无论是否处于节点边界，都立即强制保存当前 checkpoint、pending 状态和课堂要点。
-手动保存不自动完成父节点，也不替代结课仪式。
+When the student says "save progress", force-save the current checkpoint, the pending status and
+the classroom key points immediately, whether or not a node boundary was reached. A manual save
+never completes the parent node automatically and never substitutes for the closing ritual.
 
-### 4.4 结课与恢复确认
+### 4.4 Session close and recovery confirmation
 
-正常结课按 `session_close.md` 完成正式写回。异常中断后恢复时，若当前 Lesson/Exercise、云端事件或学生陈述比真相源更新，
-先暂停新内容并核对；经学生确认后更新 `progress.md`，再统一刷新缓存。
+An ordinary close completes the formal write-back per `session_close.md`. When recovering after an
+abnormal interruption, if the current Lesson/Exercise, a cloud event or the student's statement is
+newer than the source of truth, pause new content and verify first; update `progress.md` once the
+student confirms, then refresh the caches together.
 
-## 五、云端检查点
+## 5. Cloud checkpoints
 
-- 手机端 checkpoint 在云端内部静默记录。
-- 每完成一个 completion node，云端自动生成紧凑的 `T2AG_PROGRESS_RECEIPT`。
-- 学生说“保存进度”时立即生成回执；正常结课仍生成完整 `T2AG_SESSION_CLOSE`。
-- 本地按事件 ID 去重；已被后续结课块包含的回执不重复计入。
-- 云端不能直接把本地 `progress.md` 写成已同步；回执在本地核对前保持 pending。
+- A mobile checkpoint is recorded silently inside the cloud.
+- On each completed completion node, the cloud automatically produces a compact `T2AG_PROGRESS_RECEIPT`.
+- When the student says "save progress", a receipt is produced immediately; an ordinary close still produces a complete `T2AG_SESSION_CLOSE`.
+- Local deduplicates by event ID; a receipt already contained in a later close block is not counted twice.
+- The cloud must never write the local `progress.md` as synced directly; a receipt stays pending until verified locally.
 
-## 六、机器生成缓存
+## 6. Machine-generated caches
 
-`70_tools/t2ag_state_refresh.py` 只拥有以下本地 GENERATED 区块：
+`70_tools/t2ag_state_refresh.py` owns only these local GENERATED blocks:
 
-- memory 的 `ACTIVE_PROGRESS` 与 `STATE_POINTERS`；
-- `learning_path.md` 的 `COURSE_INDEX` 与 `GROUP_INDEX`；
-- active group plan 的 `GROUP_VIEW`。
+- memory's `ACTIVE_PROGRESS` and `STATE_POINTERS`;
+- `learning_path.md`'s `COURSE_INDEX` and `GROUP_INDEX`;
+- the active group plan's `GROUP_VIEW`.
 
-Lesson/Exercise 的局部停点由 `session_close.md` 写成活动证据，不是 GENERATED 缓存，
-也不能覆盖 progress。移动端入口由 Cloud 同步协议单独拥有；bridge 为 `paused` 时不写。
-任何没有明确生成器负责的 GENERATED anchor 都属于契约错误。
+A Lesson's or Exercise's local stopping point is written as activity evidence by
+`session_close.md`; it is not a GENERATED cache and must never override progress. The mobile entry
+point is owned separately by the Cloud sync protocol and is not written while the bridge is
+`paused`. Any GENERATED anchor with no generator explicitly responsible for it is a contract
+error.
 
-执行顺序固定为：
+The execution order is fixed at:
 
 ```text
-progress.md / active group 文件
-  → t2ag_state_refresh.py --write
-  → t2ag_state_refresh.py --check
-  → t2ag_doctor.py --profile runtime
+progress.md / the active group file
+  -> t2ag_state_refresh.py --write
+  -> t2ag_state_refresh.py --check
+  -> t2ag_doctor.py --profile runtime
 ```
 
-工具失败时不得用手抄结果冒充生成成功。
+When a tool fails, a hand-copied result must never pose as a successful generation.
 
 ---
 
 ## rule_migration
 
-按 `main/t2ag.md` §6.3.1 登记本文件承接的规则迁移。
+Registered per `main/t2ag.md` §6.3.1 for the rule migration this file receives.
 
-| rule_id | 旧位置/原文锚点 | 动作 | 新 owner/等价门 | 消费方 | 验证 |
+| rule_id | old location / text anchor | action | new owner / equivalence gate | consumers | verification |
 |---|---|---|---|---|---|
-| 04:00 学习日边界 | `grep -n "04:00 学习日边界" main/00_core/t2ag_memory.md` → 决策段第 14 条（2026-07-31 暂定），**无 playbook 载体** | **sink** | 本文件 §三·五 | 结课流程（`session_close.md` §四指针）、进度写入方、月度取证方（按作用域切割走自然日期） | `grep -rln "04:00" main/50_playbook/` 命中本文件；memory #14 的 `⚠` 墓碑可摘除并下沉 |
+| the 04:00 learning-day boundary | `grep -n "04:00" main/00_core/t2ag_memory.md` -> decision-section item 14 (provisional, 2026-07-31), **no playbook carrier** | **sink** | this file §3.5 | the session close flow (the `session_close.md` §4 pointer), progress writers, monthly forensics consumers (which follow the calendar date per the scope split) | `grep -rln "04:00" main/50_playbook/` hits this file; the `⚠` tombstone on memory #14 may be removed and sunk |
 
-**下沉闭包检查（§6.3.3 四项）**：新 canonical owner = 本文件 §三·五 ✅；
-入口指针 = `session_close.md` §四 ✅；消费方 = 上表第五列 ✅；
-验证 = 上表第六列的 grep ✅。
+**Sink closure check (the four items of §6.3.3)**: new canonical owner = this file §3.5 [x];
+entry pointer = `session_close.md` §4 [x]; consumers = column five above [x];
+verification = the grep in column six [x].
 
-**`P-0045` 已随本次迁移裁定并落地**（学生 2026-08-07，方案 C：双记 + 显式标注）。
-规则见 §三·五末段。该条的 problemlog 条目可据此转为 resolved——
-本文件不代改 problemlog 状态，由维护方按 `problemlog_maintenance.md` 执行。
+**`P-0045` was adjudicated and landed with this migration** (student, 2026-08-07; option C:
+record both, marked explicitly). The rule is in the last part of §3.5. That entry's problemlog
+record may be turned to resolved on this basis — this file does not change the problemlog status
+on its behalf; the maintainer does so per `problemlog_maintenance.md`.

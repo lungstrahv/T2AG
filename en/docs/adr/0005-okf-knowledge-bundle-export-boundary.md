@@ -8,71 +8,94 @@ supersedes: []
 implementation_refs: [main/50_playbook/okf_adaptation.md, main/70_tools/okf_export.py]
 ---
 
-# ADR-0005：OKF 知识包导出边界——机制可交换，实例不出门
+# ADR-0005: the OKF knowledge-bundle export boundary — the mechanism is exchangeable, the instance never leaves
 
-## 背景
+## Background
 
-Open Knowledge Format（OKF，谷歌云 2026-06 发布，本文针对 v0.2）把知识写成「目录 +
-markdown + YAML frontmatter」：唯一硬性要求是每个概念带非空 `type`，信任族
-（`sources` / `generated` / `verified` / `status` / `stale_after`）全部可选且**缺席有含义**，
-消费者不得因缺字段、未知 `type` 或断链而拒收。它把「LLM wiki」这一自发形态标准化成了
-可跨组织交换的格式。
+The Open Knowledge Format (OKF, published by Google Cloud in 2026-06; this file targets v0.2) writes
+knowledge as "directories + markdown + YAML frontmatter": the one hard requirement is that every concept
+carries a non-empty `type`, while the trust family
+(`sources` / `generated` / `verified` / `status` / `stale_after`) is entirely optional and **absence
+carries meaning**; a consumer may not reject content for a missing field, an unknown `type`, or a broken
+link. It standardizes the spontaneous "LLM wiki" shape into a format exchangeable between
+organizations.
 
-T2AG 主库天然已是 markdown + frontmatter + 相互引用，所以适配的技术难度接近于零。真正的
-决定不在「怎么转」，而在**转什么**：主库同一棵树上混着两类性质相反的内容——
+The T2AG main repository is already markdown + frontmatter + mutual references, so the technical
+difficulty of adapting is close to zero. The real decision is not "how to convert" but **what to
+convert**: one tree in the main repository mixes two kinds of content with opposite natures —
 
-- **机制**：宪法、领域模型、playbook、工具说明。描述系统怎么运转，不含个人事实。
-- **实例**：学生档案、学习进度、活动账本、错题、教学实录、日志、cloud 信道。
+- **Mechanism**: the constitution, the domain model, the playbooks, the tool documentation. They describe
+  how the system runs and contain no personal fact.
+- **Instance**: the student profile, learning progress, the activity ledger, mistakes, teaching
+  transcripts, logs, the cloud channel.
 
-而 OKF 存在的目的就是交换。一旦导出器有能力渲染实例层，「私有仓库」与「可直接打包发出
-去的目录」之间就只隔一条命令；bundle 还是**摊平的副本**——主库里 `progress.md` 是唯一
-权威，到了 bundle 里它变成一份没有生命周期管理的第二副本。这是引入外向接口时的典型
-新增攻击面，而不是一个格式转换问题。
+And OKF exists in order to exchange. The moment the exporter can render the instance layer, only one
+command separates "a private repository" from "a directory ready to be packaged and sent out"; and a
+bundle is a **flattened copy** — in the main repository `progress.md` is the sole authority, while in the
+bundle it becomes a second copy with no lifecycle management. That is the classic new attack surface of
+introducing an outward interface, not a format-conversion problem.
 
-## 决定（2026-08-09 用户四连裁决）
+## Decision (the user's four consecutive adjudications, 2026-08-09)
 
-1. **适配的本体是行为，不是脚本**。canonical 是 core-playbook
-   `main/50_playbook/okf_adaptation.md`，随 Skeleton 预置；`main/70_tools/okf_export.py`
-   是它的可复算实现。二者冲突以 playbook 为准，并修工具。
-   理由：只有散文没有机器落点，正是 2026-08-08 全面审查点名的漏洞产地（同 EV-0016/0018
-   的「宣称必须有机器够得着的落点」）；反过来只有脚本没有规范，则升级 OKF 版本时无处可改。
-2. **范围是目录级正列举白名单**，只有 `mechanism` 与 `course:<COURSE_ID>` 两档。
-   **不实现导出个人层的范围**——个人层在代码里没有可达路径。边界靠**缺席**保证，不靠开关：
-   一个「记得别输那个参数」式的防线属于程序性防御，正是审查点名的薄弱层。
-3. **不伪造信任**。全程不写 `verified`：doctor 通过、测试通过都只是结构核实，不是有人读过
-   内容。OKF 的三档信任（未核实／机器确认／人工复核）靠字段缺席工作，编造等于把三档压成
-   一档，让下游误以为有人背书。同理不写 `stale_after`。
-4. **泄漏闸门在落盘之前**，命中即零写入且**不可豁免**。词表单一来源为
-   `t2ag_doctor.SKELETON_PRIVACY_PATTERNS`，取不到词表即拒绝导出而非退化。
-   机制层出现个人痕迹时，正确反应是脱敏主库，不是给导出器加白名单——豁免列表会把闸门蛀空
-   （P-0065／P-0067 同族教训）。
-5. **反引号引用升格为链接**。T2AG 散文用行内反引号引用文件，实测机制层 1266 处引用里
-   markdown 链接为 0。OKF 的图结构完全靠链接表达，不升格则「知识包」退化成「文件夹」，
-   OKF 相对普通 wiki 的全部价值恰好丢在这里。升格限「每目标每文件首次出现」且只对
-   bundle 内目标。
-6. **不注册进 doctor runtime**。bundle 是可选生成物，缺席或过期不该让当天的教学 FAIL
-   （同 `t2ag.md` §3.2「发行问题不阻断教学」）。自检走 `--check-bundle` 显式命令。
+1. **The substance of the adaptation is behaviour, not a script**. The canonical is the core-playbook
+   `main/50_playbook/okf_adaptation.md`, shipped with the Skeleton; `main/70_tools/okf_export.py` is its
+   recomputable implementation. When the two conflict, the playbook governs and the tool gets fixed.
+   Why: prose with no machine landing point is exactly the hole-producing layer the 2026-08-08 full audit
+   named (the same as EV-0016/0018's "a claim must have a landing a machine can reach"); conversely, a
+   script with no specification leaves nowhere to edit when the OKF version is upgraded.
+2. **The scope is a directory-level positive-enumeration allowlist**, with only two tiers, `mechanism`
+   and `course:<COURSE_ID>`.
+   **No scope exporting the personal layer is implemented** — the personal layer has no reachable code
+   path. The boundary is guaranteed by **absence**, not by a switch: a defence of the "remember not to
+   pass that flag" kind is a procedural defence, exactly the weak layer the audit named.
+3. **Never fabricate trust**. `verified` is never written anywhere: a doctor pass or a test pass is only
+   a structural verification, not evidence that someone read the content. OKF's three trust tiers
+   (unverified / machine-confirmed / human-reviewed) work through field absence, and inventing one
+   collapses three tiers into one, letting a downstream reader believe somebody endorsed it. The same
+   applies to `stale_after`.
+4. **The leak gate sits before the write to disk**; on a hit it writes nothing and **cannot be
+   exempted**. The word list has a single source,
+   `t2ag_doctor.SKELETON_PRIVACY_PATTERNS`, and if the list cannot be obtained the export is refused
+   rather than degraded.
+   When a personal trace appears in the mechanism layer, the correct response is to redact the main
+   repository, not to add an exporter allowlist — an exemption list hollows the gate out (the same-family
+   lesson as P-0065 / P-0067).
+5. **A backtick reference is promoted to a link**. T2AG prose references files with inline backticks,
+   and measured across the mechanism layer, of 1266 references markdown links number 0. OKF's graph
+   structure is expressed entirely through links, so without promotion the "knowledge bundle" degrades
+   into a "folder", and precisely the whole value of OKF over an ordinary wiki is lost. Promotion is
+   limited to "the first occurrence of each target per file" and only for targets inside the bundle.
+6. **Not registered in the doctor runtime**. A bundle is an optional artifact, and its absence or
+   staleness must not FAIL that day's teaching (the same as `t2ag.md` §3.2, "a release problem does not
+   block teaching"). Self-checking goes through the explicit `--check-bundle` command.
 
-## 后果
+## Consequences
 
-**得到**：主库获得一个标准格式的对外面，任何懂 OKF 的 agent 或工具无需了解 T2AG 即可读懂
-其机制层；开源展示面从「目录约定」升级为「行业格式的可交换包」；bundle 整目录删除即完全
-回滚，主库零改动。
+**Gained**: the main repository gets an outward face in a standard format, so any agent or tool that
+knows OKF can read its mechanism layer without knowing T2AG; the open-source display surface is upgraded
+from "a directory convention" to "an exchangeable package in an industry format"; and deleting the whole
+bundle directory rolls it back completely, with zero change to the main repository.
 
-**放弃**：无法一条命令导出个人学习史给本地工具消费——这需要另开工单，并在那份工单里独立
-回答落点、留存期与打包事故面三个问题。这是刻意的：把该问题留到有真实用例时再答，比现在
-造一个带开关的能力更安全。
+**Given up**: there is no one-command export of the personal learning history for a local tool to
+consume — that needs its own work order, which must independently answer three questions: the landing
+point, the retention period, and the packaging accident surface. This is deliberate: leaving the question
+until there is a real use case is safer than building a switchable capability now.
 
-**新增维护义务**：OKF 是年轻规范（v0.1→v0.2 已改 `timestamp`→`generated.at`、
-正文 `# Citations`→frontmatter `sources` 两处）。规范升级只改 playbook 的映射表，工具跟表走，
-且必须在 changelog 记明「目标版本 x.y → x.z，改了哪几行表」，不许静默跟版。
+**A new maintenance obligation**: OKF is a young specification (v0.1→v0.2 already changed two things,
+`timestamp`→`generated.at` and the body `# Citations`→frontmatter `sources`). A specification upgrade
+changes only the playbook's mapping table, the tool follows the table, and the changelog must record
+"target version x.y → x.z, and which rows of the table changed"; silently following a new version is not
+allowed.
 
-**已知残余风险**：反引号升格可能把非引用的文件名字面量当成边（误报方向为多一条边，不会
-丢失内容）；`course:<ID>` 范围仍可能因课程定义点名真实院校而被闸门拦下——这是正确行为，
-拦下时的正确反应是承认该课程定义带着实例识别面，而不是开豁免。
+**Known residual risks**: promotion may treat a filename literal that is not a reference as an edge (the
+error direction is one extra edge, never lost content); and a `course:<ID>` scope may still be stopped by
+the gate because the course definition names a real institution — that is correct behaviour, and the
+right response when it is stopped is to admit the course definition carries an instance-identifying
+surface, not to grant an exemption.
 
-## 可移植性
+## Portability
 
-本决定不依赖 T2AG 的目录编号或对象模型，适用于任何「同一棵树上混放机制与个人数据、
-又想对外发布机制层」的个人知识系统。可移植的核心是三条：**白名单而非黑名单**、
-**闸门在写盘前且不可豁免**、**信任字段宁缺毋滥**。
+This decision does not depend on T2AG's directory numbering or object model; it applies to any personal
+knowledge system that "mixes mechanism and personal data in one tree and wants to publish the mechanism
+layer". Three things carry over: **an allowlist rather than a blocklist**, **the gate before the write to
+disk and not exemptible**, and **a trust field omitted rather than overstated**.

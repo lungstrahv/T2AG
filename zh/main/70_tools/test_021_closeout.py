@@ -519,6 +519,35 @@ class LiteTransactionTests(unittest.TestCase):
         os.environ.pop("T2AG_SYNC_LITE_FAIL_AT", None)
         self.temporary.cleanup()
 
+    @contextlib.contextmanager
+    def pretend_windows(self):
+        """让 ACL 助手在任何平台上走完 Windows 分支。
+
+        `inherit_destination_acl` 开头就是 `if os.name != "nt": return`，随后要求
+        `SystemRoot` 指向一个真实存在的 `System32/icacls.exe`。两条 ACL 测试因此在
+        非 Windows 环境必红——而它们守的是「拒绝对 Lite 目标之外的路径动 ACL」这条
+        **安全**护栏。2026-08-22 曾拟给它们加 `skipUnless(os.name == "nt")`，改判为
+        可移植化：本仓的测试实际长期在 Linux 沙箱里跑，一条 skip 掉的安全护栏等于
+        没有护栏，而这正是同批 P-0083（陈旧 fake 长红 10 天）的成因家族。
+
+        造一个真实存在的假 SystemRoot（含空的 icacls.exe）而不是 patch `Path.is_file`：
+        补丁面越窄，测试证明的东西越接近真的。
+
+        `Path` 必须一起钉住：`pathlib` 在实例化时读同一个 `os.name` 决定
+        `PosixPath`/`WindowsPath`，只改 `os.name` 会让 `sync_lite` 里的 `Path(...)`
+        抛 `NotImplementedError: cannot instantiate 'WindowsPath'`。这里钉回**本平台**
+        的 flavour（Windows 上跑就是 WindowsPath），所以本助手不改变被测逻辑，
+        只改变它对「我在 Windows 上」的判断。
+        """
+        system_root = self.workspace / "fake-system-root"
+        write(system_root / "System32" / "icacls.exe", b"")
+        with (
+            mock.patch.object(sync_lite.os, "name", "nt"),
+            mock.patch.object(sync_lite, "Path", type(self.workspace)),
+            mock.patch.dict(sync_lite.os.environ, {"SystemRoot": str(system_root)}),
+        ):
+            yield system_root
+
     def test_source_manifest_is_exact_and_excludes_protected_noise(self) -> None:
         before = sync_lite.source_projection_manifest(self.src)
         self.assertIn("main/a.txt", before)
@@ -565,7 +594,7 @@ class LiteTransactionTests(unittest.TestCase):
     def test_windows_acl_helper_enables_and_resets_inheritance(self) -> None:
         completed = subprocess.CompletedProcess([], 0, "", "")
         with (
-            mock.patch.object(sync_lite.os, "name", "nt"),
+            self.pretend_windows(),
             mock.patch.object(sync_lite.subprocess, "run", return_value=completed) as run,
         ):
             sync_lite.inherit_destination_acl(
@@ -583,8 +612,9 @@ class LiteTransactionTests(unittest.TestCase):
         locked = self.workspace / "t2ag-lite.lockedbak" / "sentinel.bin"
         write(locked, b"lockedbak sentinel\x00")
         before = (locked.read_bytes(), locked.stat().st_mtime_ns)
-        with self.assertRaisesRegex(RuntimeError, "outside Lite destination"):
-            sync_lite.inherit_destination_acl(self.dst, [locked.parent])
+        with self.pretend_windows():
+            with self.assertRaisesRegex(RuntimeError, "outside Lite destination"):
+                sync_lite.inherit_destination_acl(self.dst, [locked.parent])
         with mock.patch.object(sync_lite, "inherit_destination_acl"):
             sync_lite.install_candidate(self.candidate, self.dst, self.rollback)
         self.assertEqual((locked.read_bytes(), locked.stat().st_mtime_ns), before)
@@ -740,8 +770,12 @@ class LiteMainTransactionTests(unittest.TestCase):
             return None
 
         def fake_build_candidate(
-            src: Path, candidate: Path
+            src: Path, candidate: Path, birth: dict | None = None
         ) -> tuple[int, int, list[tuple[str, Path, Path]]]:
+            # `birth` 于 286c79e（2026-08-12，Lite 线上审查 F1-F7 施工）加入
+            # sync_lite.build_candidate，本 fake 未跟，四条 Lite 事务测试随之红了
+            # 10 天（P-0083）。签名参数在此保留但不使用：本组测试证的是事务与回滚，
+            # 不是出生证内容。
             target = candidate / "main" / "a.txt"
             write(target, "candidate\n")
             return 1, 0, [("main/a.txt", src / "main/a.txt", target)]

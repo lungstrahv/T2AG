@@ -251,7 +251,46 @@ enforcement: prose_accepted（理由：机器可验开关解析与表在场，�
 - 工具不可执行：按 `lesson_recover.md` 的同名章节手工做分层摘录；不得退回无差别
   全仓读取。
 
-## 七、关联文件
+## 七、上匝道渲染（ELI5 形态，2026-08-22 裁决）
+
+上匝道＝**重投入之前**的低成本主干投影：只给结构、极少字，**不替代讲解**。
+
+**本节不另起形制。** 施工时实查发现：`preview`（开课／新 lesson 开场）与 `resume`
+（断档重启）两位**早已存在**——就是 §二 L0-critical 的 `lesson_opening_contract`
+（开场概览＋ASCII 字符知识树，`presentation_required_at` 已含 `lesson_start` 与
+`first_resume_without_confirmed_opening`），泄题面也已被 `classroom_creativity_policy`
+的硬边界（不提前泄露未请求的答案／解法结构）盖住一半。故本节只落**三条增补＋一个新位**。
+
+**增补一｜选编不生成（红线）**：开场知识树与任何上匝道图，每个文字节点必须取自碑行、
+教材目录标题、lesson 已列 objectives 三者之一，**不许新写任何断言**。这是 §一.2
+「不生成事实性改写」在可视化面上的同一条不变量，比「不泄露答案」更强也更好判：
+它一句同时管住泄题、出处与稀释（不新写断言就压不坏讲解）。
+
+**增补二｜锚按位选**：碑序列为主锚；`schedule` 组不存在碑序列（`course_group_rules.md`
+§4.3 末句），降级为**课程章节号**。`crosstext` 位用 canon carrier 页锚
+（`source_page_assets.md`）。`resume` 位素材＝`progress.md` ＋ handoff，出处天然自解。
+`preview` 粒度＝**lesson 级**：lesson 是当前唯一真实存在的执行单元。
+
+**增补三｜时序冻结（只约束 `preview`）**：图在盲提取之前生成并冻结，做题过程中不得
+重生——防的是卡住后回头看图捞提示。`resume` 讲「你在哪」不讲「什么是真的」，无泄题面，
+不受此条约束。
+
+**新位｜`crosstext`**：跨文本主干对照，**手动触发，不自动出图**。其余位置一律不开——
+讲解主环节用它＝稀释；盲提取失败后的补讲需要精确定位，不是更舒服的形态。
+
+**开关**：学生 `profile.md` frontmatter `onramp_off: preview, crosstext`（逗号或空格分隔；
+**未知 id 直接报错**，不静默忽略，同 §五·B）。关掉＝该位不自动出图，不影响任何恢复链。
+
+**首次验收（`preview` 位）**：首次使用后学生判一次「这张图是压缩还是稀释」；判为稀释即
+关掉本位。不建台账、不记分——一次口头判断就是全部验收。
+
+**边界（不是遗漏，是决定）**：不配 doctor 检查、不加新 payload 字段、**不落盘**。
+投影不落盘不违背「档案即武器」——内容本体已在 `progress.md`／碑行／教材里，图只是它们的
+一次重排；让投影落盘等于凭空造第二份真相源，正是 §一 开头禁的那件事。
+
+enforcement: prose_accepted（理由：须逐字比对渲染产物与三处来源，而渲染物按上句不落盘，机器没有可检对象；失败可见性＝图上出现教材目录里没有的断言，学生当场可辨，并由 `preview` 首次验收收口）
+
+## 八、关联文件
 
 - `main/t2ag.md`：启动入口与日常接管。
 - `main/50_playbook/lesson_recover.md`：课程恢复及 L1/L2 触发。
@@ -259,6 +298,8 @@ enforcement: prose_accepted（理由：机器可验开关解析与表在场，�
 - `main/50_playbook/startup_orchestration.md`：三 Agent 启动、join 与降级。
 - `main/70_tools/t2ag_context.py`：只读上下文包生成器。
 - `main/70_tools/t2ag_activity.py`：唯一活动路由器。
+- `main/50_playbook/course_group_rules.md`：§4.3 碑序列锚（§七 主锚与 schedule 组降级依据）。
+- `main/50_playbook/source_page_assets.md`：canon carrier 页锚（§七 `crosstext` 位用）。
 
 ## Main 消费纪律与课程选择（canonical，自宪法 §3.2 下沉 2026-08-08/EV-0020）
 

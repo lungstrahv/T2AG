@@ -1,52 +1,60 @@
-# 课程内习题证据闭环
+# The in-course exercise evidence loop
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> 本流程定义 0.2.0 的最小 ExerciseProblem → Attempt → Review 闭环。它不建立
-> KnowledgePoint、OCR 确认状态机或跨课程 AbilitySummary；这些候选能力延期到
-> 三轮真实 Attempt/Review 形成后的 0.2.1 设计裁决。
+> This flow defines the minimal 0.2.0 ExerciseProblem → Attempt → Review loop. It does not
+> establish KnowledgePoint, an OCR confirmation state machine, or a cross-course AbilitySummary;
+> those candidate capabilities are deferred to a 0.2.1 design adjudication, after three rounds of
+> real Attempt/Review have accumulated.
 
-## 一、规则边界、活动连接与身份
+## 1. Rule boundary, activity links, and identity
 
-- Exercise 的系统对象与共同学习回路由 `00_core/learning_activity_model.md` 定义；本文件
-  只负责 ExerciseProblem → Attempt → Review 的运行程序。`activity_map.md` 保存课程内
-  ContentGroup 连接；`exercises/<EXERCISE_ID>/exercise.md` 是活动主载体，`problems.md`
-  只保存题目、来源和本单元执行路线。
-- 禁止把通用 schema、全课程顺序策略或 Lesson–Exercise 连接总表塞进单个 Unit；Unit
-  可以声明本单元为何重排，但不能成为管理其他 Unit 的规则源。
+- The system objects of an Exercise and the shared learning loop are defined by
+  `00_core/learning_activity_model.md`; this file governs only the runtime procedure
+  ExerciseProblem → Attempt → Review. `activity_map.md` holds the in-course ContentGroup links;
+  `exercises/<EXERCISE_ID>/exercise.md` is the activity main carrier, and `problems.md` holds only
+  the problems, their source, and this unit's execution route.
+- Never stuff a general schema, a course-wide ordering policy, or a master Lesson–Exercise link
+  table into a single Unit; a Unit may state why it reordered itself, but it must never become the
+  rule source governing other Units.
 
-教材课程第一次建立 Lesson 或 ExerciseUnit 时创建课程级活动图：
+Create the course-level activity map the first time a textbook course establishes a Lesson or an
+ExerciseUnit:
 
 ```text
 40_course/<COURSE_ID>/
-  activity_map.md            # ContentGroup 与 Lesson/Exercise 的课程级连接真相源
+  activity_map.md            # the course-level source of truth linking ContentGroup to Lesson/Exercise
   lessons/lessonNN/lessonNN.md
   exercises/<UNIT_ID>/
 ```
 
-`activity_map.md` 必须包含“内容组连接表”，每行至少有：
+`activity_map.md` must contain a "Content group map", and every row carries at least:
 
 ```markdown
 | content_group_id | source_scope | lesson_ids | exercise_ids |
 |---|---|---|---|
-| COURSE123-B001-C01-S01 | B001 / 第1章 / §1 | lesson01 | exercise01 |
+| COURSE123-B001-C01-S01 | B001 / ch.1 / §1 | lesson01 | exercise01 |
 ```
 
-- ContentGroup 是教材知识连接点，不是课堂或题目。
-- Lesson 与 Exercise 是 Course 内同级 LearningActivity；任何一方都不拥有另一方。
-- `lesson_ids` 与 `exercise_ids` 多值时用逗号分隔；没有对应活动时写 `—`。
-- 连接表是关系真相源；Lesson 与 Exercise 只声明自身 ContentGroup，并与表一致。任何
-  悬空、重复登记或 ContentGroup 漂移均为 FAIL。同一单元格不得重复写同一活动；
-  每个已存在的 Lesson/Exercise 都必须至少登记一次，空 `content_group_ids` 不能作为
-  漏登豁免。
-- Exercise 不得声明 `lesson_id(s)`、Session 引用等所有权字段；不得创建
-  `sessions/` 或 `exercise_session` 对象。
+- A ContentGroup is a knowledge link point in the source material, not a class session and not a
+  problem.
+- Lesson and Exercise are sibling LearningActivities inside a Course; neither one owns the other.
+- Separate multiple `lesson_ids` or `exercise_ids` with commas; write `—` when there is no
+  corresponding activity.
+- The map is the source of truth for the relation; a Lesson and an Exercise declare only their own
+  ContentGroup and must agree with the map. Any dangling entry, duplicate registration, or
+  ContentGroup drift is a FAIL. The same activity must not be written twice in one cell; every
+  Lesson/Exercise that exists must be registered at least once, and an empty `content_group_ids` is
+  not an exemption from registering.
+- An Exercise must not declare ownership fields such as `lesson_id(s)` or a Session reference, and
+  must not create `sessions/` or an `exercise_session` object.
 
-第一次出现学生明确表达的习题想法后，课程级增加汇总索引；没有真实想法时不创建空文件：
+The first time the student expresses an explicit thought about an exercise, add the course-level
+summary index; do not create an empty file when there is no real thought yet:
 
 ```text
 40_course/<COURSE_ID>/exercises/
-  exercise_thoughts.md       # 跨 Unit 汇总索引；原话仍在 Attempt
+  exercise_thoughts.md       # the cross-Unit summary index; the verbatim words stay in the Attempt
 ```
 
 ```text
@@ -56,101 +64,129 @@
   attempts/
     AT0001/
       attempt.md
-      assets/          # image/mixed 模式必需
+      assets/          # required in image/mixed mode
   reviews/
     RV0001.md
 ```
 
-- `EXERCISE_ID`：课程内 canonical `exerciseNN`；`Udddd` 仅可作为 course-scoped legacy alias。
-- 教材驱动 Exercise 的 `exercise.md` 必须声明 `exercise_id` 与 `content_group_ids`；
-  `problems.md` 必须声明同一 `exercise_id` 与唯一 `content_group_id`，并以
-  `source_artifact_id / source_path / source_locator / source_sha256` 指向 Course
-  `book/` 内的持久校对题源。Lesson 与 Exercise
-  目录物理分开，只通过活动图归属教材知识组。
-- `source_path` 与题源内的 `source_document` 必须是 canonical POSIX 相对路径，解析后
-  仍位于同一 Course `book/`，且路径链不得经过 symlink、junction 或 reparse point。
-  `problems.source_artifact_id`、active registry canonical、题源 `artifact_id` 必须相同，
-  双侧 `source_locator` 必须一致；题源摘要与原文档摘要都必须为实际 SHA-256。Lite
-  有意省略原教材二进制时，必须由已哈希绑定的 migration manifest 精确证明 path + SHA。
-- 教材驱动单元每道题的依赖字段必须完整写成
-  ``- 依赖 completion node：`<content_group_id>-N<数字>` ``。反引号、完整 canonical ID
-  与当前 `content_group_id` 三者缺一不可，且完整 ID 必须真实存在于该课程
-  `progress.md` 的 `Completion nodes` 表。空值、伪造值、无法解析、同组伪节点或指向另一
-  内容组均为 FAIL。
-- 活动教材习题单元必须同时声明：
-  - `source_order`：教材原始顺序，必须覆盖全部 problem ID 且不得重排题面；
-  - `teaching_sequence`：当前执行顺序，必须与题目集合相同且不得重复；未作特别设计时
-    等于 `source_order`；
-  - `sequence_rationale`：偏离教材顺序时说明先修关系或学生证据。
-- 教学时一次只处理 `teaching_sequence` 中最早未闭合题；题内疑问和订正未闭合不得跳到
-  下一题。路线可因新证据调整，但须在 `problems.md`、`exercise.md` 与 progress 同步
-  记录，不得跨
-  `content_group_id` 偷跑。
-- `problem_id`：课程内 `<UNIT_ID>-Qddd`。
-- `attempt_id`：单元内 `ATdddd`；一次 Attempt 是一次真实提交批次，可以包含多题。
-- `review_id`：单元内 `RVdddd`；避免与 Binding 的 `RNNN` 冲突。
-- 完整身份是 `course_id / unit_id / local_id`；局部编号只在所属单元内分配且不复用。
+- `EXERCISE_ID`: the in-course canonical `exerciseNN`; `Udddd` is permitted only as a course-scoped
+  legacy alias.
+- The `exercise.md` of a textbook-driven Exercise must declare `exercise_id` and
+  `content_group_ids`; `problems.md` must declare the same `exercise_id` and a unique
+  `content_group_id`, and must point through
+  `source_artifact_id / source_path / source_locator / source_sha256` at the persistent proofread
+  problem source inside the Course `book/`. Lesson and Exercise directories are physically separate
+  and are related to the source-material knowledge group only through the activity map.
+- `source_path` and the `source_document` inside the problem source must be canonical POSIX
+  relative paths that, once resolved, still lie inside the same Course `book/`, and the path chain
+  must not pass through a symlink, a junction, or a reparse point.
+  `problems.source_artifact_id`, the active registry canonical, and the problem source's
+  `artifact_id` must be identical, and the two `source_locator` values must agree; both the
+  problem-source digest and the original-document digest must be real SHA-256. When lite
+  deliberately omits the original textbook binary, a hash-bound migration manifest must prove the
+  path + SHA exactly.
+- In a textbook-driven unit, every problem's dependency field must be written in full as
+  ``- Depends on completion node: `<content_group_id>-N<number>` ``. The backticks, the full
+  canonical ID, and the current `content_group_id` are all three required, and the full ID must
+  really exist in the `Completion nodes` table of that course's `progress.md`. An empty value, a
+  fabricated value, an unparseable value, a fake node in the same group, or a pointer into another
+  content group is a FAIL.
+- An active textbook exercise unit must declare all of:
+  - `source_order`: the original textbook order, which must cover every problem ID and must not
+    reorder the problem statements;
+  - `teaching_sequence`: the current execution order, which must contain the same set of problems
+    with no repeats; absent a deliberate design it equals `source_order`;
+  - `sequence_rationale`: when the order departs from the textbook, the prerequisite relation or
+    the student evidence that justifies it.
+- While teaching, work on only the earliest unclosed problem in `teaching_sequence` at a time; an
+  open in-problem question or an unfinished correction must not be skipped over to the next
+  problem. The route may be adjusted on new evidence, but the change must be recorded in
+  `problems.md`, `exercise.md`, and progress together; never sneak across a `content_group_id`.
+- `problem_id`: in-course `<UNIT_ID>-Qddd`.
+- `attempt_id`: in-unit `ATdddd`; one Attempt is one real submission batch and may contain several
+  problems.
+- `review_id`: in-unit `RVdddd`, chosen to avoid colliding with a Binding's `RNNN`.
+- The full identity is `course_id / unit_id / local_id`; a local number is allocated only inside its
+  owning unit and is never reused.
 
-没有真实提交时只保留 `_README.md`，不得创建空的 AT/RV 实例来通过检查。
+When there is no real submission, keep only `_README.md`; never create an empty AT/RV instance to
+make a check pass.
 
-## 二、学生可选提示闸门
+## 2. The optional student hint gate
 
-### 2.1 设置与意图
+### 2.1 Setting and intent
 
-学生档案 frontmatter 的 `exercise_hint_gate` 是唯一持久开关：
+`exercise_hint_gate` in the student profile frontmatter is the single persistent switch:
 
-- `enabled`：Exercise 教学回复必须先运行只读 `t2ag_hint_gate.py`；
-- `disabled`：不执行额外 gate 拒绝，但开题零提示、提示梯和独立证据规则仍然生效；
-- 未初始化 Skeleton 使用 `ask`，首次启动必须由学生选择，模型不得代选。
+- `enabled`: an Exercise teaching reply must first run the read-only `t2ag_hint_gate.py`;
+- `disabled`: no extra gate denial is executed, but zero hints at problem opening, the hint ladder,
+  and the independent-evidence rule all still apply;
+- an uninitialized Skeleton uses `ask`, and the student must choose at first startup; the model must
+  never choose on their behalf.
 
-启用时，回复意图分为：
+When enabled, reply intents are classified as:
 
-| intent | 无额外授权是否允许 | 范围 |
+| intent | allowed without extra authorization | scope |
 |---|---|---|
-| `reasoning_feedback` | 允许 | 只检查学生已表达的推理，不新增对象、子目标、引理、构造或下一步 |
-| `concept_answer` | 允许 | 默认只回答学生明确问到的概念，不自动应用回当前题，随后返回原停点；学生明确要求应用时转入相应提示授权 |
-| `direction_hint` | 否 | 需要显式 `direction` 授权 |
-| `specified_reference` | 否 | 需要显式 `reference` 授权 |
-| `full_solution` | 否 | 需要显式 `solution` 授权 |
+| `reasoning_feedback` | yes | only examines the reasoning the student already expressed; adds no object, sub-goal, lemma, construction, or next step |
+| `concept_answer` | yes | by default answers only the concept the student explicitly asked about, does not apply it back to the current problem automatically, and returns to the original stop afterwards; when the student explicitly asks for the application, it moves to the corresponding hint authorization |
+| `direction_hint` | no | requires an explicit `direction` authorization |
+| `specified_reference` | no | requires an explicit `reference` authorization |
+| `full_solution` | no | requires an explicit `solution` authorization |
 
-`t2ag_hint_gate.py` 的 deny 返回码必须被消费；不能先发送回复、再补跑检查。该工具是
-可审计 preflight，不是模型内不可绕过的安全边界；要硬阻断输出，必须由模型外部响应中介
-执行工具并拦截 deny。
+The deny return code of `t2ag_hint_gate.py` must be consumed; you may not send the reply first and
+run the check afterwards. That tool is an auditable preflight, not an unbypassable safety boundary
+inside the model; to hard-block output, a response intermediary outside the model must run the tool
+and intercept the deny.
 
-### 2.2 创造性互动与额外习题 opt-in
+### 2.2 Creative interaction and extra-exercise opt-in
 
-- 防剧透只保护当前 Exercise 的独立尝试，不禁止类比、替代表述、学生自创例子、历史背景、
-  图形化解释或学生主动要求的其他路线。若这些内容会暴露当前题的关键结构，则仍按实际
-  `assistance_level` 和提示授权处理。
-- “额外习题”指教材题、当前 Exercise 和即时理解确认之外的新练习。学生未请求且未明确
-  opt-in 时，教师最多询问“是否想加练”，不得预先生成或展示实际题目。
-- 学生请求或明确同意后，可生成额外习题；必须标注 `teacher_generated_supplement`，不得
-  冒充教材题、历年真题或考核池来源，也不自动加入 `source_order` 或 completion 证据。
-- 围绕刚讲教学块的一句复述、判断或概念确认属于理解门，不是额外习题，可按课堂节奏使用。
+- Spoiler protection guards only the independent attempt at the current Exercise; it does not
+  forbid analogies, alternative phrasings, student-invented examples, historical background,
+  graphical explanations, or another route the student asks for. If such content would expose the
+  key structure of the current problem, it is still handled at the real `assistance_level` and hint
+  authorization.
+- "Extra exercises" means new practice beyond the textbook problems, the current Exercise, and
+  immediate comprehension checks. Unless the student requested it or explicitly opted in, the
+  teacher may at most ask "would you like extra practice?" and must not generate or display the
+  actual problems in advance.
+- After the student requests or explicitly agrees, extra exercises may be generated; they must be
+  labelled `teacher_generated_supplement`, must not pose as textbook problems, past exam papers,
+  or an assessment pool, and are not added automatically to `source_order` or to completion
+  evidence.
+- A one-sentence restatement, judgement, or concept check about the teaching block just delivered is
+  a comprehension gate, not an extra exercise, and may be used at the pace of the class.
 
-### 2.3 Attempt 快照与帮助暴露
+### 2.3 The Attempt snapshot and help exposure
 
-Attempt 的 `created` 必须是可解析、补零且真实存在的 ISO `YYYY-MM-DD` 日期；时间戳、任意文本、
-非补零日期和不存在日期均非法。2026-08-01 起创建的 Attempt frontmatter 还必须增加：
+An Attempt's `created` must be a parseable, zero-padded, really existing ISO `YYYY-MM-DD` date; a
+timestamp, arbitrary text, a non-zero-padded date, and a non-existent date are all illegal. An
+Attempt created on or after 2026-08-01 must additionally carry in its frontmatter:
 
 ```yaml
 hint_gate: enabled | disabled
 assistance_level: none | direction | reference | solution
 ```
 
-- `hint_gate` 是 Attempt 创建时的 profile 设置快照；学生随后改开关不回写历史快照。
-- `assistance_level` 保存截至该 Attempt 的最高实际帮助暴露，不能因后续关闭 gate 而降低。
-- 合规的 `concept_answer` 不升级帮助等级，但须在“作答上下文”记录概念范围和
-  `scope_only`；如果回答把概念桥接回题目、给出题目专属子目标或步骤，则按实际暴露升级。
-- 每次方向/资料/完整讲解记录学生授权原话；没有明确授权不得根据“学生似乎卡住”升级。
-- 未经授权泄露关键步骤、结构或答案时，记录 `teacher_hint_contamination`，相关内容不得
-  计作学生独立掌握，也不得写成学生错误。
-- 早于 2026-08-01 的合法历史 Attempt 不反向伪造 gate 快照；两字段若出现必须成对且使用合法
-  枚举。Doctor 只对 2026-08-01 起的新 Attempt 强制字段。
+- `hint_gate` is a snapshot of the profile setting at the moment the Attempt was created; a later
+  change to the switch does not rewrite a historical snapshot.
+- `assistance_level` records the highest real help exposure as of that Attempt, and must not be
+  lowered because the gate was switched off afterwards.
+- A compliant `concept_answer` does not raise the help level, but the concept scope and
+  `scope_only` must be recorded in "Answer context"; if the answer bridges the concept back to the
+  problem, or gives a problem-specific sub-goal or step, it is upgraded to the real exposure.
+- Record the student's verbatim authorization for every direction/reference/full explanation;
+  without an explicit authorization, never upgrade on the grounds that "the student seems stuck".
+- When a key step, structure, or answer leaks without authorization, record
+  `teacher_hint_contamination`; that content must not count as the student's independent mastery,
+  and must not be written down as a student mistake either.
+- A legitimate historical Attempt from before 2026-08-01 does not get a retro-fabricated gate
+  snapshot; if the two fields appear, they must appear together and use legal enumerated values.
+  Doctor enforces the fields only for new Attempts from 2026-08-01 onward.
 
-## 三、Attempt schema
+## 3. The Attempt schema
 
-`attempts/AT0001/attempt.md`：
+`attempts/AT0001/attempt.md`:
 
 ```markdown
 ---
@@ -165,50 +201,63 @@ created: 2026-07-26
 hint_gate: enabled
 assistance_level: none
 ---
-# AT0001 作答
+# AT0001 answers
 
-## 作答上下文
+## Answer context
 
-- 使用帮助：none
-- 提示闸门：enabled
-- 授权与概念问答：none
+- Help used: none
+- Hint gate: enabled
+- Authorization and concept Q&A: none
 
 ## exercise01-Q001
 
-- 作答：见正文；若答案只存在于原图，写“见原始图片”，不得伪造转写。
+- Answer: see body; if the answer exists only in the original image, write "see the original
+  image" and never fabricate a transcription.
 
-### 学生想法（可选）
+### Student thoughts (optional)
 
-- 原话：仅记录学生明确说出的解题体会、联想或策略；没有则省略本节。
+- Verbatim: record only the solving insight, association, or strategy the student stated
+  explicitly; omit this section when there is none.
 
 ## exercise01-Q002
 
-- 作答：...
+- Answer: ...
 
-## 原始证据
+## Original evidence
 
-- `assets/page01.png`：学生提交原图
+- `assets/page01.png`: the student's submitted original image
 ```
 
-约束：
+Constraints:
 
-- `mode` 仅为 `text / image / mixed`；image/mixed 必须保留至少一个原始图片文件。
-- `status` 仅为 `submitted / withdrawn`。第一次真实提交才创建 AT 目录。
-- 图片是原始证据；人工转写必须标明来源，OCR 结果不能覆盖或替换原图。
-- “学生想法”是 Attempt 内的可选一手证据，必须来自学生明确表达并尽量保留原话；
-  教师不得根据答案自行补写。缺少学生想法不是证据缺失，不生成空占位。
-- 教师对想法的解释、评价或规范化写在 Review 的“思路观察/学生想法回应”，不得覆盖
-  Attempt 原话；跨题重复至少两次且确有迁移性时，才可升级到 `reasoning_patterns.md`。
-- 课程级 `exercises/exercise_thoughts.md` 只保存来源链接、短摘、标签和未来使用方式；
-  以 `Unit / Attempt / Problem` 来源元组去重，不复制完整作答，不成为第二原话源。
-- 汇总中的“学生原话短摘”必须是可回查的直接引文；模型概括只能标成“教师提炼”。
-  学生自我修正与教师补充分别署名，不得合并成看似由学生完整提出的结论。
-- 本版不记录 OCR confidence 或学生转写确认状态；不得用空字段假装该能力已实现。
-- 每个 `problem_id` 必须存在于同单元 `problems.md`，正文须有对应二级标题和作答项。
+- `mode` is only `text / image / mixed`; image/mixed must keep at least one original image file.
+- `status` is only `submitted / withdrawn`. The AT directory is created only on the first real
+  submission.
+- The image is the original evidence; a manual transcription must state its source, and an OCR
+  result must never overwrite or replace the original image.
+- "Student thoughts" is optional first-hand evidence inside an Attempt; it must come from something
+  the student expressed explicitly and should preserve their words. The teacher must not write it in
+  from the answer. Missing student thoughts is not missing evidence, and no empty placeholder is
+  produced.
+- The teacher's interpretation, evaluation, or normalization of a thought goes into the Review's
+  "Reasoning observation / response to student thoughts" and must never overwrite the Attempt's
+  verbatim words; only after it repeats across at least two problems and really transfers may it be
+  promoted to `reasoning_patterns.md`.
+- The course-level `exercises/exercise_thoughts.md` holds only source links, short excerpts, tags,
+  and intended future use; it deduplicates on the `Unit / Attempt / Problem` source tuple, copies no
+  full answer, and never becomes a second source of the student's words.
+- A "short excerpt of the student's words" in the summary must be a directly quotable, traceable
+  quotation; a model paraphrase may only be labelled "teacher distillation". A student self-
+  correction and a teacher addition are attributed separately and must never be merged into a
+  conclusion that looks as if the student produced it whole.
+- This version does not record OCR confidence or a student transcription-confirmation state; never
+  use an empty field to pretend that capability exists.
+- Every `problem_id` must exist in the same unit's `problems.md`, and the body must carry the
+  matching second-level heading and answer item.
 
-## 四、Review schema
+## 4. The Review schema
 
-`reviews/RV0001.md`：
+`reviews/RV0001.md`:
 
 ```markdown
 ---
@@ -222,43 +271,51 @@ reviewer: teacher
 status: recorded
 reviewed: 2026-07-26
 ---
-# RV0001 批改
+# RV0001 grading
 
 ## exercise01-Q001
 
-- 结果：correct
-- 思路观察：...
-- 学生想法回应：...（仅当 Attempt 存在学生想法时使用）
-- 反馈：...
-- mistake_refs：[]
-- question_refs：[]
+- Result: correct
+- Reasoning observation: ...
+- Response to student thoughts: ... (only when the Attempt carries student thoughts)
+- Feedback: ...
+- mistake_refs: []
+- question_refs: []
 ```
 
-- `reviewer` 仅为 `teacher / student / joint`；`status` 仅为 `recorded / amended`。
-- 每题结果仅为 `correct / partial / incorrect / unresolved`。
-- Review 必须引用真实存在的 Attempt，且题目集合必须来自该 Attempt。
-- Review 只记录本次证据；跨题重复至少两次后才可升级到 `reasoning_patterns.md`。
+- `reviewer` is only `teacher / student / joint`; `status` is only `recorded / amended`.
+- A per-problem result is only `correct / partial / incorrect / unresolved`.
+- A Review must reference a really existing Attempt, and its problem set must come from that
+  Attempt.
+- A Review records only this round's evidence; promotion to `reasoning_patterns.md` requires the
+  pattern to repeat across at least two problems.
 
-## 五、session close 写回
+## 5. Session-close write-back
 
-1. 进入 Exercise 时先创建或恢复 `exercise.md`；它保存当前题目、精确停点和证据指针，
-   不复制原始作答。
-2. 学生提交后创建一个批次级 Attempt；同一批次的多张图片放在同一 `assets/`；学生
-   明确表达解题体会时，在对应题目下追加“学生想法”原话；新 Attempt 同时写 gate 快照、
-   最高帮助暴露和真实授权/污染记录。
-3. 批改后创建 Review，逐题记录结果、思路观察和反馈。
-4. 明确知识错误写入或合并 mistake bank，并在 Review 写 `mistake_refs`。
-5. 未闭合疑问写入 question bank，并在 Review 写 `question_refs`。
-6. 更新 `problems.md` 的状态和错误级别；不得从 Review 反向复制题面。教材题面只能
-   由其持久题源校对后投影；不得读取历史 Lesson 的 `working_pages/` 作为运行依赖。
-7. 跨题重复模式达到证据门槛后才更新 reasoning patterns。
-8. 更新 `exercise.md` 的精确停点与证据指针，再更新 progress；Lesson 与 Exercise 各写
-   自己的学习记录，不互相充当正文。
-9. 最后执行 state refresh 与 doctor。
+1. On entering an Exercise, create or recover `exercise.md` first; it holds the current problem, the
+   exact stop, and the evidence pointers, and copies no original answer.
+2. After the student submits, create one batch-level Attempt; multiple images from the same batch go
+   into the same `assets/`; when the student expresses a solving insight explicitly, append their
+   verbatim "Student thoughts" under the matching problem; a new Attempt also stores the gate
+   snapshot, the highest help exposure, and the real authorization/contamination record.
+3. After grading, create the Review and record the result, the reasoning observation, and the
+   feedback problem by problem.
+4. Write or merge a definite knowledge error into the mistake bank, and write `mistake_refs` in the
+   Review.
+5. Write an unclosed question into the question bank, and write `question_refs` in the Review.
+6. Update the status and error level in `problems.md`; never copy a problem statement backwards out
+   of a Review. A textbook problem statement may only be projected from its persistent problem
+   source after proofreading; never read a historical Lesson's `working_pages/` as a runtime
+   dependency.
+7. Update the reasoning patterns only after a cross-problem repeated pattern reaches the evidence
+   threshold.
+8. Update the exact stop and the evidence pointers in `exercise.md`, then update progress; Lesson
+   and Exercise each write their own learning record and never serve as the other's body.
+9. Finally run the state refresh and doctor.
 
-## 六、习题想法汇总
+## 6. The exercise-thoughts summary
 
-第一次出现真实学生想法时创建：
+Create it the first time a real student thought appears:
 
 ```markdown
 ---
@@ -266,41 +323,49 @@ type: exercise_thought_index
 course_id: COURSE123
 updated: 2026-07-26
 ---
-# COURSE123 习题想法
+# COURSE123 exercise thoughts
 
-> 本文件是汇总索引；学生原话以所链接 Attempt 为准。
+> This file is a summary index; the student's verbatim words are governed by the linked Attempt.
 
 ## exercise01 / AT0001 / exercise01-Q001 / 2026-07-26
 
-- 来源：`exercise01/attempts/AT0001/attempt.md`
-- 学生原话短摘：...
-- 教师提炼：...
-- 索引标签：...
-- 后续使用：...
-- 推理模式：未升级 / `RP-xxxx`
+- Source: `exercise01/attempts/AT0001/attempt.md`
+- Short excerpt of the student's words: ...
+- Teacher distillation: ...
+- Index tags: ...
+- Later use: ...
+- Reasoning pattern: not promoted / `RP-xxxx`
 ```
 
-- lesson 内由讲授触发的原始灵感仍放 `lessons/lessonXX/lesson_thoughts.md`；习题作答触发的
-  想法先放 Attempt，再汇总到本文件。
-- 课程体验、节奏、课程感受以及从 lesson/exercise 提炼出的核心内容思考写
-  `10_student/profile/course_reflections.md`；生活、哲学、情绪与
-  长期元认知写 `10_student/profile/profile.md`；跨题稳定解题模式写 `reasoning_patterns.md`。
-- 核心内容思考的提炼门：学生明确标记重要，或内容连接 lesson 与 exercise、连接两个
-  以上知识节点、能够指导后续学习中的任一项成立。提炼条目必须回链局部来源；普通局部
-  火花继续留在各自文件，不为凑数量上收。
-- 恢复习题时读取与当前 Unit/知识点相关的近期条目；“后续使用”必须落到提示、反例、
-  复测或方法迁移之一，不能只收藏不消费。
+- A raw insight triggered inside a lesson by the teaching itself still goes in
+  `lessons/lessonXX/lesson_thoughts.md`; a thought triggered while answering an exercise goes to the
+  Attempt first and is then summarized here.
+- Course experience, pace, and how the course felt, plus core-content reflections distilled from a
+  lesson or exercise, go in `10_student/profile/course_reflections.md`; life, philosophy, emotion,
+  and long-term metacognition go in `10_student/profile/profile.md`; a stable cross-problem solving
+  pattern goes in `reasoning_patterns.md`.
+- The distillation gate for a core-content reflection: the student explicitly marked it as
+  important, or the content links a lesson to an exercise, links more than two knowledge nodes, or
+  can guide later study — any one of these suffices. A distilled entry must link back to its local
+  source; an ordinary local spark stays in its own file and is not promoted just to raise the count.
+- When recovering an exercise, read the recent entries related to the current Unit/knowledge point;
+  "Later use" must land on one of a hint, a counterexample, a retest, or a method transfer — never
+  collected and left unconsumed.
 
-## 七、doctor 契约
+## 7. The doctor contract
 
-- 校验 U/题目/AT/RV ID、文件名、frontmatter 和引用闭合。
-- 校验 Skeleton 初始化模板，以及 `activity_map.md`、Lesson、Exercise 的同级连接；活动
-  悬空、表格单元内重复、漏登或 ContentGroup 漂移均为 FAIL。
-- 拒绝 Lesson/Exercise 互相持有所有权，以及退役 `sessions/ExerciseSession` 结构。
-- image/mixed Attempt 缺原图为 FAIL。
-- Attempt 引用未知题目、Review 引用未知 Attempt 或题目越界均为 FAIL。
-- Attempt `created` 不是实际 ISO 日期，以及 2026-08-01 起的新 Attempt 缺
-  `hint_gate / assistance_level`、字段半缺失、枚举非法或模板未携带该 schema 均为 FAIL；
-  合法历史 Attempt 不反向伪造字段。
-- Review 缺逐题结果或结果枚举非法为 FAIL。
-- Skeleton 只携带本 schema，不携带真实 AT/RV 实例。
+- Validates the U/problem/AT/RV IDs, the filenames, the frontmatter, and reference closure.
+- Validates the Skeleton initialization template, and the sibling links among `activity_map.md`,
+  Lesson, and Exercise; a dangling activity, a duplicate inside a table cell, a missing registration,
+  or ContentGroup drift is a FAIL.
+- Rejects Lesson/Exercise holding ownership of each other, and the retired
+  `sessions/ExerciseSession` structure.
+- An image/mixed Attempt missing its original image is a FAIL.
+- An Attempt referencing an unknown problem, a Review referencing an unknown Attempt, and a problem
+  set out of range are all FAILs.
+- An Attempt `created` that is not a real ISO date is a FAIL; so is a new Attempt from 2026-08-01
+  onward that lacks `hint_gate / assistance_level`, carries only half the pair, uses an illegal
+  enumerated value, or a template that does not carry that schema; a legitimate historical Attempt
+  does not get retro-fabricated fields.
+- A Review missing a per-problem result, or carrying an illegal result value, is a FAIL.
+- The Skeleton carries this schema only, never a real AT/RV instance.

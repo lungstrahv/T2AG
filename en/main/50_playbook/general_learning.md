@@ -1,63 +1,72 @@
-# general_learning.md —— R 绑定规则（弹性执行绑定）
+# general_learning.md — the R binding rules (elastic execution binding)
 
-**保护级别**：playbook
+**Protection level**: playbook
 
-> R 的正式名称是"弹性执行绑定（Elastic Binding）"。
-> 旧“通识轨 / Reading track”只作为归档术语存在，不是 R 的领域定义。
-
----
-
-## 背景
-
-R（弹性执行绑定）是与 G（Group，刚性课程组）平级的第二种执行约束。
-G/R 的差别是执行约束的刚性不同；成功标准属于 课程进度，不属于 G/R 容器本身。
-
-> **领域模型（v0.2.0）**：培养方案、Student、G/R、Course 之间是引用图，
-> 不是严格父子树。完整定义见 `00_core/domain_model.md`。
-
-R 共享 t2ag 的教学纪律（教材分类、教师红线、memory 指针），
-不共享 G 的执行约束（周期、频率红线、4h 预算、overlay 四层、组内冻结、换组仪式、卷面考核）。
-
-目录位置：`main/30_group/<GID>/bindings/`。binding 属于具体 group，
-但只引用 Course，不拥有课程内容或进度。
+> R's formal name is "Elastic Binding".
+> The old "general track / Reading track" survives only as an archival term and is not R's domain definition.
 
 ---
 
-## R 的定义与边界
+## Background
 
-- R 只允许绑定 Project 或 Praxis 课程进度
-- Mastery 只能进入 G
-- 随手读书、习惯记录和无明确验收的探索先进入分类后的 ActivityRecord；普通阅读不得自动升级为
-  Course、Engagement 或 R binding，也不能因为"不考试""非学位要求"自动成为 R
-- R 本身没有课程成功标准；验收方式由绑定的课程进度类型决定
+R (elastic execution binding) is the second kind of execution constraint, a peer of G (Group, the rigid
+course group).
+G and R differ in how rigid the execution constraint is; the success criterion belongs to course
+progress, not to the G/R container.
+
+> **The domain model (v0.2.0)**: the curriculum plan, the Student, G/R, and Course form a reference
+> graph, not a strict parent-child tree. The full definition is in `00_core/domain_model.md`.
+
+R shares t2ag's teaching discipline (textbook classification, the teacher red lines, memory pointers),
+and does not share G's execution constraints (cycles, the frequency red line, the 4h budget, the
+four-layer overlay, in-group freezing, the group-transition ritual, the written examination).
+
+Directory: `main/30_group/<GID>/bindings/`. A binding belongs to a specific group,
+but only references a Course; it never owns course content or progress.
 
 ---
 
-## R 允许的课程类型
+## R's definition and boundary
 
-| 课程类型 | 验收方式 | 典型课程 |
+- R may bind only Project or Praxis course progress
+- Mastery may enter G only
+- Casual reading, habit records, and exploration with no explicit acceptance go first into a classified
+  ActivityRecord; ordinary reading must never be upgraded automatically into a
+  Course, an Engagement, or an R binding, and must never become an R just because it "has no exam" or
+  "is not a degree requirement"
+- R has no course success criterion of its own; how it is accepted is decided by the type of course
+  progress it binds
+
+---
+
+## The course types R permits
+
+| Course type | Acceptance | Typical course |
 |---|---|---|
-| Project | 绑定验证模式 A/B/B-K | 数据科学、独立项目 |
-| Praxis | 真实行动 + 外部反馈 | 交易纪律、习惯养成 |
+| Project | bound to verification mode A/B/B-K | data science, an independent project |
+| Praxis | real action + external feedback | trading discipline, habit formation |
 
-**Mastery 不得进入 R**（只能进 G）。
-
----
-
-## 生命周期
-
-R 可为 `idle / active / paused / closed`。激活前必须确认课程存在、课程类型为
-Project 或 Praxis、对应 group 存在，并获得学生确认。迁移保留的
-`R002_PHIL1101r` 是唯一 legacy Reading 证据：必须同时保持
-`binding_status: idle` 与 `legacy_frozen: true`，不得激活、复制或作为新建先例。
-它不是合法可激活 R。除这个 exact 冻结证据外，Mastery binding 一律非法；
-其他 binding 也不得声明 `legacy_frozen` 或冒用 registry 的 legacy category。
+**Mastery must never enter R** (it may enter G only).
 
 ---
 
-## R 只保存 binding 字段
+## Lifecycle
 
-完整对象分层迁移完成后，R 将只保存 binding 字段：
+R may be `idle / active / paused / closed`. Before activation, the course must be confirmed to exist,
+its type must be Project or Praxis, the corresponding group must exist, and the student must confirm.
+The migration-preserved
+`R002_PHIL1101r` is the only legacy Reading evidence: it must keep both
+`binding_status: idle` and `legacy_frozen: true`, and must never be activated, copied, or used as a
+precedent for a new one.
+It is not a legally activatable R. Apart from that exact frozen evidence, a Mastery binding is always
+illegal;
+and no other binding may declare `legacy_frozen` or borrow the registry's legacy category.
+
+---
+
+## R stores binding fields only
+
+Once the full object-layer migration is complete, R will store only binding fields:
 
 ```yaml
 type: binding
@@ -68,64 +77,70 @@ binding_status: idle
 execution_mode: flexible
 ```
 
-R 不拥有课程计划、进度、验收记录、lesson 或 mistake bank；这些属于绑定的 Course。
+R does not own the course plan, progress, acceptance records, lessons, or the mistake bank; those belong
+to the Course it binds.
 
-实际 binding 只存在于所属 group 的 `bindings/`；本通用 playbook 不枚举当前实例
-的 R 编号、课程或 group。不得重新打开已经否决的 legacy Reading R 语义。
-
----
-
-## 核心规则
-
-### 第一条：不占 G 预算
-
-R 默认不占 active group 的预算；若用户要分配组内时间，必须显式写入该 group 的
-`plan.md` 与 `calendar.md`。
-
-### 第二条：D4 兼容但无 KPI
-
-R 可以使用 group calendar 明确标出的无 KPI 弹性时段，但不自动继承任何旧
-overlay 的 D4 或 3-1-3 节奏。
-
-### 第三条：多 R 并行
-
-不限活跃 R 数量，但建议同时不超过 2 个。
-
-### 第四条：仪式锚
-
-**Project R**：里程碑即仪式。按绑定的验证模式（A/B/B-K）执行验收。
-
-**Praxis R**：行动记录即仪式。按频率记录行动证据和外部反馈，定期复盘。
-
-### 第五条：验收方式
-
-**Project R**：绑定模式验收。验证模式定义见 `50_playbook/project_verification.md`。
-
-**Praxis R**：行动证据验收。
-
-### 第六条：R 不抵账
-
-R 永远不得作为 G 未达标周的解释、补偿或替代。
+A real binding exists only in its owning group's `bindings/`; this general playbook does not enumerate
+the current instance's
+R numbers, courses, or groups. The rejected legacy Reading R semantics must never be reopened.
 
 ---
 
-## Doctor 对接
+## Core rules
 
-| 检查项 | 级别 | 说明 |
+### Rule 1: it does not consume G's budget
+
+R does not consume the active group's budget by default; if the user wants to allocate in-group time, it
+must be written explicitly into that group's
+`plan.md` and `calendar.md`.
+
+### Rule 2: D4-compatible but with no KPI
+
+R may use a KPI-free elastic slot explicitly marked in the group calendar, but it does not automatically
+inherit any old overlay's D4 or 3-1-3 rhythm.
+
+### Rule 3: several Rs in parallel
+
+The number of active Rs is not capped, though no more than 2 at once is recommended.
+
+### Rule 4: the ritual anchor
+
+**A Project R**: the milestone is the ritual. Acceptance follows the bound verification mode (A/B/B-K).
+
+**A Praxis R**: the action record is the ritual. Record action evidence and external feedback at a set
+frequency, and review periodically.
+
+### Rule 5: how it is accepted
+
+**A Project R**: accepted by the bound mode. The verification-mode definitions are in
+`50_playbook/project_verification.md`.
+
+**A Praxis R**: accepted on action evidence.
+
+### Rule 6: R never offsets the account
+
+R may never be used as an explanation, a compensation, or a substitute for a week in which G fell short.
+
+---
+
+## Doctor interface
+
+| Check | Level | Note |
 |---|---|---|
-| binding 引用不存在的 course/group | **FAIL** | 引用必须闭合 |
-| Mastery 课程绑定到 R（exact frozen R002 证据除外） | **FAIL** | Mastery 只能进入 G |
-| binding 状态不在枚举内 | **FAIL** | 状态必须可判定 |
-| legacy Reading binding 不是既有冻结 R002 | **FAIL** | 只保留迁移证据，不恢复旧模型 |
+| a binding references a non-existent course/group | **FAIL** | references must close |
+| a Mastery course bound to R (the exact frozen R002 evidence excepted) | **FAIL** | Mastery may enter G only |
+| a binding status outside the enumeration | **FAIL** | the status must be decidable |
+| a legacy Reading binding that is not the existing frozen R002 | **FAIL** | keep the migration evidence only; do not restore the old model |
 
 ---
 
-## Memory 对接
+## Memory interface
 
-memory 指针与 G 指针分离：
+The memory pointer is separate from the G pointer:
 
 ```
-| active binding | 无或 `<RID>` | main/30_group/<GID>/bindings/ |
+| active binding | none or `<RID>` | main/30_group/<GID>/bindings/ |
 ```
 
-没有活跃 R 时缓存写“无”；激活后由 state refresh 生成真实指针。
+With no active R, the cache writes "none"; once one is activated, the state refresh generates the real
+pointer.

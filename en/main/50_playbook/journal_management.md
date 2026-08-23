@@ -1,149 +1,149 @@
-# journal 管理流程
+# The journal management flow
 
-**保护级别**：meta-playbook
+**Protection level**: meta-playbook
 
-> 本文件是 T2AG「技能固化」文档之一。
-> 当用户明确要求保存重要对话、关键决策、待办或跨课程事件记录时触发。
+> This file is one of T2AG's "skill consolidation" documents.
+> Triggered when the user explicitly asks to save an important conversation, a key decision, a to-do, or a cross-course event record.
 >
-> **适用场景**：记录不属于课程进度、不属于系统故障、不属于规则变更、但未来值得主动回看的事件与决策。
+> **Applies to**: recording events and decisions that are not course progress, not a system fault, and not a rule change, but are worth going back to on purpose later.
 
 ---
 
-## 一、核心原则
+## 1. Core principles
 
-- journal 保存**事件、决策、待办**，不是事实注入、不是错题本、不是规则源。
-- 默认不自动写入；只有用户明确要求“记入 journal / 保存这段 / 这段很重要”时才写。
-- 每篇只保留非 trivial 的决策和结论，删除闲聊、重复确认和无意义过程。
-- 默认每次有非平凡结果的对话新建一篇 `YYYY-MM-DD-<topic>.md`。
-- 只有新内容是旧 journal 的直接延续或更正时，才追加到旧文件。
-- 不确定是否合并时，先读当月和上月索引，再问用户是新建还是追加。
+- A journal stores **events, decisions, to-dos**; it is not a fact injection, not a mistake book, and not a rule source.
+- It is never written automatically by default; write only when the user explicitly says "record this in the journal / save this passage / this part matters".
+- Each entry keeps only the non-trivial decisions and conclusions; small talk, repeated confirmations, and meaningless process are deleted.
+- By default, every conversation with a non-trivial result gets a new `YYYY-MM-DD-<topic>.md`.
+- Append to an old file only when the new content is a direct continuation or correction of that old journal.
+- When merging is uncertain, read this month's and last month's indexes first, then ask the user whether to create a new entry or append.
 
 ---
 
-## 二、与现有文件的分流
+## 2. Triage against the existing files
 
-| 内容类型 | 写入位置 |
+| Content type | Written to |
 |---|---|
-| 规则、结构、模板、工具变更 | `main/00_core/t2ag_changelog.md` |
-| 系统/流程问题与解决 | `main/00_core/t2ag_problemlog.md` |
-| 课程进度、停顿点、教学记录 | `[课程]/progress.md` / 当前 Lesson 或 Exercise 主载体 |
-| 学生知识错误 | `[课程]/mistake_bank.md` |
-| 学生情绪、性格、课程感受 | `main/10_student/profile/profile.md` / `course_reflections.md` |
-| Lesson 局部想法 | `lessons/lessonNN/lesson_thoughts.md`（真实出现时创建） |
-| Exercise 学生原话与跨题索引 | 对应 Attempt / `exercises/exercise_thoughts.md` |
-| 跨 lesson / exercise 的课程核心内容思考 | `main/10_student/profile/course_reflections.md` 当前课程段，并回链局部来源 |
-| 跨课程、跨实践、非故障类的重要事件/决策/待办 | `main/60_journal/` |
+| a rule, structure, template, or tool change | `main/00_core/t2ag_changelog.md` |
+| a system/process problem and its solution | `main/00_core/t2ag_problemlog.md` |
+| course progress, the stopping point, the teaching record | `[course]/progress.md` / the current Lesson or Exercise main carrier |
+| a student knowledge error | `[course]/mistake_bank.md` |
+| the student's emotions, character, how the course felt | `main/10_student/profile/profile.md` / `course_reflections.md` |
+| a local thought inside a Lesson | `lessons/lessonNN/lesson_thoughts.md` (created when one really appears) |
+| a student's verbatim words in an Exercise, and the cross-problem index | the matching Attempt / `exercises/exercise_thoughts.md` |
+| a core-content reflection spanning lessons / exercises | the current course section of `main/10_student/profile/course_reflections.md`, linked back to the local source |
+| an important cross-course, cross-practice, non-fault event / decision / to-do | `main/60_journal/` |
 
-journal 是回看层，不覆盖任何真相源。
+The journal is a review layer; it never overrides any source of truth.
 
 ---
 
-## 二点五、Evolution Register 与 ADR
+## 2.5 The Evolution Register and ADRs
 
-| 对象 | 路径 | 职责 |
+| Object | Path | Responsibility |
 |---|---|---|
-| **Evolution Register** | `main/60_journal/t2ag_evolution_register.md` | 决策生命周期：`observing → discussing → decided → archived` |
-| **兼容 redirect** | `main/60_journal/t2ag_evolution.md` | 无正文；`journal_index: false`；指向 Register |
-| **ADR** | `docs/adr/` | 可移植架构决定正文；**不**复制状态机 |
+| **Evolution Register** | `main/60_journal/t2ag_evolution_register.md` | the decision lifecycle: `observing → discussing → decided → archived` |
+| **Compatibility redirect** | `main/60_journal/t2ag_evolution.md` | no body; `journal_index: false`; points at the Register |
+| **ADR** | `docs/adr/` | the portable body of an architectural decision; it does **not** copy the state machine |
 
-规则（摘要；完整字段见 `docs/adr/README.md`）：
+Rules (summary; the full field list is in `docs/adr/README.md`):
 
-1. 不是每个 EV 都生成 ADR；仅跨模块、难逆转、改变责任/信任边界或可跨项目复用的架构决定才提升。
-2. 本地 `accepted` ADR 必须关联 ≥1 个本地 `decided`/`archived` 架构 EV（`source_evolution`）。
-3. `proposed` ADR 可关联 `discussing` EV。
-4. 新 `architecture` + `decided`/`archived` EV 应有 `adr_refs`，或显式 `adr_exception`。
-5. ADR accepted ≠ 实现完成；落地仍由 EV、changelog、版本状态与协议表达。
-6. 确定性校验：`main/70_tools/decision_record_contract.py` + Doctor `runtime.decision_records`。
+1. Not every EV produces an ADR; only an architectural decision that crosses modules, is hard to reverse, changes a responsibility/trust boundary, or is reusable across projects gets promoted.
+2. A local `accepted` ADR must be linked to ≥1 local `decided`/`archived` architecture EV (`source_evolution`).
+3. A `proposed` ADR may be linked to a `discussing` EV.
+4. A new `architecture` + `decided`/`archived` EV should have `adr_refs`, or an explicit `adr_exception`.
+5. An ADR being accepted ≠ the implementation being done; landing is still expressed by the EV, the changelog, the version state, and the protocol.
+6. Deterministic validation: `main/70_tools/decision_record_contract.py` + Doctor `runtime.decision_records`.
 
-`decided → archived` 仍须 changelog 批次 + 落地指向 + 当月索引一行（见 Register 正文状态机）。
+`decided → archived` still requires a changelog batch + a landing pointer + one line in that month's index (see the state machine in the Register body).
 
 ---
 
-## 三、目录与命名
+## 3. Directory and naming
 
 ```text
 main/60_journal/
 ├── INDEX.md
 ├── YYYY-MM.md
-├── t2ag_evolution_register.md   # Evolution Register（canonical）
-├── t2ag_evolution.md            # redirect only（journal_index: false）
-└── YYYY-MM-DD-<主题关键词>.md
+├── t2ag_evolution_register.md   # the Evolution Register (canonical)
+├── t2ag_evolution.md            # redirect only (journal_index: false)
+└── YYYY-MM-DD-<topic-keyword>.md
 ```
 
-- `INDEX.md`：总索引。
-- `YYYY-MM.md`：月度索引/报告。
-- `YYYY-MM-DD-<主题关键词>.md`：单篇 journal。
+- `INDEX.md`: the master index.
+- `YYYY-MM.md`: the monthly index/report.
+- `YYYY-MM-DD-<topic-keyword>.md`: a single journal entry.
 
-索引表由 `main/70_tools/build_journal_index.py` 维护。新增或修改 journal 后：
+The index tables are maintained by `main/70_tools/build_journal_index.py`. After adding or changing a journal:
 
 ```powershell
 python -B main/70_tools/build_journal_index.py --write
 python -B main/70_tools/build_journal_index.py --check
 ```
 
-- 无参数与显式 `--check` 都只读检查；只有 `--write` 会改写生成块。
-- `INDEX.md` 与当前 `YYYY-MM.md` 的 `T2AG_GENERATED` 块不得手工编辑；块外正文仍由人维护。
-- 新月份先创建对应 `YYYY-MM.md` 并安装一个月度列表生成块，再运行生成器。
+- With no argument, and with an explicit `--check`, it only inspects; only `--write` rewrites a generated block.
+- The `T2AG_GENERATED` blocks in `INDEX.md` and the current `YYYY-MM.md` must never be hand-edited; the prose outside a block is still maintained by hand.
+- For a new month, create the matching `YYYY-MM.md` and install a monthly-list generation block first, then run the generator.
 
 ---
 
-## 四、单篇模板
+## 4. The single-entry template
 
 ```markdown
-# YYYY-MM-DD 主题
+# YYYY-MM-DD Topic
 
-> **日期**：YYYY-MM-DD
-> **状态**：进行中 / 待验证 / 已完成 / 已归档
+> **Date**: YYYY-MM-DD
+> **Status**: in progress / awaiting verification / done / archived
 
-## 主题
+## Topic
 
 1. ...
 
-## 使用到的 Skill
+## Skills used
 
-| Skill 名称 | 次数 | 用途 |
+| Skill name | Times | Purpose |
 |---|---|---|
 | `skill-name` | 1 | ... |
 
-> 若本次没有加载 skill，写：本次对话未加载 skill。
+> If no skill was loaded this time, write: no skill was loaded in this conversation.
 
-## 关键决策
+## Key decisions
 
 - ...
 
-## 待办
+## To-do
 
 - [ ] ...
 
-## 关联文件
+## Related files
 
 - ...
 ```
 
-### 最小索引 metadata schema
+### The minimal index metadata schema
 
-- 第一条一级标题（`# ...`）是索引标题。
-- `日期` 和 `状态` 使用模板中的引用行；日期格式为 `YYYY-MM-DD`。
-- 为兼容现有 journal，缺少 `日期` 时依次回退到文件名前缀、一级标题日期、标题前导区出现的首个 ISO 日期；缺少 `状态` 时显示 `—`。
-- 这是兼容旧文件的最小 schema。生成器不反向改写 journal 正文；新文件应显式填写日期和状态，避免依赖回退。
-
----
-
-## 五、常见问题
-
-- **把 journal 当自动流水账**：错。默认不自动写，用户明确要求才写。
-- **把系统故障写进 journal**：错。系统故障进入 `problemlog`。
-- **把规则变更只写 journal**：错。规则变更必须进入 `changelog`。
-- **默认把新对话并入旧 journal**：错。只有直接延续或更正才合并；否则新建。
-- **漏掉使用到的 Skill 表**：不合格。即使没有加载 skill，也要写明“本次对话未加载 skill”。
-- **手改索引生成块**：错。修改 journal 的标题或 metadata，再运行生成器。
+- The first level-one heading (`# ...`) is the index title.
+- `Date` and `Status` use the blockquote lines from the template; the date format is `YYYY-MM-DD`.
+- For compatibility with existing journals, when `Date` is missing it falls back in order to the filename prefix, the date in the level-one heading, and the first ISO date appearing in the heading's lead-in area; when `Status` is missing, `—` is displayed.
+- This is the minimal schema for compatibility with old files. The generator never rewrites journal prose in reverse; a new file should fill in the date and status explicitly rather than relying on a fallback.
 
 ---
 
-## 六、关联文件
+## 5. Common problems
 
-- `main/60_journal/INDEX.md` —— journal 总索引。
-- `main/60_journal/YYYY-MM.md` —— 月度索引。
-- `main/00_core/t2ag_changelog.md` —— 规则变更。
-- `main/00_core/t2ag_problemlog.md` —— 系统/流程问题。
-- `main/50_playbook/playbook_management.md` —— 程序性记忆管理。
+- **Treating the journal as an automatic running log**: wrong. It is not written automatically by default; write only when the user asks.
+- **Putting a system fault into the journal**: wrong. A system fault goes into the `problemlog`.
+- **Recording a rule change only in the journal**: wrong. A rule change must go into the `changelog`.
+- **Merging a new conversation into an old journal by default**: wrong. Merge only for a direct continuation or correction; otherwise create a new entry.
+- **Leaving out the skills-used table**: not acceptable. Even when no skill was loaded, write "no skill was loaded in this conversation".
+- **Hand-editing a generated index block**: wrong. Change the journal's title or metadata, then run the generator.
+
+---
+
+## 6. Related files
+
+- `main/60_journal/INDEX.md` — the journal master index.
+- `main/60_journal/YYYY-MM.md` — the monthly index.
+- `main/00_core/t2ag_changelog.md` — rule changes.
+- `main/00_core/t2ag_problemlog.md` — system/process problems.
+- `main/50_playbook/playbook_management.md` — procedural memory management.

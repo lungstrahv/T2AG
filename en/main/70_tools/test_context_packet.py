@@ -651,10 +651,25 @@ class CriticalPacketTests(unittest.TestCase):
             },
         )
 
-    def test_background_snapshot_matches_and_mismatch_is_rejected(self) -> None:
+    def test_background_snapshot_matches_critical(self) -> None:
+        """Both builders share one snapshot; the lesson-branch assertions follow.
+
+        Split out of `test_background_snapshot_matches_and_mismatch_is_rejected` on
+        2026-08-22.  The original test bundled two unrelated things -- "the snapshots
+        agree" and "a stale snapshot is rejected" -- and read `background["route"]`
+        with no guard.  On an uninitialized instance the background packet has no
+        `route` by design (see the first-run comment in `render_markdown`), so it died
+        with a KeyError on an empty Skeleton.  A skipTest at the top of the original
+        would have taken the second half down with it, and that half is perfectly valid
+        on an empty instance -- trading a loud crash for a silent loss of coverage, the
+        same defect family wearing different clothes.  Hence two tests: this one guards
+        per the idiom already used six times in this file, the other runs unconditionally.
+        """
         critical = context.build_critical_packet(context.ROOT)
         background = context.build_packet(context.ROOT)
         self.assertEqual(critical["snapshot_id"], background["snapshot_id"])
+        if background.get("status") == "first_run_required":
+            self.skipTest("uninitialized instance")
         if background["route"]["current_activity"] == "lesson":
             consumption = background["source_consumption"]
             if consumption["required"]:
@@ -670,6 +685,10 @@ class CriticalPacketTests(unittest.TestCase):
                     consumption["current_pdf_page_index"],
                     consumption["pdf_page_indices"],
                 )
+
+    def test_snapshot_mismatch_is_rejected(self) -> None:
+        """A stale snapshot must be rejected -- equally true on an empty instance,
+        so this one carries no guard."""
         tool = context.ROOT / "main/70_tools/t2ag_context.py"
         result = subprocess.run(
             [
@@ -687,6 +706,66 @@ class CriticalPacketTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("snapshot mismatch", result.stdout)
+
+    def test_first_run_packet_shape_is_deliberately_special(self) -> None:
+        """A first-run packet has **no** route/cost/l1_empty_reason. Feature, not defect.
+
+        `status: first_run_required` is the signal that says "this packet has a
+        different shape, branch on it", and the absent keys make a consumer that
+        forgot to branch fail loudly -- fail-fast.  On 2026-08-22 it was proposed to
+        "just fill in the three empty keys so the shape is uniform"; the proposal was
+        refused on the spot: filling them in disguises the special case as an ordinary
+        packet, so a consumer that forgets to check `status` no longer crashes but
+        quietly renders an empty lesson -- trading a loud crash for a silent wrong
+        output.  This test promotes that comment in `render_markdown` into an
+        executable assertion, precisely to block the next well-meaning "fix".
+
+        The two builders differ here by role, not by accident: the critical packet is
+        the routing packet and always carries a route (pointing at first run here);
+        the background packet is the selection packet, and with no course there is
+        nothing to select from.
+
+        The first-run branch is forced with mock rather than by happening to run on an
+        uninitialized instance: the Chinese Main can never be empty, so this path was
+        previously reachable only from the two Skeletons -- and the empty instance is
+        where every new user starts.
+        """
+        with mock.patch.object(context, "initialized", return_value=False):
+            background = context.build_packet(context.ROOT)
+            critical = context.build_critical_packet(context.ROOT)
+        self.assertEqual(background["status"], "first_run_required")
+        self.assertEqual(critical["status"], "first_run_required")
+        for absent in ("route", "cost", "l1_empty_reason"):
+            self.assertNotIn(
+                absent,
+                background,
+                msg=f"the first-run background packet must not carry {absent!r}; "
+                "filling it in lets a consumer that forgot to branch pass silently "
+                "(adjudicated 2026-08-22)",
+            )
+        self.assertIn("next_action", background)
+        self.assertIn("route", critical)
+        self.assertEqual(critical["route"]["activity_position"], "first_run")
+        self.assertEqual(critical["route"]["next_action_kind"], "first_run")
+        self.assertEqual(background["snapshot_id"], critical["snapshot_id"])
+        self.assertTrue(background["snapshot_id"].startswith("CTX-FIRST-RUN-"))
+
+    def test_first_run_render_survives_include_l1(self) -> None:
+        """Markdown rendering with `--include-l1` must not crash on an empty instance.
+
+        The first-run early return in `render_markdown` was bought by an earlier
+        incident: control used to fall through to the L1 block below, which reads
+        `l1_empty_reason` unconditionally, so the empty-skeleton quick-start command
+        documented as `t2ag_context.py --include-l1 --format markdown` ended in a
+        KeyError.  The fix has had **zero** test cover ever since -- an invariant held
+        up by a comment alone, which is the family this repo keeps paying for.  Pinned
+        here while it is green.
+        """
+        with mock.patch.object(context, "initialized", return_value=False):
+            packet = context.build_packet(context.ROOT)
+            text = context.render_markdown(packet, include_l1=True)
+        self.assertIn("first_run_required", text)
+        self.assertIn(packet["snapshot_id"], text)
 
     def test_exercise_statement_stops_before_hint(self) -> None:
         problem = (
@@ -741,7 +820,7 @@ class LiveReleaseTests(unittest.TestCase):
             self.assertEqual(packet["status"], "first_run_required")
             self.assertEqual(
                 packet["next_action"],
-                "读取 main/50_playbook/first_run.md",
+                "Read main/50_playbook/first_run.md",
             )
             return
 
@@ -829,8 +908,18 @@ class LiveReleaseTests(unittest.TestCase):
             self, l0_markdown, "不是新的真相源", name="the L0 markdown"
         )
         self.assertIn("never call that ratio an end-to-end token reduction", l0_markdown)
-        self.assertIn("## L1 · 当前一步直接证据", combined_markdown)
-        self.assertIn("## L2 · 触发式完整读取", l0_markdown)
+        marker_assertions.assert_states_rule(
+            self,
+            combined_markdown,
+            "## L1 · 当前一步直接证据",
+            name="the combined markdown",
+        )
+        marker_assertions.assert_states_rule(
+            self,
+            l0_markdown,
+            "## L2 · 触发式完整读取",
+            name="the L0 markdown",
+        )
         self.assertGreaterEqual(len(packet["conditional_reads"]), 6)
 
     def test_explicit_current_course_matches_auto_route(self) -> None:
@@ -1174,7 +1263,7 @@ class FirstRunRenderTests(unittest.TestCase):
     PACKET = {
         "status": "first_run_required",
         "snapshot_id": "CTX-FIRST-RUN-abc123",
-        "next_action": "读取 main/50_playbook/first_run.md",
+        "next_action": "Read main/50_playbook/first_run.md",
     }
 
     def test_first_run_renders_without_l1(self) -> None:

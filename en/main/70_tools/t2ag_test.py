@@ -328,13 +328,32 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     started = time.monotonic()
     max_seconds = workflow["ordinary_budget"]["max_minutes"] * 60
-    for row in plan["selected"]:
+    total = len(plan["selected"])
+
+    def abort_census(position: int, test_id: str) -> None:
+        """Denominator guard (P-0077): a cross-file abort path must report its own size too.
+
+        The same change as in `contract_test_support.run_contract_tests`: the original implementation
+        printed the `result:` line only on the success path, so on an abort the denominator vanished and
+        the planned-but-unexecuted test files were invisible. All three abort paths (budget exhausted /
+        timeout / red) come through here. Whether to "record the error and continue" is on the A/C
+        adjudication surface and is not part of this change.
+        """
+        print(
+            f"result: {position - 1}/{total} selected test files passed before "
+            f"ABORT at #{position} {test_id}; {total - position} never executed",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    for position, row in enumerate(plan["selected"], start=1):
         print(f"RUN {row['id']} -> {row['path']}", flush=True)
         timeout = None
         if plan["ordinary_budget"]["applies"]:
             timeout = max_seconds - (time.monotonic() - started)
             if timeout <= 0:
                 print("ERROR: ordinary validation exceeded the ten-minute budget", file=sys.stderr)
+                abort_census(position, str(row["id"]))
                 return 124
         try:
             result = subprocess.run(
@@ -345,11 +364,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         except subprocess.TimeoutExpired:
             print("ERROR: ordinary validation exceeded the ten-minute budget", file=sys.stderr)
+            abort_census(position, str(row["id"]))
             return 124
         if result.returncode:
             print(f"FAIL {row['id']}: exit={result.returncode}", file=sys.stderr)
+            abort_census(position, str(row["id"]))
             return result.returncode
-    print(f"result: {len(plan['selected'])}/{len(plan['selected'])} selected test files passed")
+    print(f"result: {total}/{total} selected test files passed")
     return 0
 
 

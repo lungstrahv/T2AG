@@ -27,6 +27,9 @@ spec = importlib.util.spec_from_file_location("t2ag_doctor_under_test", SCRIPT.w
 doctor = importlib.util.module_from_spec(spec)
 assert spec and spec.loader
 spec.loader.exec_module(doctor)
+# Stable alias: `doctor` is shadowed by a local CLI runner inside some tests
+# (`doctor = cli("t2ag_doctor.py")`), so registry lookups use this name.
+DOCTOR = doctor
 
 state_spec = importlib.util.spec_from_file_location(
     "t2ag_state_refresh_under_test",
@@ -1087,19 +1090,36 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
             f"state refresh read one progress snapshot {progress_reads} times"
         )
     memory = exercise["main/00_core/t2ag_memory.md"]
-    if "| Lesson 上下文 | 无 | — |" not in memory:
+    # LV-5: both the row label and the "none" value are spelled per edition.
+    if not any(
+        f"| {label} | {none} | — |" in memory
+        for label in DOCTOR.marker_spellings("Lesson 上下文")
+        for none in DOCTOR.marker_spellings("无")
+    ):
         raise AssertionError(f"exercise-first lesson pointer rendered incorrectly:\n{memory}")
     if "lessons/none/none.md" in memory:
         raise AssertionError(f"exercise-first state contains dangling lesson path:\n{memory}")
-    if (
-        "| 当前教学活动 | exercise: U0001 | "
-        "`main/40_course/TEST1001/exercises/U0001/exercise.md` |"
-    ) not in memory:
+    if not any(
+        (
+            f"| {label} | exercise: U0001 | "
+            "`main/40_course/TEST1001/exercises/U0001/exercise.md` |"
+        ) in memory
+        for label in DOCTOR.marker_spellings("当前教学活动")
+    ):
         raise AssertionError(f"exercise pointer missing from generated state:\n{memory}")
-    if "- **学到哪**：TEST1001 exercise U0001，first exercise" not in memory:
+    if not any(
+        f"- **{label}**" in memory and "TEST1001 exercise U0001" in memory
+        for label in DOCTOR.marker_spellings("学到哪")
+    ):
         raise AssertionError(f"active summary still derives from current_lesson:\n{memory}")
     group_view = exercise["main/30_group/G01/plan.md"]
-    if "| 课程 | 当前活动 | 停点 |" not in group_view or "exercise: U0001" not in group_view:
+    header_ok = any(
+        f"| {a} | {b} | {c_} |" in group_view
+        for a in DOCTOR.marker_spellings("课程")
+        for b in DOCTOR.marker_spellings("当前活动")
+        for c_ in DOCTOR.marker_spellings("停点")
+    )
+    if not header_ok or "exercise: U0001" not in group_view:
         raise AssertionError(f"group view still assumes Lesson:\n{group_view}")
 
     write(
@@ -1113,7 +1133,11 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
         ),
     )
     dash = rendered()["main/00_core/t2ag_memory.md"]
-    if "| Lesson 上下文 | 无 | — |" not in dash:
+    if not any(
+        f"| {label} | {none} | — |" in dash
+        for label in DOCTOR.marker_spellings("Lesson 上下文")
+        for none in DOCTOR.marker_spellings("无")
+    ):
         raise AssertionError(f"dash Lesson sentinel rendered incorrectly:\n{dash}")
 
     write(
@@ -1127,7 +1151,12 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
         ),
     )
     historical = rendered()["main/00_core/t2ag_memory.md"]
-    if "| Lesson 上下文 | lesson01（历史兼容） |" not in historical:
+    if not any(
+        f"| {label} | lesson01" in historical and any(
+            hc in historical for hc in DOCTOR.marker_spellings("历史兼容")
+        )
+        for label in DOCTOR.marker_spellings("Lesson 上下文")
+    ):
         raise AssertionError(f"historical Lesson mislabeled as active:\n{historical}")
 
     write(
@@ -1150,7 +1179,10 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
 
     write(course / "progress.md", progress("planned", "none", "", "not started"))
     planned = rendered()["main/00_core/t2ag_memory.md"]
-    if "| 当前教学活动 | —: — | — |" not in planned:
+    if not any(
+        f"| {label} | —: — | — |" in planned
+        for label in DOCTOR.marker_spellings("当前教学活动")
+    ):
         raise AssertionError(f"planned course received inferred activity fields:\n{planned}")
 
 
@@ -1989,7 +2021,7 @@ def test_persistent_exercise_source_contract(root: Path) -> None:
     source.unlink()
     reset(root)
     run_silently(doctor.check_exercises, courses)
-    assert_message(doctor.fails, "持久题源不存在")
+    assert_message(doctor.fails, "persistent problem source does not exist")
 
     source_fields = write_textbook_source_contract(
         root, "TEST1001", "U0001", content_group, "test",
@@ -2211,7 +2243,7 @@ def test_persistent_exercise_source_contract(root: Path) -> None:
     assert_message(doctor.fails, "hash-bound manifest")
 
     temporary_source = (
-        # Post-S3 defense: working_pages 路径用于验证 registry 对不存在文件的 FAIL 检查
+        # Post-S3 defence: the working_pages path exercises the registry's FAIL check for a missing file
         "main/40_course/TEST1001/lessons/lesson01/"
         "working_pages/source_excerpt.md"
     )
@@ -2425,15 +2457,17 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
     ))
     if required_rules:
         raise AssertionError(f"lesson_recover no longer states: {required_rules}")
-    required = (
+    # LV-5: a prose guard is satisfied by any registered edition; a bare
+    # `token not in content` pins zh-CN and FAILs a correct translation.  The tuple is
+    # inline rather than named so the L3.5 guard can see which role these literals play.
+    missing = doctor.missing_markers(content, (
         "不写 `current_lesson`",
         "t2ag_activity.py --course <COURSE_ID> --intent recover",
         "连续 Scope **5–8**",
         "不得自动清理",
         "exact RT3",
         "current_snapshot.json",
-    )
-    missing = [token for token in required if token not in content]
+    ))
     if missing:
         raise AssertionError(f"lesson_recover missing Exercise-first guards: {missing}")
     forbidden_recovery = (
@@ -2454,18 +2488,39 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
     ))
     if close_rules:
         raise AssertionError(f"session_close no longer states: {close_rules}")
-    close_required = (
+    missing_close = doctor.missing_markers(close, (
         "t2ag_activity.py --course <COURSE_ID> --intent close",
         "不产生 pending、CLR 或自动 pause",
-    )
-    missing_close = [token for token in close_required if token not in close]
+    ))
     if missing_close:
         raise AssertionError(f"session_close missing atomic activity routing: {missing_close}")
-    if (
-        'G{"current_activity"}' not in flow
-        or "共同强制事务：progress + 当前活动主载体 + 真实台账" not in flow
-    ):
-        raise AssertionError("flow view does not branch before activity consumers")
+    # These anchors are carrier-bound on purpose, but the carrier changed once
+    # already: c543891 rewrote the panorama from mermaid to a character digraph,
+    # and this assertion kept looking for the mermaid literals
+    # 'G{"current_activity"}' / "共同强制事务：…". The branch and the transaction
+    # line were both still there — only the bytes had moved. The suite stayed red
+    # from 2026-08-09 to 2026-08-21, and a suite that is always red stops being
+    # read: the SOURCE_LANGUAGE break in new-course sat next to it unnoticed.
+    # So: match the smallest span that carries the meaning, not the drawing
+    # characters around it. If the panorama is redrawn again, update these two
+    # anchors in the same commit.
+    # Match per line, not on padded literals: the digraph pads arm labels to
+    # align the arrows, so "lesson" gets three spaces and "exercise" one. Byte
+    # counting on cosmetic whitespace is exactly how this assertion rotted.
+    branches_before_consumers = "current_activity" in flow and all(
+        any(arm in line and "─→ L1" in line for line in flow.splitlines())
+        for arm in ("lesson", "exercise")
+    )
+    # LV-5: the transaction line is prose and is spelled per edition, so it resolves
+    # through the registry rather than through one edition's literal.
+    forces_shared_transaction = doctor.has_marker(
+        flow, "progress + 当前活动主载体 + 真实台账"
+    )
+    if not branches_before_consumers or not forces_shared_transaction:
+        raise AssertionError(
+            "flow view does not branch before activity consumers "
+            f"(branch={branches_before_consumers}, transaction={forces_shared_transaction})"
+        )
 
     for lesson_file in (REPO / "main/40_course").glob(
         "*/lessons/lesson*/lesson*.md"
@@ -2582,6 +2637,10 @@ def generate_synthetic_exercise_first(fixture: Path, cli) -> str:
         "--entry", "exercise",
         "--teacher", "T001",
         "--source-scope", "synthetic",
+        # Matches the fixture's own problem text, which is zh-CN. The value is not
+        # incidental: `--source-language` is required with no default on purpose
+        # (see t2ag_init), so the fixture has to state it like any real course.
+        "--source-language", "zh-CN",
         "--position", "synthetic start",
         "--node-title", "identity",
         "--source-document", str(document),
@@ -2799,9 +2858,17 @@ def test_activity_cli_disk_roundtrip(root: Path) -> None:
     if not activity_id_match:
         raise AssertionError("E2E fixture is not an Exercise activity")
     activity_id = activity_id_match.group(1)
-    if "| Lesson 上下文 | 无 | — |" not in memory:
+    # LV-5: both the row label and the "none" value are spelled per edition.
+    if not any(
+        f"| {label} | {none} | — |" in memory
+        for label in DOCTOR.marker_spellings("Lesson 上下文")
+        for none in DOCTOR.marker_spellings("无")
+    ):
         raise AssertionError(f"disk refresh retained an active Lesson:\n{memory}")
-    if f"| 当前教学活动 | exercise: {activity_id} |" not in memory:
+    if not any(
+        f"| {label} | exercise: {activity_id} |" in memory
+        for label in DOCTOR.marker_spellings("当前教学活动")
+    ):
         raise AssertionError(f"disk refresh lost the Exercise pointer:\n{memory}")
     cli("t2ag_state_refresh.py", "--check")
     doctor_after_write = cli("t2ag_doctor.py")
@@ -3112,6 +3179,174 @@ def test_candidate_replay_isolation_contract(root: Path) -> None:
             )
     finally:
         candidate_replay.inspect_tree = original_inspect_tree
+
+
+def _cross_edition_editions(root: Path) -> tuple[Path, Path]:
+    """Two editions carrying the same mechanism in two numbering styles.
+
+    The playbook bodies are deliberately written the way the real corpus is: the
+    Chinese edition numbers its top sections `一、` and lets the child sit bare
+    (`### 1.`), the English edition writes `1.` and fully qualifies the child
+    (`### 1.1`).  A comparator that reads these as different structures would
+    drown the gate in false forks, so the fixture asserts the normalisation
+    rather than assuming it.
+    """
+    reset(root)
+    workflow = json.dumps(
+        {
+            "doctor_checks": {"runtime.alpha": {"handler": "check_alpha"}},
+            "profiles": {"runtime": {"checks": ["runtime.alpha"]}},
+        },
+        ensure_ascii=False,
+    )
+    bodies = {
+        "t2ag": "# 手册\n\n## 一、总则\n\n甲\n\n### 1. 子条\n\n乙\n\n## 二、边界\n\n丙\n",
+        "t2ag-skeleton-en": (
+            "# Handbook\n\n## 1. General\n\na\n\n### 1.1 Sub-clause\n\nb\n\n"
+            "## 2. Boundary\n\nc\n"
+        ),
+    }
+    for name, body in bodies.items():
+        write(
+            root / name / "main/70_tools/t2ag_doctor.py",
+            "def check_alpha() -> None:\n    pass\n",
+        )
+        write(root / name / "main/70_tools/validation_workflow.json", workflow)
+        write(root / name / "main/50_playbook/handbook.md", body)
+    return root / "t2ag", root / "t2ag-skeleton-en"
+
+
+def _cross_edition_findings(main_root: Path, edition_root: Path, **kwargs):
+    kwargs.setdefault("exempt", {})
+    kwargs.setdefault("file_exempt", {})
+    kwargs.setdefault("section_roots", ("main/50_playbook",))
+    kwargs.setdefault("section_files", ())
+    return doctor.cross_edition_parity_findings(main_root, edition_root, **kwargs)
+
+
+def test_cross_edition_parity_r1_numbering_styles_are_silent(root: Path) -> None:
+    """R1: `一、`+bare child vs `1.`+qualified child is the same structure.
+
+    This is the whole premise of the gate.  If it were false the check would be
+    unusable and the honest move would be to delete it rather than to bury the
+    noise under exemptions.
+    """
+    main_root, edition_root = _cross_edition_editions(root)
+    findings = _cross_edition_findings(main_root, edition_root)
+    if findings:
+        raise AssertionError(f"equivalent editions must be silent: {findings}")
+
+
+def test_cross_edition_parity_r2_identifier_fork_fails(root: Path) -> None:
+    """R2: the edition loses a handler and a registered check -> CE-PAR-001 FAIL."""
+    main_root, edition_root = _cross_edition_editions(root)
+    write(edition_root / "main/70_tools/t2ag_doctor.py", "def helper() -> None:\n    pass\n")
+    write(
+        edition_root / "main/70_tools/validation_workflow.json",
+        json.dumps({"doctor_checks": {}, "profiles": {"runtime": {"checks": []}}}),
+    )
+    findings = _cross_edition_findings(main_root, edition_root)
+    codes = [(code, severity) for code, severity, _ in findings]
+    if codes != [("CE-PAR-001", "FAIL")] * 3:
+        raise AssertionError(f"identifier fork must FAIL 001 three times: {findings}")
+    if not any("check_alpha" in message for _c, _s, message in findings):
+        raise AssertionError(f"finding must name the lost handler: {findings}")
+
+
+def test_cross_edition_parity_r3_section_fork_fails(root: Path) -> None:
+    """R3: a numbered subsection disappears from the edition -> CE-PAR-002 FAIL."""
+    main_root, edition_root = _cross_edition_editions(root)
+    path = edition_root / "main/50_playbook/handbook.md"
+    head, _sep, _tail = path.read_text(encoding="utf-8").partition("### 1.1")
+    write(path, head + "## 2. Boundary\n\nc\n")
+    findings = _cross_edition_findings(main_root, edition_root)
+    if [(code, severity) for code, severity, _ in findings] != [("CE-PAR-002", "FAIL")]:
+        raise AssertionError(f"section fork must FAIL 002 only: {findings}")
+    if "§1.1" not in findings[0][2]:
+        raise AssertionError(f"finding must name the section number: {findings}")
+
+
+def test_cross_edition_parity_r4_debt_reports_info_then_goes_stale(root: Path) -> None:
+    """R4: a registered gap is INFO debt; once refilled the same entry WARNs stale.
+
+    The transition is the point of CE-2: the exemption table is a ledger that
+    nags when it is paid off, not a place for a gap to retire quietly.
+    """
+    main_root, edition_root = _cross_edition_editions(root)
+    write(edition_root / "main/70_tools/t2ag_doctor.py", "def helper() -> None:\n    pass\n")
+    exempt = {("doctor_handler", "check_alpha"): "test debt; refill condition: backport"}
+    debt = _cross_edition_findings(main_root, edition_root, exempt=exempt)
+    if not any(code == "CE-PAR-000" and severity == "INFO" for code, severity, _ in debt):
+        raise AssertionError(f"registered gap must report INFO debt: {debt}")
+    if any(severity == "FAIL" and "check_alpha" in message for _c, severity, message in debt):
+        raise AssertionError(f"registered gap must not also FAIL: {debt}")
+    write(
+        edition_root / "main/70_tools/t2ag_doctor.py",
+        "def check_alpha() -> None:\n    pass\n",
+    )
+    paid = _cross_edition_findings(main_root, edition_root, exempt=exempt)
+    if [(code, severity) for code, severity, _ in paid] != [("CE-PAR-003", "WARN")]:
+        raise AssertionError(f"refilled gap must WARN 003 stale: {paid}")
+
+
+def test_cross_edition_parity_r5_unreadable_source_fails_loudly(root: Path) -> None:
+    """R5: an unparsable comparison source FAILs 004 instead of shrinking coverage.
+
+    A corrupt `validation_workflow.json` would otherwise yield an empty
+    identifier set on one side, which reads as "the edition lost everything" or,
+    worse, as silence.  Losing a comparator quietly is how the blind spot this
+    check exists for was created in the first place.
+    """
+    main_root, edition_root = _cross_edition_editions(root)
+    write(edition_root / "main/70_tools/validation_workflow.json", "{not json")
+    findings = _cross_edition_findings(main_root, edition_root)
+    if not any(
+        code == "CE-PAR-004" and severity == "FAIL" and "unparsable" in message
+        for code, severity, message in findings
+    ):
+        raise AssertionError(f"unreadable source must FAIL 004: {findings}")
+    dangling = _cross_edition_findings(
+        main_root, edition_root, exempt={("section", "main/50_playbook/gone.md#9"): "r"}
+    )
+    if not any(
+        code == "CE-PAR-003" and severity == "WARN" and "dangles" in message
+        for code, severity, message in dangling
+    ):
+        raise AssertionError(f"dangling exemption must WARN 003: {dangling}")
+
+
+def test_cross_edition_parity_r6_peer_resolution_is_symmetric(root: Path) -> None:
+    """R6: either side finds the other; a lone edition finds nobody and stays silent.
+
+    The silence is the fluency contract: whoever holds one edition -- which is
+    every trial user, always -- must never be shown this gate's findings, and the
+    orientation must not flip when the run starts from the English side, or the
+    exemption table would read backwards and every entry would dangle.
+    """
+    main_root, edition_root = _cross_edition_editions(root)
+    if doctor.cross_edition_peer(main_root) != edition_root:
+        raise AssertionError("Chinese side must resolve the English edition as peer")
+    if doctor.cross_edition_peer(edition_root) != main_root:
+        raise AssertionError("English side must resolve the Chinese edition as peer")
+    lone = root / "t2ag-somebody-renamed-it"
+    lone.mkdir(parents=True, exist_ok=True)
+    if doctor.cross_edition_peer(lone) is not None:
+        raise AssertionError("an unlisted directory must have no peer, hence no findings")
+    for invoked_from in (main_root, edition_root):
+        if doctor.cross_edition_orient(
+            invoked_from, main_root if invoked_from is edition_root else edition_root
+        ) != (main_root, edition_root):
+            raise AssertionError(f"orientation must not depend on caller: {invoked_from}")
+    write(edition_root / "main/70_tools/t2ag_doctor.py", "def helper() -> None:\n    pass\n")
+    oriented = doctor.cross_edition_orient(edition_root, main_root)
+    findings = _cross_edition_findings(*oriented)
+    if not any(
+        "missing from the English edition" in message and "check_alpha" in message
+        for _code, _severity, message in findings
+    ):
+        raise AssertionError(
+            f"run from the English side must still name the English edition: {findings}"
+        )
 
 
 def test_migration_manifest_tamper(root: Path) -> None:
@@ -3615,7 +3850,8 @@ def test_changelog_entry_above_title_warns(root: Path) -> None:
         raise AssertionError(f"expected exactly one violation, got {violations}")
     assert_message(violations, "ignored front zone contains a dated entry")
     assert_message(violations, "Parked above title")
-    # 「最新」解析必须继续忽略前置区（既有约定不因新断言而改变）。
+    # Resolving "the newest" must go on ignoring the preamble area (an existing convention that a new
+    # assertion does not change).
     entries = doctor.parse_changelog_entries(text)
     if "Fixture changelog entry" not in entries[0]["heading"]:
         raise AssertionError(f"front-zone entry must not become latest: {entries[0]}")
@@ -4867,13 +5103,33 @@ def test_activity_genesis_transition_from_planned(root: Path) -> None:
 
 def run_contract_tests(tests: tuple, *, suite_name: str) -> int:
     """Run a durable selection of atomic assertions in isolated fixture roots."""
+    total = len(tests)
     with tempfile.TemporaryDirectory(prefix=f"t2ag_{suite_name}_") as tmp:
         base = Path(tmp)
         for index, test in enumerate(tests, start=1):
             root = base / f"case_{index}"
-            test(root)
+            try:
+                test(root)
+            except BaseException:
+                # Denominator guard (P-0077): the abort path must report its own size. The original
+                # implementation printed the `result:` line only on the success path, so on a crash the
+                # denominator vanished -- the screen said only "it went red at #N", with nothing anywhere
+                # saying how many were supposed to run, and the unexecuted tests therefore left no image
+                # (from 2026-08-09, the 4 tests after #18 had two weeks of zero execution and 13 days of
+                # nobody knowing).
+                # This change adds visibility only: the traceback and the exit code are unchanged.
+                # Whether to "record the error and continue", and how long a red may stand, are on the
+                # A/C adjudication surface and are not built here.
+                print(
+                    f"result: {index - 1}/{total} {suite_name} tests passed before "
+                    f"ABORT at #{index} {test.__name__}; "
+                    f"{total - index} never executed",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                raise
             print(f"PASS {test.__name__}")
-    print(f"result: {len(tests)}/{len(tests)} {suite_name} tests passed")
+    print(f"result: {total}/{total} {suite_name} tests passed")
     return 0
 
 

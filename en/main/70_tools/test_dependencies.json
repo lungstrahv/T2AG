@@ -384,7 +384,11 @@
       "sources": [
         "main/40_course/_templates",
         "main/50_playbook/progress_tracking.md",
-        "main/70_tools/t2ag_activity.py"
+        "main/50_playbook/lesson_recover.md",
+        "main/50_playbook/session_close.md",
+        "main/50_playbook/t2ag_flow.md",
+        "main/70_tools/t2ag_activity.py",
+        "main/70_tools/t2ag_init.py"
       ],
       "tests": [
         "contracts.activity"

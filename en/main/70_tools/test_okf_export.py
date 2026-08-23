@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""EV-0024 P0 写路径护栏与 R-3 升格判据的红测。
+"""Red tests for the EV-0024 P0 write-path guards and the R-3 promotion criterion.
 
-这些用例锁的是**独立复审 2026-08-09 实测到的具体破坏面**，不是泛化的输入校验：
-每个用例注明它对应复审报告的哪一条 finding。删掉护栏时，对应用例必须转红。
+These cases pin the **specific destruction surface measured by the independent re-review of
+2026-08-09**, not generic input validation: each case names which finding of the re-review report it
+corresponds to. Remove a guard and its case must turn red.
 """
 from __future__ import annotations
 
@@ -19,27 +20,28 @@ import okf_export as okf
 
 
 class SinglePathTokenTests(unittest.TestCase):
-    """R-3：只升格「内联代码内容恰为单一可解析路径」的情况。"""
+    """R-3: promote only when the inline code content is exactly one resolvable path."""
 
     def test_bare_path_promotes(self) -> None:
         self.assertTrue(okf.is_single_path_token("session_close.md"))
         self.assertTrue(okf.is_single_path_token("main/50_playbook/first_run.md"))
 
     def test_inline_command_rejected(self) -> None:
-        # 复审原文举例：bundle 中三条 `grep ... file.md` 被整体升格成链接。
+        # From the re-review: three `grep ... file.md` commands in the bundle were promoted wholesale to links.
         self.assertFalse(okf.is_single_path_token('grep -rn "x" file.md'))
         self.assertFalse(okf.is_single_path_token("cat a.md | less"))
 
     def test_multi_target_rejected(self) -> None:
-        # 复审原文：多目标命令被压成一个目标边。
+        # From the re-review: a multi-target command was squashed into a single-target edge.
         self.assertFalse(okf.is_single_path_token("a.md b.md"))
 
     def test_option_flag_rejected(self) -> None:
         self.assertFalse(okf.is_single_path_token("--out a.md"))
 
     def test_template_placeholder_rejected(self) -> None:
-        # `<COURSE_ID>` 一类模板占位不是真路径；旧正则会命中它，再经裸文件名回退
-        # 匹配到某个真 course.md，凭空造出一条错边。
+        # A template placeholder such as `<COURSE_ID>` is not a real path; the old regex matched it,
+        # then fell back to a bare filename match against some real course.md, manufacturing a wrong
+        # edge out of nothing.
         self.assertFalse(okf.is_single_path_token("40_course/<COURSE_ID>/course.md"))
 
     def test_non_markdown_rejected(self) -> None:
@@ -47,7 +49,7 @@ class SinglePathTokenTests(unittest.TestCase):
 
 
 class CourseIdValidationTests(unittest.TestCase):
-    """P0-1：course_id 同时进源路径与输出相对路径，未校验时可双向穿越。"""
+    """P0-1: course_id feeds both the source path and the output relative path, so without validation it traverses both ways."""
 
     def test_traversal_rejected(self) -> None:
         _, errors = okf.collect_sources("course:../../etc")
@@ -62,13 +64,13 @@ class CourseIdValidationTests(unittest.TestCase):
         self.assertTrue(any("course ID is invalid" in e for e in errors), errors)
 
     def test_legal_id_passes_validation(self) -> None:
-        # 合法 ID 不应因校验被拒；课程是否存在是另一条错误路径。
+        # A legal ID must not be rejected by validation; whether the course exists is a different error path.
         _, errors = okf.collect_sources("course:PY1001")
         self.assertFalse([e for e in errors if "course ID is invalid" in e], errors)
 
 
 class OutDirGateTests(unittest.TestCase):
-    """P0-3：`--out` 准入。复审判定的「可破坏主库的高危写路径」正在此处收口。"""
+    """P0-3: `--out` admission. The re-review's "high-risk write path capable of destroying the main repository" is closed here."""
 
     def test_repo_root_rejected(self) -> None:
         self.assertTrue(okf.validate_out_dir(okf.ROOT))
@@ -77,8 +79,8 @@ class OutDirGateTests(unittest.TestCase):
         self.assertTrue(okf.validate_out_dir(okf.MAIN))
 
     def test_playbook_dir_rejected(self) -> None:
-        # 这是最要命的一条：`--write --out main/50_playbook` 会删掉那里清单外的
-        # 全部 markdown。护栏必须在任何删除动作之前生效。
+        # This is the deadliest one: `--write --out main/50_playbook` would delete every markdown file
+        # there that is not in the manifest. The guard must take effect before any delete action.
         self.assertTrue(okf.validate_out_dir(okf.MAIN / "50_playbook"))
 
     def test_workspace_root_rejected(self) -> None:
@@ -106,7 +108,7 @@ class OutDirGateTests(unittest.TestCase):
 
 
 class WriteBundleTests(unittest.TestCase):
-    """P0-2 / P0-4：写入路径不得逃逸；残留与清单外文件必须 FAIL 而非 WARN。"""
+    """P0-2 / P0-4: a write path must not escape; leftovers and files outside the manifest must FAIL, not WARN."""
 
     def test_escaping_relative_path_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -120,9 +122,10 @@ class WriteBundleTests(unittest.TestCase):
             out = Path(tmp) / "bundle"
             out.mkdir()
             (out / okf.BUNDLE_MARKER).write_text("", encoding="utf-8")
-            (out / "leftover.txt").write_text("旧泄漏物", encoding="utf-8")
+            (out / "leftover.txt").write_text("an old leaked artifact", encoding="utf-8")
             errors = okf.write_bundle({"index.md": "# x\n"}, out)
-            # 原实现只扫 .md 且只 WARN，最终仍 exit 0，旧泄漏物可留在交付目录。
+            # The original implementation scanned only .md, only WARNed, and still exited 0, so an old leaked
+# artifact could stay in the delivery directory.
             self.assertTrue(any("outside the manifest" in e for e in errors), errors)
 
     def test_stale_markdown_removed(self) -> None:
@@ -130,7 +133,7 @@ class WriteBundleTests(unittest.TestCase):
             out = Path(tmp) / "bundle"
             out.mkdir()
             (out / okf.BUNDLE_MARKER).write_text("", encoding="utf-8")
-            (out / "gone.md").write_text("上一轮的概念", encoding="utf-8")
+            (out / "gone.md").write_text("a concept from the previous round", encoding="utf-8")
             errors = okf.write_bundle({"index.md": "# x\n"}, out)
             self.assertEqual(errors, [])
             self.assertFalse((out / "gone.md").exists())

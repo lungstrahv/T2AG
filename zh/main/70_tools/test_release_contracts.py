@@ -16,6 +16,13 @@ TESTS = (
     contracts.test_constitution_parity_r2_stale_exemption_warns,
     contracts.test_constitution_parity_r3_section_set_fork_fails,
     contracts.test_constitution_parity_r4_exempt_fork_and_clean_are_silent,
+    contracts.test_cross_edition_parity_r1_numbering_styles_are_silent,
+    contracts.test_cross_edition_parity_r2_identifier_fork_fails,
+    contracts.test_cross_edition_parity_r3_section_fork_fails,
+    contracts.test_cross_edition_parity_r4_debt_reports_info_then_goes_stale,
+    contracts.test_cross_edition_parity_r5_unreadable_source_fails_loudly,
+    contracts.test_cross_edition_parity_r6_peer_resolution_is_symmetric,
+    contracts.test_manifest_package_drift_pairs_by_claim_not_filename,
 )
 
 

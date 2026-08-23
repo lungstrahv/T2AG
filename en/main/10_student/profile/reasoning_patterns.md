@@ -2,48 +2,48 @@
 > 【参数】产出=X｜存量=本文件｜环节=X｜沉淀=X｜校准=X
 > 【边界】只记可观察行为，不做心理诊断（沿用本文件既有纪律）
 
-# 解题思维档案（空模板）
+# Solving-thought profile (empty template)
 
-> 本文件只记录可观察的解题行为、跨题迁移的思维模式和经过验证的替代检查方法；不做心理诊断、人格判断或完整题解。
+> This file records only observable solving behaviour, thinking patterns that transfer across problems, and verified replacement checks; it makes no psychological diagnosis, no personality judgement, and holds no full solutions.
 
-## 一、解题思维总纲
+## 1. General principles of solving
 
-暂无已确认的跨题稳定模式。
+No confirmed cross-problem stable pattern yet.
 
-> 单次观察只能成为候选记录；至少有两次证据或学生明确确认后，才可写入本节。
+> A single observation can only become a candidate record; it may enter this section only after at least two pieces of evidence, or the student's explicit confirmation.
 
-## 二、活跃思维模式
+## 2. Active thinking patterns
 
-暂无。
+None yet.
 
-### 条目模板
+### Entry template
 
 ```markdown
-### RP-XXXX 模式名称
+### RP-XXXX pattern name
 
-- 首次记录：YYYY-MM-DD
-- 来源：课程 / lesson / 错题或题目编号
-- 触发情境：
-- 可观察旧路径：
-- 常见后果：
-- 替代检查：
-- 适用范围：
-- 状态：观察中 / 已确认 / 已退役
-- 方法接替状态：candidate / reinforced / automatic / superseded（如已生成替代方法）
-- 验证记录：
+- First recorded: YYYY-MM-DD
+- Source: course / lesson / mistake or problem number
+- Trigger situation:
+- Observable old path:
+- Common consequence:
+- Replacement check:
+- Scope:
+- Status: observing / confirmed / retired
+- Method takeover state: candidate / reinforced / automatic / superseded (once a replacement method exists)
+- Verification record:
 ```
 
-## 三、已形成的有效方法
+## 3. Effective methods already formed
 
-暂无。
+None yet.
 
-## 四、带日期的观察记录
+## 4. Dated observation records
 
-暂无。
+None yet.
 
-## 维护规则
+## Maintenance rules
 
-- 仅在学生主动指出、同一模式跨题重复、错误具有跨题迁移价值，或替代方法已实际使用并产生验证结果时写入。
-- 普通算错、笔误、尚未学过知识导致的错误、教师或工具问题不写入。
-- 保留学生原话、题目来源和后续修正；模式状态只能根据后续证据更新。
-- 本文件不替代各课程 `mistake_bank.md`，具体知识错误仍写入对应课程错题库。
+- Written only when the student points it out themselves, when the same pattern repeats across problems, when an error has cross-problem transfer value, or when a replacement method has actually been used and produced a verification result.
+- An ordinary miscalculation, a slip of the pen, an error caused by material not yet taught, or a teacher/tool problem is not written here.
+- Keep the student's own words, the problem's source, and the later correction; a pattern's status may only be updated on later evidence.
+- This file does not replace each course's `mistake_bank.md`; a specific knowledge error still goes into that course's mistake bank.

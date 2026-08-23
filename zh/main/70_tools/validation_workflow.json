@@ -76,6 +76,13 @@
         "runtime.course_discovery"
       ]
     },
+    "runtime.exam_banks": {
+      "phase": "runtime",
+      "handler": "check_exam_banks",
+      "depends_on": [
+        "runtime.course_discovery"
+      ]
+    },
     "runtime.project_verification": {
       "phase": "runtime",
       "handler": "check_project_verification",
@@ -186,6 +193,13 @@
       "handler": "check_recommendation_ledger",
       "depends_on": [
         "runtime.groups"
+      ]
+    },
+    "runtime.gate_visibility": {
+      "phase": "runtime",
+      "handler": "check_gate_visibility",
+      "depends_on": [
+        "runtime.gate_ledger"
       ]
     },
     "release.playbook_taxonomy_parity": {
@@ -391,6 +405,13 @@
         "runtime.structure"
       ]
     },
+    "release.cross_edition_parity": {
+      "phase": "release",
+      "handler": "check_cross_edition_parity",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
     "release.line_endings": {
       "phase": "release",
       "handler": "check_release_line_endings",
@@ -452,6 +473,7 @@
         "runtime.engagements_activities",
         "runtime.question_banks",
         "runtime.knowledge_ledgers",
+        "runtime.exam_banks",
         "runtime.project_verification",
         "runtime.exercises",
         "runtime.teacher_contract",
@@ -469,6 +491,7 @@
         "runtime.playbook_usage",
         "runtime.domain_tier_reconciliation",
         "runtime.recommendation_ledger",
+        "runtime.gate_visibility",
         "runtime.trading_boundary",
         "runtime.external_references",
         "runtime.legacy_references",
@@ -508,6 +531,7 @@
         "release.package_surface",
         "release.distribution_parity",
         "release.constitution_parity",
+        "release.cross_edition_parity",
         "release.line_endings"
       ]
     }

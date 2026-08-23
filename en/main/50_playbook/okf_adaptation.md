@@ -1,217 +1,266 @@
-# OKF 知识包适配（okf_adaptation）
+# OKF knowledge-bundle adaptation (okf_adaptation)
 
-**保护级别**：playbook
+**Protection level**: playbook
 
-> **协议标识**：`T2AG-OKF-1`｜目标格式：Open Knowledge Format **v0.2**
+> **Protocol identifier**: `T2AG-OKF-1` | Target format: Open Knowledge Format **v0.2**
 >
-> 本手册规定 T2AG 主库如何被讲成一个 OKF 知识包（bundle），以及外部 OKF 包在什么
-> 条件下可以进入 T2AG。它是**行为规范**：机器落点是 `70_tools/okf_export.py`，
-> 但规范本身在这里，工具只是它的可复算实现。二者冲突时以本文件为准，并修工具。
+> This handbook specifies how the T2AG main repository is expressed as an OKF knowledge bundle, and
+> under what conditions an external OKF bundle may enter T2AG. It is a **behavioural specification**:
+> the machine landing point is `70_tools/okf_export.py`, but the specification itself lives here and
+> the tool is only its recomputable implementation. When the two disagree, this file governs and the
+> tool gets fixed.
 
-OKF 是一个把知识写成「目录 + markdown + YAML frontmatter」的开放规范：唯一硬性要求
-是每个概念文件的 frontmatter 带非空 `type`；信任族（`sources` / `generated` /
-`verified` / `status` / `stale_after`）全部可选，且**缺席有含义**——没有 `verified`
-就是「未核实」这一档，不是「不知道」。消费者一侧是宽容的：缺可选字段、不认识的
-`type`、断链，都不得作为拒收理由。
+OKF is an open specification for writing knowledge as "directories + markdown + YAML frontmatter".
+Its one hard requirement is that every concept file's frontmatter carries a non-empty `type`; the
+trust family (`sources` / `generated` / `verified` / `status` / `stale_after`) is entirely optional,
+and **absence carries meaning** — no `verified` means the "unverified" tier, not "unknown". The
+consumer side is lenient: a missing optional field, an unrecognized `type`, and a broken link may
+none of them be grounds for rejection.
 
-## 一、定位与三条不变式
+## 1. Position and three invariants
 
-T2AG 主库天然已是「markdown + frontmatter + 相互链接」，所以适配不是改造，是**翻译**。
+The T2AG main repository is already "markdown + frontmatter + mutual links", so adapting it is not a
+rebuild, it is a **translation**.
 
-| # | 不变式 | 理由 |
+| # | Invariant | Reason |
 |---|---|---|
-| 1 | **主库零改动** | 导出器只读。bundle 是仓外生成物，删除整目录即完全回滚 |
-| 2 | **机制可交换，实例不出门** | 默认范围只含描述「系统怎么运转」的文件；学生档案、日志、进度与 cloud 一律不进 bundle |
-| 3 | **不伪造信任** | 没有真实核实事件就不写 `verified`。OKF 的信任分档靠字段缺席工作，编造等于把三档压成一档 |
+| 1 | **Zero change to the main repository** | The exporter is read-only. A bundle is an out-of-repo artifact; deleting the whole directory rolls it back completely |
+| 2 | **The mechanism is exchangeable, the instance never leaves** | The default scope contains only files describing "how the system runs"; the student profile, logs, progress and cloud never enter a bundle |
+| 3 | **Never fabricate trust** | Without a real verification event, do not write `verified`. OKF's trust tiers work through field absence, and inventing one collapses three tiers into one |
 
-不变式 3 的具体后果：本协议**不签发** `verified`。doctor 通过、测试通过都不是对
-「这段知识为真」的核实，只是对结构的核实；把它写成 `verified` 会让消费者以为有人
-读过内容。若将来要签发，须另立裁决并写明签发者是 `process:` 还是 `human:`。
+The concrete consequence of invariant 3: this protocol **issues no** `verified`. A doctor pass or a
+test pass is not a verification of "this knowledge is true", only a verification of structure;
+writing it as `verified` would make a consumer believe somebody read the content. Should issuance
+ever be wanted, it needs its own adjudication and must state whether the issuer is a `process:` or a
+`human:`.
 
-## 二、范围（scope）
+## 2. Scope
 
-| scope | 收录 | 用途 |
+| scope | Included | Purpose |
 |---|---|---|
-| `mechanism`（默认） | 宪法 `main/t2ag.md` ＋ `00_core/` 的机制三件（`domain_model.md`、`learning_activity_model.md`、`pattern_retire_loop.md`）＋ `50_playbook/` 全部 ＋ `70_tools/*.md` | 对外交换、开源展示面 |
-| `course:<COURSE_ID>` | 该课程的 `course.md`（课程定义） | 单门课程设计的交换，须逐次点名 |
+| `mechanism` (default) | the constitution `main/t2ag.md` + the three mechanism files of `00_core/` (`domain_model.md`, `learning_activity_model.md`, `pattern_retire_loop.md`) + all of `50_playbook/` + `70_tools/*.md` | external exchange, the open-source display surface |
+| `course:<COURSE_ID>` | that course's `course.md` (the course definition) | exchanging a single course design; must be named explicitly each time |
 
-**不存在导出个人层的范围。** `10_student/`、`60_journal/`、`progress.md`、
-`activity_ledger.md`、`mistake_bank.md`、`lessons/`、`exercises/`、`cloud/` 没有任何
-代码路径通向导出器——隐私边界靠缺席保证，不靠开关。若将来确有本地消费需求（例如让
-本地 agent 读完整学习史），须另开工单，并在那份工单里独立回答落点、留存期与打包
-事故面三个问题。
+**There is no scope that exports the personal layer.** `10_student/`, `60_journal/`, `progress.md`,
+`activity_ledger.md`, `mistake_bank.md`, `lessons/`, `exercises/`, and `cloud/` have no code path
+reaching the exporter at all — the privacy boundary is guaranteed by absence, not by a switch. If a
+local consumption need ever appears (letting a local agent read the full learning history, say), it
+needs its own work order, and that order must independently answer three questions: the landing
+point, the retention period, and the packaging accident surface.
 
-两处**看起来该收却不收**的，理由要写明，否则下一个人会当成遗漏补回来：
+Two things that **look as though they should be included but are not**; the reason must be written
+down, or the next person will restore them as an oversight:
 
-- **`00_core/` 的台账三件**（`t2ag_changelog.md`、`t2ag_memory.md`、`t2ag_problemlog.md`）
-  不进 bundle。它们记的是「这个实例经历了什么」，不是「系统怎么运转」——changelog 与
-  problemlog 含宿主路径与对端私有仓名，memory 本身就是学生状态的派生缓存。changelog
-  只以**标题层**转写成 `log.md`（§四），正文不出门。
-- **课程不进 `mechanism`**。`course.md` 是课程设计，可交换，但它点名真实教材、培养方案
-  与院校，属实例识别面。要交换就走 `course:<ID>` 显式点名，并照样过泄漏闸门——闸门
-  拦下来时的正确反应是承认「这门课的定义确实带着我的院校」，而不是给它开豁免。
+- **The three ledger files of `00_core/`** (`t2ag_changelog.md`, `t2ag_memory.md`,
+  `t2ag_problemlog.md`) do not enter a bundle. They record "what this instance has been through",
+  not "how the system runs" — the changelog and the problem log contain host paths and the private
+  repository names of counterparties, and memory is itself a derived cache of student state. The
+  changelog is transcribed at the **heading level only** into `log.md` (§4); the body does not
+  leave.
+- **A course does not enter `mechanism`.** `course.md` is a course design and is exchangeable, but
+  it names real textbooks, a real curriculum plan and a real institution, which is an
+  instance-identifying surface. To exchange it, go through `course:<ID>` by explicit name, and pass
+  the leak gate all the same — the correct response when the gate stops it is to admit "the
+  definition of this course really does carry my institution", not to grant it an exemption.
 
-白名单是**目录级正列举**，不是排除法。新增内容默认不进 bundle，除非本表加行。
+The allowlist is a **directory-level positive enumeration**, not an exclusion rule. New content stays
+out of the bundle by default unless a row is added to this table.
 
-宪法 `main/t2ag.md` 进 `mechanism`：它是整套机制的入口，实测也是被引用最多的节点
-（bundle 内 14 条入边）。落在 bundle 根，`type: Governance Doc`。
+The constitution `main/t2ag.md` enters `mechanism`: it is the entry point of the whole mechanism, and
+measurement confirms it is the most-referenced node (14 in-edges inside the bundle). It lands at the
+bundle root with `type: Governance Doc`.
 
-## 三、映射表（T2AG → OKF frontmatter）
+## 3. The mapping table (T2AG → OKF frontmatter)
 
-### 3.0 概览
+### 3.0 Overview
 
-| 来源 | bundle 落点 |
+| Source | Bundle landing point |
 |---|---|
 | `main/t2ag.md` | `/t2ag.md` |
-| `main/<域>/<文件>.md` | `/<域>/<文件>.md`（去掉 `main/` 前缀） |
+| `main/<domain>/<file>.md` | `/<domain>/<file>.md` (the `main/` prefix is dropped) |
 
-### 3.1 `type`：必填，按来源注入
+### 3.1 `type`: required, injected by source
 
-主库多数散文文件没有 frontmatter，导出时按目录注入；已有 `type` 的一律透传原值。
+Most prose files in the main repository have no frontmatter; on export it is injected by directory.
+A file that already has a `type` passes its original value through unchanged.
 
-| 来源 | 注入 `type` | 说明 |
+| Source | Injected `type` | Note |
 |---|---|---|
-| `00_core/domain_model.md` | `Domain Model` | 单列，它是领域词汇的权威 |
-| `00_core/` 其余机制件 | `Governance Doc` | 宪法依赖的领域模型层 |
-| `50_playbook/` | `Playbook` | OKF 原生示例类型 |
-| `70_tools/*.md` | `Reference` | 工具说明面 |
-| `40_course/*/course.md` | 透传（现为 `course`） | 已有 frontmatter 不改写 |
-| 各目录 `_README.md` | 转写为该目录 `index.md`，不作为概念 | 见 §四 |
+| `00_core/domain_model.md` | `Domain Model` | listed separately: it is the authority for domain vocabulary |
+| the rest of `00_core/` mechanism files | `Governance Doc` | the domain-model layer the constitution depends on |
+| `50_playbook/` | `Playbook` | an OKF-native example type |
+| `70_tools/*.md` | `Reference` | the tool documentation surface |
+| `40_course/*/course.md` | passed through (currently `course`) | existing frontmatter is not rewritten |
+| each directory's `_README.md` | transcribed into that directory's `index.md`, not treated as a concept | see §4 |
 
-`type` 值风格取 OKF 示例的大写词组（`Playbook`、`Reference`），与主库已有的小写
-`course` 并存。OKF 不设中央注册表，两风格同时出现是合法的；消费者对未知 `type`
-必须优雅降级。
+The style of a `type` value follows the capitalized phrases of the OKF examples (`Playbook`,
+`Reference`), alongside the lowercase `course` already present in the main repository. OKF has no
+central registry, so two styles coexisting is legal; a consumer must degrade gracefully on an
+unknown `type`.
 
-### 3.2 信任族
+### 3.2 The trust family
 
-| OKF 字段 | 取值 | 备注 |
+| OKF field | Value | Note |
 |---|---|---|
-| `generated.by` | `t2ag/okf_export-<工具版本>` | 遵 OKF §7 actor 约定 |
-| `generated.at` | 该文件最后一次 git commit 时间；不可得时回退文件 mtime | ISO 8601 UTC |
-| `verified` | **不写** | 见 §一不变式 3 |
-| `status` | 透传主库已有 `status` | 缺省即 `stable`，不主动写 |
-| `stale_after` | **不写** | 见下 |
-| `sources` | 仅当主库文件已有可机器识别的来源字段时透传 | 不为凑字段而编造来源 |
-| `title` / `description` | 取正文首个 H1 与其后首句 | 供 `index.md` 汇编 |
+| `generated.by` | `t2ag/okf_export-<tool version>` | follows the OKF §7 actor convention |
+| `generated.at` | the file's last git commit time; falls back to file mtime when unavailable | ISO 8601 UTC |
+| `verified` | **not written** | see invariant 3 in §1 |
+| `status` | passes through an existing main-repository `status` | the default is `stable`; it is not written proactively |
+| `stale_after` | **not written** | see below |
+| `sources` | passed through only when the main-repository file already has a machine-recognizable source field | never invent a source just to fill the field |
+| `title` / `description` | the first H1 of the body and the first sentence after it | used to compile `index.md` |
 
-`stale_after` 不写，因为可导出范围里没有会过期的东西：机制层的规则在被改写之前一直
-有效，没有「到某天自动失效」的语义。宪法 §1.4 点名的 GENERATED 缓存（`t2ag_memory.md`、
-`learning_path.md`）本来就在范围之外（§二），所以也不存在「派生缓存要标过期」这一
-情形。若将来收录范围扩到会过期的内容，先在本表加行，再改工具。
+`stale_after` is not written because nothing in the exportable scope expires: a mechanism-layer rule
+stays valid until it is rewritten, and there is no "automatically invalid on some date" semantics.
+The GENERATED caches named in constitution §1.4 (`t2ag_memory.md`, `learning_path.md`) are outside
+the scope anyway (§2), so the "a derived cache should be marked stale" case does not arise either.
+If the collected scope is ever widened to content that does expire, add a row to this table first,
+then change the tool.
 
-### 3.3 链接与图结构
+### 3.3 Links and graph structure
 
-- 主库内部相对链接改写为 bundle 绝对形（`/xxx.md`，OKF §6.1 推荐形，文件移动后仍稳定）。
-- 指向未收录文件的链接**保留原样，不报错**：OKF §6.1 明确断链代表「尚未写出的知识」，
-  不是格式错误。
-- 指向仓外或网络的链接原样保留。
+- An internal relative link in the main repository is rewritten to the bundle-absolute form
+  (`/xxx.md`, the OKF §6.1 recommended form, which stays stable after a file moves).
+- A link to a file that was not collected is **kept as-is and is not an error**: OKF §6.1 states
+  explicitly that a broken link represents "knowledge not yet written", not a format error.
+- A link out of the repository or onto the network is kept verbatim.
 
-**反引号引用升格为链接。** T2AG 散文引用其他文件用的是行内反引号
-（`` `session_close.md` ``）而不是 markdown 链接——实测机制层 1266 处文件引用里，
-markdown 链接是 **0**。而 OKF 的图结构完全靠链接表达（§6.1：消费者把每条链接当作
-一条有向边）。照搬就等于导出一堆互不相连的文件，「知识包」退化成「文件夹」，OKF
-相对于普通 wiki 的全部价值正好丢在这里。因此导出时把能解析到 bundle 内目标的反引号
-引用升格为链接，**三条**克制规则：
+**A backtick reference is promoted to a link.** T2AG prose references another file with inline
+backticks (`` `session_close.md` ``) rather than a markdown link — measured across the mechanism
+layer, of 1266 file references, markdown links number **0**. Yet OKF's graph structure is expressed
+entirely through links (§6.1: a consumer treats every link as one directed edge). Exporting as-is
+would therefore ship a pile of unconnected files, the "knowledge bundle" would degrade into a
+"folder", and precisely the whole value of OKF over an ordinary wiki would be lost. So on export, a
+backtick reference that resolves to a target inside the bundle is promoted to a link, under **three**
+restraining rules:
 
-1. **每个目标每文件只升格首次出现**。重复升格既让正文变吵，图上也只是同一条边。
-2. **只升格解析得到 bundle 内目标的引用**。指向实例层（`progress.md`、`profile.md`
-   一类）的引用留作反引号——既不伪造边，也不制造断链。
-3. **只升格内联代码内容恰为单一路径 token 的情况**（EV-0024 R-3，2026-08-18 补）。
-   判据：无空白、无引号与 shell 元字符、不以 `-` 开头、以 `.md` 结尾。机器落点是
-   `okf_export.py` 的 `is_single_path_token()`，红测在 `test_okf_export.py`。
+1. **Promote only the first occurrence of each target per file.** Repeated promotion makes the body
+   noisy and adds nothing to the graph but the same edge.
+2. **Promote only a reference that resolves to a target inside the bundle.** A reference to the
+   instance layer (`progress.md`, `profile.md` and the like) stays a backtick — neither fabricating
+   an edge nor manufacturing a broken link.
+3. **Promote only when the inline code content is exactly a single path token** (EV-0024 R-3, added
+   2026-08-18). The criterion: no whitespace, no quotes or shell metacharacters, does not start with
+   `-`, ends in `.md`. The machine landing point is `is_single_path_token()` in `okf_export.py`, and
+   the red test is in `test_okf_export.py`.
 
-第 3 条是独立复审实测出来的：原实现用 `` `([^`\n]+\.md)` `` 匹配整段内联代码，于是
-`` `grep -rn "x" file.md` `` 这类完整命令被整体升格成链接、多目标命令被压成一条边。
-那不是展示问题，是**实质语义改写**——bundle 消费者会把一条命令读成一条知识边。
-模板占位（`` `40_course/<COURSE_ID>/course.md` ``）尤其危险：旧实现会经裸文件名回退
-匹配到某个真实 `course.md`，凭空造出一条错边。修正后机制层有 64 处内联代码由升格面
-退出。
+Rule 3 came out of an independent re-review measurement: the original implementation matched a whole
+inline code span with `` `([^`\n]+\.md)` ``, so a complete command like
+`` `grep -rn "x" file.md` `` was promoted wholesale into a link, and a multi-target command was
+squashed into one edge. That is not a display problem, it is a **substantive semantic rewrite** — a
+bundle consumer would read a shell command as a knowledge edge. A template placeholder
+(`` `40_course/<COURSE_ID>/course.md` ``) is especially dangerous: the old implementation would fall
+back to a bare filename match, hit some real `course.md`, and manufacture a wrong edge out of thin
+air. After the fix, 64 inline code spans in the mechanism layer left the promotion surface.
 
-围栏代码块内不改写：那里的文件名是示例或命令，不是引用。同名文件出现在多处时不猜，
-按不可解析处理。实测机制层导出得到 157 条边（2026-08-18 重测；复审期为 133，差额主要
-来自期间新增的 playbook 文件），入边最多的是宪法。
+Nothing inside a fenced code block is rewritten: a filename there is an example or a command, not a
+reference. When the same filename appears in several places, do not guess; treat it as unresolvable.
+Measured, the mechanism layer exports 157 edges (re-measured 2026-08-18; it was 133 during the
+re-review, the difference coming mostly from playbook files added in between), and the constitution
+has the most in-edges.
 
-## 四、保留文件
+## 4. Reserved files
 
-| 文件 | 生成来源 |
+| File | Generated from |
 |---|---|
-| bundle 根 `index.md` | 汇编各目录条目；**唯一**允许带 frontmatter 的 index，且只放 `okf_version: "0.2"` |
-| 各目录 `index.md` | 由该目录 `_README.md` 与各概念的 `title`/`description` 汇编 |
-| 根 `log.md` | 由 `00_core/t2ag_changelog.md` 近期条目转写为 OKF §9 的日期倒序格式 |
+| the bundle root `index.md` | compiled from the entries of each directory; the **only** index allowed to carry frontmatter, and it carries only `okf_version: "0.2"` |
+| each directory's `index.md` | compiled from that directory's `_README.md` plus each concept's `title`/`description` |
+| the root `log.md` | recent entries of `00_core/t2ag_changelog.md` transcribed into the reverse-date format of OKF §9 |
 
-`index.md` 的作用是**渐进披露**——让人或 agent 先看见有什么，再决定打开哪个，因此
-条目描述必须来自被链接概念自己的 `description`，不得另写一套。
+The purpose of `index.md` is **progressive disclosure** — letting a person or an agent first see what
+exists and then decide what to open — so an entry description must come from the linked concept's own
+`description` and must never be written a second time by hand.
 
-## 五、泄漏闸门（写盘前，非写盘后）
+## 5. The leak gate (before writing to disk, not after)
 
-导出**先在内存里渲染完整 bundle，扫描通过才落盘**；命中即零写入并列出全部命中点。
-写完再扫等于事故已经发生。
+An export **renders the complete bundle in memory first and lands on disk only after the scan
+passes**; on a hit it writes nothing and lists every hit site. Scanning after writing means the
+accident has already happened.
 
-扫描复用 `t2ag_doctor.py` 的 `SKELETON_PRIVACY_PATTERNS`（宿主用户目录绝对路径、
-维护者用户名、院校名、对端私有仓名）。该词表是**共享真相源**：新增模式只改 doctor
-一处，导出器随之生效，不得在导出器里另抄一份。
+The scan reuses `SKELETON_PRIVACY_PATTERNS` from `t2ag_doctor.py` (host user-directory absolute
+paths, the maintainer's username, institution names, the private repository names of counterparties).
+That word list is a **shared source of truth**: a new pattern is added in doctor in exactly one
+place and takes effect in the exporter automatically; never copy a second list into the exporter.
 
-命中不可豁免。mechanism 范围里出现个人痕迹，说明主库该文件本身该脱敏，正确反应是
-修主库，不是给导出器加白名单——豁免列表会把闸门蛀空（P-0065 / P-0067 同族教训）。
+A hit cannot be exempted. A personal trace appearing inside the `mechanism` scope means that
+main-repository file itself needs redacting, and the correct response is to fix the main repository,
+not to add an exporter allowlist — an exemption list hollows the gate out (the same-family lesson as
+P-0065 / P-0067).
 
-### 5.1 交付目录准入（EV-0024 P0，2026-08-18 补）
+### 5.1 Delivery-directory admission (EV-0024 P0, added 2026-08-18)
 
-上面那道闸门架在**内容**上，但 2026-08-09 独立复审指出：闸门没架在**落点**上。
-`write_bundle()` 会删掉目标目录里清单外的 `.md`，而 `--out` 原本是个裸路径，无任何
-仓界校验——一次 `--write --out main/50_playbook` 就会递归删掉 playbook 里所有不在本次
-导出清单里的 markdown。该 finding 被判为「可破坏主库的高危写路径」，整批因此暂缓
-commit 九天。
+The gate above is mounted on **content**, but the independent re-review of 2026-08-09 pointed out
+that no gate was mounted on the **landing point**. `write_bundle()` deletes any `.md` in the target
+directory that is not in the manifest, and `--out` was originally a bare path with no repository
+boundary validation at all — a single `--write --out main/50_playbook` would recursively delete every
+markdown file in the playbook that was not in that export's manifest. The finding was judged "a
+high-risk write path capable of destroying the main repository", and the whole batch was held back
+from commit for nine days because of it.
 
-准入规则（机器落点 `validate_out_dir()`，在任何删除动作之前运行）：
+The admission rules (machine landing point `validate_out_dir()`, run before any delete action):
 
-| # | 规则 | 拒绝的东西 |
+| # | Rule | What it rejects |
 |---|---|---|
-| 1 | `--out` 不得是仓根、`main/`、工作区根或其祖先 | 手滑指向仓内 |
-| 2 | `--out` 不得落在仓内 | bundle 是仓外生成物（不变式 1 的落点侧表述） |
-| 3 | 落在任意 git 工作树内时必须带 `.t2ag-okf-bundle` 标记 | Skeleton、Lite、外仓 |
-| 4 | 已存在且非空的目录必须带该标记 | 「不是我上次写出来的包」就不碰 |
+| 1 | `--out` must not be the repository root, `main/`, the workspace root, or an ancestor of any of them | a slip that points inside the repository |
+| 2 | `--out` must not land inside the repository | a bundle is an out-of-repo artifact (invariant 1 restated on the landing-point side) |
+| 3 | When it lands inside any git working tree it must carry the `.t2ag-okf-bundle` marker | Skeleton, Lite, a foreign repository |
+| 4 | An existing non-empty directory must carry that marker | "not a bundle I wrote last time" is not touched |
 
-标记文件 `.t2ag-okf-bundle` 由导出器在写入全新目录时自建。它是**目录的身份声明**，
-不是配置：删掉它，下一次 `--write` 就会拒绝写入该目录。
+The marker file `.t2ag-okf-bundle` is created by the exporter itself when it writes a brand-new
+directory. It is a **statement of the directory's identity**, not configuration: delete it and the
+next `--write` will refuse to write that directory.
 
-另两条同批收口（P0-2 / P0-4）：
+Two more items closed in the same batch (P0-2 / P0-4):
 
-- 每个写入目标 `resolve()` 后必须严格落在 `--out` 之内（防相对路径里混进 `..`）；
-- 残留文件删不掉、或交付目录里出现清单外文件（**不限 `.md`**）时**返回错误、退出码 1**。
-  原实现只 WARN 且最终 exit 0，于是旧泄漏物可以留在交付目录里，而调用方看不出交付
-  已经失败——「删不干净又不吭声」正是本协议最不该有的形态。
+- Every write target must, after `resolve()`, lie strictly inside `--out` (guarding against a `..`
+  slipped into a relative path);
+- When a leftover file cannot be deleted, or a file outside the manifest appears in the delivery
+  directory (**not limited to `.md`**), **return an error with exit code 1**. The original
+  implementation only WARNed and exited 0 in the end, so an old leaked artifact could stay in the
+  delivery directory while the caller could not tell the delivery had failed — "cannot clean up and
+  says nothing about it" is exactly the shape this protocol must never have.
 
-## 六、自检（conformance）
+## 6. Self-check (conformance)
 
-`okf_export.py --check-bundle <path>` 按 OKF §11 三条硬性条件复算：
+`okf_export.py --check-bundle <path>` recomputes the three hard conditions of OKF §11:
 
-1. 每个非保留 `.md` 有可解析的 YAML frontmatter；
-2. 每个 frontmatter 有非空 `type`；
-3. `index.md` / `log.md` 符合 §8 / §9 结构。
+1. every non-reserved `.md` has parseable YAML frontmatter;
+2. every frontmatter has a non-empty `type`;
+3. `index.md` / `log.md` conform to the §8 / §9 structure.
 
-外加泄漏复扫。**不注册进 doctor runtime**：bundle 是可选生成物，它缺席或过期不该
-让当天的教学 FAIL；这与 `t2ag.md` §3.2「发行问题不阻断教学」同一取向。
+Plus a re-scan for leaks. It is **not registered in the doctor runtime**: a bundle is an optional
+artifact, and its absence or staleness must not FAIL that day's teaching; this has the same
+orientation as `t2ag.md` §3.2, "a release problem does not block teaching".
 
-## 七、二期：导入边界（本期不实现）
+## 7. Phase two: the import boundary (not implemented in this phase)
 
-外部 OKF 包进入 T2AG 时的约束，先立规矩再谈实现：
+The constraints on an external OKF bundle entering T2AG — set the rules first, discuss implementation
+later:
 
-1. **只读引用层**。外部概念映射为 `SourceDocument` 候选或参考资料，**永不**直接生成
-   T2AG 对象（Course / progress / ledger）。外部内容不得成为进度事实。
-2. **不越宪法 §1.5**。教学仍必须以可追溯至 `SourceDocument` 的教材原文为依据，并消费
-   当前 `LessonScope` 的 `SourcePageAsset` 证据。导入内容可作参考，不可替代原文。
-3. **信任门**。默认只接受 human-reviewed（`verified` 含 `human:` actor）的概念；
-   unverified 与 machine-confirmed 需逐次放行。`status: deprecated` 一律不收；
-   `today >= stale_after` 的概念在教学侧禁用。
-4. **不执行 Attested Computation**。OKF §10 的 `executor` / `attester` 指向可运行代码，
-   等于把外部代码执行权引进主库，须独立裁决，本协议不授予。
-5. 实现另开工单。本节只定边界，不构成施工授权。
+1. **A read-only reference layer.** An external concept maps to a `SourceDocument` candidate or a
+   reference material, and **never** directly produces a T2AG object (Course / progress / ledger).
+   External content must never become a progress fact.
+2. **Do not cross constitution §1.5.** Teaching must still rest on source text traceable to a
+   `SourceDocument`, and must consume the `SourcePageAsset` evidence of the current `LessonScope`.
+   Imported content may serve as reference; it cannot replace the source text.
+3. **A trust gate.** Only human-reviewed concepts (`verified` containing a `human:` actor) are
+   accepted by default; unverified and machine-confirmed ones are released one at a time.
+   `status: deprecated` is never accepted; a concept with `today >= stale_after` is disabled on the
+   teaching side.
+4. **Do not execute Attested Computation.** The `executor` / `attester` of OKF §10 point at runnable
+   code, which amounts to importing external code-execution rights into the main repository; that
+   requires its own adjudication and this protocol does not grant it.
+5. Implementation gets its own work order. This section only sets the boundary and is not a
+   construction authorization.
 
-## 八、版本与漂移
+## 8. Version and drift
 
-bundle 根 `index.md` 声明 `okf_version`，让消费者对不认识的版本自行降级（OKF §12）。
-OKF 是 2026 年 6 月才发布的年轻规范，v0.1→v0.2 已经改过两个字段（`timestamp` →
-`generated.at`；正文 `# Citations` → frontmatter `sources`）。因此：
+The bundle root `index.md` declares `okf_version`, letting a consumer degrade on its own for a
+version it does not recognize (OKF §12). OKF is a young specification, published only in June 2026,
+and v0.1→v0.2 already changed two fields (`timestamp` → `generated.at`; the body `# Citations` →
+frontmatter `sources`). Therefore:
 
-- 规范升级只改**本文件的映射表**，工具跟着表走；
-- 升级时在 changelog 记明「目标版本 x.y → x.z，改了哪几行表」，不许静默跟版。
+- a specification upgrade changes **the mapping table in this file** only, and the tool follows the
+  table;
+- on upgrade, record in the changelog "target version x.y → x.z, and which rows of the table
+  changed"; silently following a new version is not allowed.

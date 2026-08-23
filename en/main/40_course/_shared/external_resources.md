@@ -1,4 +1,4 @@
-# 跨课程外部资源索引（空模板）
+# Cross-course external resource index (empty template)
 
-| 资源 ID | 名称 | 类型 | URL/本地路径 | 适用课程 | 用途 | 来源与许可 | 最后核验日期 |
+| Resource ID | Name | Type | URL/local path | Applicable courses | Purpose | Source and licence | Last verified date |
 |---|---|---|---|---|---|---|---|

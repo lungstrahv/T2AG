@@ -1,52 +1,58 @@
-# 过程管理（process_governance）
+# Process governance (process_governance)
 
-**保护级别**：meta-playbook
+**Protection level**: meta-playbook
 
-> **职能**：过程对象（门 + 流程 + 有向图）的准入、修订、退役，以及图维护纪律。
-> **不做什么**：不吞 R-GATE（`rule_admission_gate.md` 独立在位，本文件以指针引用）；
-> 不写各门、各流程的规则正文（只放指针）。
-> **本版**：骨架。三流程小节扩全文属第二阶段，本文件不改结构。
+> **Function**: the admission, revision, and retirement of process objects (gates + flows + the directed graph), plus the graph-maintenance discipline.
+> **What it does not do**: it does not swallow R-GATE (`rule_admission_gate.md` stands on its own and is referenced here by pointer);
+> it does not write the rule bodies of individual gates and flows (pointers only).
+> **This version**: a skeleton. Expanding the three process sections to full text is stage two, and this file's structure does not change here.
 
-## 一、范围
+## 1. Scope
 
-本文件管理的过程对象：
+The process objects this file governs:
 
-- 门（`gate_index.md` 所载）
-- 流程（`t2ag_flow.md` 的九项流程形态：`first_run`、`panorama`、`teaching_loop`、
-  `authority_chain`、`cycles`、`skin`、`git`、`batch`、`exercise_loop`）
-- 有向图（门与流程的关系图）
+- gates (those carried in `gate_index.md`)
+- flows (the nine flow forms of `t2ag_flow.md`: `first_run`, `panorama`, `teaching_loop`,
+  `authority_chain`, `cycles`, `skin`, `git`, `batch`, `exercise_loop`)
+- the directed graph (the relation graph of gates and flows)
 
-职责：上述对象的准入 / 修订 / 退役 + 图维护纪律（改门或改流程必改图；图只放指针）
-+ 门台账指针（`learning_activity_model.md` §2.4）。`t2ag_flow.md` 自身仍是
-core-playbook，正文不迁入本文件。
+Responsibilities: the admission / revision / retirement of those objects + the graph-maintenance
+discipline (changing a gate or a flow must change the graph; the graph holds pointers only)
++ the gate-ledger pointer (`learning_activity_model.md` §2.4). `t2ag_flow.md` itself remains a
+core-playbook, and its body does not move into this file.
 
-## 二、准入（第二阶段扩）
+## 2. Admission (expanded in stage two)
 
-占位。第二阶段写：新门 / 新流程进入管辖的条件、登记位置与图更新。
+Placeholder. Stage two writes: the conditions under which a new gate / new flow comes under governance,
+where it is registered, and how the graph is updated.
 
-## 三、修订（第二阶段扩）
+## 3. Revision (expanded in stage two)
 
-占位。第二阶段写：改门、改流程的修订程序，以及与图、管辖清单的同批义务。
+Placeholder. Stage two writes: the revision procedure for changing a gate or a flow, and the same-batch
+obligation toward the graph and the governance list.
 
-## 四、退役（第二阶段扩）
+## 4. Retirement (expanded in stage two)
 
-占位。第二阶段写：门 / 流程退役条件、图删除与指针失效的可见性。
+Placeholder. Stage two writes: the conditions for retiring a gate / flow, deletion from the graph, and
+the visibility of an invalidated pointer.
 
-## 五、有向图纪律
+## 5. Directed-graph discipline
 
-1. 改门或改流程，必须改图。
-2. 图只放指针，不复制正文。
+1. Changing a gate or a flow must change the graph.
+2. The graph holds pointers only and never copies body text.
 
-## 六、管辖清单
+## 6. The governance list
 
-- `50_playbook/gate_index.md`（数据；头部 `managed_by` 指向本文件）
-- `50_playbook/t2ag_flow.md` 九流程形态（文件自身仍 core，正文不动）
+- `50_playbook/gate_index.md` (data; its header `managed_by` points at this file)
+- the nine flow forms of `50_playbook/t2ag_flow.md` (the file itself remains core; its body is untouched)
 
-## 七、强制声明与 Q0
+## 7. The enforcement declaration and Q0
 
-骨架期没有机器手段。失败可见性路径留给第二阶段验收：届时图与管辖清单不一致
-必须能被指定检查抓到（机器落点候选 `runtime.gate_index`）。骨架期如实声明：
+There is no machine means during the skeleton stage. The failure-visibility path is left to stage two's
+acceptance: at that point a disagreement between the graph and the governance list must be catchable by a
+named check (the candidate machine landing point is `runtime.gate_index`). During the skeleton stage it is
+declared honestly:
 
 ```text
-enforcement: prose_accepted（理由：骨架期无机器手段；机器落点候选 runtime.gate_index 留栏）
+enforcement: prose_accepted (reason: no machine means during the skeleton stage; the candidate machine landing point runtime.gate_index is reserved)
 ```

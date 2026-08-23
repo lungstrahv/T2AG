@@ -1,104 +1,111 @@
-# 复利回路模式（pattern_retire_loop.md）
+# The compounding-loop pattern (pattern_retire_loop.md)
 
-> T2AG 第一个正式设计模式。总模式名：**复利回路**；文件名沿用历史名 retire_loop——
-> "retire"现为其中**衰减子型**的专名，路径按 `naming_conventions.md` §四作兼容例外不改。
-> **命名法则：模式定义一次于此，实例保留领域名**（trade_journal 不改叫 mistake_bank_trading）。
-> 新域需要此能力时：先选子型 → 按参数表实例化 → 领域名命名 → 头部声明，**禁止**复制粘贴另一实例再改。
+> T2AG's first formal design pattern. The umbrella name is **the compounding loop**; the filename keeps the historical
+> name retire_loop — "retire" is now the proper name of the **decay subtype** only, and the path stays as a
+> compatibility exception under `naming_conventions.md` §4.
+> **The naming law: the pattern is defined once here, and an instance keeps its domain name** (trade_journal is not renamed mistake_bank_trading).
+> When a new domain needs this capability: pick the subtype → instantiate per the parameter table → name it in domain terms → declare it in the header. **Never** copy-paste another instance and edit it.
 
-## 总定义
+> **Note on the declaration literals**: the `【模式】复利回路·…` markers and the parameter key names below are
+> **machine-read tokens**, not prose. They are written by `70_tools/migrate_020.py` and read by the exam-ledger
+> check, so they stay in their canonical zh-CN form in every edition, exactly as `T2AG_SESSION_CLOSE` does.
+> Translating them is a four-part change (registry + `migrate_020.py` + the reading checks + this file) and must be
+> done in one batch or not at all — see the R3 note in the P-0077 work order.
 
-- **回路**：一个被反复执行的任务过程；环节可以全由人构成、全由系统构成、或人机交叉。
-- **复利**：每轮运行产出的新信号（**流量**）沉淀为某个**存量**；存量参与下一轮输入，
-  使任务完成效率单调提升。**复利的载体是存量，不是单轮产出。**
+## The umbrella definition
 
-## 两种子型
+- **Loop**: a task process executed repeatedly; its stages may be entirely human, entirely system, or a mix.
+- **Compounding**: the new signal produced each round (the **flow**) settles into some **stock**; the stock feeds the next
+  round's input, so task-completion efficiency rises monotonically. **What compounds is the stock, not one round's output.**
 
-|  | 纠错衰减型（平衡回路） | 积累增强型（校准回路） |
+## The two subtypes
+
+|  | Error-correcting decay (a balancing loop) | Accumulating reinforcement (a calibrating loop) |
 |---|---|---|
-| 核心动态 | 误差存量趋零，处理频率递减，**退出** | 存量精度递增，**永不退出** |
-| 隐喻 | 清偿负债（错误是债，清完销账） | 持有复利资产（理解是资产，只加仓不清仓） |
-| 无退出的原因 | ——债清即止 | 精度无上限 + 对象非平稳（学生/市场在变） |
-| 头号失效模式 | 退出后无再入，旧错复发无人接 | 只积累不校准，存量自信地错下去 |
+| Core dynamic | the error stock tends to zero, processing frequency falls, and it **exits** | the stock's precision rises, and it **never exits** |
+| Metaphor | paying off a debt (an error is a debt; clear it and close the account) | holding a compounding asset (understanding is an asset; you add, never liquidate) |
+| Why there is no exit | — the debt is cleared, so it stops | precision has no ceiling + the object is non-stationary (the student/the market keeps changing) |
+| The number-one failure mode | after exiting there is no re-entry, and an old error recurs with nobody to catch it | accumulating without calibrating, so the stock goes on being confidently wrong |
 
-同一文件可承载多个角色（回路实例或回路部件），登记表按行分登；部件定义见下节。
+One file may carry several roles (a loop instance or a loop component); the registration tables list them row by row. Component definitions are in the next section.
 
-## 回路部件：流量台账（不是第三种子型）
+## A loop component: the flow ledger (not a third subtype)
 
-并非每个带状态机的文件都是回路。**入册判据：恢复力在谁手里。**
+Not every file with a state machine is a loop. **The admission criterion: who holds the restoring force.**
 
-- 文件自带驱动环节把存量推向目标（抽查、月复盘、修复义务）→ 可登记为**回路实例**；
-- 文件只登记流量并维护条目状态，驱动与存量都在文件外 → 它是某条回路的**流量台账**，按部件登记。
+- The file carries its own driving stage that pushes the stock toward its target (a spot-check, a monthly review, a repair obligation) → it may be registered as a **loop instance**;
+- The file only registers flow and maintains entry status, while both the driver and the stock live outside it → it is some loop's **flow ledger**, registered as a component.
 
-台账的条目状态机（待解决/已解答等）属于**台账卫生**：保证流量不丢、可回看、可结算。
-"关闭"是**结算**，不是误差消除；台账没有自己的复利，其价值全部计入所属回路。
-记录、消费、退出、再入全部由外部事件驱动的文件，一律按台账登记，不得为凑六要素入衰减册。
+A ledger's entry state machine (to-be-resolved / answered and so on) is **ledger hygiene**: it guarantees the flow is not lost, can be reviewed, and can be settled.
+"Closing" is a **settlement**, not the elimination of an error; a ledger has no compounding of its own, and all its value accrues to the loop it belongs to.
+A file whose recording, consumption, exit and re-entry are all driven by external events is registered as a ledger without exception, and must never be forced into the decay register just to fill six elements.
 
-## 衰减型参数（六要素）
+## Decay-type parameters (six elements)
 
-| 要素 | 含义 | 约束 |
+| Element | Meaning | Constraint |
 |---|---|---|
-| ①记录对象 | 记什么 | 单一域，越界内容按边界规则转投 |
-| ②写入时机 | 事前存证型 / 事后归因型 | 事前型多"预测栏"（论点/止损），事后型多"根因栏" |
-| ③归因层 | 根因必须指向哪一层 | 概念层/规则层/流程层——禁止外因（运气/操控/模型抽风） |
-| ④消费方 | 谁在何时读它并改变什么 | 有且只有一个（边界规则裁决歧义） |
-| ⑤退出条件 | 何时退出密集处理 | 进入维护/陈年/归档 |
-| ⑥再入条件 | 退出后何种事件回到密集处理 | 确无再入则填"无"，**不许留空** |
+| ① what is recorded | what goes in | a single domain; out-of-domain content is redirected by the boundary rule |
+| ② when it is written | evidence-before / attribution-after | the before type has more "prediction" columns (thesis/stop-loss), the after type more "root cause" columns |
+| ③ attribution layer | which layer the root cause must land on | concept layer / rule layer / process layer — external causes (luck, manipulation, the model glitching) are forbidden |
+| ④ consumer | who reads it when, and what they change | exactly one (the boundary rule adjudicates ambiguity) |
+| ⑤ exit condition | when intensive processing ends | entering maintenance / aged / archived |
+| ⑥ re-entry condition | what event brings it back to intensive processing after an exit | when there really is no re-entry, write "none" — **never leave it blank** |
 
-## 积累型参数（五要素）
+## Accumulation-type parameters (five elements)
 
-| 要素 | 含义 | 约束 |
+| Element | Meaning | Constraint |
 |---|---|---|
-| ①每轮产出 | 每次任务运行新产生的信号（流量） | 可指认的条目/事件，不是感觉 |
-| ②叠加存量 | 信号沉淀到哪个文件/规则；下一轮谁读它 | 存量文件唯一；读取环节写明 |
-| ③环节构成 | 人做什么、系统做什么 | 人机分工逐项写 |
-| ④沉淀与压缩 | 何时把原始信号提炼进存量；提炼后原始条目如何退役 | 防 append-only：存量有界，退役留指针 |
-| ⑤校准信号 | 什么可观察事件证明存量在**变准**而非变多 | 预测落空时写修正条目，**禁止静默覆盖** |
+| ① per-round output | the new signal each task run produces (the flow) | a nameable entry/event, not a feeling |
+| ② the stock it adds to | which file/rule the signal settles into, and who reads it next round | one stock file only; the reading stage is written out |
+| ③ stage composition | what the human does, what the system does | the division of labour is written item by item |
+| ④ settling and compression | when a raw signal is distilled into the stock, and how the raw entry retires afterwards | guards against append-only: the stock is bounded, and retirement leaves a pointer |
+| ⑤ calibration signal | what observable event proves the stock is getting **more accurate** rather than merely bigger | when a prediction fails, write a correction entry; **silent overwriting is forbidden** |
 
-> "增益主张"（该回路为什么值得存在）写在登记行的一句话理由里，不设参数位——不可检验的内容不进参数表。
-> 积累型比衰减型**更**需要 ⑤：它没有退出机制止损，缺校准即先验自我强化——教师给自己的理解打分，与"认公榜=认 AI 赞许"同病。
+> The "gain claim" (why this loop deserves to exist) goes in the one-sentence reason on the registration row, with no parameter slot — anything unfalsifiable does not enter the parameter table.
+> An accumulating loop needs ⑤ **more** than a decaying one: it has no exit mechanism to stop the loss, and without calibration it becomes prior self-reinforcement — a teacher grading their own understanding, the same disease as "recognizing the public leaderboard = recognizing AI approval".
 
-## 现有实例登记表
+## The register of existing instances
 
-### 衰减型
+### Decay type
 
-| 实例 | 层 | 域 | ②时机 | ③归因层 | ④消费方 | ⑤退出 | ⑥再入 |
+| Instance | Level | Domain | ② timing | ③ attribution layer | ④ consumer | ⑤ exit | ⑥ re-entry |
 |---|---|---|---|---|---|---|---|
-| 各课 mistake_bank | 条目 | 知识点 | 事后 | 概念层 | 开课抽查→改理解 | 三次独立正确→maintenance；六次未过→aged | 陈年卷抽中且答错→回强化 |
-| 10_student/engagements/EG-0001_TradingDiscipline/trade_journal | 条目 | 交易 | **事前** | 决策规则层 | 月复盘→改系统 | `clean_months >= 2`→retired | 同标签复发→`clean_months = 0`、`reopen_count += 1` |
+| each course's mistake_bank | entry | knowledge point | after | concept layer | the start-of-class spot-check → change the understanding | three independent correct answers → maintenance; six attempts without passing → aged | drawn in an aged paper and answered wrong → back to reinforcement |
+| 10_student/engagements/EG-0001_TradingDiscipline/trade_journal | entry | trading | **before** | decision-rule layer | the monthly review → change the system | `clean_months >= 2` → retired | the same tag recurs → `clean_months = 0`, `reopen_count += 1` |
 
-> 两类衰减实例的共同点：**恢复力都在文件内**（开课抽查 / 月复盘）——这是衰减型的入册门槛。
+> What the two decay instances have in common: **the restoring force is inside the file** (the start-of-class spot-check / the monthly review) — that is the admission threshold for the decay type.
 
-### 积累型
+### Accumulation type
 
-| 实例 | 层 | ①每轮产出 | ②叠加存量 | ③环节构成 | ④沉淀与压缩 | ⑤校准信号 | 一句话理由 |
+| Instance | Level | ① per-round output | ② the stock it adds to | ③ stage composition | ④ settling and compression | ⑤ calibration signal | One-sentence reason |
 |---|---|---|---|---|---|---|---|
-| question_bank 集合层 | 集合 | 新问题 + 问题方向模式（流量台账=各课 `question_bank.md`） | `students/Sxxx/reasoning_patterns.md`（下轮开课教师读档案） | 人=提问、表达困惑；系统=记录、跨课时识别模式、写入画像 | 开课静默整理 + checkpoint 里程碑提炼；Q 条目保持 closed 留指针不删 | 画像预测卡点 vs 实际卡点；落空写修正条目 | 教学侧重更准，学生卡住时间更短 |
-| Cocoon taste.md | 集合 | 日报 👍/👎 与误判模式 | `taste.md` 品味条款（下轮 filter_llm 读取打分） | 人=标反馈；系统=feedback.py 识别连续误判追加修正 | 连续误判成模式才入条款；条款治理归 cocoon（程序自治，**仅登记**） | 走私槽翻案率：随机低分条目被 👍 = 漏判证据 | 推荐越来越准而不失新鲜 |
+| question_bank, collection level | collection | new questions + question-direction patterns (the flow ledger = each course's `question_bank.md`) | `students/Sxxx/reasoning_patterns.md` (the teacher reads the profile at the next class start) | human = asking, expressing confusion; system = recording, recognizing patterns across courses, writing the profile | silent tidying at class start + distillation at a checkpoint milestone; a Q entry stays closed and keeps a pointer rather than being deleted | the profile's predicted sticking point vs the actual one; when it fails, write a correction entry | teaching emphasis gets more accurate and the student stays stuck for less time |
+| Cocoon taste.md | collection | daily 👍/👎 and misjudgement patterns | the taste clauses in `taste.md` (the next round's filter_llm reads them to score) | human = marking feedback; system = feedback.py spots a run of misjudgements and appends a correction | only a run of misjudgements that forms a pattern enters a clause; clause governance belongs to cocoon (self-governing program, **registered only**) | the smuggling-slot reversal rate: a randomly low-scored entry getting a 👍 is evidence of a miss | recommendations get steadily more accurate without losing freshness |
 
-> taste.md 由旧登记表的衰减型改登记为积累型。立案理由：旧表中其退出栏只能填"程序自治，仅登记"——
-> 该空值即单一形状装不下它的证据（本次重构的直接诱因之一）。
+> taste.md was re-registered from decay to accumulation. The reason on record: in the old table its exit column could only say "self-governing program, registered only" —
+> that empty value was itself the evidence that one shape could not hold it (one of the direct triggers of this refactor).
 
-### 部件（流量台账）
+### Components (flow ledgers)
 
-| 台账 | 所属回路 | 结算条件 | 再入 |
+| Ledger | Owning loop | Settlement condition | Re-entry |
 |---|---|---|---|
-| 各课 question_bank（条目层） | question_bank 集合层→教师画像 | answered/closed | 学生复问→转"需要回看" |
-| `00_core/t2ag_problemlog` | problemlog→`50_playbook/`（存量=对应 playbook） | `playbook_status=extracted`；明确无需提炼时为 `not_applicable` | 同类问题复发→原条目 `reopen_count += 1` 并重开 |
+| each course's question_bank (entry level) | question_bank collection level → the teacher profile | answered/closed | the student asks again → becomes "needs review" |
+| `00_core/t2ag_problemlog` | problemlog → `50_playbook/` (the stock = the corresponding playbook) | `playbook_status=extracted`; when distillation is definitely unnecessary, `not_applicable` | a same-kind problem recurs → the original entry's `reopen_count += 1` and it reopens |
 
-> question_bank 条目层不入衰减册的裁决理由：其记录、消费、结算、再入全部由外部事件驱动
-> （学生提问 / 教学覆盖 / 学生复问），文件内无恢复力；若以"被动消费"标注强行入衰减册，
-> 该标注即下一个"程序自治，仅登记"。疑问背后的知识错误按边界规则转投 mistake_bank，
-> 由那里的抽查机制负责——衰减职能不双开消费方。
+> Why the question_bank entry level is not in the decay register: its recording, consumption, settlement and re-entry are all driven by external events
+> (the student asks / teaching covers it / the student asks again), and the file holds no restoring force. Forcing it into the decay register with a "passively consumed" annotation
+> would make that annotation the next "self-governing program, registered only". A knowledge error behind a question is redirected to mistake_bank by the boundary rule,
+> where the spot-check mechanism takes responsibility — a decay function does not open two consumers.
 
-## 不适用本模式的文件
+## Files this pattern does not apply to
 
-- `t2ag_changelog.md` 是纯追加变更史：职责是保存已经发生的版本事实，不以退出、再入或误差趋零为目标。
-- `60_journal/` 中的历史叙述是回看证据：可以建立索引和归档状态，但不得为套用本模式而改写历史或制造退出条件。
-- 其他纯追加审计记录若只负责保留事实，也按同一理由不入册。状态机或索引卫生本身不等于复利回路。
+- `t2ag_changelog.md` is a pure append-only change history: its job is to preserve version facts that already happened, and it does not aim at exit, re-entry, or driving an error to zero.
+- The historical narratives in `60_journal/` are review evidence: an index and archival status may be built for them, but history must never be rewritten, nor an exit condition manufactured, in order to apply this pattern.
+- Any other pure append-only audit record that only preserves facts is likewise not registered. A state machine, or index hygiene, is not by itself a compounding loop.
 
-## 实例头部声明模板
+## Header declaration templates for an instance
 
-衰减型（贴在**记录文件**头部）：
+Decay type (pasted at the top of the **record file**):
 
 ```markdown
 > 【模式】复利回路·衰减（00_core/pattern_retire_loop.md）实例
@@ -106,7 +113,7 @@
 > 【边界】越界内容转投 X（边界规则裁决）
 ```
 
-积累型（贴在**存量文件**头部——回路可能跨文件，声明跟着存量走）：
+Accumulation type (pasted at the top of the **stock file** — a loop may span files, and the declaration follows the stock):
 
 ```markdown
 > 【模式】复利回路·积累（00_core/pattern_retire_loop.md）实例
@@ -114,7 +121,7 @@
 > 【边界】越界内容转投 X
 ```
 
-部件（贴在**台账文件**头部）：
+Component (pasted at the top of the **ledger file**):
 
 ```markdown
 > 【模式】复利回路·部件（00_core/pattern_retire_loop.md）｜角色=流量台账
@@ -122,20 +129,20 @@
 > 【边界】越界内容转投 X
 ```
 
-跨仓实例（如 taste.md 在 cocoon 仓）无法贴声明的，登记表标"仅登记"。
+Where a cross-repository instance (such as taste.md in the cocoon repo) cannot carry a declaration, the register marks it "registered only".
 
-## doctor 增检
+## Additional doctor checks
 
-1. 含"【模式】复利回路"的文件：标记必须为 `·衰减`、`·积累` 或 `·部件`；参数按类别验**键名**
-   （衰减：域/时机/归因层/消费方/退出/再入 六键；积累：产出/存量/环节/沉淀/校准 五键；
-   部件：角色 + 所属回路/结算/再入），缺键 FAIL。
-2. 登记表实例缺声明 → WARN（"仅登记"行豁免）。
-3. ~~兼容期~~：**已于 2026-07-24 关闭**（批次 I / M2-tail）。无子型标记 → **FAIL**（不再 WARN）。旧五参数缺「再入」等键名仍按衰减六参数校验 FAIL。
+1. A file containing "【模式】复利回路": the marker must be `·衰减`, `·积累` or `·部件`; the parameters are validated by **key name** per category
+   (decay: the six keys 域/时机/归因层/消费方/退出/再入; accumulation: the five keys 产出/存量/环节/沉淀/校准;
+   component: 角色 + 所属回路/结算/再入). A missing key is a FAIL.
+2. A registered instance with no declaration → WARN (a "registered only" row is exempt).
+3. ~~The compatibility window~~: **closed on 2026-07-24** (batch I / M2-tail). No subtype marker → **FAIL** (no longer WARN). An old five-parameter block still missing keys such as 再入 is still a FAIL under the six-parameter decay validation.
 
-## 演化预留
+## Reserved for evolution
 
-- `method_distillation`（跨课方法提炼）形态上是骑在多个 mistake_bank 之上的**积累型二阶回路**；
-  当 ≥2 门课的方法卡出现互相引用时再入册，之前只在 evolution 挂观察条目。
-- 未来新域（写作实践、健身课…）需要复利回路时：选子型 + 登记表加行 + 按模板实例化。
-- 若某一子型实例超过 6 个且参数高度雷同，再考虑抽象成统一格式 + 脚本化复测——在那之前，
-  手写实例的维护成本低于一个通用框架（不提前工程化，这是 T2AG 一贯哲学）。
+- `method_distillation` (cross-course method distillation) is in shape an **accumulating second-order loop** riding on several mistake_banks;
+  it is registered once the method cards of ≥2 courses start citing each other, and until then it stays an observation entry in evolution.
+- When a future domain (writing practice, a fitness course …) needs a compounding loop: pick the subtype + add a row to the register + instantiate per the template.
+- If one subtype ever exceeds 6 instances with highly similar parameters, consider abstracting a unified format + scripted re-testing — until then,
+  the maintenance cost of hand-written instances is lower than that of a general framework (do not engineer ahead of need; this is T2AG's consistent philosophy).

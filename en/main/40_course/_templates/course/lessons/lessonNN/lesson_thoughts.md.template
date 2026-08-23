@@ -1,25 +1,28 @@
-# COURSE_ID lessonNN 想法记录
+# COURSE_ID lessonNN thought record
 
-> 惰性载体：只有真实出现学生原创表述时才从模板创建，不预造空文件。
-> 学生原话与教师回应分栏，不混写、不改写原话。
-> 有跨课价值的才上挂 `main/10_student/profile/reasoning_patterns.md`；
-> 达提炼门的学习感受上收 `main/10_student/profile/course_reflections.md`。
-> 判据见 `main/00_core/learning_activity_model.md` 第 2 类与第 5 类。
+> A lazy carrier: created from the template only when a student's own formulation really appears; never
+> pre-created as an empty file.
+> The student's words and the teacher's response go in separate columns; they are never blended and the
+> words are never rewritten.
+> Only something with cross-course value is promoted to `main/10_student/profile/reasoning_patterns.md`;
+> a study feeling that reaches the distillation gate is promoted to
+> `main/10_student/profile/course_reflections.md`.
+> The criteria are in `main/00_core/learning_activity_model.md`, rows 2 and 5.
 
-## 条目格式
+## Entry format
 
 ```markdown
-### TH-01｜一句话标题
-- 日期：YYYY-MM-DD
-- 触发位置：教材页码 / 块 ID / 讲解到哪一步
-- 类别：原创表述 / 学习感受 / 元认知
-- 学生原话：
-  > 原话照录，不润色、不补全
-- 教师回应：
-  回应要点，与原话分栏；不把回应写进原话
-- 后续处置：待观察 / 已上挂 reasoning_patterns / 已上收 course_reflections / 本课内消化
+### TH-01｜one-sentence title
+- Date: YYYY-MM-DD
+- Trigger position: textbook page / block ID / which step of the explanation
+- Category: own formulation / study feeling / metacognition
+- Student's words:
+  > recorded verbatim, not polished and not completed for them
+- Teacher's response:
+  the key points, in a separate column from the words; the response is never written into the words
+- Follow-up: to be observed / promoted to reasoning_patterns / promoted to course_reflections / absorbed within this lesson
 ```
 
-## 条目
+## Entries
 
-暂无。
+None yet.

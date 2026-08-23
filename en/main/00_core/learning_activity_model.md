@@ -1,287 +1,285 @@
-# T2AG 课程学习活动模型
+# The T2AG in-course learning activity model
 
-**保护级别**：core-contract
+**Protection level**: core-contract
 
-> 本契约是 Lesson 与 Exercise 的结构权威，必须随 Main、Skeleton、Lite 一起发行。
-> Playbook 只能说明如何运行这些对象，不能代替对象、模板或初始化能力。
+> This contract is the structural authority for Lesson and Exercise, and must ship with Main, Skeleton, and Lite alike.
+> A playbook may only explain how to run these objects; it can never replace the objects, the templates, or the initialization capability.
 
-## 一、课程内的两个同级学习空间
+## 1. Two sibling learning spaces inside a course
 
 ```text
 Course
-├── lessons/                 # 讲授、阅读、示例、提问与确认
+├── lessons/                 # teaching, reading, examples, questions and confirmations
 │   └── lessonNN/
-│       ├── lessonNN.md      # Lesson 主载体
-│       └── lesson_thoughts.md（有真实想法时惰性创建）
-└── exercises/               # 学生持续做题、提交、反馈、订正与复测
-    ├── exercise_thoughts.md（有真实想法时惰性创建的课程级索引）
+│       ├── lessonNN.md      # the Lesson main carrier
+│       └── lesson_thoughts.md (created lazily when a real thought appears)
+└── exercises/               # the student's ongoing solving, submission, feedback, correction and retest
+    ├── exercise_thoughts.md (a course-level index, created lazily when a real thought appears)
     └── exerciseNN/
-        ├── exercise.md      # Exercise 主载体与精确停点
-        ├── problems.md      # 稳定题目及本单元顺序
-        ├── attempts/        # 学生原始提交
-        └── reviews/         # 逐次反馈
-└── activity_ledger.md       # 0.2.2+ Activity 生命周期唯一真相源
-└── activity_map.md          # ContentGroup ↔ Lesson/Exercise 结构（按需）
+        ├── exercise.md      # the Exercise main carrier and the exact stop
+        ├── problems.md      # the stable problems and this unit's order
+        ├── attempts/        # the student's original submissions
+        └── reviews/         # per-round feedback
+└── activity_ledger.md       # 0.2.2+ the sole source of truth for the Activity lifecycle
+└── activity_map.md          # ContentGroup ↔ Lesson/Exercise structure (as needed)
 ```
 
-- Lesson 与 Exercise 是 Course 内近乎同级的 LearningActivity；任何一方都不拥有另一方。
-- Exercise 不是 Lesson 的附属 Session；canonical 目录/ID 为 `exerciseNN`（至少两位）。
-  旧 `Udddd` 仅作 legacy alias，**禁止新建**。
-- ContentGroup 按教材知识内容连接两类活动。课程根 `activity_map.md` 管理连接，但不改变
-  二者的同级关系。合法 `binding_status: unbound` 须空 `content_group_ids` + 非空 reason。
-- **分权（0.2.2）**：
-  - `activity_ledger.md`：`truth_scope: activity_lifecycle`（ALE/CLR/alias/stats/课程偏好覆盖）
-  - `progress.md`：`truth_scope: course_lifecycle,course_frontend,activity_position`
-  - 活动主文件删除人工 `status`；不得再把 Activity lifecycle 写回 progress 或主文件。
-- `progress.md` 使用唯一前台 `current_activity` / `current_activity_id` / `resume_path` /
-  `activity_position` 与结构化 `next_action_kind|type|id`。`current_lesson` 在 active 契约中
-  **退役**。全课程只有一个前台；`ongoing+pending_close` 容量为 Lesson≤3、Exercise≤2。
-- 消费者必须从同一次 progress 读取建立不可变 `ProgressSnapshot`；统一活动路由返回
-  `activity_position`。不得用第二次读取补齐路由字段，避免并发教学写回产生跨版本状态。
-- Exercise 不得声明 `lesson_id(s)` 或 Session 所有权字段，也不得恢复已否决的
-  `sessions/ExerciseSession` 对象。
-- 教材驱动 Exercise 的已校对题源属于 Course/ContentGroup，必须放在持久
-  `book/` 域并由 `problems.md` 以 registry artifact、路径、定位和 SHA 显式引用。
-  路径解析后仍须位于本 Course `book/`，不得经过 symlink、junction 或 reparse point；
-  problems、registry、题源 frontmatter 与原文档 path/SHA 必须形成同一身份链。
-  `working_pages/` 路径已在 0.2.2 批 S3 退役，历史摘录见各课 `archive/`。
+- Lesson and Exercise are near-sibling LearningActivities inside a Course; neither owns the other.
+- An Exercise is not a Lesson's subordinate Session; the canonical directory/ID is `exerciseNN` (at least two digits).
+  The old `Udddd` serves only as a legacy alias and **creating new ones is forbidden**.
+- A ContentGroup links the two kinds of activity by the knowledge content of the source material. The course-root `activity_map.md` governs the links but does not change their sibling relation. A legal `binding_status: unbound` requires empty `content_group_ids` + a non-empty reason.
+- **Separation of powers (0.2.2)**:
+  - `activity_ledger.md`: `truth_scope: activity_lifecycle` (ALE/CLR/alias/stats/course preference overrides)
+  - `progress.md`: `truth_scope: course_lifecycle,course_frontend,activity_position`
+  - The activity's main file drops the hand-written `status`; the Activity lifecycle must never be written back into progress or the main file again.
+- `progress.md` uses the single foreground `current_activity` / `current_activity_id` / `resume_path` /
+  `activity_position` plus the structured `next_action_kind|type|id`. `current_lesson` is **retired** from the
+  active contract. There is one foreground for the whole course; the `ongoing+pending_close` capacity is Lesson ≤3, Exercise ≤2.
+- A consumer must build an immutable `ProgressSnapshot` from one single read of progress; the unified activity route returns
+  `activity_position`. Never fill in routing fields with a second read — that produces cross-version state under concurrent teaching write-back.
+- An Exercise must not declare `lesson_id(s)` or a Session ownership field, and must not restore the rejected
+  `sessions/ExerciseSession` object.
+- The proofread problem source of a textbook-driven Exercise belongs to the Course/ContentGroup and must live in the persistent
+  `book/` domain, referenced explicitly by `problems.md` through a registry artifact, path, locator and SHA.
+  Once resolved, the path must still lie inside this Course's `book/` and must not pass through a symlink, junction, or reparse point;
+  problems, the registry, the problem source's frontmatter, and the original document's path/SHA must form one identity chain.
+  The `working_pages/` path was retired in 0.2.2 batch S3; historical excerpts are in each course's `archive/`.
 
-### 1.1 状态与默认路由矩阵
+### 1.1 The state and default-routing matrix
 
-| 状态 | 显式活动字段 | Lesson 上下文 | 默认恢复/结课主载体 | working pages |
+| State | Explicit activity fields | Lesson context | Default recovery/close main carrier | working pages |
 |---|---|---|---|---|
-| `planned` | 不存在 | `none` | 不可恢复或结课 | 跳过 |
-| ongoing + Lesson | 完整且互相一致 | 当前 Lesson | 当前 Lesson | 仅 textbook Lesson 校验 |
-| ongoing + Exercise-first | 完整且互相一致 | `none` / `—` | 当前 Exercise | 跳过 |
-| ongoing + Exercise + 历史 Lesson | 完整且互相一致 | 真实历史 Lesson | 当前 Exercise；历史 Lesson 默认只读且不写 | 跳过 |
+| `planned` | absent | `none` | cannot be recovered or closed | skipped |
+| ongoing + Lesson | complete and mutually consistent | the current Lesson | the current Lesson | validated for a textbook Lesson only |
+| ongoing + Exercise-first | complete and mutually consistent | `none` / `—` | the current Exercise | skipped |
+| ongoing + Exercise + a historical Lesson | complete and mutually consistent | the real historical Lesson | the current Exercise; the historical Lesson is read-only by default and is not written | skipped |
 
-活动路由由只读 `70_tools/t2ag_activity.py` 机械解析。恢复、结课、状态刷新与 Doctor
-必须消费同一显式活动契约；不得分别实现“猜当前载体”的后备规则。
+Activity routing is parsed mechanically by the read-only `70_tools/t2ag_activity.py`. Recovery, session close, state refresh and Doctor
+must all consume the same explicit activity contract; none of them may implement its own fallback rule for "guessing the current carrier".
 
-## 二、共同学习回路
+## 2. The shared learning loop
 
-Lesson 与 Exercise 都执行同一骨架：
+Lesson and Exercise both run the same skeleton:
 
-1. 从 `progress.md` 恢复当前活动和精确停点。
-2. 读取该活动所属 ContentGroup 的教材、近期问题、错误和已保存想法。
-3. 每次只推进一个可确认步骤。
-4. 保存学生真实表达；教师的规范化与判断分开署名。
-5. 疑问进入 question bank，明确错误进入 mistake bank。
-6. 更新当前活动主载体与 `progress.md`，再刷新 GENERATED 状态。
-7. 学生确认后继续；未闭合问题不得被换活动掩盖。
+1. Recover the current activity and the exact stop from `progress.md`.
+2. Read the source material, recent questions, mistakes and saved thoughts of the ContentGroup that activity belongs to.
+3. Advance one confirmable step at a time.
+4. Preserve what the student really expressed; the teacher's normalization and judgement are attributed separately.
+5. A question goes into the question bank; a definite mistake goes into the mistake bank.
+6. Update the current activity's main carrier and `progress.md`, then refresh the GENERATED state.
+7. Continue once the student confirms; an unclosed question must never be buried by switching activities.
 
-Lesson 的主要证据是讲授记录、提问与确认；Exercise 的主要证据是
-ExerciseProblem → Attempt → Review → 订正/复测。证据形态不同，不改变二者同为
-LearningActivity。
+A Lesson's main evidence is the teaching record, the questions and the confirmations; an Exercise's main evidence is
+ExerciseProblem → Attempt → Review → correction/retest. The form of the evidence differs; that both are
+LearningActivities does not.
 
-### 2.1 学生可选提示闸门
+### 2.1 The optional student hint gate
 
-`10_student/profile/profile.md` 的 `exercise_hint_gate: enabled | disabled` 是学生是否
-启用可执行提示闸门的唯一持久设置。未初始化 Skeleton 使用 `ask`，首次启动必须让学生
-选择后才能改为 `initialized`；学生之后可随时改选，改选不抹除既有帮助暴露。
+`exercise_hint_gate: enabled | disabled` in `10_student/profile/profile.md` is the single persistent setting for whether
+the student enables the executable hint gate. An uninitialized Skeleton uses `ask`, and first startup must let the student
+choose before it may become `initialized`; the student may re-choose at any time afterwards, and re-choosing never erases existing help exposure.
 
-闸门只管理 Exercise 教学回复，不声称仅靠提示词形成不可绕过的安全边界：
+The gate governs Exercise teaching replies only, and does not claim that a prompt alone forms an unbypassable safety boundary:
 
-- `reasoning_feedback`：只检查学生已经写出的命题、对象与推理，不新增解题对象、子目标、
-  引理、构造或下一步；
-- `concept_answer`：只回答学生明确提出的概念，不把概念桥接回当前题，不生成题目专属的
-  子目标、引理或关键步骤；回答后回到提问前的精确停点；
-- `direction_hint / specified_reference / full_solution`：分别要求学生显式授权
-  `direction / reference / solution`，教师不能根据“似乎卡住”自行升级；
-- 新 Attempt 保存创建时的 gate 快照与最高帮助暴露；概念问答本身不升级帮助等级，未经
-  授权泄露关键结构时标记教师提示污染，不能计作学生独立掌握或学生错误。
+- `reasoning_feedback`: examines only the propositions, objects and reasoning the student has already written; it adds no solving object, sub-goal,
+  lemma, construction, or next step;
+- `concept_answer`: answers only the concept the student raised explicitly, does not bridge the concept back to the current problem, and generates no
+  problem-specific sub-goal, lemma or key step; after answering it returns to the exact stop from before the question;
+- `direction_hint / specified_reference / full_solution`: each requires the student's explicit authorization of
+  `direction / reference / solution`; the teacher must never upgrade on its own because the student "seems stuck";
+- a new Attempt stores the gate snapshot at creation and the highest help exposure; a concept Q&A does not itself raise the help level, and when a key
+  structure leaks without authorization it is marked as teacher-hint contamination and counts neither as the student's independent mastery nor as a student mistake.
 
-回复前检查由只读 `70_tools/t2ag_hint_gate.py` 给出 allow/deny 与范围约束。若产品层需要
-硬阻断，必须由模型外部的响应中介消费 deny 返回码；Doctor 和 Markdown 契约只能验证、
-审计与防回归，不能诚实地宣称自己能拦截所有未来模型输出。
+The pre-reply check is given by the read-only `70_tools/t2ag_hint_gate.py` as allow/deny plus a scope constraint. If the product layer needs a
+hard block, a response intermediary outside the model must consume the deny return code; Doctor and the Markdown contract can only verify,
+audit and prevent regression — they cannot honestly claim to intercept every future model output.
 
-### 2.2 多块长篇讲解的地图优先协议
+### 2.2 Map-first protocol for long multi-block explanations
 
-当一次讲解预计同时包含三个以上概念块，或符号会在数字、函数、集合、函数集合等多个
-对象层级间切换时，先给导航，再进入推导：
+When one explanation is expected to contain three or more concept blocks, or when a symbol will move across several object
+levels (numbers, functions, sets, sets of functions), give the navigation first and enter the derivation second:
 
-1. 用短目录或树形图标明目标、主要分支、依赖关系和本轮只展开的分支。
-2. 在首次出现时标注关键符号的对象类型；同一符号族跨层使用时给出简短类型表。
-3. 一次只深入一个分支；完成该分支后等待学生确认、复述或追问，再进入下一支。
-4. 总览只承担导航功能，不能把全部细节压缩成另一种形式一次性倾倒。
-5. 概念讲授或学生已授权完整讲解时，总览可以展示证明或实现路线；新 Exercise 的
-   未授权阶段仍受开题零提示与提示闸门约束，不得借目录、思维树或类型表泄露方法、
-   子目标、关键变形或答案。无法在不泄露的前提下制作有用总览时，宁可省略总览。
+1. Use a short table of contents or a tree diagram to state the goal, the main branches, the dependencies, and the one branch being expanded this round.
+2. Annotate a key symbol's object type at its first appearance; when one symbol family is used across levels, give a short type table.
+3. Go deep into one branch at a time; after finishing that branch, wait for the student to confirm, restate or ask, then enter the next.
+4. An overview carries navigation only; it must never compress all the detail into another form and dump it at once.
+5. In conceptual teaching, or once the student has authorized a full explanation, the overview may show the proof or implementation route; the
+   unauthorized stage of a new Exercise is still bound by zero hints at problem opening and by the hint gate, and must never leak the method,
+   a sub-goal, a key transformation, or the answer through a table of contents, a thought tree, or a type table. When no useful overview can be made without leaking, omit the overview.
 
-地图不是理解确认。学生仍须对当前分支明确表示理解或继续，系统不能因已经展示全局
-结构就跨过确认门。
+A map is not a comprehension confirmation. The student must still state understanding of, or agreement to continue with, the current branch; the system may not
+cross a confirmation gate merely because the global structure has been shown.
 
-### 2.3 消息记录路由
+### 2.3 Message-record routing
 
-本节是消息记录路由的**唯一 owner**。学生每发一条消息，教师按下列顺序判断成分并
-**当轮**落盘；一条消息可命中多行，每行独立写入。记录是追加，不是判断。
+This section is the **sole owner** of message-record routing. For every message the student sends, the teacher judges its components in the order below and
+writes them to disk **in the same round**; one message may hit several rows, and each row is written independently. A record is an append, not a judgement.
 
-Lesson 与 Exercise 共用同一判断骨架，但「哪几行改变课程真相源」不同，因此分两个变体表；
-模板与实例载体只保留指向本节的指针，不得复制表正文（防两份正文漂移）。
+Lesson and Exercise share one judgement skeleton, but "which rows change the course's source of truth" differs, so there are two variant tables;
+templates and instance carriers keep only a pointer to this section and must never copy the table body (two bodies would drift).
 
-#### Lesson 变体
+#### The Lesson variant
 
-只有第 1 行改变课程真相源，须理解确认门真正闭合才写；第 2–6 行无需授权、不等课后。
+Only row 1 changes the course's source of truth, and it is written only once the comprehension gate has really closed; rows 2–6 need no authorization and do not wait for the end of class.
 
-| # | 消息成分 | 去向 | 说明 |
+| # | Message component | Destination | Note |
 |---|---|---|---|
-| 1 | 理解确认的回答 | `progress.md` | 答对翻 checkpoint confirmed + 更新精确停点 + 教学记录一条（含答对要点）；答错不翻 checkpoint |
-| 2 | 学生原创表述（顿悟、自造模型、新得概念） | `lesson_thoughts.md` | 学生原话与教师回应分栏，不混写；有跨课价值再挂 `10_student/profile/reasoning_patterns.md` |
-| 3 | 疑问 | `question_bank.md` | 当场答完 → answered；推迟 → open + 备注 |
-| 4 | 知识性错误 | `mistake_bank.md` | 根因标签 + 迁移预警；判为回滑则在 `progress.md` 挂复核项 |
-| 5 | 学习感受（审美、卡点、状态、元认知） | 课堂原话进 `lesson_thoughts.md`；达提炼门上收 `10_student/profile/course_reflections.md`；哲学/人生/长期情绪进 `10_student/profile/profile.md` 个体性格基调节 | 提炼门见本契约 §三；纯「没问题」并入当轮闭合记录，不单列 |
-| 6 | 流程/系统问题或建议 | 课程层进 `progress.md` 教学记录；系统层进 `t2ag_problemlog.md` | |
-| 7 | 继续授权 | `progress.md` 精确停点 | 一次性，用后即失效 |
-| 8 | 闲聊/题外话 | 不记 | — |
+| 1 | the answer to a comprehension confirmation | `progress.md` | correct → flip the checkpoint to confirmed + update the exact stop + one teaching-record line (with the key points of the correct answer); wrong → do not flip the checkpoint |
+| 2 | the student's own formulation (an insight, a self-made model, a newly grasped concept) | `lesson_thoughts.md` | the student's words and the teacher's response in separate columns, never blended; promote to `10_student/profile/reasoning_patterns.md` only when it has cross-course value |
+| 3 | a question | `question_bank.md` | answered on the spot → answered; deferred → open + a note |
+| 4 | a knowledge error | `mistake_bank.md` | root-cause tag + transfer warning; if judged a regression, hang a re-check item in `progress.md` |
+| 5 | how the study felt (aesthetics, sticking points, state, metacognition) | the verbatim classroom words go to `lesson_thoughts.md`; on reaching the distillation gate, promote to `10_student/profile/course_reflections.md`; philosophy/life/long-term emotion go to the individual-character section of `10_student/profile/profile.md` | the distillation gate is in §3 of this contract; a bare "no problems" is merged into that round's closing record and not listed separately |
+| 6 | a process/system problem or suggestion | course level → the `progress.md` teaching record; system level → `t2ag_problemlog.md` | |
+| 7 | a continue authorization | the `progress.md` exact stop | single-use; spent once consumed |
+| 8 | small talk / off-topic | not recorded | — |
 
-不另存：教师讲解正文（教材原文在 source assets，块覆盖状态在 lesson 主载体与
-`lesson_map.md`）；理解确认题干（在 checkpoint 表）。
+Not stored separately: the teacher's explanation body (the source text is in the source assets, and block coverage state is in the lesson main carrier and
+`lesson_map.md`); the comprehension-check question text (it is in the checkpoint table).
 
-#### Exercise 变体
+#### The Exercise variant
 
-只有第 1–2 行改变课程真相源，须按 Exercise 状态机真实发生后才写；第 3–7 行无需授权、
-不等课后。
+Only rows 1–2 change the course's source of truth, and they are written only after the Exercise state machine has really produced them; rows 3–7 need no authorization and
+do not wait for the end of class.
 
-| # | 消息成分 | 去向 | 说明 |
+| # | Message component | Destination | Note |
 |---|---|---|---|
-| 1 | 正式作答 | `attempts/ATdddd/attempt.md` + exercise 主载体状态与精确停点 | 一次作答一份编号 Attempt；写入时机由结构定死 |
-| 2 | 作答后的教师反馈与判定 | `reviews/RVdddd.md` | 与 Attempt 一一对应 |
-| 3 | 学生原创表述（顿悟、自造模型、新得概念） | Attempt 内保留原话 + `exercises/exercise_thoughts.md` 索引 | 学生原话与教师回应分栏；有跨课价值再挂 `10_student/profile/reasoning_patterns.md` |
-| 4 | 疑问 / 概念提问 | `question_bank.md`；涉及当前 Exercise 的走提示闸门 | 当场答完 → answered；推迟 → open + 备注；提示级别按授权记入 Attempt frontmatter |
-| 5 | 知识性错误 | `mistake_bank.md` | 根因标签 + 迁移预警；进入复测周期 |
-| 6 | 学习感受（审美、卡点、状态、元认知） | 原话进 Attempt / `exercise_thoughts.md`；达提炼门上收 `10_student/profile/course_reflections.md`；哲学/人生/长期情绪进 `10_student/profile/profile.md` 个体性格基调节 | 提炼门见本契约 §三；纯「没问题」并入当轮闭合记录，不单列 |
-| 7 | 流程/系统问题或建议 | 课程层进 `progress.md` 教学记录；系统层进 `t2ag_problemlog.md` | |
-| 8 | 继续授权 | exercise 主载体精确停点 | 一次性，用后即失效 |
-| 9 | 闲聊/题外话 | 不记 | — |
+| 1 | a formal answer | `attempts/ATdddd/attempt.md` + the exercise main carrier's state and exact stop | one answer, one numbered Attempt; when it is written is fixed by the structure |
+| 2 | the teacher's feedback and verdict after the answer | `reviews/RVdddd.md` | one-to-one with the Attempt |
+| 3 | the student's own formulation (an insight, a self-made model, a newly grasped concept) | the verbatim words stay in the Attempt + an index entry in `exercises/exercise_thoughts.md` | the student's words and the teacher's response in separate columns; promote to `10_student/profile/reasoning_patterns.md` only when it has cross-course value |
+| 4 | a question / a conceptual question | `question_bank.md`; anything touching the current Exercise goes through the hint gate | answered on the spot → answered; deferred → open + a note; the hint level is recorded in the Attempt frontmatter per the authorization |
+| 5 | a knowledge error | `mistake_bank.md` | root-cause tag + transfer warning; enters the retest cycle |
+| 6 | how the study felt (aesthetics, sticking points, state, metacognition) | the verbatim words go to the Attempt / `exercise_thoughts.md`; on reaching the distillation gate, promote to `10_student/profile/course_reflections.md`; philosophy/life/long-term emotion go to the individual-character section of `10_student/profile/profile.md` | the distillation gate is in §3 of this contract; a bare "no problems" is merged into that round's closing record and not listed separately |
+| 7 | a process/system problem or suggestion | course level → the `progress.md` teaching record; system level → `t2ag_problemlog.md` | |
+| 8 | a continue authorization | the exercise main carrier's exact stop | single-use; spent once consumed |
+| 9 | small talk / off-topic | not recorded | — |
 
-不另存：教师讲解与提示正文（题面在 `problems.md`，证据指针在 exercise 主载体
-「证据索引」）。
+Not stored separately: the teacher's explanation and hint bodies (the problem statement is in `problems.md`, and the evidence pointers are in the exercise main carrier's
+"evidence index").
 
-### 2.4 门台账（教学门留痕）
+### 2.4 The gate ledger (leaving a trace when a teaching gate is crossed)
 
-> 起源：P-0054「宣布不等于交接」与三次同门失效（P-0014/P-0041/P-0054）。对话层的门
-> 此前只活在散文里，跳过不留痕；本节把**过门**变成**落行**，使 doctor
-> （`runtime.gate_ledger`，WARN 级）第一次够得着教学门。GL-1 施工单：
-> `docs/design/T2AG_GATE_LEDGER_WORKORDER_DRAFT_2026-08-08.md`。
+> Origin: P-0054 "announcing is not handing over", plus three failures of the same gate (P-0014/P-0041/P-0054). A conversation-layer gate
+> used to live only in prose, and skipping it left no trace; this section turns **crossing a gate** into **writing a row**, so that doctor
+> (`runtime.gate_ledger`, WARN level) can reach a teaching gate for the first time. The GL-1 work order:
+> `docs/design/T2AG_GATE_LEDGER_WORKORDER_DRAFT_2026-08-08.md`.
 
-**边界（先说清它不是什么）**：门台账是**留痕投影，不是第二真相源**。块/活动生命周期
-真相仍归 `progress.md` checkpoint 表与 `activity_ledger.md`（§1.2 分权不变）；台账与
-真相源冲突时以真相源为准，台账缺行 = 留痕违规，不 = 状态错误。它与 §2.3 行 7/8
-（继续授权 → 精确停点，一次性用后即失效）的关系：停点记**当前授权态**，台账记**历史行**。
+**The boundary (what it is not, stated first)**: the gate ledger is a **trace projection, not a second source of truth**. The truth of the block/activity lifecycle
+still belongs to the `progress.md` checkpoint table and `activity_ledger.md` (the §1.2 separation is unchanged); when the ledger and a source of truth
+conflict, the source of truth governs, and a missing ledger row = a trace violation, not = a state error. Its relation to §2.3 rows 7/8
+(continue authorization → the exact stop, single-use and spent once consumed): the stop records the **current authorization state**, the ledger records **historical rows**.
 
-**载体与锚**：Lesson / Exercise 主载体各持有一节 `## 门台账`，首行锚：
-
-```
-ledger_since: <ISO 日期> | 起算块: <checkpoint ID>        （Lesson）
-ledger_since: <ISO 日期> | 起算证据: RVdddd/ATdddd        （Exercise）
-```
-
-锚用 ID 不用日期做 join（checkpoint 表无日期列）；doctor 只对锚**之后**的
-confirmed 行 / 新证据生效——**向前生效，历史不补写、不检查**。
-
-**行式**（七列，追加式，历史行不改，写错追加更正行并指向被更正行 ID）：
+**Carrier and anchor**: the Lesson / Exercise main carrier each holds one `## Gate ledger` section, whose first row is the anchor:
 
 ```
-| 行ID | 块ID | 门类型 | 闭合依据 | 感受回应 | 授权原文 | 消费于 |
+ledger_since: <ISO date> | starting block: <checkpoint ID>        (Lesson)
+ledger_since: <ISO date> | starting evidence: RVdddd/ATdddd       (Exercise)
 ```
 
-- `行ID`：`GT-NNNN`，载体内单调递增，不跨载体编号。
-- `授权原文`：**学生逐字引语 + 时刻**（如 `"继续"(21:14)`）。留痕不防捏造，防的是
-  发现延迟：配合课堂 footer，伪造引语 = 当轮当面撒谎；偷懒不写行 = 文件层可查缺行。
-- 纯「没问题」类回应照 §2.3 既有约定并入当轮行，不单列。
+The anchor joins on an ID, not on a date (the checkpoint table has no date column); doctor takes effect only on confirmed rows / new evidence **after** the
+anchor — **forward-acting; history is never backfilled and never checked**.
 
-**落件义务（门类型枚举）**：
+**Row format** (seven columns, append-only; a historical row is never edited — a wrong row is corrected by appending a correction row pointing at the corrected row's ID):
 
-| 变体 | 门类型 | 何时落行 | `消费于` 写什么 |
+```
+| Row ID | Block ID | Gate type | Basis of closure | Response to feeling | Verbatim authorization | Consumed at |
+```
+
+- `Row ID`: `GT-NNNN`, increasing monotonically within a carrier, never numbered across carriers.
+- `Verbatim authorization`: **the student's exact quote + the moment** (such as `"continue"(21:14)`). A trace does not prevent fabrication; what it prevents is
+  delayed discovery: together with the classroom footer, a forged quote is a lie told to someone's face in that round, while lazily omitting the row is a missing row anyone can find at the file layer.
+- A bare "no problems" response is merged into that round's row per the existing §2.3 convention, not listed separately.
+
+**The obligation to write a row (the gate-type enumeration)**:
+
+| Variant | Gate type | When the row is written | What `Consumed at` holds |
 |---|---|---|---|
-| Lesson | `开场确认` | 概览 + 知识树 + 路线感受后，学生授权进入第一块 | 第一块 checkpoint ID |
-| Lesson | `块过渡` | §1.6 三门闭合、学生授权进入下一块 | 下一块 checkpoint ID |
-| Lesson | `翻页` | 旧页清单 → 宣布「PDF N / 书内 M」→ 新页树 → 单独授权 | 新页首块 ID（`块ID` 列写 `PDF N→N+1`） |
-| Lesson | `结课确认` | session close 学生确认 | `close` |
-| Exercise | `开题` | 只给题面、保留独立尝试 | 题号（如 `Q005`） |
-| Exercise | `提示授权(级别)` | 学生显式授权某级提示（§2.1） | 对应 `ATdddd`；`闭合依据` 填学生逐字请求 |
-| Exercise | `题目闭环` | 讲解/复盘后感受与疑问门闭合 | 对应 `RVdddd` |
-| Exercise | `下一题授权` | 学生授权进入下一题 | 下一题号 |
-| Exercise | `结课确认` | 同 Lesson | `close` |
+| Lesson | `opening confirmation` | after the overview + knowledge tree + route feeling, the student authorizes entering the first block | the first block's checkpoint ID |
+| Lesson | `block transition` | the three §1.6 gates close and the student authorizes entering the next block | the next block's checkpoint ID |
+| Lesson | `page turn` | the old page's list → announce "PDF N / book page M" → the new page tree → a separate authorization | the first block ID of the new page (the `Block ID` column holds `PDF N→N+1`) |
+| Lesson | `close confirmation` | the student confirms at session close | `close` |
+| Exercise | `problem opening` | only the statement is given and the independent attempt is preserved | the problem number (such as `Q005`) |
+| Exercise | `hint authorization(level)` | the student explicitly authorizes a hint level (§2.1) | the matching `ATdddd`; `Basis of closure` holds the student's verbatim request |
+| Exercise | `problem closure` | the feeling and question gates close after the explanation/review | the matching `RVdddd` |
+| Exercise | `next-problem authorization` | the student authorizes moving to the next problem | the next problem number |
+| Exercise | `close confirmation` | as for Lesson | `close` |
 
-**课堂 footer（派生规则）**：每轮教学回复末尾固定一行，内容必须可从台账末行 +
-progress 停点派生，不得凭空声称：
+**The classroom footer (a derivation rule)**: every teaching reply ends with one fixed line whose content must be derivable from the ledger's last row +
+the progress stop, and may never be asserted out of nothing:
 
 ```
-⛩ 块: <当前块> | 门: <开着的门/等待什么> | 本轮授权: <未消费/已消费于X> | 页: PDF N/书内 M
+⛩ Block: <current block> | Gate: <which gate is open / what is being waited for> | This round's authorization: <unconsumed / consumed at X> | Page: PDF N / book M
 ```
 
-Exercise 变体：`块`→`题`，`页`→`提示: 当前已授出级别`。行首符号与字段顺序学生可改；
-改样式属 V0。
+The Exercise variant: `Block`→`Problem`, `Page`→`Hints: the level authorized so far`. The student may change the leading symbol and the field order;
+changing the style is a V0.
 
-**doctor 检查范围（如实声明）**：`runtime.gate_ledger` 只实现确定性子集——
-`000` 表损坏 fail-closed、`001` 锚后相邻 confirmed 块缺块过渡行、`002` 页码变化处缺
-翻页行、`003` 授权原文空/占位、`004` 行ID 重复或非递增、`005` 锚后新 RV 缺题目闭环行、
-`006` Attempt frontmatter 高级提示缺提示授权行、`007` 当前教材 Lesson 整节缺失
-`## 门台账`。`开场确认`/`结课确认`/`下一题授权`
-目前只是契约义务，机器未检查。WARN 逐条指名载体与块/题 ID。
+**The scope of the doctor check (stated honestly)**: `runtime.gate_ledger` implements a deterministic subset only —
+`000` the table is corrupt, fail-closed; `001` a block transition row is missing between adjacent confirmed blocks after the anchor; `002` a
+page-turn row is missing where the page number changed; `003` the verbatim authorization is empty or a placeholder; `004` a row ID repeats or does not increase;
+`005` a problem-closure row is missing for a new RV after the anchor; `006` an Attempt frontmatter with a high hint level lacks the hint-authorization row;
+`007` the current textbook Lesson lacks the whole `## Gate ledger` section. `opening confirmation` / `close confirmation` / `next-problem authorization`
+are at present contract obligations only and are not machine-checked. Each WARN names the carrier and the block/problem ID.
 
-2026-08-10 更新（学生裁决，随检验体系施工）：
+Update 2026-08-10 (the student's adjudication, alongside the check-system construction):
 
-- `001` 判定语义为**出行有痕 + 入行有痕**：a→b 过门由「a 有块过渡出行」加「b 有块过渡
-  入行」共同满足，允许中途经过树外/学生主导分支节点（宪法 §4 允许的绕行不再误报）。
-- checkpoint 表接受两种确定形制：带 `checkpoint_id`/`状态` 表头的表（`页码` 可缺，
-  goal-driver 课程合法无页）与无表头 `-B-P-N` 六列旧形制。
-- **历史载体**无本节 → 跳过（部署过渡期不变）；但**当前教材 Lesson**（progress 指向的
-  `current_activity`）缺整节 → `007`，**FAIL 级**：散文门失去唯一机器落点时不得宣称闭合。
-  完整性缺行仍为 WARN，不打断课中。
+- The semantics of `001` are **a trace on the way out + a trace on the way in**: crossing a→b is satisfied by "a has an outgoing block-transition row" plus "b has an incoming
+  block-transition row", and passing through an off-tree or student-led branch node in between is allowed (a detour permitted by constitution §4 is no longer a false report).
+- The checkpoint table accepts two deterministic shapes: a table whose header names `checkpoint_id`/the status column (the page column may be absent —
+  a goal-driver course legitimately has no page) and the headerless legacy six-column `-B-P-N` shape.
+- A **historical carrier** without this section → skipped (unchanged during the deployment transition); but the **current textbook Lesson**
+  (the `current_activity` progress points at) missing the whole section → `007`, at **FAIL** level: when a prose gate loses its only machine landing point, closure must not be claimed.
+  A missing row for completeness is still a WARN and does not interrupt a class.
 
-## 三、想法复利回路
+## 3. The thought-compounding loop
 
-学生在任一活动明确表达想法时才启动，不预造内容：
+It starts only when the student expresses a thought explicitly in some activity; content is never pre-created:
 
 ```text
-学生原话
+the student's own words
   → Lesson: lesson_thoughts.md
-    或 Exercise: Attempt + exercises/exercise_thoughts.md 索引
-  → 满足提炼门时进入 course_reflections.md
-  → 后续相关 Lesson / Exercise 恢复时主动读取并用于提示、反例、迁移或复测
-  → 新作答与新想法形成下一轮证据
+    or Exercise: the Attempt + an index entry in exercises/exercise_thoughts.md
+  → on meeting the distillation gate, into course_reflections.md
+  → read actively when a related Lesson / Exercise is later recovered, and used for a hint, a counterexample, a transfer or a retest
+  → the new answer and the new thought form the next round's evidence
 ```
 
-- 学生原话、教师补充和教师提炼必须分栏，不得混写。
-- 普通局部想法不强制上收；跨活动连接、学生明确标记重要或能指导后续学习时才提炼。
-- `course_reflections.md` 不是终点；条目必须带来源和后续使用方式，恢复时必须实际消费。
+- The student's words, the teacher's additions, and the teacher's distillation must be in separate columns and never blended.
+- An ordinary local thought is not forced upward; distillation happens only when it links activities, when the student explicitly marks it important, or when it can guide later study.
+- `course_reflections.md` is not a terminus; an entry must carry its source and its intended later use, and must actually be consumed on recovery.
 
-## 四、做题驱动的系统改进回路
+## 4. The exercise-driven system improvement loop
 
-真实 Exercise 既服务学习，也为系统机制提供设计证据：
+A real Exercise serves learning and also supplies design evidence for the system's mechanisms:
 
 ```text
-持续做题
-  → 暴露新需求/摩擦/边界案例
-  → 记录 problemlog 或候选路线图
-  → 分离事实、模型推断与需求本身
-  → 与学生裁决
-  → 更新 Core 契约 / Playbook / Tool / Template
-  → 同步 Skeleton
-  → 负例与真实下一轮验证
+continuous solving
+  → exposes a new need / friction / edge case
+  → recorded in the problemlog or the candidate roadmap
+  → separate the facts, the model's inference, and the need itself
+  → adjudicate with the student
+  → update the Core contract / Playbook / Tool / Template
+  → synchronize the Skeleton
+  → a negative example and a real next round verify it
 ```
 
-- 单次需求先解决当前学习，不急于抽象成系统对象。
-- 稳定机制不能只写在某门课、某个 `Udddd` 或一次对话里；必须进入 Skeleton 自带的
-  Core、模板和可执行检查。
-- Skeleton 不携带真实学生和课程实例，但必须携带创建 Course、Lesson、Exercise 及其
-  复利回路所需的完整模板与规则。
+- A one-off need is served by solving the current learning problem first; do not rush to abstract it into a system object.
+- A stable mechanism must not live only in one course, one `Udddd`, or one conversation; it must enter the Core, the templates, and the executable checks the Skeleton ships with.
+- The Skeleton carries no real student or course instance, but must carry the complete templates and rules needed to create a Course, a Lesson, an Exercise and their
+  compounding loops.
 
-## 五、权威分工
+## 5. Division of authority
 
-| 内容 | 权威载体 |
+| Content | Authoritative carrier |
 |---|---|
-| Lesson / Exercise 对象与共同回路 | `00_core/learning_activity_model.md` |
-| 消息记录路由（Lesson / Exercise 两个变体表） | `00_core/learning_activity_model.md` §2.3 |
-| 门台账留痕与课堂 footer（Lesson / Exercise 两个变体） | `00_core/learning_activity_model.md` §2.4；检查 `runtime.gate_ledger` |
-| 课程稳定教学约束 | `40_course/<COURSE_ID>/course.md` |
-| ContentGroup 与活动关系 | `40_course/<COURSE_ID>/activity_map.md` |
-| 当前活动与精确停点 | `40_course/<COURSE_ID>/progress.md` |
-| Lesson 正文 | `lessons/lessonNN/lessonNN.md` |
-| Exercise 正文 | `exercises/exerciseNN/exercise.md` |
-| 教材题源 | Course `book/` 内持久 verified excerpt；不得放在临时缓存路径 |
-| 题目、提交与反馈 | `problems.md` / `attempts/` / `reviews/` |
-| 初始化材料 | `40_course/_templates/course/` |
-| 运行步骤 | `50_playbook/new_course_init.md`、`lesson_recover.md`、`exercise_evidence.md`、`session_close.md` |
+| the Lesson / Exercise objects and the shared loop | `00_core/learning_activity_model.md` |
+| message-record routing (the two variant tables, Lesson / Exercise) | `00_core/learning_activity_model.md` §2.3 |
+| the gate-ledger trace and the classroom footer (the two variants, Lesson / Exercise) | `00_core/learning_activity_model.md` §2.4; the check is `runtime.gate_ledger` |
+| a course's stable teaching constraints | `40_course/<COURSE_ID>/course.md` |
+| ContentGroup and activity relations | `40_course/<COURSE_ID>/activity_map.md` |
+| the current activity and the exact stop | `40_course/<COURSE_ID>/progress.md` |
+| the Lesson body | `lessons/lessonNN/lessonNN.md` |
+| the Exercise body | `exercises/exerciseNN/exercise.md` |
+| the textbook problem source | a persistent verified excerpt inside the Course `book/`; never in a temporary cache path |
+| problems, submissions and feedback | `problems.md` / `attempts/` / `reviews/` |
+| initialization material | `40_course/_templates/course/` |
+| the runtime steps | `50_playbook/new_course_init.md`, `lesson_recover.md`, `exercise_evidence.md`, `session_close.md` |

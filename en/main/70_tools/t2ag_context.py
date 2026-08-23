@@ -19,6 +19,7 @@ from typing import Iterable
 
 import activity_close
 import activity_ledger
+import t2ag_doctor as doctor  # LV-5: MARKER_VARIANTS is the one spelling list
 from t2ag_activity import (
     ActivityContractError,
     ProgressSnapshot,
@@ -240,6 +241,32 @@ def section(
     return content[item.start : item.end].strip()
 
 
+def section_any(
+    content: str,
+    title: str,
+    *,
+    level: int | None = None,
+    required: bool = True,
+) -> str:
+    """`section`, tried against every registered spelling of `title`.
+
+    LV-5: memory section headings are prose and are translated per edition, while
+    the reader here named one spelling. Renaming `## 上次课摘要` to
+    `## Last session summary` in the English memory file silently made
+    `has_active_progress` return False — the state was there and the reader was
+    blind, the same carrier_mismatch family this registry exists to close.
+    """
+    for spelling in doctor.marker_spellings(title):
+        found = section(content, spelling, level=level, required=False)
+        if found:
+            return found
+    if required:
+        raise ContextPacketError(
+            f"expected one heading {title!r} in any registered edition, found none"
+        )
+    return ""
+
+
 def sections_by_prefix(
     content: str,
     prefix: str,
@@ -277,7 +304,7 @@ def markdown_table_cells(row: str) -> list[str]:
 def group_course_ids(group_row: str) -> set[str]:
     cells = markdown_table_cells(group_row)
     if len(cells) < 5:
-        raise ContextPacketError("learning_path 课程组索引行列数不足")
+        raise ContextPacketError("the learning_path course-group index row has too few columns")
     return set(re.findall(r"[A-Za-z0-9][A-Za-z0-9_-]*", cells[2]))
 
 
@@ -297,7 +324,7 @@ def initialized(profile: str, memory: str) -> bool:
         return False
     if PLACEHOLDER_RE.search(profile):
         return False
-    summary = section(memory, "上次课摘要", level=2, required=False)
+    summary = section_any(memory, "上次课摘要", level=2, required=False)
     return bool(summary) and not re.search(r"\*\*日期\*\*[：:]\s*—", summary)
 
 
@@ -351,7 +378,7 @@ def progress_next_action(meta: dict[str, str]) -> dict[str, str]:
             f"{result['next_action_kind'] or '缺失'}"
         )
     if not result["next_activity_type"] or not result["next_activity_id"]:
-        raise ContextPacketError("progress 缺 next_activity_type / next_activity_id")
+        raise ContextPacketError("progress lacks next_activity_type / next_activity_id")
     return result
 
 
@@ -381,7 +408,7 @@ def load_ledger_route(
         key = f"{route.activity_type}:{route.activity_id}"
         entry = index.get(key)
         if entry is None:
-            raise ContextPacketError(f"activity ledger 缺当前活动：{key}")
+            raise ContextPacketError(f"the activity ledger lacks the current activity: {key}")
         expected = activity_ledger.resolve_next_action(
             current_activity_type=route.activity_type,
             current_activity_id=route.activity_id,
@@ -413,19 +440,28 @@ def problem_statement(problem: str) -> str:
     collecting = False
     for raw in lines:
         if not collecting:
-            match = re.match(r"^-\s*题面[：:]\s*(.*)$", raw.strip())
+            # LV-5: the label is spelled per edition; resolve through the registry.
+            match = re.match(
+                rf"^-\s*(?:{doctor.marker_alternation('题面')})[：:]\s*(.*)$", raw.strip()
+            )
             if match:
                 collecting = True
                 selected.append(match.group(1).rstrip())
             continue
+        # LV-5: this is the answer-leak guard -- every edition's spelling of these four
+        # labels must stop the collection, or a translated problems.md would leak the
+        # solution into the packet.
+        leak_labels = "|".join(
+            doctor.marker_alternation(label) for label in ("提示", "答案", "解答", "讲解")
+        )
         if re.match(r"^#{1,6}\s+", raw) or re.match(
-            r"^-\s*(?:提示|答案|解答|讲解)[：:]", raw.strip()
+            rf"^-\s*(?:{leak_labels})[：:]", raw.strip()
         ):
             break
         selected.append(raw.rstrip())
     result = "\n".join(selected).strip()
     if not result:
-        raise ContextPacketError("当前 Exercise 缺可安全展示的题面")
+        raise ContextPacketError("the current Exercise has no problem statement that can be shown safely")
     return result
 
 
@@ -451,10 +487,10 @@ def latest_pending_event(
 def retrospective_summary(body: dict[str, object], name: str) -> str:
     visible = body.get("learner_visible_retrospective")
     if not isinstance(visible, dict):
-        raise ContextPacketError("pending body 缺 learner_visible_retrospective")
+        raise ContextPacketError("the pending body lacks learner_visible_retrospective")
     node = visible.get(name)
     if not isinstance(node, dict) or not str(node.get("summary") or "").strip():
-        raise ContextPacketError(f"pending body 缺 {name} summary")
+        raise ContextPacketError(f"the pending body lacks the {name} summary")
     return str(node["summary"]).strip()
 
 
@@ -471,12 +507,12 @@ def confirm_close_payload(
         body.get("activity_type") != route.activity_type
         or body.get("activity_id") != route.activity_id
     ):
-        raise ContextPacketError("pending body 与当前 Activity 不一致")
+        raise ContextPacketError("the pending body does not match the current Activity")
     pending_id = str(event.get("event_id") or "")
     body_sha = str(body.get("body_sha256") or "")
     recommendation = str(body.get("recommendation") or "")
     if recommendation not in {"completed", "closed_incomplete"}:
-        raise ContextPacketError("pending body 缺合法 recommendation")
+        raise ContextPacketError("the pending body lacks a legal recommendation")
     confirmation = (
         f"pending_event_id={pending_id}\n"
         f"body_sha256={body_sha}\n"
@@ -515,10 +551,10 @@ def selected_field_lines(content: str, field_names: Iterable[str]) -> str:
 
 
 def mistake_schedule_snapshot(content: str) -> str:
-    active = section(content, "活跃知识点", level=2, required=False)
+    active = section_any(content, "活跃知识点", level=2, required=False)
     if not active:
-        return "## 活跃知识点\n\n暂无。"
-    snapshots: list[str] = ["## 活跃知识点"]
+        return f"## {doctor.marker_spellings('活跃知识点')[-1]}\n\n{doctor.marker_spellings('暂无')[-1]}"
+    snapshots: list[str] = [f"## {doctor.marker_spellings('活跃知识点')[-1]}"]
     entries = [
         item
         for item in headings(active)
@@ -551,7 +587,7 @@ def course_reflection_snapshot(content: str, course_id: str, count: int = 3) -> 
     )
     preamble_end = first_child.start if first_child else len(course)
     preamble = course[:preamble_end].strip()
-    tree = section(course, "知识点树形图", level=3, required=False)
+    tree = section_any(course, "知识点树形图", level=3, required=False)
     records = sections_by_prefix(course, "REFL-", level=4)[-count:]
     return join_exact((preamble, tree, *records))
 
@@ -563,7 +599,7 @@ def current_problem_id(exercise_scope: str) -> str:
         re.MULTILINE,
     )
     if not match or not PROBLEM_ID_RE.fullmatch(match.group(1)):
-        raise ContextPacketError("Exercise 学习范围缺合法的当前题目")
+        raise ContextPacketError("the Exercise study scope lacks a legal current problem")
     return match.group(1)
 
 
@@ -666,7 +702,7 @@ def _load_current_preparation(
         ) from exc
     snap_id = str(pointer.get("snapshot_id") or "")
     if not snap_id.startswith("PREP-"):
-        raise ContextPacketError(f"current Snapshot 指针 id 非法：{snap_id}")
+        raise ContextPacketError(f"the current Snapshot pointer id is illegal: {snap_id}")
     snap_path = prep_dir / f"{snap_id}.json"
     if not snap_path.is_file():
         raise ContextPacketError(
@@ -679,33 +715,33 @@ def _load_current_preparation(
             f"current Snapshot 不可读：{cache.relative(snap_path)}"
         ) from exc
     if payload.get("snapshot_id") != snap_id:
-        raise ContextPacketError("current Snapshot id 与指针不一致")
+        raise ContextPacketError("the current Snapshot id does not match the pointer")
     if payload.get("state") != "valid":
-        raise ContextPacketError("current Snapshot 非 valid")
+        raise ContextPacketError("the current Snapshot is not valid")
     if payload.get("scope_coverage") != "complete":
-        raise ContextPacketError("current Snapshot scope 未 complete")
+        raise ContextPacketError("the current Snapshot scope is not complete")
     if not payload.get("content_consumed"):
-        raise ContextPacketError("current Snapshot content_consumed 为 false")
+        raise ContextPacketError("the current Snapshot has content_consumed false")
     expected_body = pointer.get("snapshot_body_sha256")
     stored_body = payload.get("snapshot_body_sha256")
     if expected_body and stored_body and expected_body != stored_body:
-        raise ContextPacketError("current Snapshot body hash 与指针不一致")
+        raise ContextPacketError("the current Snapshot body hash does not match the pointer")
     return payload
 
 
 def _snapshot_scope_pages(snap: dict[str, object]) -> list[int]:
     page_keys = snap.get("page_keys") or []
     if not isinstance(page_keys, list) or not page_keys:
-        raise ContextPacketError("current Snapshot 缺 page_keys")
+        raise ContextPacketError("the current Snapshot lacks page_keys")
     pages: list[int] = []
     for key in page_keys:
         if not isinstance(key, dict) or "pdf_page_index" not in key:
-            raise ContextPacketError("current Snapshot page_keys 非法")
+            raise ContextPacketError("the current Snapshot page_keys are illegal")
         pages.append(int(key["pdf_page_index"]))
     if len(pages) != len(set(pages)):
-        raise ContextPacketError(f"current Snapshot Scope 含重复页：{pages}")
+        raise ContextPacketError(f"the current Snapshot Scope contains duplicate pages: {pages}")
     if pages != list(range(min(pages), max(pages) + 1)):
-        raise ContextPacketError(f"current Snapshot Scope 不连续：{pages}")
+        raise ContextPacketError(f"the current Snapshot Scope is not contiguous: {pages}")
     return pages
 
 
@@ -737,23 +773,23 @@ def _read_snapshot_scope_asset(
 ) -> tuple[Path, str]:
     pages = _snapshot_scope_pages(snap)
     if page not in pages:
-        raise ContextPacketError(f"请求页 {page} 不在 current Snapshot Scope {pages}")
+        raise ContextPacketError(f"requested page {page} is not in the current Snapshot Scope {pages}")
     document_id = str(snap.get("document_id") or "").strip()
     if not document_id:
-        raise ContextPacketError("current Snapshot 缺 document_id")
+        raise ContextPacketError("the current Snapshot lacks document_id")
     asset_path = _scope_asset_path(cache, course_id, document_id, page)
     if not asset_path.is_file():
-        raise ContextPacketError(f"Scope 页资产缺失：{cache.relative(asset_path)}")
+        raise ContextPacketError(f"a Scope page asset is missing: {cache.relative(asset_path)}")
     text = cache.read(asset_path)
     meta = frontmatter_text(text)
     if meta.get("pdf_page_index") != str(page):
-        raise ContextPacketError(f"SourcePageAsset 页索引错配：{cache.relative(asset_path)}")
+        raise ContextPacketError(f"SourcePageAsset page index mismatch: {cache.relative(asset_path)}")
     if meta.get("source_document_id") != document_id:
-        raise ContextPacketError(f"SourcePageAsset document_id 错配：{cache.relative(asset_path)}")
+        raise ContextPacketError(f"SourcePageAsset document_id mismatch: {cache.relative(asset_path)}")
     if meta.get("source_document_sha256") != snap.get("source_document_sha256"):
-        raise ContextPacketError(f"SourcePageAsset document SHA 错配：{cache.relative(asset_path)}")
+        raise ContextPacketError(f"SourcePageAsset document SHA mismatch: {cache.relative(asset_path)}")
     if meta.get("verification_status") != "verified":
-        raise ContextPacketError(f"SourcePageAsset 未 verified：{cache.relative(asset_path)}")
+        raise ContextPacketError(f"SourcePageAsset is not verified: {cache.relative(asset_path)}")
     receipts = snap.get("load_receipts") or []
     receipt = next(
         (
@@ -766,12 +802,12 @@ def _read_snapshot_scope_asset(
         None,
     )
     if not isinstance(receipt, dict):
-        raise ContextPacketError(f"current Snapshot 缺页 {page} 的 load receipt")
+        raise ContextPacketError(f"the current Snapshot lacks the load receipt for page {page}")
     expected_asset_sha = str(receipt.get("source_page_asset_sha256") or "")
     if not re.fullmatch(r"[0-9a-f]{64}", expected_asset_sha):
-        raise ContextPacketError(f"页 {page} 的 load receipt 缺合法 asset SHA")
+        raise ContextPacketError(f"the load receipt for page {page} lacks a legal asset SHA")
     if cache.digest(asset_path) != expected_asset_sha:
-        raise ContextPacketError(f"SourcePageAsset SHA 与 Snapshot 错配：页 {page}")
+        raise ContextPacketError(f"SourcePageAsset SHA mismatches the Snapshot: page {page}")
     return asset_path, text
 
 
@@ -843,7 +879,7 @@ def lesson_map_page_inventory(
     map_raw = cache.read_bytes(map_path)
     expected_sha = str(snap.get("lesson_map_sha256") or "")
     if not expected_sha or hashlib.sha256(map_raw).hexdigest() != expected_sha:
-        raise ContextPacketError("LessonMap hash 与 Snapshot 不一致")
+        raise ContextPacketError("the LessonMap hash does not match the Snapshot")
     rows = [
         [cell.strip() for cell in line.strip().strip("|").split("|")]
         for line in map_raw.decode("utf-8").splitlines()
@@ -1257,7 +1293,7 @@ def _textbook_window_from_snapshot(
             )
     document_id = str(snap.get("document_id") or "").strip()
     if not document_id:
-        raise ContextPacketError("current Snapshot 缺 document_id")
+        raise ContextPacketError("the current Snapshot lacks document_id")
     map_path = (
         cache.root
         / "main"
@@ -1277,7 +1313,7 @@ def _textbook_window_from_snapshot(
     if expected_map:
         actual_map = hashlib.sha256(map_raw).hexdigest()
         if actual_map != expected_map:
-            raise ContextPacketError("LessonMap hash 与 Snapshot 不一致")
+            raise ContextPacketError("the LessonMap hash does not match the Snapshot")
     for page in pages:
         if not re.search(rf"\|\s*{page}\s*\|", map_text) and f"page_{page}" not in map_text:
             raise ContextPacketError(f"LessonMap 未覆盖 Scope 页 {page}")
@@ -1625,7 +1661,7 @@ def build_critical_packet(
             "action_payload": {
                 "kind": "first_run",
                 "playbook": "main/50_playbook/first_run.md",
-                "next_action": "收集并确认首次初始化字段后再创建课程状态。",
+                "next_action": "Collect and confirm the first-run initialization fields, then create the course state.",
             },
         }
         cache.assert_unchanged()
@@ -1809,10 +1845,10 @@ def build_packet(
             selections,
             cache,
             profile_path,
-            "初始化状态",
+            "initialization state",
             raw_frontmatter(profile) or profile[:400],
         )
-        summary = section(memory, "上次课摘要", level=2, required=False)
+        summary = section_any(memory, "上次课摘要", level=2, required=False)
         if summary:
             add_selection(selections, cache, memory_path, "上次课摘要", summary)
         snapshot_id = build_snapshot_id(
@@ -1834,7 +1870,7 @@ def build_packet(
                 profile_path=profile_path,
                 overlay_path=None,
             ),
-            "next_action": "读取 main/50_playbook/first_run.md",
+            "next_action": "Read main/50_playbook/first_run.md",
             "selections": [item.as_dict() for item in selections],
         }
 
@@ -1891,8 +1927,8 @@ def build_packet(
             "恢复指针",
             join_exact(
                 (
-                    section(memory, "上次课摘要", level=2),
-                    section(memory, "当前状态指针", level=2),
+                    section_any(memory, "上次课摘要", level=2),
+                    section_any(memory, "当前状态指针", level=2),
                 )
             ),
         )
@@ -2161,8 +2197,8 @@ def build_packet(
         "未闭合疑问",
         join_exact(
             (
-                section(question, "待解决", level=2),
-                section(question, "需要回看", level=2),
+                section_any(question, "待解决", level=2),
+                section_any(question, "需要回看", level=2),
             )
         ),
     )
@@ -2196,8 +2232,8 @@ def build_packet(
             "活跃解题思维模式",
             join_exact(
                 (
-                    section(reasoning, "一、解题思维总纲", level=2),
-                    section(reasoning, "二、活跃思维模式", level=2),
+                    section_any(reasoning, "一、解题思维总纲", level=2),
+                    section_any(reasoning, "二、活跃思维模式", level=2),
                 )
             ),
         )
@@ -2383,14 +2419,14 @@ def render_markdown(
         # die with KeyError instead of printing the first-run notice.
         return "\n".join(
             [
-                "# T2AG 上下文包",
+                "# T2AG context packet",
                 "",
                 "- status: `first_run_required`",
                 f"- snapshot_id: `{packet['snapshot_id']}`",
                 "- sources_unchanged: `true`",
                 f"- next_action: `{packet['next_action']}`",
                 "",
-                "> 空模板尚未初始化，无 L0/L1 可投影；`--include-l1` 在此状态下无附加内容。",
+                "> The empty template is not initialized: there is no L0/L1 to project, and `--include-l1` adds nothing in this state.",
             ]
         )
     else:
@@ -2399,12 +2435,12 @@ def render_markdown(
         consumption = packet.get("source_consumption", {})
         lines = [
             (
-                "# T2AG L0 + 首个 L1 学习会话上下文包"
+                "# T2AG L0 + first L1 learning-session context packet"
                 if include_l1
-                else "# T2AG L0 学习会话上下文包"
+                else "# T2AG L0 learning-session context packet"
             ),
             "",
-            "> 只读即时投影；正文为源文件逐字摘录或机械路由字段，不是新的真相源。",
+            "> Read-only immediate projection; the body is a verbatim excerpt of source files or a mechanical routing field, and is not a new source of truth.",
             "",
             f"- status: `{packet['status']}`",
             f"- course: `{packet['course_id']}`",
@@ -2437,7 +2473,7 @@ def render_markdown(
                 f"`{consumption.get('pdf_page_indices', [])}`"
             ),
             "",
-            "## 成本账",
+            "## Cost account",
             "",
             (
                 "- reference_inventory_chars: "
@@ -2478,8 +2514,9 @@ def render_markdown(
             ),
             "",
             (
-                "> `reference_inventory_chars` 是当前来源库存对照，不是旧 Prompt "
-                "实测；库存省略比例不等于端到端 Token 降幅。"
+                "> `reference_inventory_chars` compares the current source inventory; it is not a "
+                "measurement against the old prompt, and you must never call that ratio an "
+                "end-to-end token reduction."
             ),
         ]
     for index, item in enumerate(packet.get("selections", []), start=1):
@@ -2498,7 +2535,7 @@ def render_markdown(
         )
     if include_l1:
         l1_selections = packet.get("l1_selections", [])
-        lines.extend(("", "## L1 · 当前一步直接证据"))
+        lines.extend(("", "## L1 · direct evidence for the current step"))
         if l1_selections:
             for index, item in enumerate(l1_selections, start=1):
                 lines.extend(
@@ -2527,9 +2564,9 @@ def render_markdown(
         lines.extend(
             (
                 "",
-                "## L2 · 触发式完整读取",
+                "## L2 · trigger-based full reads",
                 "",
-                "| 触发器 | 读取 |",
+                "| Trigger | Read |",
                 "|---|---|",
             )
         )

@@ -352,8 +352,10 @@ CITATION_SURFACE_FILES = (
     "AGENTS.md",
     "README.md",
 )
-# 2026-08-09 复审扩面：ADR 正文与 docs/protocol 同为现行规范，此前不在扫描面
-# 内，其中的悬空 ADR 引用会假绿（独立复审 P2）。预检两仓零悬空后纳入。
+# Widened by the 2026-08-09 re-review: an ADR body and docs/protocol are current specifications just as
+# much as anything else, but were outside the scan surface, so a dangling ADR reference in them read as
+# false green (independent re-review P2). They were included after a pre-check found zero dangling
+# references in both repositories.
 CITATION_SURFACE_GLOBS = (
     "main/50_playbook/*.md",
     "docs/adr/*.md",
@@ -396,12 +398,12 @@ def validate_decision_citations(root: Path, flavor: str = "main") -> list[str]:
         rel = path.relative_to(root).as_posix()
         for token in sorted(set(ADR_TOKEN_RE.findall(text))):
             if token not in adrs:
-                errors.append(f"dangling citation: {rel} 引用不存在的 {token}")
+                errors.append(f"dangling citation: {rel} references a non-existent {token}")
         if ev_exempt:
             continue
         for token in sorted(set(EV_TOKEN_RE.findall(text))):
             if token not in evs:
-                errors.append(f"dangling citation: {rel} 引用不存在的 {token}")
+                errors.append(f"dangling citation: {rel} references a non-existent {token}")
     return errors
 
 

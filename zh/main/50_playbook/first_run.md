@@ -17,8 +17,16 @@
 ```powershell
 python -B main/70_tools/t2ag_init.py init --answers answers.json
 python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称> ... --date YYYY-MM-DD
-python -B main/70_tools/t2ag_init.py new-group --group-id G01 --members <ID> --status active --date YYYY-MM-DD
+python -B main/70_tools/t2ag_init.py new-group --group-id G01 --members <ID> --container-mode <progress|schedule> --date YYYY-MM-DD
+python -B main/70_tools/t2ag_init.py activate-group --group-id G01 --date YYYY-MM-DD
 ```
+
+组**只能生为 planned**（2026-08-22 用户裁决）：`active` 是建组仪式之后的状态，
+`new-group` 不收它。仪式内容——议定 `calendar.md` 容量参数、progress 组把
+`plan.md`「主干碑序列」的模板行替换为逐碑确认的真实碑行——发生在两条命令之间；
+`activate-group` 只做公证：验真实碑行、数碑落锚 `keystone_total_frozen`、翻状态。
+碑行仍是模板占位（`碑描述`）时它会拒绝执行——那不是刁难，是防「状态先出现、
+判断没发生」（P-0077 同族）。
 
 `answers.json` 保存第 3 步逐项确认的结果。工具缺任一必答项即拒绝执行，不代填默认值；
 也不创建 `.venv`、不装依赖、不下教材、不生成 Engagement、不做 git 写入。

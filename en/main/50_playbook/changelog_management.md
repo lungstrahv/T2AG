@@ -1,130 +1,132 @@
-# Changelog 管理（漂移留痕与不腐烂）
+# Changelog management (drift traces and non-rot)
 
-> **职能**：规定 `main/00_core/t2ag_changelog.md` 的**验证层**——条目必须可复算，状态漂移必须留痕。  
-> **保护级别**：meta-playbook（与 `handoff_management.md` 同级；约束跨会话、跨平台的记录纪律）。
-> **不做什么**：不证明「该记的都记了」（完整性 / L5 不可达）。记录的输入是人的判断，不是仓库状态，故 L4「可确定性再生成」路线天然不通。  
-> **Canonical owner（验证层）**：本文件。出单方义务与执行方硬规则仍分别保留在 `batch_workorder_spec.md`（见文末 rule_migration）。
-
----
-
-## 一、要证明什么
-
-两条独立目标，**不得与「哪些形式算数」混写**：
-
-1. **漂移留痕**  
-   仓库的**锚定状态**变了，就必须有对应 changelog 条目记录这次变化（或显式说明为何不记——后者仍是一条可审计记录，不是沉默）。
-
-2. **不腐烂**  
-   条目里写下的**可复算断言**，在日后抽验时仍然成立。
-
-明确**不证明**：
-
-- 不证明「该记的都记了」；
-- 不证明条目叙事是否完整、教学判断是否正确；
-- 不把「有 changelog」等同于「发布合格」或「已复审」。
+> **Function**: it specifies the **verification layer** of `main/00_core/t2ag_changelog.md` — an entry must be recomputable, and a state drift must leave a trace.  
+> **Protection level**: meta-playbook (the same tier as `handoff_management.md`; it constrains record discipline across sessions and across platforms).  
+> **What it does not do**: it does not prove "everything that should have been recorded was recorded" (completeness / L5 is unreachable). The input to a record is human judgement, not repository state, so the L4 "deterministically regenerable" route is structurally closed here.  
+> **Canonical owner (verification layer)**: this file. The order-writer's obligation and the executor's hard rules stay where they are, in `batch_workorder_spec.md` (see the rule_migration at the end).
 
 ---
 
-## 二、哪些形式算数
+## 1. What is to be proven
 
-复算来源的**形式清单直接复用** `handoff_management.md` §5.6.2，**不另造第二张表**。  
-接手方只需学一套 `断言 ← 命令` 语法。
+Two independent goals, which **must never be blended with "which forms count"**:
 
-### 2.1 与交接断言的差异约束（changelog 专用）
+1. **A drift trace**  
+   When the repository's **anchored state** changes, a matching changelog entry must record that change (or say explicitly why it is not recorded — which is still an auditable record, not silence).
 
-| 断言类 | 约束 |
+2. **Non-rot**  
+   A **recomputable claim** written in an entry still holds when it is spot-checked later.
+
+Explicitly **not proven**:
+
+- It does not prove "everything that should have been recorded was recorded";
+- It does not prove whether an entry's narrative is complete or a teaching judgement correct;
+- It does not equate "there is a changelog" with "the release is sound" or "it has been re-reviewed".
+
+---
+
+## 2. Which forms count
+
+The **form list of recomputation sources is reused directly** from `handoff_management.md` §5.6.2, and **no second table is created**.  
+Whoever takes over only has to learn one `claim ← command` syntax.
+
+### 2.1 Differences from handoff claims (changelog-specific)
+
+| Claim class | Constraint |
 |---|---|
-| **锚定断言** | 只接受「**repo + python 即可复算**」的形式（零 git 依赖：不得用 `git log` / `git status` / commit hash 作为锚定量）。默认候选见施工单 U2 裁决；落地后由 doctor 对照**最新条目**的声明值与实测值。 |
-| **佐证断言** | 条目特有、指向仓库的可复算断言（典型：`grep` 命中、路径存在、工具子命令输出）。形式仍落在 §5.6.2 清单内。 |
+| **Anchoring claim** | accepts only forms that are **recomputable with repo + python alone** (zero git dependency: `git log` / `git status` / a commit hash must never be an anchoring quantity). The default candidates are in the work order's U2 adjudication; once landed, doctor compares the declared values of the **newest entry** against the measured values. |
+| **Corroborating claim** | an entry-specific recomputable claim pointing at the repository (typically: a `grep` hit, a path's existence, a tool subcommand's output). The form still falls inside the §5.6.2 list. |
 
-格式与交接相同：`断言 ← 复算命令`，命令须可在接管方环境直接粘贴执行。
+The format is the same as for a handoff: `claim ← recomputation command`, and the command must be
+pasteable and runnable as-is in the taking-over party's environment.
 
 ---
 
-## 三、条目结构
+## 3. Entry structure
 
-每条 changelog 条目（`## [日期] …` 及以下正文）在叙事之外，携带一个影响面块：
+Every changelog entry (`## [date] …` and the body below it) carries an impact block in addition to the
+narrative:
 
 ```markdown
-#### 锚定断言（必填）
-- runtime plan sha256 = <值> ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | head -1`
-- runtime checks = <值>      ← 同上
+#### Anchored assertions (required)
+- runtime plan sha256 = <value> ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | head -1`
+- runtime checks = <value>      ← as above
 
-#### 佐证断言（选填，条目特有）
-- <断言> ← <复算命令>
+#### Corroborating assertions (optional, entry-specific)
+- <claim> ← <recomputation command>
 ```
 
-> 锚定块字段集合（学生 2026-08-07 已批）：**A+B+C**（runtime plan sha256、runtime checks、doctor_checks 键集合 sha）；**排除 D/E**。完整复算命令见 U2 报告。U3 落地前本结构为规范性约定，doctor 尚未自动对照。
+> The field set of the anchoring block (approved by the student 2026-08-07): **A+B+C** (runtime plan sha256, runtime checks, the sha of the doctor_checks key set); **D/E excluded**. The full recomputation commands are in the U2 report. Before U3 landed this structure was a normative convention and doctor did not compare it automatically.
 
-### 3.1 判定语义（分写）
+### 3.1 Judgement semantics (written separately)
 
-| 类 | 谁判定（U3 后） | 失败时 |
+| Class | Who judges (after U3) | On failure |
 |---|---|---|
-| **锚定** | doctor 取**最新** changelog 条目的声明值，与当轮实测比对 | 不等 → WARN「状态漂移无记录」，消息须含**声明值与实测值两个数**（WARN 不指名等于没报） |
-| **佐证** | doctor 抽验条目中的 `grep` 类（或其它已登记）复算命令 | 命中为零 → WARN「条目已腐烂」，须指名**条目标题与失效断言原文** |
+| **Anchoring** | doctor takes the declared values of the **newest** changelog entry and compares them with this round's measurement | not equal → WARN "state drift with no record", and the message must contain **both numbers, declared and measured** (a WARN that names nothing is no report at all) |
+| **Corroborating** | doctor spot-checks the `grep`-class (or other registered) recomputation commands in an entry | zero hits → WARN "the entry has rotted", and it must name **the entry title and the verbatim failing claim** |
 
-### 3.2 与既有前言义务的关系
+### 3.2 Relation to the existing preamble obligations
 
-`t2ag_changelog.md` 前言仍要求：按需展开；追加条目时同步更新 `t2ag_memory.md` 摘要；并对超出 memory 节预算的旧条目做下沉。  
-本 playbook **复述为规范性条款**（keep，不 sink 前言原文）：
+The preamble of `t2ag_changelog.md` still requires: expand on demand; update the `t2ag_memory.md` summary when an entry is appended; and sink old entries that exceed the memory section's budget.  
+This playbook **restates these as normative clauses** (keep; the preamble text itself is not sunk):
 
-- 新条目写入后，须同步更新 memory「最近变更摘要」指针；
-- 历史 changelog 行、memory 历史摘要行**不改**（`batch_workorder_spec.md` 硬规则 4）。
+- after a new entry is written, the memory "recent change summary" pointer must be updated in step;
+- historical changelog lines and historical memory summary lines are **not edited** (`batch_workorder_spec.md` hard rule 4).
 
 ---
 
-## 四、rule_migration（本批执行表）
+## 4. rule_migration (this batch's execution table)
 
-新建本文件成为 changelog **验证层** canonical owner；既有约定分布在出单方与执行方两侧，**全部 keep**，不 sink 到单一文件。
+Creating this file makes it the canonical owner of the changelog **verification layer**; the existing conventions are spread across the order-writer's and the executor's sides and are **all kept**, not sunk into a single file.
 
-| rule_id | 旧位置/原文锚点 | 动作 | 新 owner/等价门 | 消费方 | 验证 |
+| rule_id | Old location / original anchor | Action | New owner / equivalent gate | Consumers | Verification |
 |---|---|---|---|---|---|
-| changelog 前言「按需展开 / 追加条目时同步更新 memory 摘要」 | `grep -n "追加条目时同步更新" main/00_core/t2ag_changelog.md` | **keep**（前言留原文，不动历史行）+ 在本文件 §3.2 复述 | `changelog_management.md` | 全体维护会话 | `grep -n "memory 摘要" main/50_playbook/changelog_management.md` |
-| `batch_workorder_spec.md` §二.5「登记节：changelog 草稿」 | `grep -n "changelog draft" main/50_playbook/batch_workorder_spec.md` | **keep**（出单方义务留在原处）+ 反向指针（步骤 3b） | `batch_workorder_spec.md` | 出单方 | 双向 grep 命中 |
-| 硬规则 4「changelog 历史行不改」 | `grep -n "Historical lines in" main/50_playbook/batch_workorder_spec.md` | **keep** + 反向指针（步骤 3b） | `batch_workorder_spec.md` §三.4 | 执行方 | 双向 grep 命中 |
-| spec 自身修改纪律「修改本文件走批次 + changelog」 | `grep -n "Changes to this file go through a batch" main/50_playbook/batch_workorder_spec.md` | **keep** + 反向指针（步骤 3b） | `batch_workorder_spec.md` §六 | 出单方 | 双向 grep 命中 |
+| changelog preamble "expand on demand / update the memory summary when appending an entry" | `grep -n "追加条目时同步更新" main/00_core/t2ag_changelog.md` | **keep** (the preamble keeps its text; historical lines untouched) + restated in §3.2 of this file | `changelog_management.md` | every maintenance session | `grep -n "memory .recent change summary. pointer" main/50_playbook/changelog_management.md` |
+| `batch_workorder_spec.md` §2.5 "the registration section: the changelog draft" | `grep -n "changelog draft" main/50_playbook/batch_workorder_spec.md` | **keep** (the order-writer's obligation stays where it is) + a back-pointer (step 3b) | `batch_workorder_spec.md` | the order writer | both greps hit |
+| hard rule 4 "historical changelog lines are not edited" | `grep -n "Historical lines in" main/50_playbook/batch_workorder_spec.md` | **keep** + a back-pointer (step 3b) | `batch_workorder_spec.md` §3.4 | the executor | both greps hit |
+| the spec's own modification discipline "changes to this file go through a batch + the changelog" | `grep -n "Changes to this file go through a batch" main/50_playbook/batch_workorder_spec.md` | **keep** + a back-pointer (step 3b) | `batch_workorder_spec.md` §6 | the order writer | both greps hit |
 
-> 收口扩展：工单原表 3 行；收口 grep 在 `batch_workorder_spec.md` 命中 3 处 changelog 相关句，表扩为 4 行（裁决单【工单缺陷 2】）。
+> Closing expansion: the work order's original table had 3 rows; the closing grep hit 3 changelog-related sentences in `batch_workorder_spec.md`, so the table was expanded to 4 rows (adjudication sheet, [work-order defect 2]).
 
 ---
 
-## 五、本机制的外借面
+## 5. Lending this mechanism out
 
-本机制（**锚定断言 + 佐证断言**分层）**载体无关**。适用判据如下。
+This mechanism (the **anchoring claim + corroborating claim** split) is **carrier-independent**. The applicability criteria are below.
 
-| 判据 | 锚定断言可用 | 佐证断言可用 |
+| Criterion | Anchoring claim usable | Corroborating claim usable |
 |---|---|---|
-| **条件** | 存在廉价、确定性的全局不变量，且它会随该载体所记之事而变 | 条目正文中含**指向仓库的可复算断言** |
-| `t2ag_changelog.md` | ✔（如 runtime plan sha 等，以 U2 裁决为准） | ✔ |
-| `t2ag_problemlog.md` | ✘ 无对应全局不变量 | **✔** 正文含 `playbook_status: extracted:<path>` 等路径断言（会悬空；现测以 `grep -c` 为准） |
-| `course_reflections.md` | ✘ | 视条目是否引用课程/活动 ID 而定，需先实测 |
-| `lesson_thoughts.md` / `exercise_thoughts.md` | ✘ | ✘ 记录的是思路，几乎不含仓库断言。**这两个载体要的是另一种门（L1.5 触发式存在检测），不在本单范围** |
-| 已有 L2–L4 门的载体 | 已有更强机制 | ✔ 可叠加，专防条目腐烂 |
+| **Condition** | a cheap, deterministic global invariant exists, and it changes with whatever that carrier records | the entry body contains a **recomputable claim pointing at the repository** |
+| `t2ag_changelog.md` | ✔ (runtime plan sha and the like, per the U2 adjudication) | ✔ |
+| `t2ag_problemlog.md` | ✘ no corresponding global invariant | **✔** the body contains path claims such as `playbook_status: extracted:<path>` (they do dangle; the current measurement uses `grep -c`) |
+| `course_reflections.md` | ✘ | depends on whether an entry cites a course/activity ID; needs measuring first |
+| `lesson_thoughts.md` / `exercise_thoughts.md` | ✘ | ✘ they record lines of thought and almost never contain a repository claim. **These two carriers want a different gate (L1.5 trigger-based existence detection), which is out of scope for this order** |
+| a carrier that already has an L2–L4 gate | it already has a stronger mechanism | ✔ can be layered on, specifically against entry rot |
 
-**本表是判据，不是待办清单。** 给任一载体实际立门都需要**单独工单**，不得据本表直接施工。
+**This table is a criterion, not a to-do list.** Actually erecting a gate on any carrier requires **its own work order**; nothing may be built directly from this table.
 
-### 5.1 对 problemlog 的分层更正（写入施工报告；不改历史 survey 正文）
+### 5.1 A tiered correction about problemlog (written into the construction report; the historical survey text is not edited)
 
-前序普查曾写「`problemlog` 找不到可行触发条件，建议接受它长期停在 L0」——**该结论错误**。  
-`problemlog` **上不了锚定**，但**上得了佐证**；应停在「佐证可用、锚定不可用」，而非 L0。
+An earlier survey wrote "no workable trigger condition can be found for `problemlog`; accept that it stays at L0 long-term" — **that conclusion was wrong**.  
+`problemlog` **cannot carry anchoring**, but it **can carry corroboration**; it should sit at "corroboration usable, anchoring unusable", not at L0.
 
 ---
 
-## 六、与 doctor 的衔接
+## 6. Interface with doctor
 
-| 阶段 | 状态 |
+| Stage | Status |
 |---|---|
-| U1+U4 | 规范与判据落地；`doctor_contracts.md` 登记「changelog 漂移与腐烂」行 |
-| U3（已实现） | `runtime.changelog` → `check_changelog_contract`；纯函数 + 正反测试 + 变异验证；锚定字段 = U2 批准的 A+B+C |
+| U1+U4 | the specification and the criteria landed; `doctor_contracts.md` registers the "changelog drift and rot" row |
+| U3 (implemented) | `runtime.changelog` → `check_changelog_contract`; a pure function + positive and negative tests + mutation verification; the anchoring fields = the A+B+C approved by U2 |
 
 ---
 
-## 七、相关文件
+## 7. Related files
 
-- 载体：`main/00_core/t2ag_changelog.md`（Main / Skeleton **各自分叉**，不得互拷）
-- 形式清单：`handoff_management.md` §5.6.2
-- 出单 / 硬规则：`batch_workorder_spec.md` §二.5、§三.4、§六
-- 契约矩阵：`doctor_contracts.md`
-- 工单：`docs/handoffs/T2AG_CHANGELOG_VERIFICATION_WORKORDER_2026-08-07.md`
-- 裁决：`docs/handoffs/T2AG_CHANGELOG_VERIFICATION_AUTHORIZATION_2026-08-07.md`
-- EV：`EV-0017`（Register）
+- Carrier: `main/00_core/t2ag_changelog.md` (Main and Skeleton **fork separately** and must never be copied across)
+- Form list: `handoff_management.md` §5.6.2
+- Order writing / hard rules: `batch_workorder_spec.md` §2.5, §3.4, §6
+- Contract matrix: `doctor_contracts.md`
+- Work order: `docs/handoffs/T2AG_CHANGELOG_VERIFICATION_WORKORDER_2026-08-07.md`
+- Adjudication: `docs/handoffs/T2AG_CHANGELOG_VERIFICATION_AUTHORIZATION_2026-08-07.md`
+- EV: `EV-0017` (Register)

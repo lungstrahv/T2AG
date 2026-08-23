@@ -11,14 +11,14 @@ source_order: [Udddd-Q001]
 teaching_sequence: [Udddd-Q001]
 status: active
 ---
-# Udddd 题目
+# Udddd problems
 
 ## Udddd-Q001
 
-- 题号：1
-- 来源页：SOURCE_PAGE
-- 难度：未评估
-- 依赖 completion node：`CONTENT_GROUP_ID-N01`
-- 状态：open
-- 错误级别：—
-- 题面：PROBLEM_TEXT
+- Problem number: 1
+- Source page: SOURCE_PAGE
+- Difficulty: not assessed
+- Depends on completion node: `CONTENT_GROUP_ID-N01`
+- Status: open
+- Error level: —
+- Problem statement: PROBLEM_TEXT

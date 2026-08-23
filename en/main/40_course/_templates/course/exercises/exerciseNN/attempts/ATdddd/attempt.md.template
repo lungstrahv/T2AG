@@ -10,14 +10,14 @@ created: YYYY-MM-DD
 hint_gate: HINT_GATE_MODE
 assistance_level: none
 ---
-# ATdddd 作答
+# ATdddd answers
 
-## 作答上下文
+## Answer context
 
-- 使用帮助：none
-- 提示闸门：HINT_GATE_MODE
-- 授权与概念问答：none
+- Help used: none
+- Hint gate: HINT_GATE_MODE
+- Authorization and concept Q&A: none
 
 ## exerciseNN-Q001
 
-- 作答：STUDENT_RESPONSE
+- Answer: STUDENT_RESPONSE

@@ -8,47 +8,53 @@ current_course: CURRENT_COURSE
 updated: YYYY-MM-DD
 ---
 
-# GROUP_ID 课程组 —— 一行说明本组的组合意图
+# GROUP_ID course group — one line stating this group's combination intent
 
-> **状态**：planned / 预备课程组
+> **Status**: planned / a preparatory course group
 >
-> **指针**：memory「当前状态指针」→ `当前课程组:GROUP_ID` → 本文件。
-> **日历**：`main/30_group/GROUP_ID/calendar.md`；本文件只拥有成员组合、激活闸门与容量边界。
+> **Pointer**: memory "Current state pointers" → `Course group:GROUP_ID` → this file.
+> **Calendar**: `main/30_group/GROUP_ID/calendar.md`; this file owns only the member combination, the
+> activation gate, and the capacity boundary.
 >
-> **定位**：一句话说明本组是当前执行窗口还是下一窗口草案。planned 组不改变
-> `t2ag_memory.md` 当前课程组指针，也不改变成员课程的生命周期。
+> **Position**: one line saying whether this group is the current execution window or a draft of the next
+> one. A planned group does not change the current course-group pointer in
+> `t2ag_memory.md`, and does not change any member course's lifecycle.
 >
-> **权威边界**：本文件只描述组合意图。各课程进度仍以对应 `progress.md` 为唯一真相源；
-> planned 状态的课程需等本组激活时再改。
+> **Authority boundary**: this file describes the combination intent only. Each course's progress is still
+> governed solely by its own `progress.md`; a course in the planned state is changed only when this group
+> is activated.
 
 ---
 
-## 1. 激活条件
+## 1. Activation conditions
 
-本组只有在以下条件同时满足后才进入 active：
+This group becomes active only once all of the following hold:
 
-1. 上一组 `review.md` 的结组证据全部勾选。
-2. 上一组 `calendar.md` 的可判定阈值全部满足。
-3. 每个非课程成员都有可查证的入口证据；没有证据时从成员中移除，不把愿望当条件。
-4. 本组具体预算已写入 `calendar.md` 并通过过载审查。
-5. 用户明确选择进入本组，而不是延长上一组或换其他组合。
+1. Every closing-evidence item in the previous group's `review.md` is ticked.
+2. Every decidable threshold in the previous group's `calendar.md` is met.
+3. Every non-course member has verifiable entry evidence; without evidence it is removed from the members
+   rather than treating a wish as a condition.
+4. This group's concrete budget is written into `calendar.md` and has passed the overload review.
+5. The user explicitly chooses to enter this group, rather than extending the previous one or switching to
+   another combination.
 
 ---
 
-## 2. 成员
+## 2. Members
 
-| 模块 | 状态 | 线别 | 文件 | 本组目标 |
+| Module | Status | Track | File | Goal for this group |
 |---|---|---|---|---|
-| COURSE_ID | 新课 / 延续课程 | 语言 / 项目 | `main/40_course/COURSE_ID/progress.md` | 本组内要推进到哪里 |
+| COURSE_ID | new course / continuing course | language / project | `main/40_course/COURSE_ID/progress.md` | how far it should advance inside this group |
 
-### 未入组候选（不计入上表成员与预算）
+### Candidates not in the group (they count toward neither the member table nor the budget)
 
-暂无。
+None yet.
 
 ---
 
-## 3. 容量边界
+## 3. Capacity boundary
 
-- 频率红线：每循环各成员的最低次数，写不到就是超载。
-- 时间预算：每循环总小时数与分配，实际偏差记在 `review.md`。
-- 过载处置：先降非红线成员的频率，不先砍红线；连续两循环未达标触发组合重审。
+- Frequency red line: each member's minimum count per cycle; failing to reach it is overload.
+- Time budget: total hours per cycle and their allocation; the actual deviation is recorded in `review.md`.
+- Overload handling: lower the frequency of non-red-line members first and never cut the red line first;
+  two consecutive cycles below target trigger a review of the whole combination.

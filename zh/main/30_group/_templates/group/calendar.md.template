@@ -3,6 +3,16 @@ type: group_calendar
 group_id: GROUP_ID
 status: planned
 cycle: CYCLE_SHAPE
+container_mode: progress
+cycle_length_learning_days: TBD
+keystone_dwell_budget_cycles: TBD
+exam_keystones_per_quiz: N
+exam_keystones_per_bank_build: N
+cycle_count: TBD
+cycle_anchor_learning_day: TBD
+exam_bank_build_cycles: []
+exam_quiz_cycles: []
+exam_final_cycle: null
 updated: YYYY-MM-DD
 ---
 # GROUP_ID 日历
@@ -37,3 +47,20 @@ updated: YYYY-MM-DD
 
 本日历只安排学习与审计活动。涉及外部系统的事实（交易、工作、健康等）仍以对应外部
 真相源为权威，见 `main/50_playbook/cross_repo_reference.md`。
+
+## 考试触发锚（机读）
+
+frontmatter 的 `cycle_*` / `exam_*` 字段是考试场次的唯一机读触发源
+（`50_playbook/exam_protocol.md` §13.1）。循环按**学习日**计数，不按自然周
+（规则 canonical 在学生档案 §执行参数）。`cycle_anchor_learning_day: TBD`
+未填时触发器不产出到期场次，只提示锚未设——不猜，不用建组日代替。
+
+`container_mode` 决定用哪组字段（`course_group_rules.md` §4.1），必须与 `plan.md` 同值：
+
+- `schedule`：用 `cycle_count` / `cycle_anchor_learning_day` / `exam_*_cycles` / `exam_final_cycle`
+- `progress`：用 `keystone_dwell_budget_cycles` / `exam_keystones_per_quiz` / `exam_keystones_per_bank_build`
+
+不用的那组留空或删除。项目线课程组可把全部 `exam_*` 字段留空。
+
+上面三个 `TBD` 由**建组仪式议定**后回填，不是建组命令的参数——判据见
+`course_group_rules.md` §4.1「容器参数由建组仪式产生」。未填时按「锚未设」如实报告，不猜。

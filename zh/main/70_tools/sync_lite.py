@@ -675,8 +675,8 @@ def projection_manifest(src: Path, dst: Path) -> list[tuple[str, Path, Path]]:
         for source, rel in iter_projected_files(src / name, tree_prefix=name):
             label = f"{name}/{rel.as_posix()}"
             projected.append((label, source, dst / name / rel))
-    # docs/handoffs/ — 受控投影：活跃 handoff + 宪法 §7 六份版本权威
-    _project_handoffs(src, dst, projected)
+    # docs/handoffs/ — 不投影（P-0071 收窄，2026-08-21）。缺席由 report_handoff_boundary()
+    # 显式播报；此处不留空调用，免得下一个读者以为投影还在跑。
     # docs/adr + docs/protocol — 只读审查闭包（文本 .md；非执行权）
     _project_decision_docs(src, dst, projected)
     for name in ("t2ag_directory_guide.html", ".gitignore"):
@@ -686,52 +686,33 @@ def projection_manifest(src: Path, dst: Path) -> list[tuple[str, Path, Path]]:
     return projected
 
 
-# 宪法 §7 引用的六份版本权威 handoff（无论 status，必须可校验）
-_CONSTITUTION_HANDOFFS: frozenset[str] = frozenset({
-    "T2AG_021_FULL_CLOSEOUT_AND_REVIEW_GOVERNANCE_WORKORDER_2026-08-04.md",
-    "T2AG_021_VERSION_INDEPENDENT_REVIEW_2026-08-04.md",
-    "T2AG_021_FINALIZATION_DELTA_REVIEW_2026-08-04.md",
-    "T2AG_022_ACTIVITY_CLOSE_LEDGER_WORKORDER_2026-08-04.md",
-    "T2AG_022_VERSION_INDEPENDENT_REVIEW_2026-08-05.md",
-    "T2AG_022_FINALIZATION_DELTA_REVIEW_2026-08-05.md",
-})
+# ---------------------------------------------------------------------------
+# P-0071 收窄（W3，2026-08-21）：Lite 不随行任何 handoff。
+#
+# 原 `_project_handoffs` 声称「宪法 §7 六份无论 status 必须可校验」并据此投影，但投影根
+# 是**仓内** `t2ag/docs/handoffs/`，六份实际在**工作区级** `<workspace>/docs/handoffs/
+# archive/v0.2.x/`——差一层，再加 08-18 归档又下沉一层。结果是投影恒为空集，而且**没有
+# 任何告警**：再生与校验全绿，缺席不可见。review_LITE-20260812-0001 F4 是外部审查者用
+# 肉眼发现的，不是仪器抓到的。
+#
+# 三条修法取收窄，不取改根：改根要让 sync_lite 跨出仓边界，会提前引爆尚未裁决的「Lite
+# 上传边界」——用一个小修复绑架一个大裁决。收窄把承诺降到与现实一致：保证变弱，但从假
+# 变真。锚的真实位置与 SHA 见 `main/60_journal/t2ag_version_ledger.md`（同批已修路径，
+# SHA 复核字节对齐，错的是路径不是锚）。
+#
+# 函数整体删除而非留空壳：留一个恒返回空的 `_project_handoffs` 会让下一个读者以为投影
+# 还在跑，那正是本条问题的病理——**沉默的空集**。缺席改由下面这个必然执行的播报承担。
+# ---------------------------------------------------------------------------
+
+HANDOFF_BOUNDARY_LINE = (
+    "handoffs: not shipped (P-0071 收窄；六份版本权威锚在工作区级 "
+    "docs/handoffs/archive/，校验归 Main 层，见 60_journal/t2ag_version_ledger.md)"
+)
 
 
-def _project_handoffs(
-    src: Path, dst: Path, projected: list[tuple[str, Path, Path]]
-) -> None:
-    """Project active handoffs and constitutional references from docs/handoffs/."""
-    handoff_dir = src / "docs" / "handoffs"
-    if not handoff_dir.is_dir():
-        return
-    for path in sorted(handoff_dir.rglob("*.md")):
-        if path.name.startswith("_"):
-            continue  # 跳过工具脚本附件
-        rel = path.relative_to(src)
-        # 只投影 .md（文本可审查），跳过 backups/ 与超大文件
-        if "backups" in rel.parts:
-            continue
-        try:
-            size = path.stat().st_size
-        except OSError:
-            continue
-        if size > MAX_FILE_BYTES:
-            continue
-        # 宪法 §7 六份无条件投影；其余只投影带活跃状态标记的
-        is_constitutional = path.name in _CONSTITUTION_HANDOFFS
-        if not is_constitutional:
-            # 检查 frontmatter / 首行是否有 active / in_progress 标记
-            try:
-                first_lines = path.read_text(encoding="utf-8")[:2000]
-            except Exception:
-                continue
-            if not re.search(
-                r"\*\*状态\*\*[：:]\s*(?:active|进行中|in.progress|方案讨论完成)",
-                first_lines,
-            ):
-                continue
-        label = rel.as_posix()
-        projected.append((label, path, dst / rel))
+def report_handoff_boundary() -> str:
+    """Return the line every regenerate must print.  Absence must speak."""
+    return HANDOFF_BOUNDARY_LINE
 
 
 def _project_decision_docs(
@@ -850,6 +831,7 @@ def check_current_projection(src: Path, dst: Path) -> int:
     if missing or differ or orphan or guide_bad:
         print("FAIL: Lite projection drift; rerun with --write", file=sys.stderr)
         return 1
+    print(report_handoff_boundary())  # P-0071：check-only 路径同样必须发声
     print("OK: Lite matches the current Main projection")
     return 0
 
@@ -1188,6 +1170,7 @@ def main(argv: list[str] | None = None) -> int:
         else []
     )
     print(f"lite courses={len(courses)} progress={len(progress)}")
+    print(report_handoff_boundary())  # P-0071：空集必须发声
     print("OK: regenerate complete. Next: python main/70_tools/t2ag_doctor.py (cwd=t2ag-lite)")
     return 0
 

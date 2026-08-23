@@ -1,0 +1,18 @@
+# papers/ —— 原卷存放域
+
+每卷一夹，夹名即卷ID（如 `MIT_18100B_2019F/`）：
+
+```text
+papers/<卷ID>/
+├ paper.pdf      原卷，原样保存
+├ solution.pdf   官方解答；缺失则该卷降级只入练习池
+└ meta.md        题级登记表（字段见 50_playbook/exam_bank_spec.md §三）
+```
+
+纪律：
+
+- 卷夹存在但 `../index.md` 未登记 → doctor **WARN**。
+- `meta.md` 缺列或缺解答页码 → doctor **WARN**。
+- 考核池卷的题号引用出现在任何 lesson / exercise 文件 → doctor **FAIL**（隔离制）。
+
+当前空库；首卷入库流程见 `50_playbook/exam_bank_spec.md` §一。

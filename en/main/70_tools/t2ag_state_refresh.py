@@ -21,6 +21,7 @@ from t2ag_activity import (
     resolve_teacher_mapping,
     validate_progress_identity,
 )
+import t2ag_doctor as doctor  # LV-5: MARKER_VARIANTS is the one spelling list
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -114,8 +115,8 @@ def course_name(
 
 def next_action(content: str) -> str:
     for pattern in (
-        r"^\s*-\s*\*\*下一步计划\*\*[：:]\s*(.+)$",
-        r"^\s*-\s*\*\*下次第一件事\*\*[：:]\s*(.+)$",
+        rf"^\s*-\s*\*\*(?:{doctor.marker_alternation('下一步计划')})\*\*[：:]\s*(.+)$",
+        rf"^\s*-\s*\*\*(?:{doctor.marker_alternation('下次第一件事')})\*\*[：:]\s*(.+)$",
         r"^next_action:\s*(.+)$",
     ):
         match = re.search(pattern, content, re.MULTILINE)
@@ -293,7 +294,7 @@ def discover_courses(
             current_activity = explicit_or_dash(meta.get("current_activity"))
             activity_id = explicit_or_dash(meta.get("current_activity_id"))
             resume_path = meta.get("resume_path", "")
-            lesson_context = "无"
+            lesson_context = "none"
             lesson_context_path = ""
         derived_ckpt, derived_state = derive_current_checkpoint(content)
         result[course_id] = Course(
@@ -356,18 +357,18 @@ def active_group(groups: dict[str, Group]) -> Group | None:
 def render_active(course: Course | None) -> str:
     if course is None:
         return (
-            "- **日期**：—\n- **学到哪**：—\n- **当前完成节点**：`—`\n"
-            "- **当前 checkpoint**：`—`（—）\n- **来源**：local\n"
-            "- **下次第一件事**：—"
+            "- **Date**: —\n- **Reached**: —\n- **Current completion node**: `—`\n"
+            "- **Current checkpoint**: `—` (—)\n- **Source**: local\n"
+            "- **First thing next time**: —"
         )
     activity = activity_label(course, " ")
     return "\n".join([
-        f"- **日期**：{course.updated}",
-        f"- **学到哪**：{course.course_id} {activity}，{course.position}",
-        f"- **当前完成节点**：`{course.node}`",
-        f"- **当前 checkpoint**：`{course.checkpoint}`（{course.checkpoint_state}）",
-        "- **来源**：local",
-        f"- **下次第一件事**：{course.next_action}",
+        f"- **Date**: {course.updated}",
+        f"- **Reached**: {course.course_id} {activity}, {course.position}",
+        f"- **Current completion node**: `{course.node}`",
+        f"- **Current checkpoint**: `{course.checkpoint}` ({course.checkpoint_state})",
+        "- **Source**: local",
+        f"- **First thing next time**: {course.next_action}",
     ])
 
 
@@ -427,17 +428,17 @@ def render_state_pointers(
     group_id = group.group_id if group else "—"
     group_path = (
         f"`main/30_group/{group_id}/plan.md`"
-        if group else "首次启动后创建"
+        if group else "created after first run"
     )
     course_id = course.course_id if course else "—"
     course_path = (
         f"`main/40_course/{course_id}/progress.md`"
-        if course else "首次启动后创建"
+        if course else "created after first run"
     )
     activity = course.current_activity if course else "—"
     activity_value = course.activity_id if course else "—"
     activity_path = f"`{course.resume_path}`" if course and course.resume_path else "—"
-    lesson_context = course.lesson_context if course else "无"
+    lesson_context = course.lesson_context if course else "none"
     lesson_context_path = (
         f"`{course.lesson_context_path}`"
         if course and course.lesson_context_path else "—"
@@ -450,23 +451,23 @@ def render_state_pointers(
                 continue
             if frontmatter(reader(path)).get("binding_status") == "active":
                 bindings.append(path.stem)
-    binding_value = ", ".join(bindings) or "无"
+    binding_value = ", ".join(bindings) or "none"
     binding_path = (
         f"`main/30_group/{group.group_id}/bindings/`"
-        if group else "首次启动后创建"
+        if group else "created after first run"
     )
     cloud = "paused" if cloud_paused(root, reader=reader) else "not-paused"
     return "\n".join((
-        "| 项目 | 当前值 | 详情位置 |",
+        "| Item | Current value | Details location |",
         "|---|---|---|",
-        f"| 活跃课程组 | {group_id} | {group_path} |",
-        f"| 当前课程 | {course_id} | {course_path} |",
-        f"| Lesson 上下文 | {lesson_context} | {lesson_context_path} |",
-        f"| 当前教学活动 | {activity}: {activity_value} | {activity_path} |",
-        f"| 当前教师 | {teacher_template(course, teacher_mapping)} | `main/20_teacher/overlay.md` |",
-        f"| 学生档案 | {profile_status} | `main/10_student/profile/profile.md` |",
+        f"| Active course group | {group_id} | {group_path} |",
+        f"| Current course | {course_id} | {course_path} |",
+        f"| Lesson context | {lesson_context} | {lesson_context_path} |",
+        f"| Current teaching activity | {activity}: {activity_value} | {activity_path} |",
+        f"| Current teacher | {teacher_template(course, teacher_mapping)} | `main/20_teacher/overlay.md` |",
+        f"| Student profile | {profile_status} | `main/10_student/profile/profile.md` |",
         f"| active binding | {binding_value} | {binding_path} |",
-        f"| T2AG 版本 | {runtime_version(main, reader=reader)} | `main/t2ag.md` |",
+        f"| T2AG version | {runtime_version(main, reader=reader)} | `main/t2ag.md` |",
         f"| Cloud bridge | {cloud} | `cloud/cloud_sync_state.md` |",
     ))
 
@@ -487,7 +488,7 @@ def capacity(course_id: str, groups: dict[str, Group]) -> str:
 
 def render_course_index(courses: dict[str, Course], groups: dict[str, Group]) -> str:
     rows = [
-        "| 课程代码 | 课程名称 | 路径 | 生命周期 | 容量状态 | 当前进度 | 恢复入口 |",
+        "| Course code | Course name | Path | Lifecycle | Capacity status | Current progress | Recovery entry |",
         "|---|---|---|---|---|---|---|",
     ]
     for course in courses.values():
@@ -502,7 +503,7 @@ def render_course_index(courses: dict[str, Course], groups: dict[str, Group]) ->
 
 def render_group_index(groups: dict[str, Group]) -> str:
     rows = [
-        "| 课程组 | 路径 | 课程成员 | Engagement 成员 | 状态 |",
+        "| Course group | Path | Course members | Engagement members | Status |",
         "|---|---|---|---|---|",
     ]
     for group in groups.values():
@@ -516,8 +517,8 @@ def render_group_index(groups: dict[str, Group]) -> str:
 
 def render_group_view(group: Group, courses: dict[str, Course]) -> str:
     rows = [
-        "### 组视图（GENERATED）", "",
-        "| 课程 | 当前活动 | 停点 |", "|---|---|---|",
+        "### Group view (GENERATED)", "",
+        "| Course | Current activity | Stop |", "|---|---|---|",
     ]
     for course_id in group.courses:
         course = courses.get(course_id)
@@ -527,7 +528,7 @@ def render_group_view(group: Group, courses: dict[str, Course]) -> str:
                 f"| {course.position.replace('|', '｜')} |"
             )
         else:
-            rows.append(f"| {course_id} | — | progress.md 不存在 |")
+            rows.append(f"| {course_id} | — | progress.md does not exist |")
     return "\n".join(rows)
 
 

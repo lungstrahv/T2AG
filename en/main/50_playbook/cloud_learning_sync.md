@@ -1,91 +1,116 @@
-# 云端学习与本地回写协议（cloud_learning_sync）
+# Cloud learning and local write-back protocol (cloud_learning_sync)
 
-**保护级别**：playbook
+**Protection level**: playbook
 
-> **协议标识**：`T2AG-CLOUD-1`
+> **Protocol identifier**: `T2AG-CLOUD-1`
 >
-> 本流程用于 ChatGPT Project、手机端聊天等不能直接修改本地仓库的教学环境。
-> 云端负责教学和产生待同步事件；本地 T2AG 负责裁决、写回和 doctor 验证。
+> This flow is for teaching environments that cannot modify the local repository directly:
+> a ChatGPT Project, a phone chat, and the like. The cloud side teaches and produces events
+> awaiting synchronization; the local T2AG adjudicates, writes back, and verifies with doctor.
 
-T2AG 云端同步分成两条通道，二者不得混写：
+T2AG cloud synchronization has two channels, and they must never be written into each other:
 
-| 通道 | 本地 → 云端 | 云端 → 本地 | 用途 |
+| Channel | Local → cloud | Cloud → local | Purpose |
 |---|---|---|---|
-| 教学状态同步 | `t2ag_mobile_entry.md` / 同步基线 | `T2AG_PROGRESS_RECEIPT` / `T2AG_SESSION_CLOSE` | 节点进度、疑问、错误与掌握证据 |
-| 部件变更同步 | `T2AG_CLOUD_CHANGE_DIRECTIVE` | `T2AG_CLOUD_HANDOFF` | 规则、提示词、模板、镜像和云端部件修改 |
+| Teaching-state sync | `t2ag_mobile_entry.md` / the sync baseline | `T2AG_PROGRESS_RECEIPT` / `T2AG_SESSION_CLOSE` | node progress, questions, mistakes, mastery evidence |
+| Component-change sync | `T2AG_CLOUD_CHANGE_DIRECTIVE` | `T2AG_CLOUD_HANDOFF` | rules, prompts, templates, mirrors, cloud-side component edits |
 
-## 一、四层权威关系
+## 1. The four authority layers
 
-| 层 | 作用 | 权威边界 |
+| Layer | Role | Authority boundary |
 |---|---|---|
-| 本地 `progress.md` | Course 生命周期、唯一前台与精确停点 | 云端记录不得直接覆盖 |
-| 本地 `activity_ledger.md` | Activity 生命周期、pending/CLR、alias 与统计 | 云端记录不得直接覆盖 |
-| 云端同步基线 | 某次本地状态的只读投影 | 由 `base_state_id` 标识，只证明导出时状态 |
-| `T2AG_SESSION_CLOSE` | 基线之后发生的待回写教学事件 | `sync_status` 在云端只能是 `pending` |
-| `t2ag_mobile_entry.md` | 手机端快速恢复缓存 | 不是独立真相源，不得压过本地状态或有效事件块 |
+| local `progress.md` | Course lifecycle, the single foreground, the exact stop | a cloud record must never overwrite it directly |
+| local `activity_ledger.md` | Activity lifecycle, pending/CLR, aliases and statistics | a cloud record must never overwrite it directly |
+| the cloud sync baseline | a read-only projection of one local state | identified by `base_state_id`; proves only the state at export time |
+| `T2AG_SESSION_CLOSE` | teaching events after that baseline, awaiting write-back | in the cloud, `sync_status` may only be `pending` |
+| `t2ag_mobile_entry.md` | the phone-side fast-recovery cache | not an independent source of truth; must not override local state or a valid event block |
 
-完整文本镜像同样只是只读快照。它可以补规则、lesson 和教材上下文，但不得覆盖更新的
-同步基线或有效事件块。云端模型不得声称已经修改本地文件、运行 doctor 或完成同步。
+A full text mirror is likewise only a read-only snapshot. It may supply rules, lesson and
+source-material context, but it must not override a newer sync baseline or a valid event
+block. The cloud model must never claim it has modified a local file, run doctor, or completed
+a synchronization.
 
-### 1.1 云端项目模式与身份路由
+### 1.1 Cloud project mode and identity routing
 
-`t2ag_mobile_entry.md` 必须声明 `cloud_project_mode`，只允许以下两种模式：
+`t2ag_mobile_entry.md` must declare `cloud_project_mode`, and only these two modes are allowed:
 
-| 模式 | 用途 | 身份来源 |
+| Mode | Purpose | Identity source |
 |---|---|---|
-| `personal_instance` | 已实例化学生的个人云端课堂 | `main/10_student/profile/profile.md` 与 `main/20_teacher/overlay.md` 的已同步只读投影 |
-| `generic_skeleton` | 新安装、模板演示或公开骨架 | 空 profile 模板；教师未配置或默认 T001；不得加载实例课程进度 |
+| `personal_instance` | the personal cloud classroom of an instantiated student | a synchronized read-only projection of `main/10_student/profile/profile.md` and `main/20_teacher/overlay.md` |
+| `generic_skeleton` | a fresh install, a template demo, or the public skeleton | the empty profile template; teacher unconfigured or defaulting to T001; no instance course progress may be loaded |
 
-- `personal_instance` 中，学生编号、教师角色与模板映射必须来自带 `base_state_id` 的移动端入口；
-  完整文本镜像、skeleton 示例和历史 lesson 只能补上下文，不得反向改写身份。
-- 教师模板编号不是个人身份。应写成“课程中的教师角色 TRxx 采用 T00x 模板”，不得把模板编号
-  当成真实教师实体。
-- 模式缺失、身份字段缺失或资料互相矛盾时，身份保持 `UNKNOWN/UNASSIGNED` 并请求最小核对；
-  不得从课程示例、lite、历史日志或 skeleton 猜测。
-- `generic_skeleton` 永远不得继承 `personal_instance` 的学生档案、课程停点或教师映射。
+- In `personal_instance`, the student ID, the teacher role and the template mapping must come
+  from a mobile entry carrying a `base_state_id`; a full text mirror, a skeleton example or a
+  historical lesson may only supply context and must never rewrite identity backwards.
+- A teacher template number is not a personal identity. Write "teacher role TRxx in this course
+  uses template T00x"; never treat a template number as a real teacher entity.
+- When the mode is missing, an identity field is missing, or the materials contradict each other,
+  identity stays `UNKNOWN/UNASSIGNED` and a minimal confirmation is requested; never guess from
+  course examples, from lite, from historical logs, or from the skeleton.
+- `generic_skeleton` must never inherit a `personal_instance` student profile, course stop, or
+  teacher mapping.
 
-### 1.2 实例级句尾标记（防冒充机制，写机制不写值）
+### 1.2 The instance-level end-of-message marker (anti-impersonation; record the mechanism, not the value)
 
-`personal_instance` 可以约定一个**实例级句尾字面标记**：云端普通教学回复在正文结束后另起
-一行追加该标记，作为回复来源的轻量防冒充信号。
+A `personal_instance` may agree on an **instance-level literal end-of-message marker**: an ordinary
+cloud teaching reply appends that marker on its own line after the body, as a lightweight
+anti-impersonation signal about where the reply came from.
 
-- 标记的**具体值**只存在于实例文件（`t2ag_mobile_entry.md` 与由其生成的
-  Project Instructions），属于实例与云端 Project 之间的共享秘密。
-- 协议层、`cloud_instructions_template.md` 模板、skeleton 与任何开源面**永不记载具体值**；
-  值一旦进入公开载体即视为失效，应在下一次基线导出时更换。
-- 标记是字面记号，不是文件名或路径；云端不得尝试读取、创建或推断同名文件。
-- `generic_skeleton` 模式不配置标记；缺失标记不构成教学阻断，只降低来源可信度。
+- The **value** of the marker exists only in instance files (`t2ag_mobile_entry.md` and the Project
+  Instructions generated from it); it is a shared secret between the instance and the cloud Project.
+- The protocol layer, the `cloud_instructions_template.md` template, the skeleton, and every
+  open-source surface **never record any value**; once a value reaches a public carrier it is
+  considered burned and must be rotated at the next baseline export.
+- The marker is a literal token, not a filename or a path; the cloud must not try to read, create,
+  or infer a file of the same name.
+- `generic_skeleton` mode configures no marker; a missing marker does not block teaching, it only
+  lowers confidence in the source.
 
-## 二、云端开课恢复
+## 2. Cloud session recovery
 
-1. 读取 Project Instructions，确认协议标识为 `T2AG-CLOUD-1`。
-2. 读取 `t2ag_mobile_entry.md`，取得 `cloud_project_mode`、课程、lesson、精确停顿点、
-   `base_state_id`、下一步动作，以及该模式允许的身份路由字段。
-3. 查找该基线之后最新的有效 `T2AG_SESSION_CLOSE`；按 `closed_at` 顺序恢复，重复
-   `session_id` 只计算一次。
-4. 若看不到旧聊天中的状态块，不得假装已经读取；请学生粘贴最新状态块，或明确只从基线继续。
-5. 若基线、状态块、完整镜像或学生口述冲突，暂停新内容，向学生核对；不得静默选一个版本。
-6. 讲新内容前读取上传的教材原文、文本层 PDF 或当前补充讲义；缺少所需原文时说明缺口，
-   不凭模型记忆把新内容冒充教材讲授。
-7. 用一句话报告恢复点并询问是否继续；学生确认后才进入教学。
+1. Read the Project Instructions and confirm the protocol identifier is `T2AG-CLOUD-1`.
+2. Read `t2ag_mobile_entry.md` for `cloud_project_mode`, the course, the lesson, the exact stop,
+   `base_state_id`, the next action, and the identity-routing fields that mode allows.
+3. Find the newest valid `T2AG_SESSION_CLOSE` after that baseline; recover in `closed_at` order,
+   and count a repeated `session_id` only once.
+4. If a state block from an older chat is not visible, do not pretend to have read it; ask the
+   student to paste the newest state block, or state explicitly that you are continuing from the
+   baseline alone.
+5. If the baseline, a state block, a full mirror, or the student's account conflict, pause new
+   content and check with the student; never pick one version silently.
+6. Before teaching new content, read the uploaded source text, the text-layer PDF, or the current
+   supplementary handout; when the required source is missing, state the gap and do not pass off
+   model memory as the textbook.
+7. Report the recovery point in one sentence and ask whether to continue; teach only after the
+   student confirms.
 
-## 三、云端教学门
+## 3. The cloud teaching gate
 
-- 手机端默认每轮只推进一个概念、定义、定理、证明步骤或例题节点。
-- “看过”“讲过”或练习答对只是接触/理解证据，不自动等于掌握，也不自动放行下一概念。
-- 概念闭合至少需要学生完成复述，并能给出、判断或解释一个正例和一个反例；不适合反例的
-  内容改用边界情形或错误方法辨析。证据不足时保持 `confirmation_state: pending`。
-- 每个节点结束都给出“继续 / 再讲一遍 / 提问”门；收到明确“继续”才推进。
-- 学生使用 `问题：` 或 `疑问：` 时，立即暂停后续推进，先回答并把问题写入结课事件块。
-- 回答习题后，除非学生本轮明确表示没有疑问，否则根据其实际步骤分析方法并询问有无疑问；
-  过程证据不足时请学生补充，不猜测思路。
-- 教学节奏可依据学生明确表达的状态调整，但不得降低掌握标准、跳课、跳页或漏读教材原文。
-- 云端默认不生成 ZIP；只提供当前教学所需内容和待同步事件块。
+- On the phone, advance by default only one concept, definition, theorem, proof step, or worked
+  example per turn.
+- "Has seen it", "was taught it", or a correct exercise answer is contact/comprehension evidence
+  only; it does not automatically mean mastery and does not automatically release the next concept.
+- Closing a concept requires at least a student restatement plus the ability to give, judge, or
+  explain one positive and one negative example; where a counterexample does not fit, use a
+  boundary case or a wrong-method contrast instead. When evidence is insufficient, keep
+  `confirmation_state: pending`.
+- End every node with a "continue / say it again / ask a question" gate; advance only on an
+  explicit "continue".
+- When the student writes `Question:` or `Doubt:`, pause all advancement immediately, answer
+  first, and record the question in the session-close event block.
+- After the student answers an exercise, unless they explicitly say this turn that they have no
+  questions, analyze the method from their actual steps and ask whether anything is unclear; when
+  process evidence is insufficient, ask them to supply it rather than guessing their reasoning.
+- Teaching pace may be adjusted from a state the student explicitly expresses, but never by
+  lowering the mastery standard, skipping a lesson, skipping a page, or leaving source text unread.
+- The cloud does not produce a ZIP by default; it supplies only what the current teaching needs
+  plus the event blocks awaiting synchronization.
 
-## 四、云端结课事件块
+## 4. The cloud session-close event block
 
-completion node 完成或学生手动说“保存进度”时，云端先产生紧凑回执；普通 checkpoint 只在
-云端内部静默保存，不逐点打扰学生：
+When a completion node is finished, or the student says "save my progress" by hand, the cloud
+first produces a compact receipt; an ordinary checkpoint is saved silently inside the cloud
+without interrupting the student point by point:
 
 ```text
 T2AG_PROGRESS_RECEIPT
@@ -107,11 +132,13 @@ T2AG_PROGRESS_RECEIPT
 END_T2AG_PROGRESS_RECEIPT
 ```
 
-同一个 `receipt_id` 只能导入一次。`manual_save` 只强制保存当前停点，不得把 completion node
-改为 completed。正常结课仍输出下方完整事件块。
+The same `receipt_id` may be imported only once. `manual_save` only forces the current stop to be
+saved; it must not move a completion node to completed. A normal session close still emits the full
+event block below.
 
-学生说“下课”“今天到这”“先这样”“结束”，或课程自然收尾时，云端模型必须输出以下
-纯文本块。字段不可省略；未知值写 `UNKNOWN`，不得编造。
+When the student says "class is over", "that's it for today", "let's stop here", or "done", or when
+the lesson reaches a natural end, the cloud model must emit the following plain-text block. No field
+may be omitted; write `UNKNOWN` for an unknown value and never invent one.
 
 ```text
 T2AG_SESSION_CLOSE
@@ -143,39 +170,55 @@ T2AG_SESSION_CLOSE
 END_T2AG_SESSION_CLOSE
 ```
 
-字段纪律：
+Field discipline:
 
-- `session_id` 在所有云端会话中唯一；一经输出不得改号重发。
-- `base_state_id` 标识课程状态快照，不可用 `t2ag_version` 代替；规则版本相同不代表进度相同。
-- `covered` 记录讲过什么，`completed` 只记录已过确认门的内容；两者不得混写。
-- `mastery_evidence` 只写学生实际复述、举例、证明或解题行为，不写教师推断。
-- `source_evidence` 必须能追溯到实际读取的上传材料；没读到原文写 `NONE`。
-- 云端无权把 `sync_status` 写成 `synced`，也不得在正文声称已写回本地。
-- 事件块只包含本次教学所需信息，不复制与课程无关的个人、情绪、交易或身份资料。
+- `session_id` is unique across all cloud sessions; once emitted it must never be renumbered and
+  re-sent.
+- `base_state_id` identifies a course-state snapshot and must not be replaced by `t2ag_version`:
+  the same rule version does not mean the same progress.
+- `covered` records what was taught; `completed` records only what has passed a confirmation gate.
+  The two must never be blended.
+- `mastery_evidence` records only what the student actually restated, exemplified, proved, or
+  solved — never a teacher's inference.
+- `source_evidence` must be traceable to uploaded material that was actually read; when no source
+  text was read, write `NONE`.
+- The cloud has no authority to write `sync_status: synced`, nor to claim in prose that a local
+  write-back has happened.
+- The event block contains only what this teaching session needs; it never copies personal,
+  emotional, transactional, or identity material unrelated to the course.
 
-## 五、本地导入与防重复
+## 5. Local import and duplicate protection
 
-本地 agent 收到一个或多个事件块后，按以下顺序执行：
+When the local agent receives one or more event blocks, it proceeds in this order:
 
-1. 原样保存输入用于核对，只解析 `T2AG_SESSION_CLOSE` 与 `END_T2AG_SESSION_CLOSE` 之间的字段；
-   普通聊天总结不能替代事件块。
-2. 校验协议、必填字段、枚举值、时间和 `duration_minutes`；不合格时停止写回并列出缺项。
-3. 在 `main/` 与 `cloud/cloud_sync_state.md` 检索 `session_id` 或 `receipt_id`。已存在即判为重复导入，
-   不再次累计课时、疑问或错误记录。
-4. 将 `base_state_id` 与 `cloud/cloud_sync_state.md` 的已知基线核对，再校验事件中的
-   显式活动三元组，并读取本地 `progress.md`、当前活动主载体和相关 question/mistake
-   记录。旧事件若只有 `lesson`，必须进入人工兼容迁移，不能静默推断当前活动。
-5. 若基线未知、落后且本地已前进，或精确停点互相矛盾，标记 `conflict`；先向学生核对，
-   未确认前不改课程进度。
-6. 无冲突时先更新 `progress.md` 真相源，并在教学记录中保留 `session_id`；再依统一
-   活动路由更新当前 Lesson/Exercise 主载体、`question_bank.md`、`mistake_bank.md` 和
-   学生档案。候选错误仍须按现有门槛归因，
-   不能因为云端列出就自动成为正式错题。
-7. 从真相源刷新 `t2ag_memory.md` 与 `learning_path.md`；不得从移动端入口反向覆盖真相源。
-8. 运行 `main/70_tools/t2ag_doctor.py --profile runtime`。只有写回完成且 runtime doctor
-   为 `0 FAIL`，才能记为 `synced`；云端同步不触发 release profile。
-9. 在 `cloud/cloud_sync_state.md` 追加同步结果，并向用户输出 `T2AG_SYNC_RECEIPT`；若发生冲突，
-   状态写 `conflict`，保留原因与待确认项。
+1. Save the input verbatim for checking, and parse only the fields between `T2AG_SESSION_CLOSE` and
+   `END_T2AG_SESSION_CLOSE`; an ordinary chat summary cannot substitute for the event block.
+2. Validate the protocol, the required fields, the enumerated values, the timestamps, and
+   `duration_minutes`; on failure, stop the write-back and list what is missing.
+3. Search `main/` and `cloud/cloud_sync_state.md` for the `session_id` or `receipt_id`. If it is
+   already there, treat it as a duplicate import and do not accumulate the hours, questions, or
+   mistake records a second time.
+4. Check `base_state_id` against the known baseline in `cloud/cloud_sync_state.md`, then validate
+   the explicit activity triple in the event, and read the local `progress.md`, the current
+   Lesson/Exercise main carrier, and the related question/mistake records. An old event carrying
+   only `lesson` must go through manual compatibility migration; never infer the current activity
+   silently.
+5. If the baseline is unknown, if it is behind while the local side has moved on, or if the exact
+   stops contradict each other, mark `conflict`; check with the student first and change no course
+   progress before they confirm.
+6. When there is no conflict, update the `progress.md` source of truth first and keep the
+   `session_id` in the teaching record; then, following the unified activity routing, update the
+   current Lesson/Exercise main carrier, `question_bank.md`, `mistake_bank.md`, and the student
+   profile. Candidate mistakes still have to be attributed through the existing threshold; being
+   listed by the cloud does not automatically make one a formal mistake record.
+7. Refresh `t2ag_memory.md` and `learning_path.md` from the source of truth; never overwrite a
+   source of truth backwards from the mobile entry.
+8. Run `main/70_tools/t2ag_doctor.py --profile runtime`. Only when the write-back is complete and
+   the runtime doctor reports `0 FAIL` may it be recorded as `synced`; cloud sync does not trigger
+   the release profile.
+9. Append the synchronization result to `cloud/cloud_sync_state.md` and emit a `T2AG_SYNC_RECEIPT`
+   to the user; on a conflict, write status `conflict` and keep the reason and the items awaiting
+   confirmation.
 
 ```text
 T2AG_SYNC_RECEIPT
@@ -188,40 +231,52 @@ T2AG_SYNC_RECEIPT
 END_T2AG_SYNC_RECEIPT
 ```
 
-## 六、冲突裁决与降级模式
+## 6. Conflict adjudication and degraded modes
 
-| 情况 | 动作 |
+| Situation | Action |
 |---|---|
-| `session_id` 已出现 | 返回 `duplicate`，零写入 |
-| `base_state_id: UNKNOWN` | 人工核对本地停点后才可导入 |
-| 本地状态已超过云端基线 | 只合并不冲突的证据；进度变化需学生确认 |
-| `covered` 与 `completed` 混淆 | 以确认门证据为准，缺证据则保持 pending |
-| 教材来源缺失 | 可记录讨论，不把新知识计为教材驱动的已完成内容 |
-| 多个事件块互相冲突 | 按时间列出差异，请学生裁决，不按“最新即正确”自动覆盖 |
+| `session_id` already seen | return `duplicate`, write nothing |
+| `base_state_id: UNKNOWN` | import only after the local stop has been checked by hand |
+| local state is ahead of the cloud baseline | merge only non-conflicting evidence; a progress change needs student confirmation |
+| `covered` and `completed` are blended | the confirmation-gate evidence decides; with no evidence, stay pending |
+| the source material is missing | the discussion may be recorded, but new knowledge is not counted as textbook-driven completion |
+| several event blocks contradict each other | list the differences in time order and ask the student to adjudicate; never overwrite automatically on a "newest is correct" rule |
 
-规则版本或云端投影不一致时按风险降级，不一律阻断教学：
+When rule versions or cloud projections disagree, degrade by risk instead of blocking teaching
+outright:
 
-- 仅显示、措辞、非当前课程辅助字段不同：标记 `safe_degraded`，继续当前教学，不启用缺失功能。
-- 进度字段或节点 schema 不同：可只读恢复到共同字段，暂停自动回写节点，要求最小核对。
-- 权威链、身份路由、隐私范围、当前停点或确认门冲突：暂停推进与写回，等待本地裁决。
+- Only display, wording, or non-current-course auxiliary fields differ: mark `safe_degraded`,
+  continue the current teaching, and leave the missing feature disabled.
+- Progress fields or the node schema differ: recover read-only on the shared fields, suspend
+  automatic node write-back, and require a minimal check.
+- The authority chain, identity routing, privacy scope, the current stop, or a confirmation gate
+  conflict: suspend both advancement and write-back and wait for local adjudication.
 
-## 七、部件变更双向同步
+## 7. Two-way component-change synchronization
 
-### 7.1 本地更新后发出变更指令
+### 7.1 After a local update, issue a change directive
 
-本地修改规则、提示词、模板、状态块 schema、云端镜像结构或其他会影响云端运行的部件后，
-必须在本轮结束前完成以下动作：
+After a local change to rules, prompts, templates, a state-block schema, the cloud mirror structure,
+or any other component that affects how the cloud runs, the following must be completed before the
+round ends:
 
-1. 识别哪些本地变更会影响云端；普通课程进度变化仍走教学状态同步，不重复发部件指令。
-2. 在 `cloud/outbox/` 新建唯一文件 `CD-YYYYMMDD-NNNN.md`，保存完整变更指令。`draft` 可以编辑；
-   一旦进入 `ready_to_send` 并分配正式 ID，正文不可改写。需要修正时新建指令并用 `supersedes` 关联。
-3. 指令必须列出本地改了什么、云端应该改什么、验收标准、所需附件和隐私影响；不得只写“同步最新版”。
-   若变更涉及云端同步协议本身，`main/50_playbook/cloud_learning_sync.md` 必须作为协议定义源随指令发送；
-   Project Instructions 只是执行投影，不能替代定义源参与架构审查。
-4. 在 `cloud/cloud_sync_state.md` 登记 `directive_id` 与当前状态。
-5. 将指令及其列出的附件发送到云端。没有上传工具证据或用户确认时，只能记
-   `ready_to_send`，不得声称 `sent`。
-6. 云端确认接收后，将状态更新为 `acknowledged`；云端返回交接且本地完成裁决后才可 `closed`。
+1. Identify which local changes affect the cloud; ordinary course-progress changes still go through
+   teaching-state sync and do not warrant a second component directive.
+2. Create a unique file `CD-YYYYMMDD-NNNN.md` in `cloud/outbox/` holding the complete change
+   directive. A `draft` may be edited; once it reaches `ready_to_send` and is assigned a formal ID,
+   the body must not be rewritten. To correct it, create a new directive and link it with
+   `supersedes`.
+3. The directive must state what changed locally, what the cloud should change, the acceptance
+   criteria, the attachments required, and the privacy impact; "sync the latest version" alone is
+   not acceptable. If the change touches the cloud sync protocol itself,
+   `main/50_playbook/cloud_learning_sync.md` must be sent with the directive as the protocol
+   definition source; the Project Instructions are only an execution projection and cannot stand in
+   for the definition source in an architecture review.
+4. Register the `directive_id` and its current status in `cloud/cloud_sync_state.md`.
+5. Send the directive and the attachments it lists to the cloud. Without upload-tool evidence or
+   user confirmation, record only `ready_to_send`; never claim `sent`.
+6. Once the cloud confirms receipt, move the status to `acknowledged`; only after the cloud returns
+   a handoff and the local side finishes adjudicating may it become `closed`.
 
 ```text
 T2AG_CLOUD_CHANGE_DIRECTIVE
@@ -244,8 +299,10 @@ T2AG_CLOUD_CHANGE_DIRECTIVE
 END_T2AG_CLOUD_CHANGE_DIRECTIVE
 ```
 
-用户确认某个正式指令已经在手机端应用、但本地缺云端回执时，状态记为
-`applied_unacknowledged`，保留用户确认时间与证据说明；下一次同步只需返回轻量确认：
+When the user confirms that a formal directive has already been applied on the phone but the local
+side has no cloud acknowledgement, record the status as `applied_unacknowledged` and keep the time
+of the user's confirmation together with a note on the evidence; the next synchronization then only
+needs a lightweight acknowledgement:
 
 ```text
 T2AG_DIRECTIVE_ACK
@@ -256,14 +313,16 @@ T2AG_DIRECTIVE_ACK
 END_T2AG_DIRECTIVE_ACK
 ```
 
-### 7.2 云端修改后必须交接
+### 7.2 After a cloud-side change, a handoff is mandatory
 
-云端收到变更指令后，只执行或生成指令明确列出的云端修改。平台不能直接改 Project Instructions
-或既有文件时，应生成完整替换文件，不得假装已在设置中生效。若云端发现指令之外值得修改的内容，
-只能作为提案写进交接，不能静默扩大范围。
+On receiving a change directive, the cloud executes or generates only the cloud-side modifications
+the directive lists explicitly. When the platform cannot edit the Project Instructions or an
+existing file directly, it produces a complete replacement file and must not pretend the change is
+already live in the settings. If the cloud finds something outside the directive worth changing, it
+may only write it into the handoff as a proposal; it must never widen scope silently.
 
-云端完成任何实际修改、替换文件生成或新增提案后，必须生成可下载/复制的
-`CH-YYYYMMDD-NNNN.md`，包含以下完整块：
+After any real modification, replacement-file generation, or new proposal, the cloud must produce a
+downloadable/copyable `CH-YYYYMMDD-NNNN.md` containing this complete block:
 
 ```text
 T2AG_CLOUD_HANDOFF
@@ -284,46 +343,64 @@ T2AG_CLOUD_HANDOFF
 END_T2AG_CLOUD_HANDOFF
 ```
 
-云端无权把交接状态写成 accepted、merged 或 synced。聊天总结不能替代交接文件；若没有生成文件，
-至少输出完整纯文本块供本地保存。
+The cloud has no authority to write a handoff status of accepted, merged, or synced. A chat summary
+cannot substitute for the handoff file; if no file can be generated, emit at least the complete
+plain-text block so the local side can save it.
 
-**协议不变量（本地同样遵守）**：块内 `status` 字段**永久**保持云端产出值 `proposed_for_local_review`。
-doctor 校验此不变量。本地裁决结果**不得**改写块内 `status`；应写入：
-（a）`cloud_sync_state.md`「云端交接」表的 `local_decision` 列；
-（b）可选：同一 CH 文件在 `END_T2AG_CLOUD_HANDOFF` **之后**的「本地裁决」节（`sync_completed` 等）。
-任何施工单要求修改块内 status 视为工单错误（见 `batch_workorder_spec.md` §三第 9 条）。
+**A protocol invariant (the local side obeys it too)**: the `status` field inside the block stays
+**permanently** at the cloud-produced value `proposed_for_local_review`. Doctor verifies this
+invariant. A local adjudication result **must not** rewrite the in-block `status`; it is written to
+(a) the `local_decision` column of the cloud-handoff table in `cloud_sync_state.md`; and
+(b) optionally, a local-adjudication section in the same CH file, placed **after**
+`END_T2AG_CLOUD_HANDOFF` (`sync_completed` and the like). A work order demanding a change to the
+in-block status is a defective order (see `batch_workorder_spec.md` §3 item 9).
 
-### 7.3 本地接收、讨论与裁决
+### 7.3 Local receipt, discussion, and adjudication
 
-1. 将云端交接原样保存到 `cloud/inbox/CH-YYYYMMDD-NNNN.md`，先校验 `handoff_id`、
-   `directive_id`、协议、实际文件和偏差说明。
-2. 交接是提案与执行证据，不是本地规则源；不得自动覆盖 `main/`、`cloud/` 或课程文件。
-3. 向用户展示“已做修改 / 偏离指令 / 建议本地修改 / 未决问题 / 隐私影响”，逐项讨论。
-4. 用户裁决为接受、部分接受或拒绝后，才在本地实施被接受部分；部分接受必须记录未接受项。
-5. 本地修改后运行 doctor，并在 `cloud_sync_state.md` 登记裁决、文件和验证结果；
-   **不**把 CH 块内 `status` 改为 accepted/synced。
-6. 若本地裁决又改变云端应有状态，生成下一份新 `directive_id`；不得改写旧指令伪装闭环。
+1. Save the cloud handoff verbatim to `cloud/inbox/CH-YYYYMMDD-NNNN.md`, and first validate
+   `handoff_id`, `directive_id`, the protocol, the actual files, and the stated deviations.
+2. A handoff is a proposal plus execution evidence, not a local rule source; it must never
+   automatically overwrite `main/`, `cloud/`, or course files.
+3. Show the user "changes made / deviations from the directive / proposed local changes / open
+   questions / privacy impact" and discuss them item by item.
+4. Only after the user adjudicates accept, partial accept, or reject may the accepted part be
+   implemented locally; a partial accept must record what was not accepted.
+5. After the local modification, run doctor and register the adjudication, the files, and the
+   verification result in `cloud_sync_state.md`; do **not** change the in-block CH `status` to
+   accepted/synced.
+6. If the local adjudication in turn changes what the cloud state should be, produce a new
+   `directive_id`; never rewrite an old directive to fake a closed loop.
 
-未被本地接受的云端修改可以继续留在 Project 内供试验，但不得被描述为 T2AG 正式规则。云端
-handoff 默认不加入日常启动链，只有当前同步讨论明确指向它时才读取，避免旧提案污染教学恢复。
+Cloud modifications the local side did not accept may stay in the Project for experimentation, but
+must not be described as formal T2AG rules. A cloud handoff is not part of the daily startup chain
+by default; it is read only when the current synchronization discussion points at it explicitly, so
+that an old proposal cannot contaminate teaching recovery.
 
-## 八、隐私与上传边界
+## 8. Privacy and the upload boundary
 
-隐私范围分为两层：
+The privacy scope has two layers:
 
-- `existing_project_scope`：用户已经手动上传到当前个人实例的内容，可继续在该 Project 内使用；
-  不追溯清理，也不因此授权二次复制、导出、公开或迁移到其他服务。
-- `automatic_sync_allowlist`：agent 自动准备或建议同步的最小低风险字段，默认仅包含课程代码、
-  lesson、稳定节点 ID、精确停点、规则版本、内部角色/模板编号和不含正文的状态摘要。
+- `existing_project_scope`: content the user has already uploaded by hand into the current personal
+  instance may continue to be used inside that Project; it is not cleaned up retroactively, and it
+  does not thereby authorize a second copy, an export, publication, or migration to another service.
+- `automatic_sync_allowlist`: the minimal low-risk fields the agent prepares or proposes to sync
+  automatically, containing by default only the course code, the lesson, stable node IDs, the exact
+  stop, the rule version, internal role/template numbers, and a state summary with no body text.
 
-用户可以手动上传个人信息；该授权只适用于当前 personal instance。任何新增自动同步字段都必须
-显式登记和审查。skeleton 与 lite 永远不得吸收个人实例内容。
-- 缺少可能被隐私规则挡住的上下文时，报告缺口并使用最小必要信息继续；不得诱导用户补充无关身份信息。
-- 缺少必要上下文时只请求最小信息，不从已省略材料推断或补齐私人字段。
+The user may upload personal information by hand; that authorization applies only to the current
+personal instance. Every new automatic-sync field must be registered and reviewed explicitly. The
+skeleton and lite must never absorb personal-instance content.
 
-## 九、提示词一致性
+- When context that a privacy rule may be blocking is missing, report the gap and continue with the
+  minimum necessary information; never lead the user into supplying unrelated identity information.
+- When necessary context is missing, request the minimum only; never infer or fill in a private
+  field from material that was deliberately omitted.
 
-可复制的云端提示词位于 `cloud/T2AG_PROJECT_INSTRUCTIONS.txt`。本文件是协议定义源；提示词是
-面向云端模型的执行投影。修改权威链、状态块字段、确认门、变更指令、云端交接、隐私边界或
-同步语义时，必须在同一批次同步两者、生成新的 outbox 指令并运行 doctor，防止本地规则与云端
-行为分叉。
+## 9. Prompt consistency
+
+The copyable cloud prompt lives at `cloud/T2AG_PROJECT_INSTRUCTIONS.txt`. This file is the protocol
+definition source; the prompt is its execution projection for the cloud model. When the authority
+chain, a state-block field, a confirmation gate, a change directive, a cloud handoff, the privacy
+boundary, or the synchronization semantics change, both must be synchronized in the same batch, a
+new outbox directive must be produced, and doctor must be run, so that the local rules and the cloud
+behaviour cannot fork.

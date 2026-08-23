@@ -1,16 +1,23 @@
-# Group 初始化模板
+# Group initialization templates
 
-本目录是系统发行模板，不是真实课程组实例。首次启动或新建课程组时，按
-`main/50_playbook/course_group_rules.md` 与 `group_transition.md` 复制所需文件到
-`main/30_group/Gdd/`，并把大写占位符替换为真实值。
+This directory is a system release template, not a real course-group instance. On first run, or when
+creating a course group, copy the files you need into `main/30_group/Gdd/` per
+`main/50_playbook/course_group_rules.md` and `group_transition.md`, and replace every uppercase
+placeholder with a real value.
 
-新建的课程组默认 `status: planned`。转 `active` 需要独立的组激活审查，
-不得在创建时直接写 `active`——同一实例只允许一个 active 组。
+A newly created course group defaults to `status: planned`. Turning it `active` requires a separate group
+activation review; `active` must never be written directly at creation — one instance permits only one
+active group.
 
-- `plan.md`：成员组合、激活闸门与容量边界。课程进度仍以各课 `progress.md` 为唯一真相源。
-- `calendar.md`：容量草案。planned 组的日历不产生课程进度，也不改变任何课程生命周期。
-- `review.md`：组合层复盘与结组证据。planned 组只预留位置，不产生完成记录。
-- `bindings/_README.md`：持久化空 binding 域。没有弹性执行绑定时保留该说明文件即可。
+- `plan.md`: the member combination, the activation gate, and the capacity boundary. Course progress is
+  still governed solely by each course's `progress.md`.
+- `calendar.md`: the capacity draft. A planned group's calendar produces no course progress and changes no
+  course's lifecycle.
+- `review.md`: the combination-level review and the closing evidence. A planned group only reserves the
+  place and produces no completion record.
+- `bindings/_README.md`: makes the empty binding domain persistent. With no elastic execution binding,
+  keeping this note file is enough.
 
-不得复制 `.template` 后仍保留占位符；不得把课程正文或课程进度塞入 binding；
-不得把 planned 课程自动加入 active 组。
+A `.template` must never be copied with its placeholders left in; course body text or course progress must
+never be stuffed into a binding; and a planned course must never be added to an active group
+automatically.

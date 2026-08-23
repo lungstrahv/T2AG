@@ -19,4 +19,4 @@ lifecycle: persistent
 
 # Page INDEX
 
-（核验文本写在此处；绑定上方 SHA 与 SourceDocument。）
+(The verified text goes here; it binds to the SHA above and to the SourceDocument.)

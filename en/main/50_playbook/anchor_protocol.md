@@ -1,41 +1,49 @@
-# 长讨论锚点协议（Anchor Protocol）
+# The long-discussion Anchor Protocol
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> 长讨论中遏制错误级联的会话内纪律，任何模型、任何课通用。
-> 触发：讨论预计或实际超过 ~10 轮，或学生连续追问进入无外部预言机的地带。
-> 机制出身：2026-08-18 教学可靠性讨论（50 轮复利＋错误自相关＋人类教学的社会性截断）。
+> An in-session discipline for containing error cascades in a long discussion; general to any model and any course.
+> Trigger: the discussion is expected to, or does, exceed ~10 turns, or the student's run of follow-up questions enters territory with no external oracle.
+> Origin of the mechanism: the 2026-08-18 teaching-reliability discussion (50-turn compounding + error autocorrelation + the social truncation of human teaching).
 
-enforcement: prose_accepted（理由：会话内行为无机器扫描手段；失败可见性=转录中超过约定轮距无锚点清单，由复盘与结课评审抓；且锚点长期缺席是学生可直接感知的信号）
+enforcement: prose_accepted (reason: in-session behaviour has no machine scan; failure visibility = the transcript shows no anchor list beyond the agreed turn distance, caught by the review and the end-of-course assessment; and a long absence of anchors is a signal the student can perceive directly)
 
-## 一、要解决的问题
+## 1. The problem to be solved
 
-教学无外部预言机：学生按定义判不了错，模型 conditioning 在自己的上一个错误上，
-一错引连串错。没有任何模型的单轮准确率扛得住 50 轮复利。
+Teaching has no external oracle: by definition the student cannot judge the error, the model is
+conditioned on its own previous error, and one mistake pulls a chain behind it. No model's single-turn
+accuracy survives 50 turns of compounding.
 
-人类教学从未解决此问题，只是回避了它：教师会烦会走、学生不追问，50 轮深度从未
-被社会性允许发生。「教师受不了走人」客观上是人类教学的止损线——粗暴，但错误
-不会静默延续。模型不烦不走，止损线消失，级联第一次可以无阻传播。
+Human teaching never solved this; it merely avoided it. A teacher gets annoyed and leaves, the student
+does not press further, and 50 turns of depth was never socially permitted to happen. "The teacher gets
+fed up and walks out" is objectively human teaching's stop-loss line — crude, but errors do not persist
+silently. A model does not get annoyed and does not leave; the stop-loss line disappears, and for the
+first time a cascade can propagate unobstructed.
 
-本协议不降低错误率，只**截断传播距离**：把可靠性要求从「全程无错」降为
-「两锚点之间无错」——这是现有模型满足得了的标准。
+This protocol does not lower the error rate; it **truncates the propagation distance**: it lowers the
+reliability requirement from "no error at all, throughout" to
+"no error between two anchors" — a standard existing models can meet.
 
-## 二、协议
+## 2. The protocol
 
-1. **落锚**：约每 8–12 轮，或概念转段处，模型输出「当前已立断言清单」——
-   编号，每条一句话，只列本段讨论新建立的，不列教科书常识。
-2. **学生过锚**：逐条确认或修正。确认的锚＝检查点；有疑的条目当场标 `?`，
-   **不许带着 `?` 继续往上盖楼**。
-3. **回滚规则**：后续发现错误时，回滚到最后一个干净锚点重走，不逐句考古、
-   不整场推翻。
-4. **锚点即原料**：讨论事后若判为承重节点，锚点清单就是 keystone 编号链的初稿
-   （`keystone_records.md` §六起草步直接从锚点清单起）。
+1. **Drop an anchor**: roughly every 8–12 turns, or at a conceptual transition, the model emits a "list
+   of claims established so far" — numbered, one sentence each, listing only what this segment of the
+   discussion newly established, never textbook common knowledge.
+2. **The student passes the anchor**: confirm or correct each item. A confirmed anchor = a checkpoint;
+   an item in doubt is marked `?` on the spot, and **building further on top of a `?` is not allowed**.
+3. **The rollback rule**: when an error is found later, roll back to the last clean anchor and walk it
+   again; do not do archaeology sentence by sentence and do not tear down the whole session.
+4. **An anchor is raw material**: if the discussion is later judged a load-bearing node, the anchor list
+   is the first draft of the keystone's numbered chain
+   (the drafting step in `keystone_records.md` §6 starts straight from the anchor list).
 
-## 三、成本与边界（不是遗漏，是决定）
+## 3. Cost and boundary (a decision, not an oversight)
 
-- 每锚耗 2–3 轮。10 轮一锚约 20–30% 开销，买的是级联截断——**承重讨论必开**，
-  普通答疑不强制。
-- 落锚责任落在课程脚本／教学提示词侧；执行漂移由学生察觉——锚点太久不出现
-  本身就是可感知信号，这正是它比一句「请模型仔细」的散文条款强的地方。
-- 不配 doctor 检查、不配新门；与 keystone 形制分工：锚点管**会话内**传播距离，
-  keystone 管**跨会话**可重审性。
+- Each anchor costs 2–3 turns. One anchor per 10 turns is roughly 20–30% overhead, and what it buys is
+  cascade truncation — **mandatory for a load-bearing discussion**,
+  not required for ordinary Q&A.
+- Responsibility for dropping anchors lies with the course script / teaching prompt side; drift in
+  execution is noticed by the student — an anchor failing to appear for too long is itself a perceptible
+  signal, which is exactly what makes this stronger than a prose clause saying "please be careful, model".
+- No doctor check and no new gate; the division of labour with the keystone form: an anchor governs
+  **in-session** propagation distance, and a keystone governs **cross-session** re-reviewability.

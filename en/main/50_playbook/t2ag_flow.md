@@ -1,6 +1,6 @@
 # T2AG 0.2.3 functional flow diagrams
 
-**保护级别**：core-playbook  (protection level: core-playbook)
+**Protection level**: core-playbook
 
 > This file is a derived view of `t2ag.md`, the domain model and the playbooks. It legislates nothing on its own.
 > The `FLOW` markers of each diagram are extracted by the offline HTML guide generator; never delete or reuse them.

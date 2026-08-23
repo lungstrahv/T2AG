@@ -1,170 +1,204 @@
-# 思维方法提炼与接替流程
+# Distilling and superseding a way of thinking
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> 当课堂错误、连续追问、跨题重复行为或学生主动归因暴露出可迁移的思维路径时触发。本流程把真实行为证据转化为可调用、可训练、可验证的替代方法；不把一句建议或一次听懂伪装成新习惯。
+> Triggered when a classroom error, a run of follow-up questions, a behaviour repeated across problems, or the student's own attribution exposes a transferable path of thought. This flow turns real behavioural evidence into a method that can be invoked, trained, and verified; it never dresses up a single piece of advice or a single moment of understanding as a new habit.
 
 ---
 
-## 一、目标与边界
+## 1. Goal and boundary
 
-本流程解决：旧默认路径怎样被识别，替代动作怎样生成，怎样通过训练逐步接管，以及系统怎样保存接替证据。
+This flow answers: how an old default path is identified, how a replacement action is generated, how it
+gradually takes over through training, and how the system stores the evidence of the takeover.
 
-本流程不负责：
+This flow is not responsible for:
 
-- 保存具体知识错误；具体错误仍进入课程 `mistake_bank.md`。
-- 对学生做心理诊断或人格判断；只记录可观察行为与学生明确自述。
-- 把每次算错、笔误或教师失误包装成“思维方法”。
-- 因学生表示“听懂了”就宣布习惯形成。
+- Storing a specific knowledge error; a specific error still goes into the course `mistake_bank.md`.
+- Making a psychological diagnosis or a personality judgement about the student; it records only
+  observable behaviour and what the student stated explicitly.
+- Packaging every miscalculation, slip of the pen, or teacher mistake as a "way of thinking".
+- Declaring a habit formed because the student said "I understand".
 
-习题闭环中的思维分析是本流程的观察入口，但不是自动建档命令。
+The reasoning analysis in the exercise loop is this flow's observation entry point, not an automatic
+command to open a file.
 
-## 二、输入、输出与写入路由
+## 2. Inputs, outputs, and the write route
 
-### 输入
+### Inputs
 
-- 课程、当前 Lesson/Exercise、题目或问答位置。
-- 学生原始答案、追问或事后归因。
-- 旧路径造成失效的可观察证据。
-- 反例、纠正过程及后续变式表现。
+- The course, the current Lesson/Exercise, and the problem or Q&A position.
+- The student's raw answer, follow-up question, or after-the-fact attribution.
+- Observable evidence that the old path failed.
+- The counterexample, the correction process, and the later performance on variants.
 
-### 输出
+### Outputs
 
-- 一条“触发线索—旧路径—停止信号—最小替代动作—验证证据”的接替记忆。
-- `candidate → reinforced → automatic → superseded` 的方法接替状态。
-- 下一次复测需要调用的触发结构，而不是原题答案。
+- One takeover memory of "trigger cue — old path — stop signal — minimal replacement action —
+  verification evidence".
+- The method takeover state `candidate → reinforced → automatic → superseded`.
+- The trigger structure to invoke at the next retest, rather than the answer to the original problem.
 
-### 路由
+### Route
 
-| 内容 | 写入位置 |
+| Content | Written to |
 |---|---|
-| Lesson 中的错误现场、学生原话、当堂修正 | 当前 Lesson 主载体 |
-| Exercise 中的学生原话与原始作答 | 对应 Attempt；非提交型课堂观察写当前 `exercise.md` |
-| Exercise 中的教师判断与修正 | 对应 Review；尚未形成 Review 时写当前 `exercise.md` |
-| 具体课程知识错误与掌握状态 | 对应课程 `mistake_bank.md` |
-| 跨课程思维模式及替代方法状态 | 当前学生 `reasoning_patterns.md` |
-| 流程设计争议或重大裁决过程 | `60_journal/` |
+| the error scene, the student's words, and the in-class correction inside a Lesson | the current Lesson main carrier |
+| the student's words and raw answer inside an Exercise | the matching Attempt; a non-submission classroom observation goes into the current `exercise.md` |
+| the teacher's judgement and correction inside an Exercise | the matching Review; before a Review exists, the current `exercise.md` |
+| a specific course knowledge error and its mastery state | the course's `mistake_bank.md` |
+| a cross-course thinking pattern and the state of its replacement method | the current student's `reasoning_patterns.md` |
+| a dispute about the flow's design, or a major adjudication process | `60_journal/` |
 
-默认用父级 `RP-XXXX` 关联替代方法；在出现一个模式对应多个独立方法前，不新造方法编号体系。
+By default a replacement method is related through its parent `RP-XXXX`; do not invent a separate method
+numbering system before one pattern really does correspond to several independent methods.
 
-## 三、准入门槛
+## 3. The admission threshold
 
-满足以下任一条件，才可建立候选方法：
+A candidate method may be established only when one of the following holds:
 
-1. 同一思维路径在至少两道题中重复出现。
-2. 学生主动指出稳定的旧路径、触发感受或失效机制。
-3. 一次错误具有明显跨题迁移价值，且能写出可执行替代动作。
-4. 已有 `reasoning_patterns.md` 条目需要从描述升级为训练协议。
+1. The same path of thought recurs in at least two problems.
+2. The student points out a stable old path, trigger feeling, or failure mechanism on their own.
+3. A single error has clear cross-problem transfer value and an executable replacement action can be
+   written for it.
+4. An existing `reasoning_patterns.md` entry needs upgrading from a description into a training protocol.
 
-以下情况不进入：普通算错、孤立笔误、未学先错、纯知识缺失、教师或工具造成的错误，以及无法写成行为动作的泛泛评价。
+These do not enter: an ordinary miscalculation, an isolated slip, an error made before the material was
+taught, pure missing knowledge, an error caused by the teacher or a tool, and a vague evaluation that
+cannot be written as a behavioural action.
 
-## 四、九步提炼流程
+## 4. The nine-step distillation
 
-### 1. 捕捉旧路径
+### 1. Capture the old path
 
-记录学生在答案出现前实际关注、忽略、假设或执行了什么。保留学生原话；教师推断必须标为候选。
+Record what the student actually attended to, ignored, assumed, or executed before the answer appeared.
+Keep the student's own words; a teacher inference must be labelled as a candidate.
 
-### 2. 分类失效来源
+### 2. Classify the source of failure
 
-区分事实缺失、概念误解、计算失误、条件遗漏与策略路径错误。只有能形成程序性替代的部分继续。
+Distinguish missing facts, a misunderstood concept, a calculation slip, an omitted condition, and a wrong
+strategic path. Only the part that can become a procedural replacement continues.
 
-### 3. 建立新旧对照
+### 3. Build the old/new contrast
 
-写明旧路径在哪一步分叉、新路径保留什么优势，以及什么证据说明旧路径在该情境下失效。
+State where the old path diverges, what advantage the new path preserves, and what evidence shows the old
+path fails in this setting.
 
-### 4. 定位触发线索
+### 4. Locate the trigger cue
 
-找出旧路径何时自动启动。触发线索应可识别，例如“尚未读完外层条件就开始计算”或“产生‘它本质上就是……’的强等同感”。
+Find when the old path starts automatically. The trigger cue should be recognizable, for example
+"starts calculating before finishing the outer condition" or "gets the strong feeling of identity that
+'it is essentially just …'".
 
-### 5. 生成停止信号
+### 5. Generate the stop signal
 
-规定什么时候暂停正式承诺，而不是禁止思考。例如：“结论仍未核对方向、量词或作用域时，只能标为候选。”
+Specify when a formal commitment is paused — not when thinking is forbidden. For example: "while the
+conclusion has not been checked for direction, quantifier or scope, it may only be marked as a
+candidate."
 
-### 6. 生成最小替代动作
+### 6. Generate the minimal replacement action
 
-动作必须短、可执行、可检查。优先保留旧路径的生产力，只在失效点增加最小闸门。
+The action must be short, executable, and checkable. Preserve the productivity of the old path where
+possible, adding a minimal gate only at the point of failure.
 
-### 7. 建立因果解释
+### 7. Build the causal explanation
 
-说明替代动作怎样阻断原失效机制。没有因果解释的口诀容易变成新的机械错误。
+State how the replacement action blocks the original failure mechanism. A mnemonic with no causal
+explanation easily becomes a new mechanical error.
 
-### 8. 安排训练与提示撤除
+### 8. Schedule training and hint withdrawal
 
-按“完整提醒 → 仅提示触发词 → 完全不提示”逐级撤除教师支持；复测要换表面、换题型，必要时换课程。
+Withdraw teacher support in stages: full reminder → the trigger word only → no prompting at all. A retest
+changes the surface and the problem type, and where necessary the course.
 
-### 9. 更新接替状态
+### 9. Update the takeover state
 
-根据实际调用证据更新状态，并把下一次训练写成具体触发结构。不得按时间流逝自动晋级。
+Update the state on real invocation evidence, and write the next training as a concrete trigger
+structure. Never promote automatically with the passage of time.
 
-## 五、从建议到习惯
+## 5. From advice to habit
 
-playbook 保存训练协议和证据；课堂与复测负责形成习惯。标准闭环为：
+The playbook stores the training protocol and the evidence; the classroom and the retest form the habit.
+The standard loop is:
 
 ```text
-识别触发线索
-→ 执行最小替代动作
-→ 获得即时校验反馈
-→ 在变式中再次调用
-→ 间隔后无提示调用
-→ 更新接替状态
+recognize the trigger cue
+→ execute the minimal replacement action
+→ get immediate corrective feedback
+→ invoke it again on a variant
+→ invoke it unprompted after an interval
+→ update the takeover state
 ```
 
-### 状态定义
+### State definitions
 
-| 状态 | 判据 |
+| State | Criterion |
 |---|---|
-| `candidate` | 已有证据支持该方法值得试用，但尚无独立迁移表现 |
-| `reinforced` | 至少一次在变式中成功调用；允许有提示，但必须记录提示强度 |
-| `automatic` | 间隔至少一天，在至少两道表面不同的问题中，学生都在教师提示前主动识别触发线索并执行替代动作，旧路径未直接接管 |
-| `superseded` | 被更一般、更可靠或成本更低的方法取代；保留来源和取代关系 |
+| `candidate` | there is evidence the method is worth trying, but no independent transfer performance yet |
+| `reinforced` | successfully invoked at least once on a variant; a hint is permitted but its strength must be recorded |
+| `automatic` | across at least a day's interval, on at least two surface-different problems, the student recognized the trigger cue and executed the replacement action before any teacher prompt, and the old path did not take over |
+| `superseded` | replaced by a more general, more reliable, or cheaper method; the origin and the supersession relation are kept |
 
-“模式状态”与“方法接替状态”分开：学生可以已确认某种旧模式存在，但替代方法仍只是 `candidate`。
+Keep "pattern state" and "method takeover state" separate: the student may have confirmed an old pattern
+exists while the replacement method is still only a `candidate`.
 
-## 六、候选综合保护原则
+## 6. The candidate-synthesis protection principle
 
-允许快速形成候选综合，但不允许候选综合吞掉原始差异。
+Forming a candidate synthesis quickly is allowed; letting a candidate synthesis swallow the original
+differences is not.
 
-涉及跨概念、跨教材或跨文本综合时，必须保留：
+Whenever a synthesis crosses concepts, textbooks, or texts, these must be preserved:
 
-- 作者之间无法对齐的定义。
-- 相同术语背后的不同量词、方向或作用域。
-- 同一数据经不同算法得到的不同结果。
-- 不符合当前综合假设的反例。
-- 暂时无法解释的空白。
+- Definitions that cannot be aligned between authors.
+- Different quantifiers, directions, or scopes behind the same term.
+- Different results from different algorithms on the same data.
+- A counterexample that does not fit the current synthesis hypothesis.
+- A gap that cannot be explained yet.
 
-候选综合通过核验后可以晋升，但原始证据不得被覆盖或反向改写。
+A candidate synthesis may be promoted once verified, but the original evidence must never be overwritten
+or rewritten backwards.
 
-## 七、实例：快速压缩，但延迟承诺
+## 7. Worked instance: compress fast, but defer commitment
 
-- **触发线索**：出现“它本质上就是……”或“已经抓住核心”的即时确定感。
-- **旧路径优势**：快速复用熟悉结构，显著降低认知复杂度。
-- **失效风险**：压缩成功的奖励早于差异核验，导致过早同一化。
-- **停止信号**：尚未列出新旧对象剩余差异，或尚未检查方向、量词、外层条件。
-- **最小替代动作**：把结论标为“候选”，写出至少一个剩余差异或寻找一个失败反例。
-- **调用口令**：**快速压缩，但延迟承诺。**
+- **Trigger cue**: the immediate certainty of "it is essentially just …" or "I have the core already".
+- **Advantage of the old path**: rapid reuse of a familiar structure, sharply lowering cognitive
+  complexity.
+- **Failure risk**: the reward for a successful compression arrives before the differences are checked,
+  producing premature identification.
+- **Stop signal**: the remaining differences between the new and old objects have not been listed, or the
+  direction, quantifiers, and outer conditions have not been checked.
+- **Minimal replacement action**: mark the conclusion as a "candidate", and write down at least one
+  remaining difference or look for one failing counterexample.
+- **Invocation phrase**: **compress fast, but defer commitment.**
 
 ```text
-复制旧模型
-→ 标记候选结构
-→ 保存剩余差异
-→ 检查方向、量词与外层条件
-→ 主动寻找失败反例
-→ 通过后晋升稳定结构
+copy the old model
+→ mark the candidate structure
+→ record the remaining differences
+→ check direction, quantifiers, and outer conditions
+→ actively look for a failing counterexample
+→ promote to a stable structure once it passes
 ```
 
-## 八、常见坑
+## 8. Common pitfalls
 
-- 把“学生认同分析”误记为 `automatic`。
-- 为了训练新方法而压制学生原有优势，导致动作成本过高。
-- 教师先说出触发线索，再把学生作答算成无提示调用。
-- 只重做原题，测到答案记忆而不是方法迁移。
-- 用心理标签替代行为证据。
-- 在 lesson、mistake bank 和 reasoning patterns 复制同一段正文，造成多真相源。
-- 候选综合覆盖原始差异，使后续反证无处保存。
+- Recording "the student agrees with the analysis" as `automatic`.
+- Suppressing the student's existing strength in order to train the new method, making the action too
+  expensive.
+- The teacher states the trigger cue first, then counts the student's answer as an unprompted invocation.
+- Redoing only the original problem, which measures answer memory rather than method transfer.
+- Substituting a psychological label for behavioural evidence.
+- Copying the same passage into the lesson, the mistake bank, and the reasoning patterns, creating
+  several sources of truth.
+- A candidate synthesis overwrites the original differences, leaving later counter-evidence nowhere to
+  live.
 
-## 九、维护规则
+## 9. Maintenance rules
 
-- 本文件因用户明确要求长期保留，按 core-playbook 保护；不得自动归档、合并或大幅改写。
-- 重大修改须在 `00_core/t2ag_changelog.md` 说明原因，并同步 skeleton 与 lite。
-- 新增方法实例不修改本 playbook；写入对应学生 `reasoning_patterns.md`。
-- session close 只收割候选与安排复测，不得为追求闭环而虚假晋级。
+- This file is kept long-term at the user's explicit request and is protected as a core-playbook; it must
+  never be archived, merged, or substantially rewritten automatically.
+- A major modification must state its reason in `00_core/t2ag_changelog.md` and be synchronized to the
+  skeleton and lite.
+- A new method instance does not modify this playbook; it is written into the student's
+  `reasoning_patterns.md`.
+- The session close only harvests candidates and schedules retests; it must never promote falsely for the
+  sake of closing a loop.

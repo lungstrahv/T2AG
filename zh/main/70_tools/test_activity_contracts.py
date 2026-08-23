@@ -23,6 +23,7 @@ TESTS = (
     contracts.test_retired_exercise_ownership_and_sessions,
     contracts.test_lesson_retired_ownership_all_drivers,
     contracts.test_activity_workflows_share_executable_route,
+    contracts.test_group_activation_notary,
     contracts.test_activity_cli_disk_roundtrip,
     contracts.test_activity_genesis_rejects_nonplanned_origin,
     contracts.test_activity_genesis_transition_from_planned,

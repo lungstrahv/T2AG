@@ -7,42 +7,46 @@ created: YYYY-MM-DD
 ---
 # lessonNN
 
-> textbook driver 课程：本文件是备课与路由材料，**不是教学正文的正典**。教学正文经
-> `70_tools/canon_append.py` 写入本目录 `teaching_log.md`（正典）+ `emissions.jsonl`
-> （事件账），契约见 `50_playbook/canon_carrier.md`。非 textbook 课程可删本注。
+> textbook-driver course: this file is preparation and routing material, **not the canon of the teaching
+> body**. The teaching body is written by `70_tools/canon_append.py` into this directory's
+> `teaching_log.md` (the canon) + `emissions.jsonl` (the event ledger); the contract is in
+> `50_playbook/canon_carrier.md`. A non-textbook course may delete this note.
 
-## 学习范围
+## Study scope
 
-- 来源：SOURCE_SCOPE
-- 精确停点：START_POSITION
+- Source: SOURCE_SCOPE
+- Exact stop: START_POSITION
 
-## Lesson 开场概览
+## Lesson opening overview
 
-- 开课前按教材目录、完整 Lesson 范围与 `LessonMap` 编写本课目标和学习路径；只作路线概览，
-  不把概览冒充教材讲授或学生确认。
+- Before the session, write this lesson's goal and learning path from the textbook's table of contents,
+  the full Lesson scope, and the `LessonMap`; it is a route overview only, and must never be passed off as
+  teaching from the source material or as the student's confirmation.
 
-## 开场知识树
+## Opening knowledge tree
 
 ```text
 lessonNN
-└─ 按本课 active lesson blocks 填写字符知识树
+└─ fill in the character knowledge tree from this lesson's active lesson blocks
 ```
 
-## 教学记录
+## Teaching record
 
-- 真实教学开始后追加；不得预造学生确认。
+- Appended once real teaching starts; a student confirmation must never be pre-created.
 
-## 消息记录路由
+## Message-record routing
 
-本节只是指针：路由表的唯一 owner 是 `00_core/learning_activity_model.md` §2.3
-（本 Lesson 用其中的 **Lesson 变体**）。模板与实例不得复制表正文，防止两份正文漂移。
+This section is only a pointer: the sole owner of the routing table is
+`00_core/learning_activity_model.md` §2.3 (this Lesson uses the **Lesson variant**). A template or an
+instance must never copy the table body, so that two bodies cannot drift.
 
-## 门台账
+## Gate ledger
 
-ledger_since: YYYY-MM-DD | 起算块: FIRST_CHECKPOINT_ID
+ledger_since: YYYY-MM-DD | starting block: FIRST_CHECKPOINT_ID
 
-规则的唯一 owner 是 `00_core/learning_activity_model.md` §2.4（本 Lesson 用其中的
-**Lesson 变体**）；本节只持有锚与留痕表，不复制规则正文。
+The sole owner of the rules is `00_core/learning_activity_model.md` §2.4 (this Lesson uses the
+**Lesson variant**); this section holds only the anchor and the trace table, and never copies the rule
+body.
 
-| 行ID | 块ID | 门类型 | 闭合依据 | 感受回应 | 授权原文 | 消费于 |
+| Row ID | Block ID | Gate type | Basis of closure | Response to feeling | Verbatim authorization | Consumed at |
 |---|---|---|---|---|---|---|

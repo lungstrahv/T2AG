@@ -10,12 +10,12 @@ verification_status: human_verified
 verified: YYYY-MM-DD
 lifecycle: persistent
 ---
-# CONTENT_GROUP_ID 持久题源
+# CONTENT_GROUP_ID persistent problem source
 
-> 本文件由 Course/ContentGroup 持有，不属于 Lesson，也不得放入可清理的缓存路径。
+> This file is held by the Course/ContentGroup, does not belong to a Lesson, and must never be placed in a cleanable cache path.
 
 ## exerciseNN-Q001
 
-- 教材题号：1
-- 来源页：SOURCE_PAGE
-- 题面：PROBLEM_TEXT
+- Textbook problem number: 1
+- Source page: SOURCE_PAGE
+- Problem statement: PROBLEM_TEXT

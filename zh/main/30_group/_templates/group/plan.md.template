@@ -5,6 +5,7 @@ status: planned
 course_members: [COURSE_ID]
 engagement_members: []
 current_course: CURRENT_COURSE
+container_mode: progress
 updated: YYYY-MM-DD
 ---
 
@@ -52,3 +53,22 @@ updated: YYYY-MM-DD
 - 频率红线：每循环各成员的最低次数，写不到就是超载。
 - 时间预算：每循环总小时数与分配，实际偏差记在 `review.md`。
 - 过载处置：先降非红线成员的频率，不先砍红线；连续两循环未达标触发组合重审。
+
+---
+
+## 4. 主干碑序列（`progress` 组必填；`schedule` 组无本节——生成器已按模式删除）
+
+> planned 阶段是草案；激活（建组仪式）时冻结——机器入口是
+> `t2ag_init.py activate-group`：它验本表已是真实碑行（仍是 `碑描述` 占位即拒绝）、
+> 数碑并在 frontmatter 落 `keystone_total_frozen: N`（N＝下表碑数）。锚不得手写。
+> 冻结后砍碑唯一入口是下节台账（`course_group_rules.md` §4.3）；
+> doctor 对账：当前碑数＋台账砍碑行数＝锚定值。
+
+- K01 碑描述（属哪门课、达成判据指向该课 progress.md 哪一行）
+- K02 碑描述
+
+## 5. 碑变更台账
+
+| 日期 | 碑号 | 类型（砍/加） | 触发来源（复盘/分诊出口/结组仪式） | 去向组或说明 |
+|---|---|---|---|---|
+| | | | | |

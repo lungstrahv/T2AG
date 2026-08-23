@@ -3,39 +3,39 @@
 > 【服务】所属回路=question_bank 集合层→教师画像（存量=10_student/profile/reasoning_patterns.md）｜结算=answered/closed｜再入=学生复问→转“需要回看”
 > 【边界】知识性错误转投同课 mistake_bank；系统问题转投 t2ag_problemlog
 
-# COURSE_ID 课程疑问库
+# COURSE_ID course question bank
 
-> Lesson 与 Attempt 保存完整问答上下文；本文件提供跨活动汇总、状态与回看入口，
-> 不复制整段课堂正文。
+> A Lesson and an Attempt hold the full question-and-answer context; this file provides the cross-activity
+> summary, the status, and the entry point for revisiting — it does not copy whole passages of classroom text.
 >
-> **canonical enum**：`open / answered / closed`。中文分区只负责显示：
-> 「待解决」=`open`；「需要回看」仍为 `open`（用 `回看原因` 说明）；
-> 「已解答」=`answered` 或 `closed`。旧 `revisit` 归一为 `open`，旧 `merged` 归一为 `closed`。
+> **canonical enum**: `open / answered / closed`. The section headings are display only:
+> "open" = `open`; "needs review" is still `open` (use `Reason to revisit` to say why);
+> "Answered" = `answered` or `closed`. The legacy `revisit` normalizes to `open`, and the legacy `merged` to `closed`.
 
 next_id: 1
 
-## 条目格式
+## Entry format
 
 ```markdown
-### Q-0001｜一句话标题
-- 日期：YYYY-MM-DD
-- 来源：lessonNN 或 exerciseNN / 教材页码或题号
-- 问题：学生原话，不改写
-- 状态：open / answered / closed
-- 回看原因：仅 open 且需要回看时写
-- 答复要点：结论加判据，不复制整段讲解
-- 完整记录：指向 Lesson 或 Attempt 的路径与小节名
-- 关联：同课 M-dddd 或其他 Q-dddd
+### Q-0001｜one-sentence title
+- Date: YYYY-MM-DD
+- Source: lessonNN or exerciseNN / textbook page or problem number
+- Question: the student's own words, not rewritten
+- Status: open / answered / closed
+- Reason to revisit: written only when open and a revisit is needed
+- Key points of the answer: the conclusion plus its basis, not a copy of the whole explanation
+- Full record: the path and section name in the Lesson or the Attempt
+- Related: an M-dddd in the same course, or another Q-dddd
 ```
 
-## 待解决
+## open
 
-暂无。
+None yet.
 
-## 需要回看
+## needs review
 
-暂无。
+None yet.
 
-## 已解答
+## Answered
 
-暂无。
+None yet.

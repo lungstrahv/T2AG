@@ -35,7 +35,7 @@ implementation_refs: []
 | `adr_id` | Local identity `ADR-NNNN` |
 | `portable_key` | Stable cross-project semantic key; unique in this repo |
 | `status` | `proposed` \| `accepted` \| `superseded` |
-| `source_evolution` | Local EV ids that own lifecycle for this decision（Skeleton 发行面中为 Main register 的外部出处标注，见下） |
+| `source_evolution` | Local EV ids that own lifecycle for this decision (on the Skeleton release surface these are external provenance notes pointing at Main's register; see below) |
 | `supersedes` | Other ADR ids; must exist and form no cycle |
 | `implementation_refs` | Optional paths / protocols / tools |
 
@@ -49,10 +49,12 @@ implementation_refs: []
 
 **Accepted ≠ implemented.** Implementation continues via EV, changelog, version state, and live protocols.
 
-**Skeleton 发行面的 `source_evolution`**：Skeleton 的 Evolution Register 自 EV-0023 起实例清零，
-ADR frontmatter 中的 EV id 是维护者 Main 仓 register 的**外部出处标注**，本仓不持有这些 EV 记录；
-机器侧 `runtime.decision_record_citations` 对 skeleton flavor 豁免 EV 解析（ADR 引用仍必须解析），
-人类读者按外部出处理解，不要在本仓检索这些 EV。
+**`source_evolution` on the Skeleton release surface**: the Skeleton's Evolution Register is zeroed per
+instance from EV-0023 onward, so an EV id in an ADR's frontmatter is an **external provenance note**
+pointing at the maintainer's Main register — this repository does not hold those EV records. On the
+machine side, `runtime.decision_record_citations` exempts the skeleton flavor from EV resolution (an ADR
+reference must still resolve). A human reader should read them as external provenance and should not
+search for those EVs in this repository.
 
 ## Reuse / adoption in another project
 

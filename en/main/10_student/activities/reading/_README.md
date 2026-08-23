@@ -1,3 +1,4 @@
-# Reading ActivityRecord 空容器
+# The reading ActivityRecord empty container
 
-本目录是 `activity_kind: reading` 的空实例容器。Skeleton 不得包含真实 `AR-*` 或同 ID sidecar。
+This directory is the empty instance container for `activity_kind: reading`. The Skeleton must contain no
+real `AR-*` and no sidecar of the same ID.

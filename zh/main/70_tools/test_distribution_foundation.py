@@ -2,6 +2,8 @@
 """Atomic contracts for the validation foundation shared by all distributions."""
 from __future__ import annotations
 
+import hashlib
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -177,6 +179,67 @@ class DistributionFoundationTests(unittest.TestCase):
         for rel in required:
             self.assertTrue((src / rel).is_file(), msg=f"main missing {rel}")
             self.assertIn(rel, projected, msg=f"{rel} not in Lite projection rules")
+
+    def test_handoffs_are_not_shipped_to_lite_and_absence_speaks(self) -> None:
+        """P-0071 (W3)：收窄后 Lite 不随行 handoff，且缺席必须发声。
+
+        这条守的不是「投影为零」——它本来就是零。守的是**零不再沉默**：旧实现悄悄投
+        了个空集，再生与校验全绿，缺席不可见，最后靠外部审查者肉眼发现（F4）。所以断言
+        分两半：清单里确实没有 handoff，且每次再生都打印边界行。
+        """
+        src = REPO
+        dst = REPO.parent / "t2ag-lite"
+        if not dst.is_dir():
+            self.skipTest("t2ag-lite not beside main")
+        projected = [
+            label for label, _, _ in sync_lite.projection_manifest(src, dst)
+        ]
+        self.assertEqual(
+            [rel for rel in projected if rel.startswith("docs/handoffs")],
+            [],
+            "P-0071 收窄后不得再有任何 handoff 进入 Lite 投影",
+        )
+        line = sync_lite.report_handoff_boundary()
+        self.assertIn("not shipped", line)
+        self.assertIn("P-0071", line)
+        source = (REPO / "main/70_tools/sync_lite.py").read_text(encoding="utf-8")
+        self.assertEqual(
+            source.count("print(report_handoff_boundary())"),
+            2,
+            "写入路径与 check-only 路径都必须播报，少一条就有沉默分支",
+        )
+        self.assertNotIn(
+            "_CONSTITUTION_HANDOFFS",
+            source,
+            "宪法六份的投影职责已撤除；残留名单会让读者以为承诺还在",
+        )
+
+    def test_version_ledger_anchors_resolve_at_workspace_root(self) -> None:
+        """P-0071 (W3)：台账里的六份权威锚必须真的能解析开，且 SHA 对得上。
+
+        F4 报的是「SHA 锚指向不可得文件」。修的是路径不是锚——所以这里既验路径存在，
+        也验 SHA 仍然字节对齐；只改路径而锚早已漂移，那是另一种假绿。
+        """
+        ledger = (REPO / "main/60_journal/t2ag_version_ledger.md").read_text(
+            encoding="utf-8"
+        )
+        workspace = REPO.parent
+        anchors = re.findall(r"`<workspace>/(docs/handoffs/[^`]+\.md)`", ledger)
+        self.assertGreaterEqual(len(anchors), 6, "六份权威锚一份都不能少")
+        for rel in set(anchors):
+            self.assertTrue(
+                (workspace / rel).is_file(),
+                msg=f"版本台账锚不可解析：{rel}（P-0071 F4 复发）",
+            )
+        shas = re.findall(
+            r"`<workspace>/(docs/handoffs/[^`]+\.md)`，SHA-256\s*\n?\s*`([0-9a-f]{64})`",
+            ledger,
+        )
+        self.assertGreaterEqual(len(shas), 2, "带 SHA 的锚至少两份（0.2.1/0.2.2 review）")
+        for rel, expected in shas:
+            actual = hashlib.sha256((workspace / rel).read_bytes()).hexdigest()
+            self.assertEqual(actual, expected, msg=f"{rel} SHA 漂移")
+        self.assertIn("不随 Lite 发行", ledger)
 
     def test_cache_eviction_clause_is_homologous_main_skeleton(self) -> None:
         """EV-0012 CacheEviction must exist in self and match sibling byte-for-byte."""

@@ -1,49 +1,53 @@
-# ActivityRecord 管理
+# ActivityRecord management
 
-**保护级别**：playbook
+**Protection level**: playbook
 
-ActivityRecord 用于低治理、可暂停、尚未成为正式课程的活动。
+An ActivityRecord is for a low-governance, pausable activity that has not yet become a formal course.
 
-## 创建
+## Creation
 
-路径（0.2.1 初始合法 kind 只有 `reading`）：
+The path (in 0.2.1 the only legal kind at first is `reading`):
 
 `main/10_student/activities/<activity_kind>/AR-NNNN_Title.md`
 
-最小 frontmatter：
+The minimal frontmatter:
 
 ```yaml
 ---
 type: activity_record
 activity_kind: reading
 activity_record_id: AR-NNNN
-title: 标题
+title: Title
 record_status: recording
 upgraded_to_course: —
 created_at: YYYY-MM-DD
 ---
 ```
 
-ID 在 `10_student/activities/` 的所有 kind 中共享全局编号域，单调递增、不重排、不复用。
-新增 kind 必须先修改 schema/registry/Doctor，不能任意创建目录。文件保存事实、短笔记
-和升级判断，不保存正式课程停点。
+The ID shares one global numbering space across every kind under `10_student/activities/`, increasing
+monotonically, never reordered and never reused.
+Adding a kind requires changing the schema/registry/Doctor first; a directory must never be created
+arbitrarily. The file holds facts, short notes,
+and the upgrade judgement; it never holds a formal course's stopping point.
 
-一项稳定阅读意图只使用一条 ActivityRecord；不是每本书创建一条 AR。同一意图可以引用多本书，
-普通阅读不得因为出现书名或课程联想就自动升级为 Course、Engagement 或 R binding。
+One stable reading intent uses exactly one ActivityRecord; an AR is not created per book. One intent may
+reference several books, and
+ordinary reading must never be upgraded automatically into a Course, an Engagement, or an R binding just
+because a book title or a course association came up.
 
-## 状态
+## States
 
-- `recording`：持续记录；
-- `paused`：用户暂停；
-- `archived`：结束且不再推进；
-- `upgraded`：已升级为 Course，必须填写 `upgraded_to_course`。
+- `recording`: being recorded continuously;
+- `paused`: paused by the user;
+- `archived`: finished and no longer advancing;
+- `upgraded`: upgraded to a Course, with `upgraded_to_course` filled in.
 
-## 升级
+## Upgrading
 
-1. 与用户确认稳定课程 ID 和范围。
-2. 按 `new_course_init.md` 建 Course。
-3. 将可复用内容并入 `course.md`，当前状态写 `progress.md`。
-4. ActivityRecord 标为 `upgraded` 并指向 Course；不复制后续课程进度。
-5. 刷新状态并运行 doctor。
+1. Confirm the stable course ID and scope with the user.
+2. Create the Course per `new_course_init.md`.
+3. Merge the reusable content into `course.md`, and write the current state into `progress.md`.
+4. Mark the ActivityRecord `upgraded` and point it at the Course; do not copy later course progress into it.
+5. Refresh the state and run doctor.
 
-ActivityRecord 不自动加入 group，也不占用 group 预算。
+An ActivityRecord does not join a group automatically and consumes none of a group's budget.

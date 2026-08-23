@@ -159,6 +159,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_playbook_taxonomy", "check_playbook_taxonomy_parity",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
     "check_skeleton_textbook", "check_distribution_parity",
+    "check_cross_edition_parity",
     "check_skeleton_privacy", "check_release_package_surface",
     "check_decision_record_citations",
     "check_line_endings", "check_release_line_endings",
@@ -227,6 +228,8 @@ MARKER_VARIANTS: dict[str, tuple[str, ...]] = {
     "新 Exercise 未授权阶段": ("unauthorized stage of a new Exercise",),
     # --- context packet / workflow ---
     "不是新的真相源": ("is not a new source of truth",),
+    "## L1 · 当前一步直接证据": ("## L1 · direct evidence for the current step",),
+    "## L2 · 触发式完整读取": ("## L2 · trigger-based full reads",),
     "完整序列化 Markdown": ("fully serialized Markdown",),
     "即时摘录 + 触发式展开": ("immediate excerpt + triggered expansion",),
     "同一对话内未变化的 L0 不重复读取": (
@@ -367,6 +370,96 @@ MARKER_VARIANTS: dict[str, tuple[str, ...]] = {
     "**子进程摘要**": ("a **subprocess summary**",),
     "证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体": (
         "that proves the script read the file, and **not** that this round's model context received the content body",
+    ),
+    # --- instance-template structural labels (batch E) ---
+    # Every one of these is a heading, a field label, or a table header that some
+    # tool greps.  They are registered before the templates are translated, not
+    # after: a translated template with an unregistered label is a silent false
+    # negative, which is the whole defect family this registry exists to close.
+    "Lesson 开场概览": ("Lesson opening overview",),
+    "一、解题思维总纲": ("1. General principles of solving",),
+    "二、活跃思维模式": ("2. Active thinking patterns",),
+    "下一步计划": ("Next-step plan",),
+    "下次允许复测": ("Next retest allowed",),
+    "最近正式复测": ("Last formal retest",),
+    "活跃知识点": ("Active knowledge points",),
+    "开场知识树": ("Opening knowledge tree",),
+    "知识点树形图": ("Knowledge-point tree",),
+    "教材块清单": ("Textbook block list",),
+    "学习范围": ("Study scope",),
+    "精确停顿点": ("Exact stop",),
+    "当前题目": ("Current problem",),
+    "当前进度": ("Current progress",),
+    "当前值": ("Current value",),
+    "详情位置": ("Details location",),
+    "项目": ("Item",),
+    "生命周期": ("Lifecycle",),
+    "容量状态": ("Capacity status",),
+    "恢复入口": ("Recovery entry",),
+    "学生档案": ("Student profile",),
+    "时间预算": ("Time budget",),
+    "课程代码": ("Course code",),
+    "课程名称": ("Course name",),
+    "课程成员": ("Course members",),
+    "课程组": ("Course group",),
+    "待解决": ("open",),
+    "需要回看": ("needs review",),
+    "主题": ("Topic",),
+    "月份": ("Month",),
+    "标题": ("Title",),
+    "路径": ("Path",),
+    "提示": ("Hint",),
+    "答案": ("Answer key",),
+    "解答": ("Solution",),
+    "讲解": ("Explanation",),
+    "暂无": ("None yet",),
+    # gate-ledger row columns (learning_activity_model §2.4)
+    "行ID": ("Row ID",),
+    "块ID": ("Block ID",),
+    "门类型": ("Gate type",),
+    "闭合依据": ("Basis of closure",),
+    "感受回应": ("Response to feeling",),
+    "消费于": ("Consumed at",),
+    # cloud ledger section labels used without the "## " prefix
+    "云端交接": ("Cloud handoffs",),
+    "已处理会话": ("Processed sessions",),
+    "部件变更指令": ("Component change directives",),
+    "首次启动后创建": ("created after first run",),
+    "维护知识点": ("Maintenance knowledge points",),
+    "陈年知识点": ("Aged knowledge points",),
+    "已解答": ("Answered",),
+    "回看原因": ("Reason to revisit",),
+    "下一步": ("Next step",),
+    "下次第一件事": ("First thing next time",),
+    "学到哪": ("Reached",),
+    "课程": ("Course",),
+    "当前活动": ("Current activity",),
+    "停点": ("Stop",),
+    "历史兼容": ("historical compatibility",),
+    # --- t2ag_memory.md section headings read by t2ag_context ---
+    "上次课摘要": ("Last session summary",),
+    "当前状态指针": ("Current state pointers",),
+    # --- profile sections a completed first run must carry an answer in ---
+    # The tuple already held historical zh-CN spellings; the English edition's
+    # generated headings join the same list rather than a second lookup table.
+    "每周可投入学习时间": ("Time available per week",),
+    "学习目标": ("Learning goals",),
+    "辅导与展现偏好": ("期望的辅导方式", "Tutoring and presentation preferences"),
+    "已有基础": ("编程基础", "个体基线", "Individual baseline"),
+    # --- changelog verification-layer block headings (changelog_management.md §3) ---
+    "锚定断言": ("Anchored assertions",),
+    "佐证断言": ("Corroborating assertions",),
+    # --- overlay default-row anchor (read AND written by t2ag_init) ---
+    "(默认)": ("(default)",),
+    # --- activity-route prose rules asserted by test_activity_contracts (L3.5) ---
+    "不写 `current_lesson`": ("does not write `current_lesson`",),
+    "连续 Scope **5–8**": ("contiguous Scope of **5–8**",),
+    "不得自动清理": ("never clean up automatically",),
+    "不产生 pending、CLR 或自动 pause": (
+        "produces no pending, no CLR and no automatic pause",
+    ),
+    "progress + 当前活动主载体 + 真实台账": (
+        "progress + current activity's main carrier + the real ledger",
     ),
     # --- gate-ledger row kinds and section headings ---
     "块过渡": ("block transition",),
@@ -1048,15 +1141,17 @@ def check_version_and_profile() -> None:
             re.IGNORECASE,
         ):
             report("FAIL", "an initialized profile still contains first-run required placeholders")
-        required_sections = {
-            "每周可投入学习时间": ("每周可投入学习时间",),
-            "学习目标": ("学习目标",),
-            "辅导与展现偏好": ("期望的辅导方式", "辅导与展现偏好"),
-            "已有基础": ("编程基础", "个体基线"),
-        }
+        # LV-5: these four were a private lookup table duplicating what
+        # MARKER_VARIANTS already models (one canonical label, several accepted
+        # spellings). A translated edition's generated profile would have failed
+        # this check for the one reason that is intended, so the list now lives in
+        # the registry and a new language is a data change here too.
+        required_sections = (
+            "每周可投入学习时间", "学习目标", "辅导与展现偏好", "已有基础",
+        )
         missing = [
-            label for label, titles in required_sections.items()
-            if not profile_section_has_answer(content, titles)
+            label for label in required_sections
+            if not profile_section_has_answer(content, marker_spellings(label))
         ]
         if missing:
             report("FAIL", f"initialized profile has unconfirmed required information: {missing}")
@@ -1180,8 +1275,7 @@ def discover_courses() -> dict[str, tuple[Path, dict[str, str]]]:
         if not pmeta.get("updated") or pmeta.get("updated") == "—":
             report("FAIL", f"progress lacks a non-empty updated: {folder.name}")
         next_action = pmeta.get("next_action") or re.search(
-            r"^\s*-\s*\*\*(?:下一步计划|下一步|下次第一件事"
-            r"|Next step plan|Next step|First thing next time)\*\*[：:]\s*(.+)$",
+            rf"^\s*-\s*\*\*(?:{next_action_label_alternation()})\*\*[：:]\s*(.+)$",
             progress_content,
             re.MULTILINE,
         )
@@ -1635,9 +1729,10 @@ def check_knowledge_ledgers(courses: dict[str, tuple[Path, dict[str, str]]]) -> 
         if not mistake_bank.is_file():
             continue
         content = read(mistake_bank)
-        for section in ("## 活跃知识点", "## 维护知识点", "## 陈年知识点"):
-            if section not in content:
-                report("FAIL", f"mistake bank lacks the section {section}：{course_id}")
+        # LV-5: the three section headings are prose and are spelled per edition.
+        for section in ("活跃知识点", "维护知识点", "陈年知识点"):
+            if not any(f"## {sp}" in content for sp in marker_spellings(section)):
+                report("FAIL", f"mistake bank lacks the section ## {section}: {course_id}")
         body = without_fenced_code(content)
         entries = list(re.finditer(r"^###\s+M-(\d{4})\s*$", body, re.MULTILINE))
         ids = [int(match.group(1)) for match in entries]
@@ -1773,8 +1868,11 @@ def check_project_verification(courses: dict[str, tuple[Path, dict[str, str]]]) 
         if not rows:
             report("FAIL", f"the project course lacks a Completion nodes table: {course_id}")
             continue
-        required_columns = {"验收标准", "关闭证据"}  # resolved via row_value (LV-5)
-        if not required_columns.issubset(rows[0]):
+        # LV-5: the column may be spelled in any shipped edition.  `issubset` on the
+        # raw header keys would pass zh-CN and FAIL a correctly-translated table, so
+        # presence is resolved through the registry exactly as `row_value` below is.
+        required_columns = ("验收标准", "关闭证据")
+        if any(cell_index(list(rows[0]), name) < 0 for name in required_columns):
             report("FAIL", f"project-course Completion nodes do not separate acceptance criteria from closure evidence: {course_id}")
             continue
         for row in rows:
@@ -1879,7 +1977,7 @@ def validated_migration_evidence(
         manifest_ref.get("sha256")
         != hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     ):
-        errors.append("the operation_manifest SHA in the migration report has drifted")
+        errors.append("operation_manifest SHA drift in the migration report")
 
     if manifest.get("schema_version") != "T2AG-MIGRATION-OPERATIONS-1":
         errors.append("migration per-operation manifest schema_version is missing or invalid")
@@ -2333,9 +2431,12 @@ def check_exercises(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
                     "题号", "来源页", "难度", "依赖 completion node",
                     "状态", "错误级别", "题面",
                 )
+                # LV-5: each label is spelled per edition; resolve through the registry.
                 missing = [
                     field for field in required
-                    if not re.search(rf"^-\s*{re.escape(field)}[：:]", entry, re.MULTILINE)
+                    if not re.search(
+                        rf"^-\s*(?:{marker_alternation(field)})[：:]", entry, re.MULTILINE
+                    )
                 ]
                 if missing:
                     report("FAIL", f"exercise field is missing: {heading} -> {missing}")
@@ -2668,7 +2769,12 @@ def check_memory_pointers(
             )
     memory = read(MAIN / "00_core/t2ag_memory.md")
     for label in ("日期", "学到哪"):
-        match = re.search(rf"^-\s*\*\*{label}\*\*[：:]\s*(.+)$", memory, re.MULTILINE)
+        # LV-5: the label is emitted by t2ag_state_refresh and is spelled per edition.
+        match = re.search(
+            rf"^-\s*\*\*(?:{marker_alternation(label)})\*\*[：:]\s*(.+)$",
+            memory,
+            re.MULTILINE,
+        )
         if not match or match.group(1).strip() == "—":
             report("FAIL", f"initialized instance memory last-lesson summary {label} is empty")
 
@@ -3529,6 +3635,44 @@ RULE_ENFORCEMENT_CORE_FILES = (
     "pattern_retire_loop.md",
 )
 
+
+def edition_language(tree: Path) -> str:
+    """Which language edition a distribution tree is, read from its constitution.
+
+    LV-5 (2026-08-20): byte parity is asserted *within* a language edition, never
+    across two.  A translated edition is a fourth distribution, and demanding it be
+    byte-identical to the zh-CN one is not a contract anyone can satisfy -- it would
+    make a correctly-built English tree permanently red for the one reason that is
+    intended.  Parity still has teeth: it holds between same-edition siblings, and
+    the marker assertions hold in every edition.
+
+    Kept here rather than in one test file so every sibling-comparison test resolves
+    the edition the same way; two copies of this rule would be two sets of bugs.
+    """
+    constitution = tree / "main/t2ag.md"
+    if not constitution.is_file():
+        return "unknown"
+    text = constitution.read_text(encoding="utf-8", errors="replace")
+    if re.search(r"^##\s+Preface\b", text, re.MULTILINE):
+        return "en"
+    if re.search(r"^##\s+序\b", text, re.MULTILINE):
+        return "zh-CN"
+    return "unknown"
+
+
+def next_action_label_alternation() -> str:
+    """Regex alternation over every accepted next-action bullet label.
+
+    LV-5: this was written by hand in two places as
+    `下一步计划|下一步|下次第一件事|Next step plan|Next step|First thing next time`.
+    The hand-written English said "Next step plan" while the registry (and the
+    templates generated from it) say "Next-step plan", so a correctly generated
+    English progress file failed both checks. One list, one place.
+    """
+    return "|".join(
+        marker_alternation(canonical)
+        for canonical in ("下一步计划", "下一步", "下次第一件事")
+    )
 
 def strip_fenced_blocks(text: str) -> str:
     """Blank out fenced code blocks, preserving line numbering.
@@ -5943,9 +6087,14 @@ def check_test_management_contract(*, check_release_parity: bool = True) -> None
                 f"unknown={sorted(handlers - SUPPORTED_DOCTOR_HANDLERS)}",
             )
         flow_content = read(ROOT / "main/50_playbook/validation_flow.md")
-        for marker in ("flowchart TD", "runtime（默认、启动安全）", "不得越级", "plan SHA"):
-            if marker not in flow_content:
-                report("FAIL", f"the standard check-flow tree lacks a marker: {marker}")
+        # LV-5: two of these four markers are prose and are spelled differently in a
+        # translated edition; a bare `not in` pins zh-CN and FAILs a correct English
+        # flow tree.  `flowchart TD` / `plan SHA` are language-neutral and resolve to
+        # themselves through the registry.
+        for marker in missing_markers(flow_content, (
+            "flowchart TD", "runtime（默认、启动安全）", "不得越级", "plan SHA",
+        )):
+            report("FAIL", f"the standard check-flow tree lacks a marker: {marker}")
 
     runner_content = read(ROOT / "main/70_tools/t2ag_test.py")
     runner_markers = (
@@ -6365,6 +6514,470 @@ def check_distribution_parity() -> None:
         )
 
 
+# --- Cross-edition (translated fork) parity: CE, 2026-08-22 ------------------
+# check_distribution_parity compares bytes; check_constitution_parity compares
+# section *titles*.  A translated edition can satisfy neither, and this repo's own
+# foundation test says so out loud before calling skipTest: "cross-edition byte
+# parity is not a satisfiable contract".  Meanwhile check_distribution_parity only
+# ever runs the Chinese Main against the Chinese Skeleton.  Net effect: this
+# English edition shipped with **no** parity gate at all.  It was generated from
+# a347bcd, hand-translated, and then nothing watched it.  By 2026-08-22 it had
+# silently lost 8 doctor handlers, 6 registered checks and 14 numbered sections
+# while reporting `0 FAIL` against its own frozen contract -- the
+# carrier_mismatch family of P-0065/P-0074 one layer up: a declared constraint
+# ("the English edition is mechanically equivalent") that no checker could
+# falsify.
+#
+# The unit is neither bytes nor prose titles but the two things a translation is
+# obliged to preserve:
+#   * machine identifiers -- handler names, check ids, profile membership.  These
+#     compare directly because identifiers are carried over verbatim by standing
+#     ruling; translating one would itself be the defect.
+#   * section *numbers* -- `## 一、`, `## 1.`, `### 二·一` and `### 2.1` all
+#     normalise to the same key, so a whole subsection cannot vanish quietly.
+# Prose is deliberately out of scope: this gate proves the mechanism is present,
+# not that the wording is faithful.  Adjudicated CE-1..CE-6, 2026-08-22.
+CROSS_EDITION_ENGLISH_NAME = "t2ag-skeleton-en"
+# Which sibling each edition compares itself against.  Deliberately a table of
+# directory names rather than anything inferred: the peer is read from where the
+# repo actually sits, and an edition whose directory is not listed simply has no
+# peer and stays silent.  Both sides carry this same table, so one file behaves
+# correctly whichever edition it was shipped in.
+CROSS_EDITION_PEERS = {
+    "t2ag": (CROSS_EDITION_ENGLISH_NAME,),
+    "t2ag-skeleton": (CROSS_EDITION_ENGLISH_NAME,),
+    CROSS_EDITION_ENGLISH_NAME: ("t2ag", "t2ag-skeleton"),
+}
+CROSS_EDITION_SECTION_ROOTS = ("main/50_playbook",)
+CROSS_EDITION_SECTION_FILES = (
+    "main/t2ag.md",
+    "main/00_core/domain_model.md",
+    "main/00_core/learning_activity_model.md",
+    "main/00_core/pattern_retire_loop.md",
+)
+
+CROSS_EDITION_CJK_DIGITS = {
+    "〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4,
+    "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+}
+# `·` and `．` join CJK section numbers (`二·一`); `点` is the spoken decimal
+# point (`二点五`).  All three mean the same thing as the ASCII `.` in `2.1`.
+CROSS_EDITION_CJK_SEPARATORS = "·．点"
+_CE_CJK_CLASS = "[〇零一二三四五六七八九十]"
+CROSS_EDITION_HEADING = re.compile(
+    r"^#{2,6}[ \t]*(?:§[ \t]*)?"
+    r"(?P<number>"
+    r"[0-9]+(?:\.[0-9]+)*"
+    rf"|{_CE_CJK_CLASS}+(?:[{CROSS_EDITION_CJK_SEPARATORS}]{_CE_CJK_CLASS}+)*"
+    r")"
+    r"(?:[、．.。]|[ \t])"
+)
+
+
+def cross_edition_cjk_number(token: str) -> int | None:
+    """`三` -> 3, `十` -> 10, `十二` -> 12, `二十` -> 20.  Pure; None if unparsable."""
+    if "十" not in token:
+        value = 0
+        for char in token:
+            if char not in CROSS_EDITION_CJK_DIGITS:
+                return None
+            value = value * 10 + CROSS_EDITION_CJK_DIGITS[char]
+        return value
+    head, _, tail = token.partition("十")
+    high = 1 if head == "" else CROSS_EDITION_CJK_DIGITS.get(head)
+    low = 0 if tail == "" else CROSS_EDITION_CJK_DIGITS.get(tail)
+    if high is None or low is None:
+        return None
+    return high * 10 + low
+
+
+def cross_edition_section_number(line: str) -> tuple[int, str] | None:
+    """Normalise one heading line to (depth, dotted number), or None. Pure.
+
+    `## 一、核心原则` and `## 1. Core principles` both return (2, "1"); `### 二·一 …`
+    and `### 2.1 …` both return (3, "2.1").  A heading whose number is not leading
+    (`### 步骤 1：…` / `### Step 1: …`) returns None on *both* sides, so it drops
+    out symmetrically rather than manufacturing a one-sided finding.
+    """
+    match = CROSS_EDITION_HEADING.match(line)
+    if not match:
+        return None
+    depth = len(line) - len(line.lstrip("#"))
+    token = match.group("number")
+    if token[0].isdigit():
+        return depth, token.rstrip(".")
+    parts = [
+        cross_edition_cjk_number(part)
+        for part in re.split(f"[{CROSS_EDITION_CJK_SEPARATORS}]", token)
+    ]
+    if any(part is None for part in parts):
+        return None
+    return depth, ".".join(str(part) for part in parts)
+
+
+def cross_edition_section_numbers(text: str) -> tuple[set[str], list[str]]:
+    """({fully-qualified section numbers}, [numbers appearing twice]).  Pure.
+
+    Subsection numbering is written two ways across the corpus -- bare under its
+    parent (`## 五、` then `### 1.`) and fully qualified (`## 5.` then `### 5.1`)
+    -- and this edition re-rooted several trees to the second form while
+    translating.  Both are anchored to the same parent, so a bare child (no dot)
+    is qualified with the nearest `##` number, while an already-dotted child is
+    left alone.  The test is the dot rather than "does it lead with the parent's
+    number", because the fifth child of §5 is written `### 5.` and would
+    otherwise be read as a repeat of its own parent.  Without any of this,
+    identical structures written in the two styles read as a total fork, and bare
+    children repeating under different parents collide into undecidable
+    duplicates.
+
+    A number that still appears twice after qualification makes the comparison
+    undecidable for that key, so it is surfaced rather than swallowed.
+    """
+    seen: list[str] = []
+    parent: str | None = None
+    for line in text.splitlines():
+        parsed = cross_edition_section_number(line)
+        if parsed is None:
+            continue
+        depth, number = parsed
+        if depth <= 2:
+            parent, key = number, number
+        elif parent is None or "." in number:
+            key = number
+        else:
+            key = f"{parent}.{number}"
+        seen.append(key)
+    duplicates = sorted({n for n in seen if seen.count(n) > 1})
+    return set(seen), duplicates
+
+
+def cross_edition_identifiers(root: Path) -> tuple[dict[str, set[str]], list[str]]:
+    """Language-invariant machine identifiers of one edition, plus unreadable sources.
+
+    An unreadable source is returned, never swallowed: losing a comparator
+    silently is how this whole blind spot started.
+    """
+    identifiers: dict[str, set[str]] = {
+        "doctor_handler": set(), "doctor_check": set(), "profile_check": set(),
+    }
+    unreadable: list[str] = []
+    doctor = root / "main/70_tools/t2ag_doctor.py"
+    if doctor.is_file():
+        identifiers["doctor_handler"] = set(
+            re.findall(r"^def (check_\w+)", doctor.read_text(encoding="utf-8"), re.M)
+        )
+    else:
+        unreadable.append("main/70_tools/t2ag_doctor.py (missing)")
+    workflow = root / "main/70_tools/validation_workflow.json"
+    if not workflow.is_file():
+        unreadable.append("main/70_tools/validation_workflow.json (missing)")
+        return identifiers, unreadable
+    try:
+        data = json.loads(workflow.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        unreadable.append(f"main/70_tools/validation_workflow.json (unparsable: {exc})")
+        return identifiers, unreadable
+    checks = data.get("doctor_checks")
+    if isinstance(checks, dict):
+        identifiers["doctor_check"] = set(checks)
+    profiles = data.get("profiles")
+    if isinstance(profiles, dict):
+        for profile_name, profile in profiles.items():
+            for check in (profile or {}).get("checks") or []:
+                identifiers["profile_check"].add(f"{profile_name}:{check}")
+    return identifiers, unreadable
+
+
+# Known gaps, grouped by the work that created them.  The reason is mandatory and
+# carries the *refill condition*, so the table reads as a ledger of outstanding
+# backport debt rather than as permission to stay behind: every entry reports
+# INFO while the gap stands and flips to a stale WARN the moment both editions
+# agree again.  All of it is one fact -- this edition is frozen at a347bcd and
+# the Chinese edition kept moving between 2026-08-18 and 2026-08-22.
+_CE_EXEMPT_GROUPS: dict[str, tuple[tuple[str, str], ...]] = {
+    "The EX exam system (adjudicated 08-21, built 08-22 as 28ed652/2bc517c) landed "
+    "on the Chinese side and was never backported; refill condition: the BACKPORT "
+    "work order is executed": (
+        ("doctor_handler", "check_exam_banks"),
+        ("doctor_check", "runtime.exam_banks"),
+        ("profile_check", "runtime:runtime.exam_banks"),
+        ("section", "main/50_playbook/exam_bank_spec.md#6"),
+        ("section", "main/50_playbook/exam_protocol.md#8.1"),
+        ("section", "main/50_playbook/exam_protocol.md#8.2"),
+        ("section", "main/50_playbook/exam_protocol.md#8.3"),
+        ("section", "main/50_playbook/exam_protocol.md#8.4"),
+        ("section", "main/50_playbook/exam_protocol.md#13.1"),
+        ("section", "main/50_playbook/exam_protocol.md#13.2"),
+        ("section", "main/50_playbook/exam_protocol.md#13.3"),
+        ("section", "main/50_playbook/exam_protocol.md#13.4"),
+        ("section", "main/50_playbook/exam_protocol.md#14"),
+    ),
+    "Course-group §4: container shapes and the keystone sequence anchor "
+    "(adjudicated 08-18, built 08-22 as 28ed652/1bb3433); refill condition: the "
+    "BACKPORT work order is executed": (
+        ("doctor_handler", "check_container_mode"),
+        ("doctor_handler", "check_keystone_ledger"),
+        ("section", "main/50_playbook/course_group_rules.md#4.1"),
+        ("section", "main/50_playbook/course_group_rules.md#4.2"),
+        ("section", "main/50_playbook/course_group_rules.md#4.3"),
+    ),
+    "The ELI5 on-ramp (built 08-22 as 082de2f, context_packet §7/§8); refill "
+    "condition: the BACKPORT work order is executed": (
+        ("section", "main/50_playbook/context_packet.md#8"),
+    ),
+    "The full Exercise close tree (EXERCISE-CLOSE adjudication 2026-08-21 D1-D5, "
+    "session_close §0); refill condition: the BACKPORT work order is executed": (
+        ("section", "main/50_playbook/session_close.md#0"),
+    ),
+    "The constitution-parity blind spot EV-0032 and the META observation "
+    "instruments (built 08-20/08-21 as eccdbc1/91a90f3); refill condition: the "
+    "BACKPORT work order is executed, and this edition additionally needs a "
+    "comparable Skeleton counterpart of its own before release.constitution_parity "
+    "has anything to compare": (
+        ("doctor_handler", "check_constitution_parity"),
+        ("doctor_handler", "check_playbook_usage"),
+        ("doctor_handler", "check_domain_tier_reconciliation"),
+        ("doctor_handler", "check_recommendation_ledger"),
+        ("doctor_handler", "check_gate_visibility"),
+        ("doctor_check", "release.constitution_parity"),
+        ("doctor_check", "runtime.playbook_usage"),
+        ("doctor_check", "runtime.domain_tier_reconciliation"),
+        ("doctor_check", "runtime.recommendation_ledger"),
+        ("doctor_check", "runtime.gate_visibility"),
+        ("profile_check", "release:release.constitution_parity"),
+        ("profile_check", "runtime:runtime.playbook_usage"),
+        ("profile_check", "runtime:runtime.domain_tier_reconciliation"),
+        ("profile_check", "runtime:runtime.recommendation_ledger"),
+        ("profile_check", "runtime:runtime.gate_visibility"),
+    ),
+}
+CROSS_EDITION_EXEMPT: dict[tuple[str, str], str] = {
+    key: reason for reason, keys in _CE_EXEMPT_GROUPS.items() for key in keys
+}
+# Whole files excluded from the section comparator, with the reason.  Two are
+# Chinese-side-only by the same ruling that exempts them from byte parity; the
+# third is the one place where translation legitimately re-rooted the numbering
+# tree, and an honest INFO beats fourteen per-section entries pretending to be
+# debt.
+CROSS_EDITION_FILE_EXEMPT = {
+    "main/50_playbook/gate_index.md":
+        "Chinese-side only (META D4, adjudicated 2026-08-18); same origin as "
+        "DISTRIBUTION_PARITY_EXEMPT",
+    "main/50_playbook/host_g1_optional.md":
+        "Chinese-side only (the file declares itself out of the release surface, "
+        "2026-08-19); same origin as DISTRIBUTION_PARITY_EXEMPT",
+    "main/50_playbook/lesson_recover.md":
+        "The Chinese edition mixes bare and dotted numbering under §5 (`### 2.` sits "
+        "beside its own child `### 2.1`); the translation re-rooted the whole subtree "
+        "as fully-qualified 5.x.  Parenthood cannot be recovered from the numbers "
+        "themselves, so the two are semantically equal but their number trees are "
+        "undecidable",
+}
+
+
+def cross_edition_parity_findings(
+    main_root: Path,
+    edition_root: Path,
+    *,
+    exempt: dict[tuple[str, str], str] | None = None,
+    file_exempt: dict[str, str] | None = None,
+    section_roots: tuple[str, ...] = CROSS_EDITION_SECTION_ROOTS,
+    section_files: tuple[str, ...] = CROSS_EDITION_SECTION_FILES,
+) -> list[tuple[str, str, str]]:
+    """Cross-edition findings: CE-PAR-001 identifier fork / 002 section-number fork
+    / 003 stale-or-dangling exemption / 004 unreadable comparison source
+    / 005 duplicate section number / 000 registered backport debt (INFO)."""
+    if exempt is None:
+        exempt = CROSS_EDITION_EXEMPT
+    if file_exempt is None:
+        file_exempt = CROSS_EDITION_FILE_EXEMPT
+    findings: list[tuple[str, str, str]] = []
+    seen_exempt: set[tuple[str, str]] = set()
+
+    def judge(kind: str, key: str, label: str, in_main: bool, in_edition: bool) -> None:
+        entry = (kind, key)
+        if entry in exempt:
+            seen_exempt.add(entry)
+            if in_main and in_edition:
+                findings.append((
+                    "CE-PAR-003", "WARN",
+                    "cross-edition exemption is stale (both sides now agree; remove it "
+                    f"from CROSS_EDITION_EXEMPT): {label}",
+                ))
+            else:
+                findings.append(("CE-PAR-000", "INFO", f"registered backport debt: {label}"))
+            return
+        if in_main and not in_edition:
+            findings.append((
+                "CE-PAR-00" + ("1" if kind != "section" else "2"), "FAIL",
+                f"missing from the English edition (Chinese side has it, "
+                f"{CROSS_EDITION_ENGLISH_NAME} does not): {label}",
+            ))
+        elif in_edition and not in_main:
+            findings.append((
+                "CE-PAR-00" + ("1" if kind != "section" else "2"), "FAIL",
+                f"extra in the English edition (Chinese side has no such thing, "
+                f"{CROSS_EDITION_ENGLISH_NAME} does): {label}",
+            ))
+
+    main_ids, main_unreadable = cross_edition_identifiers(main_root)
+    edition_ids, edition_unreadable = cross_edition_identifiers(edition_root)
+    for edition_label, sources in (
+        ("Chinese edition", main_unreadable),
+        (CROSS_EDITION_ENGLISH_NAME, edition_unreadable),
+    ):
+        for source in sources:
+            findings.append((
+                "CE-PAR-004", "FAIL",
+                f"comparison source unreadable ({edition_label}): {source}",
+            ))
+    kind_labels = {
+        "doctor_handler": "doctor handler",
+        "doctor_check": "doctor check id",
+        "profile_check": "profile check registration",
+    }
+    for kind, label_prefix in kind_labels.items():
+        mine, theirs = main_ids[kind], edition_ids[kind]
+        for key in sorted(mine | theirs):
+            judge(kind, key, f"{label_prefix} `{key}`", key in mine, key in theirs)
+
+    targets: list[str] = []
+    for root_rel in section_roots:
+        base = main_root / root_rel
+        if base.is_dir():
+            targets.extend(
+                path.relative_to(main_root).as_posix()
+                for path in sorted(base.rglob("*.md"))
+                if path.is_file()
+            )
+    targets.extend(rel for rel in section_files if rel.endswith(".md"))
+    for rel in sorted(dict.fromkeys(targets)):
+        main_file, edition_file = main_root / rel, edition_root / rel
+        if rel in file_exempt:
+            if main_file.is_file() and edition_file.is_file():
+                main_numbers, _ = cross_edition_section_numbers(
+                    main_file.read_text(encoding="utf-8")
+                )
+                edition_numbers, _ = cross_edition_section_numbers(
+                    edition_file.read_text(encoding="utf-8")
+                )
+                if main_numbers == edition_numbers:
+                    findings.append((
+                        "CE-PAR-003", "WARN",
+                        "file-level cross-edition exemption is stale (the number sets "
+                        f"now agree; remove it or bring the file under the gate): {rel}",
+                    ))
+                    continue
+            findings.append((
+                "CE-PAR-000", "INFO",
+                f"file-level cross-edition exemption: {rel} -- {file_exempt[rel]}",
+            ))
+            continue
+        if not main_file.is_file() or not edition_file.is_file():
+            side = (
+                "Chinese edition" if not main_file.is_file()
+                else CROSS_EDITION_ENGLISH_NAME
+            )
+            findings.append((
+                "CE-PAR-004", "FAIL",
+                f"section-comparison target missing ({side} has no such file): {rel}",
+            ))
+            continue
+        main_numbers, main_dupes = cross_edition_section_numbers(
+            main_file.read_text(encoding="utf-8")
+        )
+        edition_numbers, edition_dupes = cross_edition_section_numbers(
+            edition_file.read_text(encoding="utf-8")
+        )
+        for edition_label, dupes in (
+            ("Chinese edition", main_dupes),
+            (CROSS_EDITION_ENGLISH_NAME, edition_dupes),
+        ):
+            if dupes:
+                findings.append((
+                    "CE-PAR-005", "FAIL",
+                    f"duplicate section number, comparison undecidable: {rel} "
+                    f"({edition_label}) -> {dupes}",
+                ))
+        for number in sorted(main_numbers | edition_numbers, key=_ce_sort_key):
+            judge(
+                "section", f"{rel}#{number}", f"{rel} §{number}",
+                number in main_numbers, number in edition_numbers,
+            )
+
+    for entry in sorted(set(exempt) - seen_exempt):
+        findings.append((
+            "CE-PAR-003", "WARN",
+            f"cross-edition exemption dangles (neither side has it): {entry[0]} `{entry[1]}`",
+        ))
+    return findings
+
+
+def _ce_sort_key(number: str) -> tuple[int, ...]:
+    """Sort `4.10` after `4.9`, not before it.  Pure."""
+    return tuple(int(part) for part in number.split(".") if part.isdigit())
+
+
+def cross_edition_peer(root: Path) -> Path | None:
+    """The mounted sibling edition to compare against, or None.  Pure.
+
+    None is the ordinary case for anyone holding a single edition -- a trial user
+    has no peer and never will -- and the caller turns it into silence rather
+    than a finding.  That is what keeps this gate invisible during ordinary use.
+    """
+    for name in CROSS_EDITION_PEERS.get(root.name, ()):
+        candidate = root.parent / name
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def cross_edition_orient(root: Path, peer: Path) -> tuple[Path, Path]:
+    """(Chinese side, English side), whichever side invoked the check.  Pure.
+
+    The exemption table names gaps as "the English edition lacks X", so the two
+    arguments must mean the same thing no matter which repo the run started
+    from.  Without this the same table would read backwards on the English side
+    and every entry would dangle.
+    """
+    if root.name == CROSS_EDITION_ENGLISH_NAME:
+        return peer, root
+    return root, peer
+
+
+def check_cross_edition_parity() -> None:
+    """Release: the translated edition keeps the mechanism, identifier by identifier.
+
+    Release rather than runtime, for the same reason as its neighbour
+    (`t2ag.md` §3.2): a distribution property must never stop the day's teaching.
+
+    Runs from either side.  Unlike check_distribution_parity there is no flavour
+    gate, because the comparison is symmetric: whoever holds both editions should
+    be told, and the orientation is fixed by cross_edition_orient so the
+    exemption table reads the same either way.  What replaces the flavour gate is
+    peer resolution -- with a single edition mounted there is nothing to compare
+    and the check says so once and returns.  That is the ordinary state for
+    anyone using a Skeleton, so this gate costs them exactly one INFO line during
+    a release run and nothing at all while teaching.
+    """
+    peer = cross_edition_peer(ROOT)
+    if peer is None:
+        report("INFO", "cross-edition parity: no peer edition mounted; comparison skipped")
+        return
+    main_root, edition = cross_edition_orient(ROOT, peer)
+    findings = cross_edition_parity_findings(main_root, edition)
+    for _code, severity, message in findings:
+        report(severity, message)
+    if not any(severity == "FAIL" for _code, severity, _message in findings):
+        debt = sum(1 for code, _s, _m in findings if code == "CE-PAR-000")
+        report(
+            "INFO",
+            "cross-edition parity: no unregistered fork in identifiers or section "
+            f"numbers; {debt} registered backport debt item(s), "
+            f"{len(CROSS_EDITION_FILE_EXEMPT)} file-level exemption(s)",
+        )
+
+
 # Personal identifiers that must never ship inside the open-source Skeleton.
 # The pattern list lives here; the *scope* is the whole repo, which is the point --
 # an identical check already existed inside check_version_and_profile but read only
@@ -6779,12 +7392,18 @@ CHANGELOG_ENTRY_HEADING = re.compile(
     r"^## \[(\d{4}-\d{2}-\d{2})\]\s*(.+?)\s*$",
     re.MULTILINE,
 )
+# L3: built from the registry, not from a hand-written alternation. These two were
+# the last inline bilingual pairs in this file, and they were also the pair the
+# translated `changelog_management.md` got wrong -- the playbook taught
+# "Anchoring claims" while the gate only accepted "Anchored assertions", so an entry
+# written by the book would have been invisible to the checker. One spelling list,
+# one place.
 CHANGELOG_ANCHOR_HEADING = re.compile(
-    r"^#{2,4}\s*(?:锚定断言|Anchored assertions)[^\n]*$",
+    rf"^#{{2,4}}\s*(?:{marker_alternation('锚定断言')})[^\n]*$",
     re.MULTILINE,
 )
 CHANGELOG_EVIDENCE_HEADING = re.compile(
-    r"^#{2,4}\s*(?:佐证断言|Corroborating assertions)[^\n]*$",
+    rf"^#{{2,4}}\s*(?:{marker_alternation('佐证断言')})[^\n]*$",
     re.MULTILINE,
 )
 CHANGELOG_EVIDENCE_LINE = re.compile(
@@ -7499,8 +8118,7 @@ def check_activity_ledgers(
                 )
         progress_body = cached_progress_content(course_id, folder)
         body_next_matches = list(re.finditer(
-            r"(?m)^-\s+\*\*(?:下一步计划|下一步|下次第一件事"
-            r"|Next step plan|Next step|First thing next time)\*\*[：:]\s*(.+)$",
+            rf"(?m)^-\s+\*\*(?:{next_action_label_alternation()})\*\*[：:]\s*(.+)$",
             progress_body,
         ))
         kind = expected["next_action_kind"]
@@ -7582,6 +8200,7 @@ def execute_doctor_checks(
         "check_dirty_tree": check_dirty_tree,
         "check_skeleton_textbook": check_skeleton_textbook_gate,
         "check_distribution_parity": check_distribution_parity,
+        "check_cross_edition_parity": check_cross_edition_parity,
         "check_skeleton_privacy": check_skeleton_privacy,
         "check_release_package_surface": check_release_package_surface,
         "check_decision_record_citations": check_decision_record_citations,

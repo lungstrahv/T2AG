@@ -328,13 +328,30 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     started = time.monotonic()
     max_seconds = workflow["ordinary_budget"]["max_minutes"] * 60
-    for row in plan["selected"]:
+    total = len(plan["selected"])
+
+    def abort_census(position: int, test_id: str) -> None:
+        """分母护栏（P-0077）：文件间中止路径同样必须自报规模。
+
+        与 `contract_test_support.run_contract_tests` 同刀：原实现只在成功路径打
+        `result:` 行，中止时分母消失，计划里未执行的测试文件不可见。三条中止路径
+        （预算耗尽／超时／红）全部走这里。是否「记错续跑」属 A/C 裁决面，不在此刀。
+        """
+        print(
+            f"result: {position - 1}/{total} selected test files passed before "
+            f"ABORT at #{position} {test_id}; {total - position} never executed",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    for position, row in enumerate(plan["selected"], start=1):
         print(f"RUN {row['id']} -> {row['path']}", flush=True)
         timeout = None
         if plan["ordinary_budget"]["applies"]:
             timeout = max_seconds - (time.monotonic() - started)
             if timeout <= 0:
                 print("ERROR: ordinary validation exceeded the ten-minute budget", file=sys.stderr)
+                abort_census(position, str(row["id"]))
                 return 124
         try:
             result = subprocess.run(
@@ -345,11 +362,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         except subprocess.TimeoutExpired:
             print("ERROR: ordinary validation exceeded the ten-minute budget", file=sys.stderr)
+            abort_census(position, str(row["id"]))
             return 124
         if result.returncode:
             print(f"FAIL {row['id']}: exit={result.returncode}", file=sys.stderr)
+            abort_census(position, str(row["id"]))
             return result.returncode
-    print(f"result: {len(plan['selected'])}/{len(plan['selected'])} selected test files passed")
+    print(f"result: {total}/{total} selected test files passed")
     return 0
 
 

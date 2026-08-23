@@ -16,12 +16,12 @@ current_completion_node: COMPLETION_NODE
 current_checkpoint: CHECKPOINT
 checkpoint_state: queued
 ---
-# COURSE_ID 进度真相源
+# COURSE_ID progress source of truth
 
-> Activity 生命周期唯一真相源是同目录 `activity_ledger.md`。
-> 本文件只拥有 Course lifecycle、唯一前台指针与结构化 next_action。
-> `current_lesson` 已退役，不得再写入 active 契约。
+> The sole source of truth for the Activity lifecycle is `activity_ledger.md` in this directory.
+> This file owns only the Course lifecycle, the single foreground pointer, and the structured next_action.
+> `current_lesson` is retired and must never be written into the active contract again.
 
-## 当前进度
+## Current progress
 
-- **下一步计划**：NEXT_ACTION
+- **Next-step plan**: NEXT_ACTION

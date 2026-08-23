@@ -1,40 +1,40 @@
-# 课程感想（空模板）
+# Course reflections (empty template)
 
-> 本文件汇总该学生在各门课中的学习使命、知识点树形图和学习感受。
-> 感想正文是真相源；课程目录中的数量、最近记录和日期是可重算缓存。
+> This file collects the student's learning mission, knowledge-point tree, and study feelings for each course.
+> The reflection bodies are the source of truth; the counts, latest record and dates in the course index are a recomputable cache.
 
 ---
 
-## 课程目录
+## Course index
 
-| 课程代码 | 课程名称 | 当前感想数量 | 最近记录 | 最近日期 |
+| Course code | Course name | Current reflection count | Latest record | Latest date |
 |---|---|---:|---|---|
-| (空) | | 0 | — | — |
+| (empty) | | 0 | — | — |
 
 ---
 
-## 课程记录模板
+## Per-course record template
 
-### [课程代码] [课程名称]
+### [Course code] [Course name]
 
-**学习使命（最后确认：—）**：[为什么现在学习这门课；希望形成什么能力或品格。]
+**Learning mission (last confirmed: —)**: [why this course is being studied now; what capability or character it should form.]
 
-#### 知识点树形图
+#### Knowledge-point tree
 
 ```text
-[课程名称]
-└── [章节/lesson]
-    └── [知识点]
+[Course name]
+└── [chapter/lesson]
+    └── [knowledge point]
 ```
 
-#### 感想记录
+#### Reflection records
 
 ```markdown
-#### REFL-[课程代码]-0001｜YYYY-MM-DD HH:mm
-- 知识点路径：[章节 > lesson > 知识点]
-- 标签：[环境、困惑、顿悟、审美、方法、使命变化等]
-- 感想：[学生原话或忠实转述]
-- 教学提示：[可执行、不过度推断]
+#### REFL-[course code]-0001｜YYYY-MM-DD HH:mm
+- Knowledge-point path: [chapter > lesson > knowledge point]
+- Tags: [environment, confusion, insight, aesthetics, method, a change of mission, and so on]
+- Reflection: [the student's own words, or a faithful restatement]
+- Teaching hint: [executable, without over-inferring]
 ```
 
-（暂无）
+(none yet)

@@ -137,7 +137,8 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_skin_system",
     "check_authorization_governance", "discover_courses", "check_groups",
     "check_activity_ledgers", "check_engagements_and_activities",
-    "check_question_banks", "check_knowledge_ledgers", "check_project_verification",
+    "check_question_banks", "check_knowledge_ledgers", "check_exam_banks",
+    "check_project_verification",
     "check_exercises", "check_teacher_contract", "check_memory_pointers",
     "check_registry", "check_textbook_preparation", "check_canonical_teaching_carrier",
     "check_scope_page_cache",
@@ -158,10 +159,10 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_playbook_taxonomy", "check_playbook_taxonomy_parity",
     "check_playbook_usage", "check_domain_tier_reconciliation",
-    "check_recommendation_ledger",
+    "check_recommendation_ledger", "check_gate_visibility",
     "check_candidate_replay_contract", "check_tracked_environment", "check_dirty_tree",
     "check_skeleton_textbook", "check_distribution_parity",
-    "check_constitution_parity",
+    "check_constitution_parity", "check_cross_edition_parity",
     "check_skeleton_privacy", "check_release_package_surface",
     "check_decision_record_citations",
     "check_line_endings", "check_release_line_endings",
@@ -195,6 +196,15 @@ ALLOWED_REVIEWERS = {"teacher", "student", "joint"}
 ALLOWED_REVIEW_STATES = {"recorded", "amended"}
 ALLOWED_REVIEW_RESULTS = {"correct", "partial", "incorrect", "unresolved"}
 ALLOWED_MISTAKE_STATES = {"active", "maintenance", "aged"}
+ALLOWED_EXAM_DEBT_STATES = {"open", "in_remediation", "settled", "archived"}
+ALLOWED_CONTAINER_MODES = {"schedule", "progress"}
+# 粗判据配轻后果：停滞只触发一句分诊问句（不扣分、不阻断），所以门槛用自然日即可。
+# 精确的学习日游标留给「计入评估」那一类判定——那里才需要它。
+STALL_TRIAGE_DAYS = 14
+RETIRE_LOOP_DECAY_KEYS = ("域", "时机", "归因层", "消费方", "退出", "再入")
+EXAM_META_COLUMNS = (
+    "题号", "类型", "知识节点", "难度档", "已用于教学", "已考", "解答页码", "考前检查备注",
+)
 ALLOWED_PROJECT_MODES = {"A", "B", "B-K"}
 EXPECTED_FLOWS = {
     "first_run", "panorama", "teaching_loop", "authority_chain", "cycles",
@@ -945,6 +955,7 @@ def check_groups(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
             if meta.get("type") != "group" or meta.get("group_id") != folder.name:
                 report("FAIL", f"group frontmatter 不匹配：{rel(plan)}")
             groups.append((folder.name, folder, meta))
+    folder_of = {group_id: folder for group_id, folder, _ in groups}
     active = [item for item in groups if item[2].get("status") == "active"]
     expected = 0 if FLAVOR == "skeleton" else 1
     if len(active) != expected:
@@ -963,6 +974,21 @@ def check_groups(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
         current = meta.get("current_course", "")
         if current and current not in members:
             report("FAIL", f"{group_id} current_course 不在成员中：{current}")
+        check_container_mode(group_id, folder_of[group_id], meta, members, courses)
+    for group_id, folder, meta in groups:
+        mode = meta.get("container_mode", "")
+        if not mode:
+            report("FAIL", f"{group_id} plan.md 缺 container_mode（course_group_rules.md §4.1：容器形状可选，有容器不可选）")
+        elif mode not in ALLOWED_CONTAINER_MODES:
+            report("FAIL", f"{group_id} container_mode 非法：{mode}（合法值 {sorted(ALLOWED_CONTAINER_MODES)}）")
+        calendar = folder / "calendar.md"
+        if calendar.is_file():
+            cal_mode = frontmatter(calendar).get("container_mode", "")
+            if mode and cal_mode and cal_mode != mode:
+                report("FAIL", f"{group_id} container_mode 两处不一致：plan={mode} calendar={cal_mode}")
+            elif mode and not cal_mode:
+                report("WARN", f"{group_id} calendar.md 未声明 container_mode（触发锚无法判定用哪组字段）")
+
     group_ids = {group_id for group_id, _, _ in groups}
     binding_ids: set[str] = set()
     for binding in sorted(root.glob("G*/bindings/*.md")) if root.exists() else []:
@@ -1010,6 +1036,126 @@ def check_groups(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
             report("FAIL", f"binding 绑定非法课程类型：{rel(binding)} -> {course_type}")
         if meta.get("legacy_frozen") and not frozen_r002:
             report("FAIL", f"binding 冒用 legacy_frozen：{rel(binding)}")
+
+
+
+def check_keystone_ledger(group_id: str, folder: Path, meta: dict[str, str]) -> None:
+    """Scope-drift ledger reconciliation (course_group_rules.md §4.3).
+
+    §4.2 guards against silent drift in *time*; this guards against silent
+    drift in *scope* -- same invariant: changes are fine, unlogged changes are
+    not.  The machine never judges whether a cut was right (that adjudication
+    lives in the review the ledger row came from).  It only enforces "no cut
+    without a ledger row": current keystones plus logged cuts must equal the
+    frozen anchor.  Deliberately coarse -- no review-ID binding, same judgment
+    call as the 14-day stall probe.
+    """
+    plan = folder / "plan.md"
+    text = read(plan) if plan.is_file() else ""
+
+    raw_frozen = meta.get("keystone_total_frozen", "")
+    if not raw_frozen:
+        report(
+            "FAIL",
+            f"{group_id} active progress 组缺碑数锚 keystone_total_frozen："
+            "冻结发生在建组仪式，没有锚就没有对账（course_group_rules.md §4.3）",
+        )
+        return
+    try:
+        frozen = int(raw_frozen)
+    except ValueError:
+        report("FAIL", f"{group_id} keystone_total_frozen 非法：{raw_frozen}（须为整数）")
+        return
+
+    def section(title: str) -> str:
+        match = re.search(rf"^#+\s.*{title}.*$", text, flags=re.M)
+        if not match:
+            return ""
+        rest = text[match.end():]
+        nxt = re.search(r"^#+\s", rest, flags=re.M)
+        return rest[: nxt.start()] if nxt else rest
+
+    keystones = re.findall(r"^-\s+K\d+\b", section("主干碑序列"), flags=re.M)
+    if not keystones:
+        report(
+            "FAIL",
+            f"{group_id} plan.md 缺「主干碑序列」节或节内无 `- Knn` 碑行"
+            "（course_group_rules.md §4.3：progress 组的容器就是这张表）",
+        )
+        return
+    ledger = section("碑变更台账")
+    cut_rows = [
+        row for row in re.findall(r"^\|.*\d{4}-\d{2}-\d{2}.*\|$", ledger, flags=re.M)
+        if "砍" in row
+    ]
+    if len(keystones) + len(cut_rows) != frozen:
+        report(
+            "FAIL",
+            f"{group_id} 碑序列对不上账：当前 {len(keystones)} 碑 + 台账砍碑 {len(cut_rows)} 行"
+            f" ≠ 锚定值 {frozen}（§4.3：砍碑唯一合法入口是台账一行；"
+            "加碑须同步上调锚定值并留「加」行）",
+        )
+
+
+def check_container_mode(
+    group_id: str,
+    folder: Path,
+    meta: dict[str, str],
+    members: list[str],
+    courses: dict[str, tuple[Path, dict[str, str]]],
+) -> None:
+    """Runtime: container anchors present, and stalled progress gets triaged.
+
+    Two container shapes are legal (schedule / progress); having *no* container
+    is not.  So the stop-loss anchor of whichever shape the group declared must
+    exist -- for ``progress`` that is the per-keystone dwell budget, which is the
+    only thing standing between "paced by ability" and "never ends".
+
+    The stall probe deliberately does **not** judge fault.  Pausing is legitimate
+    (a training camp, a bad month), and the adjudicated consequence is one triage
+    question that costs the student nothing.  What gets a WARN is the third
+    outcome: neither ``paused`` nor a review -- drifting silently.
+    """
+    calendar = folder / "calendar.md"
+    cal = frontmatter(calendar) if calendar.is_file() else {}
+    mode = meta.get("container_mode", "")
+
+    if mode == "progress":
+        if not cal.get("keystone_dwell_budget_cycles"):
+            report(
+                "FAIL",
+                f"{group_id} progress 容器缺止损锚 keystone_dwell_budget_cycles："
+                "无预算的按进度模式没有容器（course_group_rules.md §4.1）",
+            )
+    elif mode == "schedule":
+        if "cycle_anchor_learning_day" not in cal:
+            report("WARN", f"{group_id} schedule 容器缺 cycle_anchor_learning_day 字段（TBD 是合法值，缺字段不是）")
+
+    if mode != "progress" or meta.get("status") != "active":
+        return
+
+    check_keystone_ledger(group_id, folder, meta)
+
+    today = dt.date.today()
+    for course_id in members:
+        if course_id not in courses:
+            continue
+        course_folder, course_meta = courses[course_id]
+        if course_meta.get("lifecycle_status", "") != "ongoing":
+            continue  # paused/completed 已经是分诊结果，不再追问
+        raw = str(course_meta.get("updated", ""))[:10]
+        try:
+            last = dt.date.fromisoformat(raw)
+        except ValueError:
+            continue
+        idle = (today - last).days
+        if idle >= STALL_TRIAGE_DAYS:
+            report(
+                "WARN",
+                f"STALL-TRIAGE-001 {group_id}/{course_id} 进度 {idle} 天未推进，待分诊："
+                "卡住→紧急复盘｜没空→转 paused 并记恢复条件｜"
+                "分诊不计入成绩与掌握评估（course_group_rules.md §4.2）",
+            )
 
 
 def check_engagements_and_activities() -> None:
@@ -1300,6 +1446,115 @@ def check_knowledge_ledgers(courses: dict[str, tuple[Path, dict[str, str]]]) -> 
             state = re.search(r"^-\s*状态[：:]\s*(观察中|已确认|已退役)\s*$", block, re.MULTILINE)
             if not state:
                 report("FAIL", f"reasoning pattern 缺合法状态：{match.group(1)}")
+
+
+
+def check_exam_banks(courses: dict[str, tuple[Path, dict[str, str]]]) -> None:
+    """Runtime: exam aggregate root — isolation FAIL, registration/meta WARN.
+
+    Pool isolation is the one exam rule that cannot be repaired after the fact:
+    once an assessment-pool problem has been quoted in teaching, the paper is
+    burned and no later edit un-burns it.  Everything else here is WARN.
+
+    Empty banks short-circuit to PASS.  An empty ``index.md`` is the adjudicated
+    initial state ("skeleton first, bank empty"), not a fault; warning on it
+    would make every new course boot noisy, and a noisy doctor is an unread one.
+    """
+    for course_id, (folder, _) in courses.items():
+        exam_root = folder / "_exam"
+        if not exam_root.is_dir():
+            continue
+
+        ledger = exam_root / "exam_ledger.md"
+        if not ledger.is_file():
+            report("FAIL", f"_exam/ 存在但缺 exam_ledger.md：{course_id}")
+        else:
+            meta = frontmatter(ledger)
+            if meta.get("truth_scope") != "exam_settlement":
+                report("FAIL", f"exam_ledger truth_scope 必须为 exam_settlement：{course_id}")
+            content = read(ledger)
+            body = without_fenced_code(content)
+            if "【模式】复利回路·衰减" not in body:
+                report("FAIL", f"exam_ledger 缺复利回路·衰减子型标记：{course_id}")
+            else:
+                missing = [key for key in RETIRE_LOOP_DECAY_KEYS if f"{key}=" not in body]
+                if missing:
+                    report("FAIL", f"exam_ledger 复利回路参数缺键 {missing}：{course_id}")
+            state = re.search(r"^\|\s*考核债状态\s*\|\s*`([a-z_]+)`", body, re.MULTILINE)
+            if not state:
+                report("FAIL", f"exam_ledger 缺考核债状态：{course_id}")
+            elif state.group(1) not in ALLOWED_EXAM_DEBT_STATES:
+                report("FAIL", f"exam_ledger 考核债状态非法：{course_id} -> {state.group(1)}")
+            ids = [int(value) for value in re.findall(r"^###\s+EX-(\d{4})", body, re.MULTILINE)]
+            if len(ids) != len(set(ids)):
+                report("FAIL", f"exam 场次 ID 重复：{course_id}")
+            next_id = re.search(r"^next_id:\s*(\d+)\s*$", content, re.MULTILINE)
+            if not next_id:
+                report("FAIL", f"exam_ledger 缺 next_id：{course_id}")
+            elif ids and int(next_id.group(1)) <= max(ids):
+                report("FAIL", f"exam_ledger next_id 未超过最大 EX ID：{course_id}")
+
+        index_file = exam_root / "index.md"
+        if not index_file.is_file():
+            report("FAIL", f"_exam/ 存在但缺 index.md：{course_id}")
+            continue
+
+        registered: dict[str, str] = {}
+        for line in without_fenced_code(read(index_file)).splitlines():
+            if not line.startswith("|"):
+                continue
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if len(cells) < 10:
+                continue
+            paper_id = cells[0]
+            if not paper_id or paper_id == "卷ID" or set(paper_id) <= set("-: "):
+                continue
+            registered[paper_id] = cells[8]
+
+        papers_root = exam_root / "papers"
+        folders = (
+            sorted(entry.name for entry in papers_root.iterdir() if entry.is_dir())
+            if papers_root.is_dir()
+            else []
+        )
+        if not registered and not folders:
+            continue
+
+        for name in folders:
+            if name not in registered:
+                report("WARN", f"papers/ 卷夹未登记 index：{course_id}/{name}")
+                continue
+            meta_file = papers_root / name / "meta.md"
+            if not meta_file.is_file():
+                report("WARN", f"卷夹缺 meta.md：{course_id}/{name}")
+                continue
+            meta_text = read(meta_file)
+            absent = [column for column in EXAM_META_COLUMNS if column not in meta_text]
+            if absent:
+                report("WARN", f"meta.md 缺列 {absent}：{course_id}/{name}")
+        for paper_id in registered:
+            if paper_id not in folders:
+                report("WARN", f"index 登记卷无对应卷夹：{course_id}/{paper_id}")
+
+        assessment = {
+            paper_id for paper_id, pool in registered.items() if "考核" in pool
+        }
+        if not assessment:
+            continue
+        teaching_files: list[Path] = []
+        for space in ("lessons", "exercises"):
+            space_root = folder / space
+            if space_root.is_dir():
+                teaching_files.extend(sorted(space_root.rglob("*.md")))
+        for path in teaching_files:
+            text = without_fenced_code(read(path))
+            for paper_id in sorted(assessment):
+                if re.search(rf"{re.escape(paper_id)}\s*#\s*\S", text):
+                    report(
+                        "FAIL",
+                        f"考核池题号引用泄漏进教学文件：{course_id} -> {paper_id} @ "
+                        f"{path.relative_to(folder)}",
+                    )
 
 
 def _validate_project_closure_record(
@@ -3108,6 +3363,12 @@ PLOG_ANCHOR = re.compile(r"^closure_fields_since:\s*(P-\d{4})\s*$", re.MULTILINE
 PLOG_ENTRY = re.compile(r"^## (P-\d{4})\b", re.MULTILINE)
 PLOG_CLOSURE_FIELD = re.compile(r"^-\s*closure:\s*(.+?)\s*$", re.MULTILINE)
 PLOG_OCCURRENCE = re.compile(r"^-\s*occurrence_count:\s*(\d+)\s*$", re.MULTILINE)
+# 2026-08-22：strike 基线＝散文补救落地那一刻的 occurrence_count 读数。
+# 缺席即「从未有补救在位」，strikes=0——这正是改判要保护的情形（P-0078）。
+PLOG_REMEDY_SINCE = re.compile(r"^-\s*remedy_since:\s*(\d+)\s*$", re.MULTILINE)
+# 阈值＝「补救失败几次才出局」。旧规则等价于 1；取 2 比旧规则整整多给一次机会。
+# 改 3 只需动这一个常量（问题在于每多一次都意味着一次真实事故，非纯粹宽严之争）。
+STRIKE_LIMIT = 2
 PLOG_CLOSURE_VALUE = re.compile(
     r"^(open|check=\S+|tool=\S+|prose_accepted[（(].+[）)])$"
 )
@@ -3688,6 +3949,91 @@ def recommendation_findings(
     return findings
 
 
+# ---------------------------------------------------------------------------
+# P-0068：门可见度开关的审计零损失检查（2026-08-21）
+#
+# `gate_visibility: quiet` 把四拍从对话节奏移到台账，**不减少任何证据**。所以 quiet 课
+# 必须证明它的审计确实落了盘——否则 quiet 就是变相放宽授权，而那是三门底线不是体验参数。
+#
+# 只认整课两值。per-domain 分档（P-0073 N6）本轮未授权，写了会被判非法而非静默接受：
+# 未实现的语法被悄悄吞掉，是「保证比宣称的窄」那一族（P-0067）。
+# ---------------------------------------------------------------------------
+
+GATE_VISIBILITY_VALUES: frozenset[str] = frozenset({"explicit", "quiet"})
+GATE_LEDGER_ROW_RE = re.compile(r"^\|\s*GT-\d+\s*\|", re.MULTILINE)
+
+
+def gate_visibility_findings(
+    courses: dict[str, tuple[str, list[str]]],
+) -> list[tuple[str, str, str]]:
+    """Verdict over ``course_id -> (declared_value, lesson_texts)``.
+
+    Absent value means ``explicit`` (the default), which needs no evidence beyond
+    what the ordinary gate-ledger check already requires.
+    """
+    findings: list[tuple[str, str, str]] = []
+    quiet: list[str] = []
+    for course_id, (declared, lessons) in sorted(courses.items()):
+        value = (declared or "explicit").strip()
+        if value not in GATE_VISIBILITY_VALUES:
+            findings.append(
+                (
+                    "GV-001",
+                    "WARN",
+                    f"{course_id} gate_visibility 取值非法：{value!r}（合法两值 "
+                    f"{sorted(GATE_VISIBILITY_VALUES)}；per-domain 分档＝P-0073 N6，"
+                    "本轮未授权，不得以扩展语法预支）",
+                )
+            )
+            continue
+        if value != "quiet":
+            continue
+        quiet.append(course_id)
+        if not any(GATE_LEDGER_ROW_RE.search(text) for text in lessons):
+            findings.append(
+                (
+                    "GV-002",
+                    "WARN",
+                    f"{course_id} 声明 quiet 但 lesson 门台账无任何 GT 行："
+                    "quiet 把四拍从对话移到台账，台账空即审计净损失——"
+                    "这等于变相放宽授权（三门底线，非体验参数）",
+                )
+            )
+    if quiet:
+        findings.append(
+            (
+                "GV-000",
+                "INFO",
+                f"门可见度实验进行中（P-0068 编排 B）：{'、'.join(quiet)}；"
+                "摩擦证据入 lesson_thoughts，协议正文改不改仍归学生终裁",
+            )
+        )
+    return findings
+
+
+def check_gate_visibility() -> None:
+    """P-0068：quiet 课的审计必须落盘（WARN-only）。"""
+    course_root = MAIN / "40_course"
+    if not course_root.is_dir():
+        return
+    courses: dict[str, tuple[str, list[str]]] = {}
+    for folder in sorted(course_root.iterdir()):
+        if not folder.is_dir() or folder.name.startswith("_"):
+            continue
+        course_file = folder / "course.md"
+        if not course_file.is_file():
+            continue
+        declared = frontmatter(course_file).get("gate_visibility", "")
+        if not declared:
+            continue  # 未声明＝explicit 默认，无需额外举证
+        lessons = [
+            read(path) for path in sorted(folder.glob("lessons/*/lesson*.md"))
+        ]
+        courses[folder.name] = (declared, lessons)
+    for _code, severity, message in gate_visibility_findings(courses):
+        report(severity, message)
+
+
 def check_recommendation_ledger() -> None:
     """P-0069：建议登记册格式检查（WARN-only，语义归人）。"""
     ledger = MAIN / "30_group/recommendations.md"
@@ -3881,11 +4227,21 @@ def problemlog_closure_findings(
     001: an entry at/after the anchor has no `- closure:` field, or the
          field value is not one of
          open / check=<doctor检查ID> / tool=<工具路径> / prose_accepted（理由）.
-    002: two-strike rule（两振出局）— an entry with occurrence_count >= 2
-         that lands on prose_accepted: a repeat offender may only land on
-         machine enforcement (check= / tool=).  Applies wherever the field
-         appears; legacy entries without the field stay exempt until the
-         backfill reaches them.
+    002: strike rule（2026-08-22 改判：数 strike，不数 occurrence）— a strike is
+         a recurrence that happened **while a remedy was in force**, derived as
+         ``occurrence_count - remedy_since``.  The old rule counted sightings,
+         so occurrence #1 — which nobody could have prevented, because no remedy
+         existed yet — was already half a strike.  P-0078 is the pure case: all
+         three sightings landed in one night *before* the entry existed, and the
+         old rule barred prose from a problem nobody had ever tried prose on.
+         Three sub-findings, all WARN:
+           - prose_accepted without ``remedy_since``: the baseline must be
+             declared, otherwise strikes can never accumulate and the counter is
+             dangling by construction (P-0069's never-built manual accumulator).
+           - strikes >= STRIKE_LIMIT with prose_accepted: out; land check=/tool=.
+           - ``remedy_since`` greater than ``occurrence_count``: malformed.
+         Legacy entries without the field stay exempt until the backfill reaches
+         them.
     003: the same `P-NNNN` heading appears more than once.  A stable ID that
          names two different incidents makes every citation of it ambiguous
          (remediation_governance.md §三 lists stable-ID conflict and
@@ -3953,16 +4309,33 @@ def problemlog_closure_findings(
         if defect is not None and defect[0] in ("dangling_check", "missing_tool"):
             findings.append(("PLOG-CLOSURE-004", f"{pid} {defect[1]}"))
         occurrence = PLOG_OCCURRENCE.search(body)
-        if (
-            occurrence
-            and int(occurrence.group(1)) >= 2
-            and closure.startswith("prose_accepted")
-        ):
+        baseline = PLOG_REMEDY_SINCE.search(body)
+        occ = int(occurrence.group(1)) if occurrence else None
+        since = int(baseline.group(1)) if baseline else None
+        is_prose = closure.startswith("prose_accepted")
+        if occ is not None and since is not None and since > occ:
             findings.append((
                 "PLOG-CLOSURE-002",
-                f"{pid} 两振出局：occurrence_count>=2 的条目不得以散文收尾"
-                f"（closure={closure[:40]}），须落 check= 或 tool=",
+                f"{pid} remedy_since={since} 大于 occurrence_count={occ}："
+                "基线不能晚于事实，strike 无法推导",
             ))
+        elif is_prose and since is None:
+            findings.append((
+                "PLOG-CLOSURE-002",
+                f"{pid} 落 prose_accepted 必须同时声明 remedy_since"
+                "（补救落地时的 occurrence_count 读数）："
+                "缺基线则 strike 永远累加不起来，等于把计数器悬空",
+            ))
+        elif is_prose and occ is not None and since is not None:
+            strikes = occ - since
+            if strikes >= STRIKE_LIMIT:
+                findings.append((
+                    "PLOG-CLOSURE-002",
+                    f"{pid} 出局：补救在位期间已复发 {strikes} 次"
+                    f"（occurrence_count={occ} − remedy_since={since} >= "
+                    f"{STRIKE_LIMIT}），不得再以散文收尾"
+                    f"（closure={closure[:40]}），须落 check= 或 tool=",
+                ))
     return findings
 
 
@@ -6511,6 +6884,439 @@ def check_constitution_parity() -> None:
         )
 
 
+# --- Cross-edition (translated fork) parity: CE, 2026-08-22 ------------------
+# check_distribution_parity compares bytes; check_constitution_parity compares
+# section *titles*.  A translated edition can satisfy neither, and the English
+# Skeleton's own foundation test says so out loud before calling skipTest:
+# "cross-edition byte parity is not a satisfiable contract".  Meanwhile
+# check_distribution_parity only ever runs Main against `t2ag-skeleton`.  Net
+# effect: `t2ag-skeleton-en` shipped with **no** parity gate at all.  It was
+# generated from a347bcd, hand-translated, and then nothing watched it.  By
+# 2026-08-22 it had silently lost 8 doctor handlers, 6 registered checks and 14
+# numbered sections while reporting `0 FAIL` against its own frozen contract --
+# the carrier_mismatch family of P-0065/P-0074 one layer up: a declared
+# constraint ("the English edition is mechanically equivalent to Main") that no
+# checker could falsify.
+#
+# The unit is neither bytes nor prose titles but the two things a translation is
+# obliged to preserve:
+#   * machine identifiers -- handler names, check ids, profile membership.  These
+#     compare directly because identifiers are carried over verbatim by standing
+#     ruling; translating one would itself be the defect.
+#   * section *numbers* -- `## 一、`, `## 1.`, `### 二·一` and `### 2.1` all
+#     normalise to the same key, so a whole subsection cannot vanish quietly.
+# Prose is deliberately out of scope: this gate proves the mechanism is present,
+# not that the wording is faithful.  Adjudicated CE-1/CE-2/CE-3, 2026-08-22.
+CROSS_EDITION_ENGLISH_NAME = "t2ag-skeleton-en"
+# Which sibling each edition compares itself against.  Deliberately a table of
+# directory names rather than anything inferred: the peer is read from where the
+# repo actually sits, and an edition whose directory is not listed simply has no
+# peer and stays silent.  Both sides carry this same table, so one file behaves
+# correctly whichever edition it was shipped in -- which is the point, since the
+# file is byte-identical across the Chinese editions and translated in the
+# English one.
+CROSS_EDITION_PEERS = {
+    "t2ag": (CROSS_EDITION_ENGLISH_NAME,),
+    "t2ag-skeleton": (CROSS_EDITION_ENGLISH_NAME,),
+    CROSS_EDITION_ENGLISH_NAME: ("t2ag", "t2ag-skeleton"),
+}
+CROSS_EDITION_SECTION_ROOTS = ("main/50_playbook",)
+CROSS_EDITION_SECTION_FILES = CONSTITUTION_PARITY_TARGETS
+
+CROSS_EDITION_CJK_DIGITS = {
+    "〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4,
+    "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+}
+# `·` and `．` join CJK section numbers (`二·一`); `点` is the spoken decimal
+# point (`二点五`).  All three mean the same thing as the ASCII `.` in `2.1`.
+CROSS_EDITION_CJK_SEPARATORS = "·．点"
+_CE_CJK_CLASS = "[〇零一二三四五六七八九十]"
+CROSS_EDITION_HEADING = re.compile(
+    r"^#{2,6}[ \t]*(?:§[ \t]*)?"
+    r"(?P<number>"
+    r"[0-9]+(?:\.[0-9]+)*"
+    rf"|{_CE_CJK_CLASS}+(?:[{CROSS_EDITION_CJK_SEPARATORS}]{_CE_CJK_CLASS}+)*"
+    r")"
+    r"(?:[、．.。]|[ \t])"
+)
+
+
+def cross_edition_cjk_number(token: str) -> int | None:
+    """`三` -> 3, `十` -> 10, `十二` -> 12, `二十` -> 20.  Pure; None if unparsable."""
+    if "十" not in token:
+        value = 0
+        for char in token:
+            if char not in CROSS_EDITION_CJK_DIGITS:
+                return None
+            value = value * 10 + CROSS_EDITION_CJK_DIGITS[char]
+        return value
+    head, _, tail = token.partition("十")
+    high = 1 if head == "" else CROSS_EDITION_CJK_DIGITS.get(head)
+    low = 0 if tail == "" else CROSS_EDITION_CJK_DIGITS.get(tail)
+    if high is None or low is None:
+        return None
+    return high * 10 + low
+
+
+def cross_edition_section_number(line: str) -> tuple[int, str] | None:
+    """Normalise one heading line to (depth, dotted number), or None. Pure.
+
+    `## 一、核心原则` and `## 1. Core principles` both return (2, "1"); `### 二·一 …`
+    and `### 2.1 …` both return (3, "2.1").  A heading whose number is not leading
+    (`### 步骤 1：…` / `### Step 1: …`) returns None on *both* sides, so it drops
+    out symmetrically rather than manufacturing a one-sided finding.
+    """
+    match = CROSS_EDITION_HEADING.match(line)
+    if not match:
+        return None
+    depth = len(line) - len(line.lstrip("#"))
+    token = match.group("number")
+    if token[0].isdigit():
+        return depth, token.rstrip(".")
+    parts = [
+        cross_edition_cjk_number(part)
+        for part in re.split(f"[{CROSS_EDITION_CJK_SEPARATORS}]", token)
+    ]
+    if any(part is None for part in parts):
+        return None
+    return depth, ".".join(str(part) for part in parts)
+
+
+def cross_edition_section_numbers(text: str) -> tuple[set[str], list[str]]:
+    """({fully-qualified section numbers}, [numbers appearing twice]).  Pure.
+
+    Subsection numbering is written two ways across the corpus -- bare under its
+    parent (`## 五、` then `### 1.`) and fully qualified (`## 5.` then `### 5.1`)
+    -- and the English edition re-rooted several trees to the second form while
+    translating.  Both are anchored to the same parent, so a bare child (no dot)
+    is qualified with the nearest `##` number, while an already-dotted child is
+    left alone.  The test is the dot rather than "does it lead with the parent's
+    number", because the fifth child of §5 is written `### 5.` and would
+    otherwise be read as a repeat of its own parent.  Without any of this,
+    identical structures written in the two styles read as a total fork, and bare
+    children repeating under different parents collide into undecidable
+    duplicates.
+
+    A number that still appears twice after qualification makes the comparison
+    undecidable for that key, exactly as duplicate titles do in
+    constitution_section_digests, so it is surfaced rather than swallowed.
+    """
+    seen: list[str] = []
+    parent: str | None = None
+    for line in text.splitlines():
+        parsed = cross_edition_section_number(line)
+        if parsed is None:
+            continue
+        depth, number = parsed
+        if depth <= 2:
+            parent, key = number, number
+        elif parent is None or "." in number:
+            key = number
+        else:
+            key = f"{parent}.{number}"
+        seen.append(key)
+    duplicates = sorted({n for n in seen if seen.count(n) > 1})
+    return set(seen), duplicates
+
+
+def cross_edition_identifiers(root: Path) -> tuple[dict[str, set[str]], list[str]]:
+    """Language-invariant machine identifiers of one edition, plus unreadable sources.
+
+    An unreadable source is returned, never swallowed: losing a comparator
+    silently is how this whole blind spot started.
+    """
+    identifiers: dict[str, set[str]] = {
+        "doctor_handler": set(), "doctor_check": set(), "profile_check": set(),
+    }
+    unreadable: list[str] = []
+    doctor = root / "main/70_tools/t2ag_doctor.py"
+    if doctor.is_file():
+        identifiers["doctor_handler"] = set(
+            re.findall(r"^def (check_\w+)", doctor.read_text(encoding="utf-8"), re.M)
+        )
+    else:
+        unreadable.append("main/70_tools/t2ag_doctor.py（缺失）")
+    workflow = root / "main/70_tools/validation_workflow.json"
+    if not workflow.is_file():
+        unreadable.append("main/70_tools/validation_workflow.json（缺失）")
+        return identifiers, unreadable
+    try:
+        data = json.loads(workflow.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        unreadable.append(f"main/70_tools/validation_workflow.json（不可解析：{exc}）")
+        return identifiers, unreadable
+    checks = data.get("doctor_checks")
+    if isinstance(checks, dict):
+        identifiers["doctor_check"] = set(checks)
+    profiles = data.get("profiles")
+    if isinstance(profiles, dict):
+        for profile_name, profile in profiles.items():
+            for check in (profile or {}).get("checks") or []:
+                identifiers["profile_check"].add(f"{profile_name}:{check}")
+    return identifiers, unreadable
+
+
+# Known gaps, grouped by the Main work that created them.  The reason is
+# mandatory and carries the *refill condition*, so the table reads as a ledger of
+# outstanding backport debt rather than as permission to stay behind: every entry
+# reports INFO while the gap stands and flips to a stale WARN the moment both
+# editions agree again.  All of it is one fact -- the English edition is frozen at
+# a347bcd and Main kept moving between 2026-08-18 and 2026-08-22.
+_CE_EXEMPT_GROUPS: dict[str, tuple[tuple[str, str], ...]] = {
+    "考试系统 EX（08-21 裁、08-22 施工 28ed652/2bc517c）落 Main 后英文面未回移；"
+    "回填条件=BACKPORT 工单执行": (
+        ("doctor_handler", "check_exam_banks"),
+        ("doctor_check", "runtime.exam_banks"),
+        ("profile_check", "runtime:runtime.exam_banks"),
+        ("section", "main/50_playbook/exam_bank_spec.md#6"),
+        ("section", "main/50_playbook/exam_protocol.md#8.1"),
+        ("section", "main/50_playbook/exam_protocol.md#8.2"),
+        ("section", "main/50_playbook/exam_protocol.md#8.3"),
+        ("section", "main/50_playbook/exam_protocol.md#8.4"),
+        ("section", "main/50_playbook/exam_protocol.md#13.1"),
+        ("section", "main/50_playbook/exam_protocol.md#13.2"),
+        ("section", "main/50_playbook/exam_protocol.md#13.3"),
+        ("section", "main/50_playbook/exam_protocol.md#13.4"),
+        ("section", "main/50_playbook/exam_protocol.md#14"),
+    ),
+    "课程组 §4 容器形状与碑序列锚（08-18 裁、08-22 施工 28ed652/1bb3433）；"
+    "回填条件=BACKPORT 工单执行": (
+        ("doctor_handler", "check_container_mode"),
+        ("doctor_handler", "check_keystone_ledger"),
+        ("section", "main/50_playbook/course_group_rules.md#4.1"),
+        ("section", "main/50_playbook/course_group_rules.md#4.2"),
+        ("section", "main/50_playbook/course_group_rules.md#4.3"),
+    ),
+    "ELI5 上匝道（08-22 施工 082de2f，context_packet §七/§八）；回填条件=BACKPORT 工单执行": (
+        ("section", "main/50_playbook/context_packet.md#8"),
+    ),
+    "Exercise 完整结课树（EXERCISE-CLOSE 裁决 2026-08-21 D1–D5，session_close §〇）；"
+    "回填条件=BACKPORT 工单执行": (
+        ("section", "main/50_playbook/session_close.md#0"),
+    ),
+    "宪法同源盲区 EV-0032 与 META 观测仪器（08-20/08-21 施工 eccdbc1/91a90f3）；"
+    "回填条件=BACKPORT 工单执行，且英文面须同时获得可比对的中文 Skeleton 对端": (
+        ("doctor_handler", "check_constitution_parity"),
+        ("doctor_handler", "check_playbook_usage"),
+        ("doctor_handler", "check_domain_tier_reconciliation"),
+        ("doctor_handler", "check_recommendation_ledger"),
+        ("doctor_handler", "check_gate_visibility"),
+        ("doctor_check", "release.constitution_parity"),
+        ("doctor_check", "runtime.playbook_usage"),
+        ("doctor_check", "runtime.domain_tier_reconciliation"),
+        ("doctor_check", "runtime.recommendation_ledger"),
+        ("doctor_check", "runtime.gate_visibility"),
+        ("profile_check", "release:release.constitution_parity"),
+        ("profile_check", "runtime:runtime.playbook_usage"),
+        ("profile_check", "runtime:runtime.domain_tier_reconciliation"),
+        ("profile_check", "runtime:runtime.recommendation_ledger"),
+        ("profile_check", "runtime:runtime.gate_visibility"),
+    ),
+}
+CROSS_EDITION_EXEMPT: dict[tuple[str, str], str] = {
+    key: reason for reason, keys in _CE_EXEMPT_GROUPS.items() for key in keys
+}
+# Whole files excluded from the section comparator, with the reason.  Two are
+# main-only by the same ruling that exempts them from byte parity; the third is
+# the one place where translation legitimately re-rooted the numbering tree, and
+# an honest INFO beats fourteen per-section entries pretending to be debt.
+CROSS_EDITION_FILE_EXEMPT = {
+    "main/50_playbook/gate_index.md":
+        "main-only（META D4，2026-08-18 裁）；与 DISTRIBUTION_PARITY_EXEMPT 同源",
+    "main/50_playbook/host_g1_optional.md":
+        "main-only（文件自宣不进发行面，2026-08-19）；与 DISTRIBUTION_PARITY_EXEMPT 同源",
+    "main/50_playbook/lesson_recover.md":
+        "Main 在 §五 下混用裸序号与带点序号（`### 2.` 与其子节 `### 2.1` 并列书写），"
+        "英化时整棵子树重挂为全限定 5.x；父子关系无法从编号本身判定，两侧语义等价而编号树不可判",
+}
+
+
+def cross_edition_parity_findings(
+    main_root: Path,
+    edition_root: Path,
+    *,
+    exempt: dict[tuple[str, str], str] | None = None,
+    file_exempt: dict[str, str] | None = None,
+    section_roots: tuple[str, ...] = CROSS_EDITION_SECTION_ROOTS,
+    section_files: tuple[str, ...] = CROSS_EDITION_SECTION_FILES,
+) -> list[tuple[str, str, str]]:
+    """Cross-edition findings: CE-PAR-001 identifier fork / 002 section-number fork
+    / 003 stale-or-dangling exemption / 004 unreadable comparison source
+    / 005 duplicate section number / 000 registered backport debt (INFO)."""
+    if exempt is None:
+        exempt = CROSS_EDITION_EXEMPT
+    if file_exempt is None:
+        file_exempt = CROSS_EDITION_FILE_EXEMPT
+    findings: list[tuple[str, str, str]] = []
+    seen_exempt: set[tuple[str, str]] = set()
+
+    def judge(kind: str, key: str, label: str, in_main: bool, in_edition: bool) -> None:
+        entry = (kind, key)
+        if entry in exempt:
+            seen_exempt.add(entry)
+            if in_main and in_edition:
+                findings.append((
+                    "CE-PAR-003", "WARN",
+                    f"跨版豁免已失效（两侧已一致，应从 CROSS_EDITION_EXEMPT 移除）：{label}",
+                ))
+            else:
+                findings.append(("CE-PAR-000", "INFO", f"已登记回移欠账：{label}"))
+            return
+        if in_main and not in_edition:
+            findings.append((
+                "CE-PAR-00" + ("1" if kind != "section" else "2"), "FAIL",
+                f"英文面缺失（中文面有、{CROSS_EDITION_ENGLISH_NAME} 无）：{label}",
+            ))
+        elif in_edition and not in_main:
+            findings.append((
+                "CE-PAR-00" + ("1" if kind != "section" else "2"), "FAIL",
+                f"英文面多出（中文面无、{CROSS_EDITION_ENGLISH_NAME} 有）：{label}",
+            ))
+
+    main_ids, main_unreadable = cross_edition_identifiers(main_root)
+    edition_ids, edition_unreadable = cross_edition_identifiers(edition_root)
+    for edition_label, sources in (("中文面", main_unreadable), (CROSS_EDITION_ENGLISH_NAME, edition_unreadable)):
+        for source in sources:
+            findings.append((
+                "CE-PAR-004", "FAIL", f"比对源不可读（{edition_label}）：{source}",
+            ))
+    kind_labels = {
+        "doctor_handler": "doctor handler",
+        "doctor_check": "doctor 检查 ID",
+        "profile_check": "profile 检查登记",
+    }
+    for kind, label_prefix in kind_labels.items():
+        mine, theirs = main_ids[kind], edition_ids[kind]
+        for key in sorted(mine | theirs):
+            judge(kind, key, f"{label_prefix} `{key}`", key in mine, key in theirs)
+
+    targets: list[str] = []
+    for root_rel in section_roots:
+        base = main_root / root_rel
+        if base.is_dir():
+            targets.extend(
+                path.relative_to(main_root).as_posix()
+                for path in sorted(base.rglob("*.md"))
+                if path.is_file()
+            )
+    targets.extend(rel for rel in section_files if rel.endswith(".md"))
+    for rel in sorted(dict.fromkeys(targets)):
+        main_file, edition_file = main_root / rel, edition_root / rel
+        if rel in file_exempt:
+            if main_file.is_file() and edition_file.is_file():
+                main_numbers, _ = cross_edition_section_numbers(
+                    main_file.read_text(encoding="utf-8")
+                )
+                edition_numbers, _ = cross_edition_section_numbers(
+                    edition_file.read_text(encoding="utf-8")
+                )
+                if main_numbers == edition_numbers:
+                    findings.append((
+                        "CE-PAR-003", "WARN",
+                        "文件级跨版豁免已失效（编号集合已一致，应移除或改为纳管）："
+                        f"{rel}",
+                    ))
+                    continue
+            findings.append((
+                "CE-PAR-000", "INFO", f"文件级跨版豁免：{rel}——{file_exempt[rel]}",
+            ))
+            continue
+        if not main_file.is_file() or not edition_file.is_file():
+            side = "中文面" if not main_file.is_file() else CROSS_EDITION_ENGLISH_NAME
+            findings.append((
+                "CE-PAR-004", "FAIL", f"分节比对目标缺失（{side} 无此文件）：{rel}",
+            ))
+            continue
+        main_numbers, main_dupes = cross_edition_section_numbers(
+            main_file.read_text(encoding="utf-8")
+        )
+        edition_numbers, edition_dupes = cross_edition_section_numbers(
+            edition_file.read_text(encoding="utf-8")
+        )
+        for edition_label, dupes in (("中文面", main_dupes), (CROSS_EDITION_ENGLISH_NAME, edition_dupes)):
+            if dupes:
+                findings.append((
+                    "CE-PAR-005", "FAIL",
+                    f"节编号重复，分节比对不可判：{rel}（{edition_label}）-> {dupes}",
+                ))
+        for number in sorted(main_numbers | edition_numbers, key=_ce_sort_key):
+            judge(
+                "section", f"{rel}#{number}", f"{rel} §{number}",
+                number in main_numbers, number in edition_numbers,
+            )
+
+    for entry in sorted(set(exempt) - seen_exempt):
+        findings.append((
+            "CE-PAR-003", "WARN",
+            f"跨版豁免悬空（两侧均无此项）：{entry[0]} `{entry[1]}`",
+        ))
+    return findings
+
+
+def _ce_sort_key(number: str) -> tuple[int, ...]:
+    """Sort `4.10` after `4.9`, not before it.  Pure."""
+    return tuple(int(part) for part in number.split(".") if part.isdigit())
+
+
+def cross_edition_peer(root: Path) -> Path | None:
+    """The mounted sibling edition to compare against, or None.  Pure.
+
+    None is the ordinary case for anyone holding a single edition -- a trial user
+    has no peer and never will -- and the caller turns it into silence rather
+    than a finding.  That is what keeps this gate invisible during ordinary use.
+    """
+    for name in CROSS_EDITION_PEERS.get(root.name, ()):
+        candidate = root.parent / name
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def cross_edition_orient(root: Path, peer: Path) -> tuple[Path, Path]:
+    """(Chinese side, English side), whichever side invoked the check.  Pure.
+
+    The exemption table names gaps as "the English edition lacks X", so the two
+    arguments must mean the same thing no matter which repo the run started
+    from.  Without this the same table would read backwards on the English side
+    and every entry would dangle.
+    """
+    if root.name == CROSS_EDITION_ENGLISH_NAME:
+        return peer, root
+    return root, peer
+
+
+def check_cross_edition_parity() -> None:
+    """Release: the translated edition keeps Main's mechanism, identifier by identifier.
+
+    Release rather than runtime, for the same reason as its two neighbours
+    (`t2ag.md` §3.2): a distribution property must never stop the day's teaching.
+
+    Runs from either side.  Unlike check_distribution_parity there is no
+    `FLAVOR != "main"` gate, because the comparison is symmetric: whoever holds
+    both editions should be told, and the orientation is fixed by
+    cross_edition_orient so the exemption table reads the same either way.  What
+    replaces the flavour gate is peer resolution -- with a single edition mounted
+    there is nothing to compare and the check says so once and returns.  That is
+    the ordinary state for anyone using a Skeleton, so this gate costs them
+    exactly one INFO line during a release run and nothing at all while teaching.
+    """
+    peer = cross_edition_peer(ROOT)
+    if peer is None:
+        report("INFO", "cross-edition parity: 未挂载对端版本，跳过跨版比对")
+        return
+    main_root, edition = cross_edition_orient(ROOT, peer)
+    findings = cross_edition_parity_findings(main_root, edition)
+    for _code, severity, message in findings:
+        report(severity, message)
+    if not any(severity == "FAIL" for _code, severity, _message in findings):
+        debt = sum(1 for code, _s, _m in findings if code == "CE-PAR-000")
+        report(
+            "INFO",
+            "cross-edition parity: 标识符与节编号无未登记分叉；"
+            f"{debt} 项已登记回移欠账，{len(CROSS_EDITION_FILE_EXEMPT)} 件文件级豁免",
+        )
+
+
 # Personal identifiers that must never ship inside the open-source Skeleton.
 # The pattern list lives here; the *scope* is the whole repo, which is the point --
 # an identical check already existed inside check_version_and_profile but read only
@@ -6534,6 +7340,81 @@ SKELETON_PRIVACY_EXEMPT = {
 # 撤销；历史条目今后一律脱敏或按版本裁剪，不再整文件豁免。
 
 
+def package_root_prefix(names: list[str]) -> str:
+    """Read the archive's own root directory from its entries. Pure.
+
+    This used to be derived from the *filename*
+    (``archive.stem.split('-0.')[0] + '/'``), which silently breaks whenever a
+    package's internal root differs from what it was named:
+    ``t2ag-skeleton-en-0.2.3-a347bcd.zip`` roots its entries at
+    ``t2ag-skeleton/``, so the computed prefix matched nothing, every
+    ``relative`` kept its full path, and `SKELETON_PRIVACY_EXEMPT` — keyed on
+    repo-relative paths — stopped matching. The visible symptom was one false
+    positive (this file's own pattern literals self-matching, 2026-08-20); the
+    real defect is that **all** path-keyed policy silently degraded for that
+    package. Same `carrier_mismatch` family as P-0067/P-0077: a fact was
+    inferred from a name instead of read from the carrier that holds it.
+
+    Returns "" when entries share no single top-level directory, so a flat
+    archive is scanned with full paths rather than mis-stripped ones.
+    """
+    roots = {name.split("/", 1)[0] for name in names if name.strip()}
+    if len(roots) != 1:
+        return ""
+    root = roots.pop()
+    # A flat archive (files at top level) has no root directory to strip.
+    if not any(name.startswith(f"{root}/") for name in names):
+        return ""
+    return f"{root}/"
+
+
+def manifest_package_drift(archive: Path) -> str:
+    """Cross-check a package against the manifest that claims to describe it. Pure.
+
+    Scope is deliberately one field, `zip_sha256`. The manifests are hand-written
+    with no generator, so a field is only comparable when both sides mean the
+    same thing by it — and they demonstrably do not: `entry_count` reads 197 in
+    the `aff2997` manifest (files only) and 258 in `f27a431` (all entries), same
+    field, same `method` line, same author, seven days apart. Comparing a field
+    with no definition manufactures red lights that cannot be told apart from
+    real drift, and an indistinguishable red light is the P-0077 root cause two
+    (a suite red for a fortnight becomes noise). `zip_sha256` needs no schema to
+    be unambiguous, and it subsumes what the other numeric claims were reaching
+    for: if the bytes match, the counts describe those bytes.
+
+    Pairing reads the manifest's own `package` field rather than matching
+    filenames, because filename-derived facts are exactly the defect this
+    neighbourhood just paid for (see `package_root_prefix`). A check that
+    inferred its pairing from a name would commit the disease it treats.
+
+    Silence when no manifest claims this archive: release manifests are
+    gitignored (user ruling 2026-08-19, "lone manifest is incomplete"), so a
+    clean clone legitimately has none, and a FAIL there would redden every fresh
+    environment. An unreadable manifest is *not* silent — losing coverage
+    quietly is the P-0071 family.
+    """
+    for candidate in sorted(archive.parent.glob("*.manifest.json")):
+        try:
+            claim = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            return f"发行 manifest 不可解析，无法核对其描述的包：{candidate.name} {error}"
+        if not isinstance(claim, dict) or claim.get("package") != archive.name:
+            continue
+        declared = str(claim.get("zip_sha256", ""))
+        if not declared:
+            return f"{candidate.name} 声称描述 {archive.name} 却无 zip_sha256，核对无从进行"
+        actual = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if declared != actual:
+            return (
+                f"发行包与其 manifest 不符：{archive.name} 实测 sha256 {actual[:12]}…，"
+                f"而 {candidate.name} 声明 {declared[:12]}…。"
+                "两者必有一旧——通常是重打包后 manifest 未同步。"
+                "本条只报不一致，不预设哪一方有误：先确认哪个是要发行的包，再对齐另一方。"
+            )
+        return ""
+    return ""
+
+
 def skeleton_package_findings(archive: Path) -> list[str]:
     """Policy findings for one built Skeleton package. Pure; caller reports.
 
@@ -6543,11 +7424,11 @@ def skeleton_package_findings(archive: Path) -> list[str]:
     cleanup bought nothing: a guard narrower than its carrier, the same
     `carrier_mismatch` family the tree scan was built to fix.
     """
-    prefix = f"{archive.stem.split('-0.')[0]}/"
     findings: list[str] = []
     try:
         with zipfile.ZipFile(archive) as bundle:
             names = bundle.namelist()
+            prefix = package_root_prefix(names)
             if any(part in name for name in names for part in ("/.git/", "/__pycache__/", "/.cache/")):
                 # Subsumes the per-file scan: once history ships, every redacted
                 # blob is reachable, so listing each .git file adds noise only.
@@ -6611,7 +7492,10 @@ def check_release_package_surface() -> None:
         findings = skeleton_package_findings(archive)
         for finding in findings:
             report("FAIL", f"{finding}（该包不得对外分发）")
-        if not findings:
+        drift = manifest_package_drift(archive)
+        if drift:
+            report("FAIL", drift)
+        if not findings and not drift:
             clean += 1
     report(
         "INFO",
@@ -7681,6 +8565,7 @@ def execute_doctor_checks(
         "check_playbook_usage": check_playbook_usage,
         "check_domain_tier_reconciliation": check_domain_tier_reconciliation,
         "check_recommendation_ledger": check_recommendation_ledger,
+        "check_gate_visibility": check_gate_visibility,
         "check_playbook_taxonomy_parity": check_playbook_taxonomy_parity,
         "check_candidate_replay_contract": check_candidate_replay_contract,
         "check_tracked_environment": check_tracked_environment,
@@ -7688,6 +8573,7 @@ def execute_doctor_checks(
         "check_skeleton_textbook": check_skeleton_textbook_gate,
         "check_distribution_parity": check_distribution_parity,
         "check_constitution_parity": check_constitution_parity,
+        "check_cross_edition_parity": check_cross_edition_parity,
         "check_skeleton_privacy": check_skeleton_privacy,
         "check_release_package_surface": check_release_package_surface,
         "check_decision_record_citations": check_decision_record_citations,
@@ -7699,6 +8585,7 @@ def execute_doctor_checks(
         "check_activity_ledgers": check_activity_ledgers,
         "check_question_banks": check_question_banks,
         "check_knowledge_ledgers": check_knowledge_ledgers,
+        "check_exam_banks": check_exam_banks,
         "check_project_verification": check_project_verification,
         "check_exercises": check_exercises,
         "check_textbook_preparation": check_textbook_preparation,

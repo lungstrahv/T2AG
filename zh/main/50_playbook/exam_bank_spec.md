@@ -2,9 +2,15 @@
 
 **保护级别**：core-playbook
 
-> **0.2.0 状态：延期设计，未激活。** 跨课程考试系统明确不属于 0.2.0；本文件保留既有设计供后续另案裁决，不在当前目录/schema/doctor 契约中生效，也不得据此创建 `_exam/`。
+> **0.2.3 状态：已激活。** 0.2.0 的「延期设计、不得创建 `_exam/`」封条于 2026-08-21 揭除；
+> `_exam/` 为课程内合法聚合根，§五 的 doctor 检查已实现为 `runtime.exam_banks`。
 >
-> 配套 `main/50_playbook/exam_protocol.md`。本文件只规定题库存储、登记表、题级元数据和考前机械检查。
+> 配套 `main/50_playbook/exam_protocol.md`（协议条款与结算闸）。本文件只规定题库存储、
+> 登记表、题级元数据和考前机械检查——**不持有场次事实与结算结论**，那些归
+> `main/40_course/<COURSE_ID>/_exam/exam_ledger.md`。
+
+enforcement: check=runtime.exam_banks
+model_dependent: unknown
 
 ## 一、目录结构
 
@@ -13,7 +19,8 @@
 
 ```text
 [课程根]/_exam/
-├ index.md
+├ exam_ledger.md   ← 结算真相源（复利回路·衰减实例），归 exam_protocol.md §十三
+├ index.md         ← 池状态真相源（本文件 §二）
 └ papers/
    ├ MIT_18100B_2019F/
    │   ├ paper.pdf
@@ -70,10 +77,24 @@
 
 期末组卷：考核池未用题 → 逐题检查 → 满足 `exam_protocol` 第七节配比约束后随机抽取。
 
-## 五、后续版本拟议 doctor 检查（0.2.0 不执行）
+## 五、doctor 检查（已实现：`runtime.exam_banks`）
 
 | 检查 | 级别 |
 |---|---|
-| 考核池卷的题号引用出现在任何 lesson / practice 文件 | FAIL |
+| 考核池卷的题号引用出现在任何 lesson / exercise 文件 | **FAIL** |
 | `papers/` 下有卷夹但 `index.md` 未登记 | WARN |
 | `meta.md` 缺列或缺解答页码 | WARN |
+
+**空库短路**：`index.md` 登记 0 卷时本检查返回 PASS。空库是「骨架优先」裁决下的合法初态，
+不是故障；把它判成 WARN 会让新课一建就带噪声，噪声多了就没人看 doctor 了。
+
+## 六、与 exam_ledger 的分界
+
+| | `index.md`（本文件） | `exam_ledger.md`（exam_protocol.md §十三） |
+|---|---|---|
+| truth_scope | `exam_pool_state` | `exam_settlement` |
+| 持有 | 卷、池别、已用/已考状态 | 场次、判定、补考轨迹、提醒账 |
+| 回路角色 | 无（纯登记表） | 复利回路·**衰减实例** |
+
+组卷时 ledger 从 index 取题（读），index 不因组卷改写，只在**已考**后改状态列。
+两个文件都不搬 PDF——搬文件会断引用。

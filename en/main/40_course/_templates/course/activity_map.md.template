@@ -3,9 +3,9 @@ type: course_activity_map
 course_id: COURSE_ID
 updated: YYYY-MM-DD
 ---
-# COURSE_ID 教学活动图
+# COURSE_ID teaching activity map
 
-## 内容组连接表
+## Content group map
 
 | content_group_id | source_scope | lesson_ids | exercise_ids |
 |---|---|---|---|

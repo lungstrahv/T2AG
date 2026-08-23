@@ -398,11 +398,12 @@ class CloseRoundTripTests(unittest.TestCase):
         direct_auth, direct_auth_sha = production_authorization(
             plan_path, Path(self.tmp.name) / "production-direct"
         )
-        # 2026-08-09 复审修复：负例必须用一个全局合法但生产不允许的模式
-        # （test/shadow 在 PRODUCTION_APPLY_AUTHORIZATION_MODES 之外）。
-        # 此前负例用全局就不支持的 user_continuous_delegation，且 patch 的是
-        # 已不参与判断的 PRODUCTION_ROOT——生产专属 direct_user 分支即使整个
-        # 失效，这对断言仍可能通过，覆盖是假的。
+        # Fix from the 2026-08-09 re-review: a negative case must use a mode that is globally legal but
+        # disallowed in production (test/shadow sit outside PRODUCTION_APPLY_AUTHORIZATION_MODES).
+        # The previous negative case used user_continuous_delegation, which is not supported globally at
+        # all, and patched PRODUCTION_ROOT, which no longer takes part in the decision -- so even if the
+        # production-only direct_user branch failed entirely, this pair of assertions could still pass.
+        # The coverage was fake.
         test_mode_auth, test_mode_auth_sha = production_authorization(
             plan_path,
             Path(self.tmp.name) / "production-test-mode",

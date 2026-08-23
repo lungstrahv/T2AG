@@ -9,12 +9,12 @@ reviewer: teacher
 status: recorded
 reviewed: YYYY-MM-DD
 ---
-# RVdddd 批改
+# RVdddd grading
 
 ## Udddd-Q001
 
-- 结果：unresolved
-- 思路观察：TEACHER_OBSERVATION
-- 反馈：FEEDBACK
-- mistake_refs：[]
-- question_refs：[]
+- Result: unresolved
+- Reasoning observation: TEACHER_OBSERVATION
+- Feedback: FEEDBACK
+- mistake_refs: []
+- question_refs: []

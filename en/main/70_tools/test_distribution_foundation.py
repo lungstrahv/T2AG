@@ -20,25 +20,10 @@ import t2ag_test as selector
 import validation_control
 
 
-def edition_language(tree: Path) -> str:
-    """Which language edition a distribution tree is, from its constitution.
-
-    LV-5 (2026-08-20): byte parity is asserted *within* a language edition, never
-    across two.  A translated edition is a fourth distribution, and demanding it be
-    byte-identical to the zh-CN one is not a contract anyone can satisfy -- it would
-    make a correctly-built English tree permanently red for the one reason that is
-    intended.  Parity still has teeth: it holds between same-edition siblings, and
-    the marker assertions below hold in every edition.
-    """
-    constitution = tree / "main/t2ag.md"
-    if not constitution.is_file():
-        return "unknown"
-    text = constitution.read_text(encoding="utf-8", errors="replace")
-    if re.search(r"^##\s+Preface\b", text, re.MULTILINE):
-        return "en"
-    if re.search(r"^##\s+序\b", text, re.MULTILINE):
-        return "zh-CN"
-    return "unknown"
+# LV-5: one definition, in doctor, so every sibling-comparison test resolves the
+# edition identically.  See `doctor.edition_language` for why parity is
+# asserted within an edition and never across two.
+edition_language = doctor.edition_language
 
 
 class DistributionFoundationTests(unittest.TestCase):

@@ -1,7 +1,7 @@
-# T2AG 云端同步状态（skeleton 模板）
+# T2AG cloud synchronization state (skeleton template)
 
-> 本文件只保存同步协议元数据，不保存课程进度或教学内容。
-> 课程进度唯一真相源仍是各课程 `progress.md`。
+> This file stores synchronization protocol metadata only; it stores no course progress and no teaching content.
+> The sole source of truth for course progress is still each course's `progress.md`.
 
 - protocol_version: T2AG-CLOUD-1
 - privacy_model: two_scope
@@ -20,28 +20,28 @@
 - last_cloud_handoff_id: —
 - last_cloud_handoff_status: —
 
-## 已处理会话
+## Processed sessions
 
 | session_id | closed_at | course | result | local_record | note |
 |---|---|---|---|---|---|
 
-## 部件变更指令
+## Component change directives
 
 | directive_id | created_at | affected_components | status | send_evidence | note |
 |---|---|---|---|---|---|
 
-## 云端交接
+## Cloud handoffs
 
 | handoff_id | directive_id | produced_at | local_decision | local_verification | note |
 |---|---|---|---|---|---|
 
-## 维护规则
+## Maintenance rules
 
-1. 生成新的 `t2ag_mobile_entry.md` 时，为该本地快照分配唯一 `base_state_id`，同步更新本文件。
-2. 导入云端结课块前，先检索本表和本地课程记录中的 `session_id`，避免重复写回。
-3. 导入完成且 doctor 为 `0 FAIL` 后追加 `synced`；重复块记 `duplicate`；未裁决冲突记 `conflict`。
-4. 自动同步只使用本文件的最小低风险 allowlist；Skeleton 未实例化前不得同步。
-5. 本地部件更新影响云端时，先在 `outbox/` 保存变更指令；没有发送证据不得把状态写成 `sent`。
-6. 云端返回的交接先原样保存到 `inbox/`，经用户讨论后再记录 accepted / partial / rejected；
-   交接本身不得自动修改本地规则。
-7. `ready_to_send` 的正式指令块不可改写；过时或有误时新建指令并声明 supersedes。
+1. When a new `t2ag_mobile_entry.md` is generated, assign that local snapshot a unique `base_state_id` and update this file in step.
+2. Before importing a cloud session-close block, search this table and the local course records for the `session_id`, so nothing is written back twice.
+3. Append `synced` only after the import is complete and doctor reports `0 FAIL`; a duplicate block is recorded as `duplicate`, and an unadjudicated conflict as `conflict`.
+4. Automatic synchronization uses only the minimal low-risk allowlist in this file; nothing may be synchronized before the Skeleton is instantiated.
+5. When a local component update affects the cloud, save the change directive in `outbox/` first; without send evidence the status must never be written as `sent`.
+6. A handoff returned by the cloud is saved verbatim into `inbox/` first, and only after discussion with the user is accepted / partial / rejected recorded;
+   a handoff must never modify a local rule on its own.
+7. A formal directive block at `ready_to_send` is immutable; when it is stale or wrong, create a new directive and declare `supersedes`.

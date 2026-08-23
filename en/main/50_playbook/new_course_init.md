@@ -1,20 +1,20 @@
-# 新课程初始化
+# New course initialization
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-## 前提
+## Preconditions
 
-- 只有用户明确要建课或把候选课程纳入 T2AG 时才创建。
-- 课程目录就是当前实例课程；不创建 Case、Definition/Run 或学生编号包装。
-- 建课不等于加入 active group。容量变更另走组激活/结组流程。
+- Create one only when the user explicitly wants a course built, or a candidate course brought into T2AG.
+- The course directory *is* the current instance's course; no Case, Definition/Run, or student-number wrapper is created.
+- Creating a course is not the same as joining the active group. A capacity change goes through the group activation / group-closing flow separately.
 
-## 目录
+## Directory
 
 ```text
 main/40_course/<COURSE_ID>/
   course.md
   progress.md
-  activity_map.md      # 教材课程首次建立 Lesson/Exercise 时创建
+  activity_map.md      # created when a textbook course first establishes a Lesson/Exercise
   lessons/
   exercises/
   mistake_bank.md
@@ -22,65 +22,87 @@ main/40_course/<COURSE_ID>/
   book/
 ```
 
-结构和字段从 `main/40_course/_templates/course/` 实例化；Core 语义见
-`main/00_core/learning_activity_model.md`。Lesson 与 Exercise 是同级学习活动，模板必须
-随 Skeleton 发行，不能靠当前模型临时回忆重建。
+The structure and fields are instantiated from `main/40_course/_templates/course/`; the Core semantics
+are in `main/00_core/learning_activity_model.md`. Lesson and Exercise are sibling learning activities,
+and the templates must ship with the Skeleton — they must never be rebuilt from the current model's
+recollection.
 
-## 生成入口
+## The generation entry point
 
 ```powershell
-python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称> `
+python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <name> `
   --driver textbook --lifecycle ongoing --entry lesson|exercise --teacher Tddd `
-  --source-scope <范围> --position <停点> --date YYYY-MM-DD
+  --source-language <en|zh-CN|...> `
+  --source-scope <scope> --position <stop> --date YYYY-MM-DD
 ```
 
-教材驱动 + `--entry exercise` 时必须同时给 `--source-document`、`--source-locator`
-与 `--problem-text`，工具才建持久校对题源、登记 artifact 并把 SHA 写进 `problems.md`；
-缺任一项即拒绝生成，不允许用空题源占位。`--lifecycle planned` 必须配 `--entry none`。
+`--source-language` is required and has no default: it is the language of the course's
+own materials, and the T001 §9 terminology discipline reads it to decide which terms
+keep their original form. A wrong value fails silently — the teacher goes on obeying
+the discipline, just against the wrong language — so it is asked once, at creation.
 
-下面的步骤是该命令实现的契约，用于人工复核与反向定位，不是要模型手抄文件。
+With a textbook driver and `--entry exercise`, `--source-document`, `--source-locator`
+and `--problem-text` must all be supplied, so the tool can create the persistent proofread problem
+source, register the artifact, and write the SHA into `problems.md`;
+missing any one of them refuses generation, and an empty problem source may never be used as a
+placeholder. `--lifecycle planned` must be paired with `--entry none`.
 
-## 步骤
+The steps below are the contract that command implements, for human review and reverse lookup; they are
+not an instruction for the model to transcribe files by hand.
 
-1. 按 `naming_conventions.md` 校验稳定课程 ID，确认不存在同 ID 目录。
-2. 创建 `course.md`：
+## Steps
+
+1. Validate the stable course ID per `naming_conventions.md` and confirm no directory with that ID exists.
+2. Create `course.md`:
    - `type: course`
    - `course_id`
-   - `school_course_code`、`name`、`course_type`、`default_driver`、`prerequisites`、
-     `status: active`。这里的 status 只表示课程定义可用；学生 lifecycle 只写 progress。
-   - 教材、教学原则、课程里程碑；不写里程碑当前状态。
-   - 不写当前学生停点。
-3. 创建 `progress.md`：
+   - `school_course_code`, `name`, `course_type`, `default_driver`, `prerequisites`,
+     `status: active`. The status here means only that the course definition is usable; the student
+     lifecycle is written in progress alone.
+   - The textbooks, the teaching principles, and the course milestones; do not write a milestone's
+     current status.
+   - Do not write the student's current stop.
+3. Create `progress.md`:
    - `type: course_progress`
    - `course_id`
-   - `lifecycle_status: planned | ongoing`（全生命周期词表另含 paused/completed/dropped，见 `progress_tracking.md`；新课只从 planned/ongoing 起步）
+   - `lifecycle_status: planned | ongoing` (the full lifecycle vocabulary also includes paused/completed/dropped; see `progress_tracking.md` — a new course starts only from planned/ongoing)
    - `course_driver: textbook | goal | project | praxis`
    - `truth_scope: course_lifecycle,course_frontend,activity_position`
-   - planned 课程只写 `updated`、
-     `progress_nodes_status: lazy_on_activation` 与下一动作；不得预填
-     `current_activity / current_activity_id / resume_path / activity_position`。
-   - ongoing 课程按真实入口创建首个 Lesson 或 Exercise，再原子写入
-     `current_activity: lesson | exercise`、`current_activity_id`、canonical
-     `resume_path`、`activity_position`、completion node、checkpoint 与下一动作；
-     目标必须先存在。Exercise 首启不写 `current_lesson`，状态刷新器的
-     “Lesson 上下文”必须从 ledger/ContentGroup 得到“无 / 无路径”，不得推断或预造
-     `lessons/none/none.md`。
-4. 创建 `activity_ledger.md`，`truth_scope: activity_lifecycle`；新课程从空 ledger 开始，
-   只有真实创建活动时才追加 genesis ALE，不预造 planned 活动。
-5. 创建 question bank V2，状态仅用 `open / answered / closed`；创建 mistake bank。
-6. 用模板创建 `book/`、`lessons/`、`exercises/`；空活动域用 `_README.md` 持久化。
-   - 首次从讲授进入：建立 `lessons/lesson01/lesson01.md`；教材课同时初始化
-     `book/primary/source_assets/`（manifest 模板）与 lesson `preparation/`、`lesson_map` 模板，
-     见 `source_page_assets.md`；页资产走 preparation Snapshot，不使用 legacy 路径。
-   - 首次从做题进入：建立 `exercises/exercise01/exercise.md`、`problems.md` 与空
-     attempts/reviews 说明文件；教材驱动课程还须先在 Course `book/` 内建立持久
-     校对题源并登记 artifact，`problems.md` 写入其路径、定位和 SHA。
-   - 教材课建立 `activity_map.md`，按 ContentGroup 登记已有 Lesson/Exercise；不存在的
-     活动写 `—`，不预造真实活动或证据。
-7. 在 `20_teacher/overlay.md` 唯一的“课程—教师映射”表中增加一行；“教师模板”
-   单元必须精确写成 `` `main/20_teacher/Tddd.md` ``，不得另建速览或从风格文字推断。
-8. 若用户明确分配容量，再更新目标 group 的 plan/calendar；否则保持 unallocated。
-9. 运行：
+   - A planned course writes only `updated`,
+     `progress_nodes_status: lazy_on_activation`, and the next action; it must never pre-fill
+     `current_activity / current_activity_id / resume_path / activity_position`.
+   - An ongoing course creates its first Lesson or Exercise at the real entry point, then writes
+     atomically `current_activity: lesson | exercise`, `current_activity_id`, the canonical
+     `resume_path`, `activity_position`, the completion node, the checkpoint, and the next action;
+     the target must exist first. An Exercise first start does not write `current_lesson`, and the state
+     refresher's
+     "Lesson context" must come out as "none / no path" from the ledger/ContentGroup — it must never be
+     inferred, and `lessons/none/none.md` must never be pre-created.
+4. Create `activity_ledger.md` with `truth_scope: activity_lifecycle`; a new course starts from an empty
+   ledger, and a genesis ALE is appended only when an activity is really created — planned activities are
+   never pre-created.
+5. Create the question bank V2, with statuses limited to `open / answered / closed`; create the mistake
+   bank.
+6. Create `book/`, `lessons/`, and `exercises/` from the templates; an empty activity domain is made
+   persistent with a `_README.md`.
+   - Entering through teaching for the first time: create `lessons/lesson01/lesson01.md`; a textbook
+     course also initializes
+     `book/primary/source_assets/` (the manifest template) plus the lesson's `preparation/` and
+     `lesson_map` templates —
+     see `source_page_assets.md`; page assets go through the preparation Snapshot, never the legacy path.
+   - Entering through exercises for the first time: create `exercises/exercise01/exercise.md`,
+     `problems.md`, and the empty attempts/reviews notes; a textbook-driven course must additionally
+     establish the persistent proofread problem source inside the Course `book/` and register the
+     artifact first, with `problems.md` recording its path, locator, and SHA.
+   - A textbook course creates `activity_map.md` and registers the existing Lessons/Exercises by
+     ContentGroup; an activity that does not exist is written `—`, and a real activity or evidence is
+     never pre-created.
+7. Add one row to the single "Course-to-teacher mapping" table in `20_teacher/overlay.md`; the "Teacher
+   template" cell must be written exactly as `` `main/20_teacher/Tddd.md` `` — never as a separate quick
+   reference, and never inferred from prose about style.
+8. Update the target group's plan/calendar only if the user explicitly allocates capacity; otherwise
+   leave it unallocated.
+9. Run:
 
 ```powershell
 python -B main/70_tools/t2ag_state_refresh.py --write
@@ -88,9 +110,10 @@ python -B main/70_tools/t2ag_state_refresh.py --check
 python -B main/70_tools/t2ag_doctor.py --profile runtime
 ```
 
-## 禁止
+## Forbidden
 
-- 不创建第二份进度节点文件；节点并入 `progress.md`。
-- 不把课程正文或进度塞入 binding。
-- 不把 planned 课程自动加入 active group。
-- 不自动创建 `.venv`、安装依赖或下载教材；需要时先取得用户授权。
+- Do not create a second progress-node file; the nodes belong in `progress.md`.
+- Do not stuff course body text or progress into a binding.
+- Do not add a planned course to the active group automatically.
+- Do not create a `.venv`, install dependencies, or download a textbook automatically; obtain the user's
+  authorization first when they are needed.

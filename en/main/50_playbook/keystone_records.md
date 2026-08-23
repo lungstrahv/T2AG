@@ -1,87 +1,114 @@
-# 承重节点（Keystone）记录形制
+# The Keystone record form
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> 当一场讨论成为后续学习的地基——「没有它后面学不下去」——时触发。
-> 本形制把承重讨论的推理链沉淀为可重审档案；它不验证论证对错（数学裸区无仪器），
-> 只保证推理链**可被未来的强模型逐步重攻**、且说服路径不外泄。
-> 机制出身：2026-08-18 模型选型讨论（MATH1607H 可列集案例）；
-> 安全依据：种子④《档案即武器》2026-08-18 补记（保护不对称）。
+> Triggered when a discussion becomes the foundation of later study — "without it, nothing after it can be learned".
+> This form settles the reasoning chain of a load-bearing discussion into a re-reviewable archive; it does not verify whether an argument is correct (the bare mathematical zone has no instrument),
+> it only guarantees that the reasoning chain **can be re-attacked step by step by a future strong model** and that the persuasion path does not leak.
+> Origin of the mechanism: the 2026-08-18 model-selection discussion (the MATH1607H countable-set case);
+> safety basis: the 2026-08-18 addendum to seed ④ *The Archive Is a Weapon* (protection asymmetry).
 
-enforcement: prose_accepted（理由：论证对错无机器判定手段；失败可见性=keystone 文件「复审状态」停留在「未审」即为可见欠账，由 ledger 晨报与结课评审抓）
+enforcement: prose_accepted (reason: whether an argument is correct has no machine judgement; failure visibility = a keystone file whose "review status" stays "unreviewed" is a visible debt, caught by the ledger morning brief and the end-of-course review)
 
-## 一、定义与入档门槛
+## 1. Definition and the admission threshold
 
-承重节点（keystone）：学生原创推理被模型裁定、且后续材料压在其上的讨论。
-判据只有一条：**没有它，后面学不下去**。
+A keystone: a discussion in which the student's original reasoning was adjudicated by the model and on
+which later material rests.
+There is exactly one criterion: **without it, nothing after it can be learned**.
 
-- 每课上限 3 个。超过即标记通胀，须回头重审哪个不是真承重。
-- 普通难点、精彩讨论、标准证明**不入档**——走 lessons / mistake_bank 既有路线。
+- At most 3 per course. Beyond that, mark it as inflation and go back to re-review which one is not
+  really load-bearing.
+- An ordinary difficulty, a brilliant discussion, or a standard proof **is not admitted** — those go
+  through the existing lessons / mistake_bank routes.
 
-## 二、位置与命名
+## 2. Location and naming
 
 ```text
 40_course/<COURSE_ID>/keystones/
-  _index.md          # 一行一节点：ID｜断言一句话｜复审状态
+  _index.md          # one line per node: ID | the claim in one sentence | review status
   K-01_<slug>.md
 ```
 
-**不建跨课程总库、不进全局索引**——刻意压指针密度（种子④：该管的是指针密度，
-删记录不降风险，降索引才降）。
+**No cross-course master library and no entry in the global index** — pointer density is deliberately
+suppressed (seed ④: what needs governing is pointer density; deleting records does not lower the risk,
+lowering the index does).
 
-## 三、文件骨架（四项，缺一即不完整）
+## 3. The file skeleton (four items; missing any one leaves it incomplete)
 
-1. **断言**：这个节点立住了什么，一段话。
-2. **编号推理链**：逐步「断言＋理由」，不写叙事散文。目的：未来模型可以指着
-   第 N 步说「这里有洞」，而不是对一团散文说「大体没问题」。
-3. **承重清单**：哪些后续材料压在它上面（课程内指针即可，不外链）。
-4. **复审状态**：`未审` ｜ `已重攻（模型/日期/结论）` ｜ `发现洞（编号步＋描述）`。
-   洞是否升级为 problemlog 条目由学生裁，本形制不自动接线。
+1. **The claim**: what this node establishes, in one paragraph.
+2. **The numbered reasoning chain**: step by step, "claim + reason", never narrative prose. The purpose:
+   a future model can point at step N and say "there is a hole here", instead of saying "broadly fine"
+   to a lump of prose.
+3. **The load-bearing list**: which later material rests on it (an in-course pointer is enough; no
+   external links).
+4. **The review status**: `unreviewed` | `re-attacked (model / date / conclusion)` | `hole found
+   (numbered step + description)`.
+   Whether a hole is escalated into a problem-log entry is the student's adjudication; this form does
+   not wire it up automatically.
 
-## 四、两层拆分（安全纪律，硬约束）
+## 4. The two-layer split (a safety discipline, hard constraint)
 
-- **逻辑链层**（上述四项）：公共论证，无个人信息，入 repo，可喂任何模型重审。
-- **说服路径层**（我当时卡在哪、哪一步松动了直觉、什么论证形式对我有效）：
-  **不入 repo、不入任何模型上下文**，归枪柜层（托管威胁模型 2026-08-14）。
-  repo 文件内至多写一行 `枪柜件：有/无`，不得出现内容。
+- **The logic-chain layer** (the four items above): a public argument with no personal information; it
+  enters the repo and may be fed to any model for re-review.
+- **The persuasion-path layer** (where I was stuck, which step loosened my intuition, what form of
+  argument works on me):
+  **it does not enter the repo and does not enter any model's context**; it belongs to the gun-cabinet
+  layer (the custody threat model, 2026-08-14).
+  A repo file may carry at most one line, `gun-cabinet item: yes/no`, and never the content.
 
-理由：推理链同时是学习载体和攻击面。说服路径是一张「此人如何被改变」的操纵地图——
-教学上最值得记的，正是操纵上最锋利的（种子④补记：结论泄露暴露你信什么，
-推理链泄露暴露你怎样被改变）。重攻第 N 步不需要知道第 N 步是不是学生的软肋，
-故逻辑链层单独存在即足以支撑复审。
+Reason: a reasoning chain is a learning carrier and an attack surface at the same time. A persuasion
+path is a map of "how this person can be changed" — what is most worth recording pedagogically is
+exactly what is sharpest for manipulation (the seed ④ addendum: leaking a conclusion exposes what you
+believe; leaking the reasoning chain exposes how you can be changed). Re-attacking step N does not
+require knowing whether step N was the student's soft spot, so the logic-chain layer standing alone is
+enough to support a re-review.
 
-## 五、生成与复审纪律
+## 5. Generation and re-review discipline
 
-- **模型起草、学生逐步确认**「这确实是我当时的路径」。确认步不可省：模型代写
-  容易滑成教科书标准证明，恰恰丢掉承重的那部分。
-- 承重讨论选模型的判据=**裁定力×推理链展开度**（愿意逐步具体、低比喻密度），
-  不是单纯最强。思维压缩成抽象比喻的模型把展开成本转嫁给学生，而学生在陌生领域
-  正是最付不起这笔账的一方（2026-08-18 实证：可列集讨论用 GPT-5.6 Sol xhigh
-  而非 Opus，因后者压缩产物抬高沟通成本）。承重讨论时长近乎无上限，
-  强模型承担的是开销大头——「低频故便宜」不成立。
-- **收敛判据（无上限时间预算的止损线）**：编号推理链写得下来、且逐步被学生确认，
-  讨论即收敛；链不再增长还在继续说，就是在绕圈。
-- 复审=另一会话对编号链**逐步对抗性重攻**，不是复述结论。一次讨论内达成的共识
-  可能是共谋出来的；第二遍换姿势专找「最可能被将错就错的一步」。
-  建议**跨模型族**（讨论用谁家，重攻换一家）：盲区不相关，且压缩习惯在攻击模式
-  下无害——指着第 N 步说话不需要展开全链。
+- **The model drafts and the student confirms step by step** that "this really was my path at the time".
+  The confirmation step may never be skipped: a model writing it alone slides easily into the textbook
+  standard proof, which loses precisely the load-bearing part.
+- The criterion for choosing a model for a load-bearing discussion is **adjudicative force × how far it
+  unfolds a reasoning chain** (willing to be concrete step by step, low metaphor density), not simply
+  the strongest. A model that compresses thought into abstract metaphor shifts the unfolding cost onto
+  the student, and in an unfamiliar field the student is exactly the party who can least afford that
+  bill (measured 2026-08-18: the countable-set discussion used GPT-5.6 Sol xhigh rather than Opus,
+  because the latter's compressed output raised the communication cost). A load-bearing discussion has
+  almost no time ceiling, and the strong model carries the bulk of the cost — "it is rare, so it is
+  cheap" does not hold.
+- **The convergence criterion (the stop-loss line when the time budget has no ceiling)**: once the
+  numbered reasoning chain can be written down and each step is confirmed by the student, the
+  discussion has converged; talking on while the chain no longer grows is going in circles.
+- A re-review is **an adversarial step-by-step re-attack** on the numbered chain in a different session,
+  not a restatement of the conclusion. A consensus reached inside one discussion may have been
+  collusive; the second pass changes stance and hunts specifically for "the step most likely to have
+  been let slide". A **different model family** is recommended (whoever was used for the discussion,
+  switch vendor for the re-attack): the blind spots are uncorrelated, and a compression habit is
+  harmless in attack mode — pointing at step N does not require unfolding the whole chain.
 
-## 六、回填程序（从历史讨论提取链）
+## 6. The backfill procedure (extracting a chain from a historical discussion)
 
-适用：承重讨论发生在过去、原始记录在对话日志里（首例 K-01）。
+Applies when the load-bearing discussion happened in the past and the original record is in a
+conversation log (the first case, K-01).
 
-1. **取料**：导出原讨论记录，裁掉与节点无关的部分，不必全量。
-2. **起草**：任一会话喂入记录，指令＝「提取学生实际走过的推理路径，写成编号步骤，
-   每步断言＋理由；按当时被说服的顺序，不是教科书标准证明」。起草是整理活，
-   模型不必强；它仍会向教科书滑，靠下一步治。
-3. **逐条确认**：学生每步自问「我当时真是这么接受的吗」，不是就改到是为止。
-   **此步不可代理**。途中浮现的说服路径内容（卡点、松动处）按 §四 入枪柜，
-   不进文件，文件只记 `枪柜件：有/无`。
-4. **落盘**：四项骨架齐 → `K-NN_<slug>.md`，`_index.md` 同步一行，
-   复审状态＝`未审`。复审另日、另会话、跨模型族（§五），不与回填同天。
+1. **Gather**: export the original discussion record and cut away the parts unrelated to the node; the
+   whole thing is not required.
+2. **Draft**: feed the record into any session, with the instruction "extract the reasoning path the
+   student actually walked, write it as numbered steps, each with a claim and a reason; in the order in
+   which they were persuaded at the time, not as a textbook standard proof". Drafting is tidying work
+   and the model need not be strong; it will still slide toward the textbook, which the next step cures.
+3. **Confirm item by item**: for each step, the student asks "is this really how I accepted it at the
+   time", and if not, edits until it is.
+   **This step cannot be delegated.** Persuasion-path content surfacing along the way (sticking points,
+   loosening) goes into the gun cabinet per §4, not into the file; the file records only
+   `gun-cabinet item: yes/no`.
+4. **Land it**: with all four skeleton items present → `K-NN_<slug>.md`, with a matching line in
+   `_index.md`, and a review status of `unreviewed`. The re-review happens on another day, in another
+   session, across model families (§5), never on the same day as the backfill.
 
-## 七、边界（不是遗漏，是决定）
+## 7. Boundaries (a decision, not an oversight)
 
-- 不配 doctor 检查、不配新门：数学裸区无仪器，假保障比没有保障毒（P-0067 家族）。
-- 不改 course.md schema、不动既有扫描门。
-- 本形制只管记录形状，不管承重讨论本身怎么进行。
+- No doctor check and no new gate: the bare mathematical zone has no instrument, and a false guarantee
+  is more toxic than no guarantee (the P-0067 family).
+- Does not change the course.md schema and does not touch the existing scan gates.
+- This form governs only the shape of the record, not how a load-bearing discussion is conducted.

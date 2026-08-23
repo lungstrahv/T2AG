@@ -363,6 +363,13 @@
         "runtime.structure"
       ]
     },
+    "release.cross_edition_parity": {
+      "phase": "release",
+      "handler": "check_cross_edition_parity",
+      "depends_on": [
+        "runtime.structure"
+      ]
+    },
     "release.line_endings": {
       "phase": "release",
       "handler": "check_release_line_endings",
@@ -476,6 +483,7 @@
         "release.skeleton_textbook",
         "release.package_surface",
         "release.distribution_parity",
+        "release.cross_edition_parity",
         "release.line_endings"
       ]
     }

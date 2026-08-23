@@ -31,8 +31,13 @@ main/40_course/<COURSE_ID>/
 ```powershell
 python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称> `
   --driver textbook --lifecycle ongoing --entry lesson|exercise --teacher Tddd `
+  --source-language <en|zh-CN|...> `
   --source-scope <范围> --position <停点> --date YYYY-MM-DD
 ```
+
+`--source-language` **必填、无默认**：它是本课程自身材料的语言（现存课程 en 与 zh-CN
+各半），T001 §9 术语纪律读它来决定哪些术语必须保留原词。取错是**静默失败**——教师照常
+执行纪律，只是对着错的语言执行。所以在建课时问一次，比事后发现整门课标错便宜。
 
 教材驱动 + `--entry exercise` 时必须同时给 `--source-document`、`--source-locator`
 与 `--problem-text`，工具才建持久校对题源、登记 artifact 并把 SHA 写进 `problems.md`；

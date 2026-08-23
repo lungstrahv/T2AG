@@ -650,10 +650,22 @@ class CriticalPacketTests(unittest.TestCase):
             },
         )
 
-    def test_background_snapshot_matches_and_mismatch_is_rejected(self) -> None:
+    def test_background_snapshot_matches_critical(self) -> None:
+        """两 builder 同快照；lesson 分支的消费面断言随之。
+
+        2026-08-22 拆分自 `test_background_snapshot_matches_and_mismatch_is_rejected`。
+        原测试把「快照一致」与「快照错配被拒」两件无关的事捆在一起，并且无守卫地读
+        `background["route"]`——未初始化实例的 background 包按设计没有 `route`
+        （见 `render_markdown` 的 first-run 注释），于是在空 Skeleton 上 KeyError。
+        直接在原测试开头 skipTest 会把下半段「错配必须被拒」一起跳掉，而那半段在空实例上
+        完全有效，等于把一次响亮的崩溃换成一次静默的覆盖面丢失——同族缺陷换个样子。
+        故拆为两条：本条按本文件既有惯例守卫，另一条无条件跑。
+        """
         critical = context.build_critical_packet(context.ROOT)
         background = context.build_packet(context.ROOT)
         self.assertEqual(critical["snapshot_id"], background["snapshot_id"])
+        if background.get("status") == "first_run_required":
+            self.skipTest("uninitialized instance")
         if background["route"]["current_activity"] == "lesson":
             consumption = background["source_consumption"]
             if consumption["required"]:
@@ -669,6 +681,9 @@ class CriticalPacketTests(unittest.TestCase):
                     consumption["current_pdf_page_index"],
                     consumption["pdf_page_indices"],
                 )
+
+    def test_snapshot_mismatch_is_rejected(self) -> None:
+        """错配快照必须被拒——空实例上同样有效，故不设守卫。"""
         tool = context.ROOT / "main/70_tools/t2ag_context.py"
         result = subprocess.run(
             [
@@ -686,6 +701,54 @@ class CriticalPacketTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("snapshot mismatch", result.stdout)
+
+    def test_first_run_packet_shape_is_deliberately_special(self) -> None:
+        """first-run 包**没有** route/cost/l1_empty_reason，这是特性不是疏漏。
+
+        `status: first_run_required` 就是「本包形状不同，消费方必须分支」的信号，缺键让
+        忘记分支的消费方当场 KeyError——fail-fast。2026-08-22 曾提议「顺手补齐三个空值键
+        让形状统一」，当场被否：补齐会把特例伪装成常规包，忘记检查 status 的消费方将不再
+        崩溃，而是安静渲染出一堂空课，等于拿一次响亮的崩溃换一次静默的错误输出。本条把
+        `render_markdown` 里那段注释升为可执行断言，正是为了挡住这类「好心补齐」。
+
+        两个 builder 在 first-run 下形状不同也是职责决定的：critical 是路由包，任何状态
+        都有 route（此处 route 指向首启）；background 是选材包，没课时无从选起。
+
+        用 mock 强制 first-run 分支而非依赖「恰好跑在未初始化实例上」：Main 永远不可能是
+        空实例，这条路径此前只有两个 Skeleton 能跑到，而空实例正是每个新用户的起点。
+        """
+        with mock.patch.object(context, "initialized", return_value=False):
+            background = context.build_packet(context.ROOT)
+            critical = context.build_critical_packet(context.ROOT)
+        self.assertEqual(background["status"], "first_run_required")
+        self.assertEqual(critical["status"], "first_run_required")
+        for absent in ("route", "cost", "l1_empty_reason"):
+            self.assertNotIn(
+                absent,
+                background,
+                msg=f"first-run background 包不得携带 {absent!r}；"
+                "补齐会让忘记分支的消费方静默通过（2026-08-22 裁）",
+            )
+        self.assertIn("next_action", background)
+        self.assertIn("route", critical)
+        self.assertEqual(critical["route"]["activity_position"], "first_run")
+        self.assertEqual(critical["route"]["next_action_kind"], "first_run")
+        self.assertEqual(background["snapshot_id"], critical["snapshot_id"])
+        self.assertTrue(background["snapshot_id"].startswith("CTX-FIRST-RUN-"))
+
+    def test_first_run_render_survives_include_l1(self) -> None:
+        """空实例上 `--include-l1` 的 markdown 渲染不得崩。
+
+        `render_markdown` 的 first-run 提前 return 是上一次事故买来的：曾经落到下方 L1
+        分支，而那里无条件读 `l1_empty_reason`，于是文档写明的空骨架快速开始命令
+        `t2ag_context.py --include-l1 --format markdown` 以 KeyError 收场。修复至今
+        **零测试**保护——一条只靠注释守着的不变量，正是本仓反复付费的那一族。趁绿钉住。
+        """
+        with mock.patch.object(context, "initialized", return_value=False):
+            packet = context.build_packet(context.ROOT)
+            text = context.render_markdown(packet, include_l1=True)
+        self.assertIn("first_run_required", text)
+        self.assertIn(packet["snapshot_id"], text)
 
     def test_exercise_statement_stops_before_hint(self) -> None:
         problem = (
@@ -1336,6 +1399,11 @@ class OptionalL0ComponentTests(unittest.TestCase):
 
     def test_packet_reports_both_accounts_and_component_table(self) -> None:
         packet = context.build_packet(context.ROOT)
+        if packet.get("status") == "first_run_required":
+            # 与 test_background_snapshot_matches_critical 同因（2026-08-22）：
+            # 空实例的 background 包按设计无 `cost`。Main 永远不是空实例，所以这条
+            # 只在两个 Skeleton 上会命中，而此前没人在 Skeleton 上跑过本文件。
+            self.skipTest("uninitialized instance")
         cost = packet["cost"]
         self.assertGreater(cost["serialized_l0_markdown_bytes"], 0)
         self.assertGreater(

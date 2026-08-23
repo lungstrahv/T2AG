@@ -1,4 +1,4 @@
-# Engagement 空模板域
+# The Engagement empty template domain
 
-首次启动不得自动生成真实 Engagement。只有用户明确建立现实实践项目时，
-才创建 `EG-*` 目录与 `engagement.md`。
+First run must never generate a real Engagement automatically. An `EG-*` directory and its
+`engagement.md` are created only when the user explicitly establishes a real-world practice project.

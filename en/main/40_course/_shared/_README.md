@@ -1,3 +1,4 @@
 # Course shared resources
 
-空 Skeleton 只保留共享资源索引模板；不得预装教材或实例资源。
+An empty Skeleton keeps only the shared-resource index template; a textbook or an instance resource must
+never be pre-installed.

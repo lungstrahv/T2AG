@@ -4,19 +4,20 @@
 
 next_id: P-0001
 
-# T2AG 系统问题台账（空模板）
+# The T2AG system problem ledger (empty template)
 
-Skeleton 不携带 Main 的学生、课程、机器路径或历史故障实例。首次发生真实的
-系统/流程问题后，按 `main/50_playbook/problemlog_maintenance.md` 创建 `P-0001`。
+The Skeleton carries none of Main's students, courses, machine paths, or historical fault instances. After the
+first real system/process problem occurs, create `P-0001` per
+`main/50_playbook/problemlog_maintenance.md`.
 
-每条至少包含：
+Each entry contains at least:
 
 - `tags`
 - `playbook_status`
 - `occurrence_count`
 - `reopen_count`
-- 现象
-- 归因
-- 处置
-- 判例价值
-- 状态
+- Phenomenon
+- Attribution
+- Handling
+- Precedent value
+- Status

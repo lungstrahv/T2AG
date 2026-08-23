@@ -4,39 +4,41 @@ group_id: GROUP_ID
 status: planned
 updated: YYYY-MM-DD
 ---
-# GROUP_ID 复盘
+# GROUP_ID review
 
-> 这里只记录组合层运行证据。单课掌握度和停点仍归各课程 `progress.md`。
-> planned 组保留本文件但不写完成记录；转 active 后按循环追加。
+> Only combination-level operating evidence is recorded here. A single course's mastery and stopping point
+> still belong to that course's `progress.md`.
+> A planned group keeps this file but writes no completion record; once it turns active, entries are
+> appended per cycle.
 
-## 循环记录模板
+## Cycle record template
 
 ```markdown
-### 第 N 循环（收尾日：YYYY-MM-DD）
-1. 频率红线：各成员实际次数（达标？）
-2. 时间偏差：本循环预算 Xh，实际 Xh，偏差原因一句话
-3. 启动失败天数：X 天（哪天、卡在哪个入口）
-4. 成员互养：有 / 无；证据
-5. 本循环调整：每次最多改一处运行参数
+### Cycle N (closing day: YYYY-MM-DD)
+1. Frequency red line: each member's actual count (met?)
+2. Time deviation: budget Xh this cycle, actual Xh, one line on why
+3. Days that failed to start: X days (which day, stuck at which entry point)
+4. Members feeding each other: yes / no; evidence
+5. This cycle's adjustment: at most one runtime parameter changed each time
 ```
 
-## 组级评估
+## Group-level evaluation
 
-卷面考核按 `main/50_playbook/exam_protocol.md` 执行。
+The written examination runs per `main/50_playbook/exam_protocol.md`.
 
-| 维度 | 大调整窗口记录 | 期末 |
+| Dimension | Major-adjustment window record | End of term |
 |---|---|---|
-| 各成员容量目标达成率 | | |
-| 频率红线遵守率 | | |
-| 时间预算总偏差 | | |
-| 启动失败总天数 | | |
-| 暂存疑问销账率 | | |
-| 欠债处置：结清 / 顺延 / 用户豁免 | | |
-| 下一课程组建议 | | |
+| each member's capacity-goal attainment rate | | |
+| frequency red-line compliance rate | | |
+| total time-budget deviation | | |
+| total days that failed to start | | |
+| clearance rate of parked questions | | |
+| debt handling: settled / carried over / waived by the user | | |
+| recommendation for the next course group | | |
 
-## 结组证据
+## Closing evidence
 
-- [ ] 每个课程成员的出口复测证据
-- [ ] 每个非课程成员的交付或评估证据
-- [ ] 所有欠债有明确处置
-- [ ] 用户明确确认结组与下一组
+- [ ] exit retest evidence for every course member
+- [ ] delivery or assessment evidence for every non-course member
+- [ ] every debt has an explicit disposition
+- [ ] the user has explicitly confirmed closing this group and starting the next

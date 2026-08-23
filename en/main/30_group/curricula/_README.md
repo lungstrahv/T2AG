@@ -1,4 +1,5 @@
-# 课程组课程框架模板域
+# The course-group curriculum framework template domain
 
-本目录在 Skeleton 中只保留结构契约。首次启动完成学生与课程初始化后，
-再按实际需要创建课程框架；空模板不得预建真实 `G01`、`G02` 或实例数据。
+In the Skeleton this directory holds the structural contract only. After first run has completed the
+student and course initialization, create a curriculum framework as actually needed; an empty template
+must never pre-create a real `G01`, `G02`, or any instance data.

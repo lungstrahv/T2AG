@@ -362,11 +362,13 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"  - {note}")
     print(
         "\n下一步（本工具不代跑，也不代替课程与课程组的用户确认）：\n"
-        "  1. python -B main/70_tools/t2ag_init.py new-course ...   # first_run.md §5\n"
-        "  2. python -B main/70_tools/t2ag_init.py new-group ...    # first_run.md §6\n"
-        "  3. python -B main/70_tools/t2ag_state_refresh.py --write\n"
-        "  4. python -B main/70_tools/t2ag_state_refresh.py --check\n"
-        "  5. python -B main/70_tools/t2ag_doctor.py --profile runtime"
+        "  1. python -B main/70_tools/t2ag_init.py new-course ...      # first_run.md §5\n"
+        "  2. python -B main/70_tools/t2ag_init.py new-group ...       # first_run.md §6（只生 planned）\n"
+        "  3. 建组仪式（议容量参数；progress 组另需写真实碑行）\n"
+        "  4. python -B main/70_tools/t2ag_init.py activate-group ...  # 公证激活\n"
+        "  5. python -B main/70_tools/t2ag_state_refresh.py --write\n"
+        "  6. python -B main/70_tools/t2ag_state_refresh.py --check\n"
+        "  7. python -B main/70_tools/t2ag_doctor.py --profile runtime"
     )
     return 0
 
@@ -504,6 +506,7 @@ def cmd_new_course(args: argparse.Namespace) -> int:
         "COURSE_DRIVER": args.driver,
         "CONTENT_GROUP_ID": content_group,
         "SOURCE_SCOPE": args.source_scope,
+        "SOURCE_LANGUAGE": args.source_language,
         "YYYY-MM-DD": args.date,
     }
     created: list[str] = []
@@ -736,7 +739,36 @@ def cmd_new_course(args: argparse.Namespace) -> int:
     return 0
 
 
+def drop_keystone_sections(plan: str) -> str:
+    """Remove §主干碑序列 and §碑变更台账 from a schedule-mode plan.
+
+    The template instructs schedule groups to delete both sections (the keystone
+    ledger is a progress-container instrument; schedule groups bound scope by
+    deadline instead, course_group_rules.md §4.3). Leaving template keystone rows
+    in a schedule plan would be dead prose at best and a fake anchor surface at
+    worst, so the generator applies the template's own instruction.
+    """
+    match = re.search(r"^#+\s.*主干碑序列.*$", plan, flags=re.MULTILINE)
+    if not match:
+        return plan
+    ledger = re.search(r"^#+\s.*碑变更台账.*$", plan, flags=re.MULTILINE)
+    scan_from = ledger.end() if ledger and ledger.start() > match.start() else match.end()
+    nxt = re.search(r"^#+\s", plan[scan_from:], flags=re.MULTILINE)
+    end = scan_from + nxt.start() if nxt else len(plan)
+    return plan[: match.start()] + plan[end:]
+
+
 def cmd_new_group(args: argparse.Namespace) -> int:
+    """Create a Group — always planned, never active.
+
+    Birth and activation are deliberately separate commands (user ruling
+    2026-08-22). `active` is post-ritual state: for a progress group it implies
+    a keystone anchor, and the anchor is the receipt of a judgment
+    (per-keystone confirmation at the 建组仪式) that no flag can substitute
+    for. A command that births `active` produces the state without the
+    evidence — exactly the P-0077/P-0078 family. Activation lives in
+    `activate-group`, which refuses to run until the evidence is on disk.
+    """
     root = require_root(Path(args.root))
     if not GROUP_ID_RE.match(args.group_id):
         raise fail(f"group_id 必须形如 G01：{args.group_id}")
@@ -751,43 +783,12 @@ def cmd_new_group(args: argparse.Namespace) -> int:
     for course_id in members:
         if not (root / f"main/40_course/{course_id}/progress.md").is_file():
             raise fail(f"成员课程不存在：{course_id}")
-    if args.status == "active":
-        existing = [
-            path.parent.name
-            for path in (root / "main/30_group").glob("G*/plan.md")
-            if re.search(r"^status:\s*active\s*$", read_text(path), re.MULTILINE)
-        ]
-        if existing:
-            raise fail(f"已有 active 课程组，拒绝创建第二个：{existing}")
-        for course_id in members:
-            lifecycle = re.search(
-                r"^lifecycle_status:\s*(\S+)\s*$",
-                read_text(root / f"main/40_course/{course_id}/progress.md"),
-                re.MULTILINE,
-            )
-            if lifecycle and lifecycle.group(1) in {"planned", "completed", "dropped"}:
-                raise fail(
-                    f"active 课程组不得包含 {lifecycle.group(1)} 课程：{course_id}"
-                )
-
-    current_course = args.current_course or (members[0] if len(members) == 1 else "")
-    if args.status == "active":
-        if not current_course:
-            raise fail(
-                "多成员 active 课程组必须由用户指定当前前台课程：--current-course"
-            )
-        if current_course not in members:
-            raise fail(f"--current-course 不在成员中：{current_course}")
-    elif args.current_course:
-        raise fail("planned 课程组不得预设当前前台课程")
-    else:
-        current_course = "none"
 
     templates = root / GROUP_TEMPLATES
     mapping = {
         "GROUP_ID": args.group_id,
         "COURSE_ID": members[0],
-        "CURRENT_COURSE": current_course,
+        "CURRENT_COURSE": "none",
         "CYCLE_SHAPE": args.cycle,
         "YYYY-MM-DD": args.date,
     }
@@ -800,17 +801,179 @@ def cmd_new_group(args: argparse.Namespace) -> int:
         materialize(templates, relative, group / target, mapping)
 
     plan = read_text(group / "plan.md")
-    plan = replace_field(plan, "status", args.status)
     plan = replace_field(plan, "course_members", "[" + ", ".join(members) + "]")
+    plan = replace_field(plan, "container_mode", args.container_mode)
+    if args.container_mode == "schedule":
+        plan = drop_keystone_sections(plan)
     write_text(group / "plan.md", plan, allow_overwrite=True)
-    for name in ("calendar.md", "review.md"):
-        path = group / name
-        status = args.status if name == "calendar.md" else (
-            "open" if args.status == "active" else "planned"
-        )
-        write_text(path, replace_field(read_text(path), "status", status), allow_overwrite=True)
+    calendar = read_text(group / "calendar.md")
+    calendar = replace_field(calendar, "container_mode", args.container_mode)
+    write_text(group / "calendar.md", calendar, allow_overwrite=True)
 
-    print(f"[OK] group {args.group_id} generated ({args.status}), members={members}")
+    print(
+        f"[OK] group {args.group_id} generated (planned, {args.container_mode}), "
+        f"members={members}"
+    )
+    print(
+        "\n下一步：\n"
+        "  1. 建组仪式：与用户议定容量参数（calendar.md 三处 TBD）"
+        + (
+            "，并把 plan.md「主干碑序列」的模板行替换为逐碑确认后的真实碑行\n"
+            if args.container_mode == "progress"
+            else "\n"
+        )
+        + "  2. python -B main/70_tools/t2ag_init.py activate-group --group-id "
+        f"{args.group_id} --date YYYY-MM-DD\n"
+        "  3. python -B main/70_tools/t2ag_state_refresh.py --write\n"
+        "  4. python -B main/70_tools/t2ag_doctor.py --profile runtime"
+    )
+    return 0
+
+
+# Template keystone rows are placeholders, not evidence. `- K01 碑描述` passing
+# for a confirmed keystone would recreate the exact hole activation exists to
+# close, so the notary refuses any row still carrying the template description.
+TEMPLATE_KEYSTONE_RE = re.compile(r"^-\s+K\d+\s+碑描述", re.MULTILINE)
+KEYSTONE_ROW_RE = re.compile(r"^-\s+K\d+\b", re.MULTILINE)
+
+
+def plan_section(text: str, title: str) -> str:
+    """Extract a section body by heading keyword — mirrors doctor's parser.
+
+    Keeping the two parsers shape-identical matters: if activation counted
+    keystones one way and reconciliation another, the anchor would be wrong the
+    moment it was notarized.
+    """
+    match = re.search(rf"^#+\s.*{title}.*$", text, flags=re.MULTILINE)
+    if not match:
+        return ""
+    rest = text[match.end():]
+    nxt = re.search(r"^#+\s", rest, flags=re.MULTILINE)
+    return rest[: nxt.start()] if nxt else rest
+
+
+def cmd_activate_group(args: argparse.Namespace) -> int:
+    """建组仪式收尾：planned → active，公证而非代判。
+
+    The judgment (which keystones, which capacity parameters) happens in the
+    files, by the user, before this command runs. The command only checks that
+    the evidence exists — real keystone rows, eligible member courses, a single
+    active group — then notarizes it: counts the rows, writes
+    `keystone_total_frozen`, flips the status. It can verify form, not thought;
+    that boundary is the system's own (裁决在人，机器只判走没走门，§4.3).
+    """
+    root = require_root(Path(args.root))
+    if not DATE_RE.match(args.date):
+        raise fail("--date 必须是 YYYY-MM-DD")
+    group = root / f"main/30_group/{args.group_id}"
+    plan_path = group / "plan.md"
+    if not plan_path.is_file():
+        raise fail(f"课程组不存在：{plan_path}")
+    plan = read_text(plan_path)
+
+    status = re.search(r"^status:\s*(\S+)\s*$", plan, re.MULTILINE)
+    if not status or status.group(1) != "planned":
+        raise fail(
+            f"只有 planned 组可以激活；{args.group_id} 当前 status="
+            f"{status.group(1) if status else '缺失'}"
+        )
+    existing = [
+        path.parent.name
+        for path in (root / "main/30_group").glob("G*/plan.md")
+        if re.search(r"^status:\s*active\s*$", read_text(path), re.MULTILINE)
+    ]
+    if existing:
+        raise fail(f"已有 active 课程组，拒绝激活第二个：{existing}")
+
+    mode = re.search(r"^container_mode:\s*(\S+)\s*$", plan, re.MULTILINE)
+    if not mode or mode.group(1) not in {"progress", "schedule"}:
+        raise fail(
+            f"container_mode 非法或缺失：{mode.group(1) if mode else '缺失'}"
+            "（合法值 progress/schedule，没有容器不是模式）"
+        )
+    container_mode = mode.group(1)
+
+    members_match = re.search(r"^course_members:\s*\[(.*)\]\s*$", plan, re.MULTILINE)
+    members = [
+        item.strip() for item in (members_match.group(1) if members_match else "").split(",")
+        if item.strip()
+    ]
+    if not members:
+        raise fail("课程组无课程成员，无法激活")
+    for course_id in members:
+        progress = root / f"main/40_course/{course_id}/progress.md"
+        if not progress.is_file():
+            raise fail(f"成员课程不存在：{course_id}")
+        lifecycle = re.search(
+            r"^lifecycle_status:\s*(\S+)\s*$", read_text(progress), re.MULTILINE
+        )
+        if lifecycle and lifecycle.group(1) in {"planned", "completed", "dropped"}:
+            raise fail(
+                f"active 课程组不得包含 {lifecycle.group(1)} 课程：{course_id}"
+                "（planned 课程须经用户确认转 ongoing 后再激活组）"
+            )
+
+    current_course = args.current_course or (members[0] if len(members) == 1 else "")
+    if not current_course:
+        raise fail("多成员课程组必须由用户指定当前前台课程：--current-course")
+    if current_course not in members:
+        raise fail(f"--current-course 不在成员中：{current_course}")
+
+    if container_mode == "progress":
+        if re.search(r"^keystone_total_frozen:", plan, re.MULTILINE):
+            raise fail(
+                "planned 组不应已有 keystone_total_frozen（planned 阶段不冻结，"
+                "§4.3）；该锚只能由本命令在激活时写入"
+            )
+        section = plan_section(plan, "主干碑序列")
+        if not section:
+            raise fail(
+                "plan.md 缺「主干碑序列」节：progress 组的容器就是这张表（§4.3）"
+            )
+        template_rows = TEMPLATE_KEYSTONE_RE.findall(section)
+        if template_rows:
+            raise fail(
+                f"主干碑序列仍是模板占位行 {len(template_rows)} 条（`碑描述`）："
+                "激活前须在建组仪式上逐碑确认并写成真实碑行"
+                "（属哪门课、达成判据指向该课 progress.md 哪一行）"
+            )
+        keystones = KEYSTONE_ROW_RE.findall(section)
+        if not keystones:
+            raise fail("主干碑序列节内无 `- Knn` 碑行，无碑可冻，拒绝激活")
+        plan = re.sub(
+            r"^(container_mode:.*)$",
+            rf"\1\nkeystone_total_frozen: {len(keystones)}",
+            plan,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        anchor_note = f"，keystone_total_frozen={len(keystones)}"
+    else:
+        anchor_note = ""
+
+    plan = replace_field(plan, "status", "active")
+    plan = replace_field(plan, "current_course", current_course)
+    plan = replace_field(plan, "updated", args.date)
+    write_text(plan_path, plan, allow_overwrite=True)
+    calendar_path = group / "calendar.md"
+    if calendar_path.is_file():
+        write_text(
+            calendar_path,
+            replace_field(read_text(calendar_path), "status", "active"),
+            allow_overwrite=True,
+        )
+    review_path = group / "review.md"
+    if review_path.is_file():
+        write_text(
+            review_path,
+            replace_field(read_text(review_path), "status", "open"),
+            allow_overwrite=True,
+        )
+
+    print(
+        f"[OK] group {args.group_id} activated ({container_mode}"
+        f"{anchor_note}), current_course={current_course}"
+    )
     print(
         "\n下一步：\n"
         "  python -B main/70_tools/t2ag_state_refresh.py --write\n"
@@ -837,6 +1000,13 @@ def build_parser() -> argparse.ArgumentParser:
     course.add_argument("--name", required=True)
     course.add_argument("--school-code")
     course.add_argument("--course-type", default="mastery")
+    # Required on purpose, no default: source_language is the language of the
+    # course's own materials (existing courses run both en and zh-CN), and the
+    # T001 §9 terminology discipline reads it to decide which words must keep
+    # their original form. A wrong value fails silently — the teacher keeps
+    # obeying the discipline, just against the wrong language. Asking once at
+    # course creation is cheaper than a mislabelled course nobody notices.
+    course.add_argument("--source-language", required=True, help="教材/原始材料语言，如 en、zh-CN")
     course.add_argument(
         "--driver", default="textbook", choices=("textbook", "goal", "project", "praxis")
     )
@@ -861,14 +1031,30 @@ def build_parser() -> argparse.ArgumentParser:
     course.add_argument("--date", required=True, help="YYYY-MM-DD")
     course.set_defaults(handler=cmd_new_course)
 
-    group = sub.add_parser("new-group", help="新建课程组")
+    group = sub.add_parser("new-group", help="新建课程组（只生 planned；激活走 activate-group）")
     group.add_argument("--group-id", required=True)
     group.add_argument("--members", required=True, help="逗号分隔的 course_id")
-    group.add_argument("--status", default="planned", choices=("planned", "active"))
-    group.add_argument("--current-course", help="active 组的当前前台课程")
+    # Required on purpose, no default: the container shape (deadline-bounded
+    # schedule vs budget-bounded progress) is an intent the user knows at
+    # creation and the tool must not guess — same criterion as new-course's
+    # --source-language (course_group_rules.md §4.1: having *no* container is
+    # not a mode, so silence is not an answer either).
+    group.add_argument(
+        "--container-mode", required=True, choices=("progress", "schedule"),
+        help="容器形态：progress=固定预算放开时间；schedule=固定 deadline 放开范围",
+    )
     group.add_argument("--cycle", default="待确认")
     group.add_argument("--date", required=True, help="YYYY-MM-DD")
     group.set_defaults(handler=cmd_new_group)
+
+    activate = sub.add_parser(
+        "activate-group",
+        help="建组仪式收尾：planned → active（公证式：progress 组验真实碑行并落锚）",
+    )
+    activate.add_argument("--group-id", required=True)
+    activate.add_argument("--current-course", help="多成员组必填：当前前台课程")
+    activate.add_argument("--date", required=True, help="YYYY-MM-DD")
+    activate.set_defaults(handler=cmd_activate_group)
     return parser
 
 

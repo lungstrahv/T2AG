@@ -1,0 +1,81 @@
+---
+type: exam_ledger
+course_id: <COURSE_ID>
+schema_version: exam_ledger.v1
+truth_scope: exam_settlement
+updated: 2026-08-21T00:00:00Z
+---
+> 【模式】复利回路·衰减（00_core/pattern_retire_loop.md）实例
+> 【参数】域=课程级考核债｜时机=事前存证｜归因层=流程层｜消费方=结算闸（复习-补考链）｜退出=settled/archived｜再入=重修立项
+> 【边界】知识点根因转投同课 mistake_bank（本册留指针）；思维模式转投 10_student/profile/reasoning_patterns.md；系统问题转投 00_core/t2ag_problemlog.md
+
+# <COURSE_ID> 考核台账
+
+> 本文件是本课**考核结算**的唯一真相源：场次、判定、补考轨迹、提醒账。
+> 组级 `review.md` 只**引用**本文件结论，不复制——引用是读者，不是消费方。
+> 题库存储与池状态归 `_exam/index.md`；协议条款归 `50_playbook/exam_protocol.md`，本文件不复制条款。
+
+next_id: 1
+
+## 一、参数快照
+
+考前立约，组内冻结；改动只在建组仪式或大调整窗口，改必留痕。
+
+| 参数 | 值 | 来源 |
+|---|---|---|
+| 复习单元数量 | inherit（协议默认 2，可取 0/1/2） | `10_student/profile/profile.md` |
+| 及格线 | inherit（期末 60 / 补考① 60 / 补考② 50） | `exam_protocol.md` §九 |
+| 时限系数 | inherit（小测 ×2.0 / 期末 ×1.2 / 补考 ×1.5） | `exam_protocol.md` §九 |
+| 成绩权重 | inherit（卷面 70% / 过程指标 30%） | `course_group_rules.md` §三 |
+
+## 二、结算闸状态
+
+| 字段 | 值 |
+|---|---|
+| 考核债状态 | `open` |
+| 已用场次 | 0 |
+| 下一场次 | —（等触发锚：小测按组日历，期末按组日历 + 范围闸） |
+| 复习单元已用 | 0 |
+
+考核债状态枚举：`open` / `in_remediation` / `settled` / `archived`
+
+- `settled` = 达及格线，债销账（退出）。
+- `archived` = 补考②仍不过，标记未通过、结课（退出）；`progress.md` 生命周期同步改写。
+- 两种退出的**再入条件**同为**重修立项**：状态回 active、进新循环排期、用新考核池卷，
+  mistake_bank 延续不清零（`exam_protocol.md` §十）。
+
+## 三、场次
+
+无场次。首场落 `### EX-0001`，形制照抄下方骨架块。
+
+<!-- 场次骨架，勿删；围栏内不受检（R-GATE §四 自指逃逸） -->
+
+```text
+### EX-NNNN｜<场次类型>｜<YYYY-MM-DD>
+
+- 场次类型：cycle_quiz / final / makeup_1 / makeup_2
+
+事前存证（组卷即立约，考后不得改写本段）：
+- 覆盖节点：<截至开卷日已完成的主干碑节点清单>
+- 未覆盖节点及去向：<按 course_group_rules.md §四「范围弹性」砍进下一组，留痕>
+- 难度分布：L1 n / L2 n / L3 n
+- 时限基线：Σ 单题基准时长 = n 分钟 × 系数 = n 分钟
+- 随机种子：<公开种子，如当日日期>
+- 适合性检查：PASS n / REJECT n（逐题留痕在 papers/<卷ID>/meta.md）
+- 引用清单：<卷ID#题号 → 官方解答页码>（不复印题面成新卷）
+
+考后结算：
+- 卷面得分：— / —
+- 过程指标：复发率 —（读 mistake_bank）｜反例即答 —（读 reasoning_patterns.md）
+- 加权成绩：卷面 70% + 过程 30% = —
+- 判定：pass / fail
+- 提醒账：总提醒 — ｜平均每题 —（>1 触发补强 3 日块）
+
+流程层归因（本册拥有；判定 fail 时必填）：
+- 根因：<容量不足 / 循环破线 / 复习单元未执行 / 题库不足 / 其他流程层原因>
+- 禁外因：运气、题目太难、模型抽风一律不收（pattern_retire_loop.md ③）
+
+概念层根因（转投，本册只留指针）：
+- 依赖链诊断结论：<一句话>
+- mistake_bank 指针：M-xxxx（M 条目内写「来源=EX-NNNN」，复用知识点键不新建条目）
+```

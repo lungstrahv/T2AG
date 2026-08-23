@@ -7,31 +7,34 @@ created: YYYY-MM-DD
 ---
 # exerciseNN Exercise
 
-## 学习范围
+## Study scope
 
-- 来源：SOURCE_SCOPE
-- 当前题目：PROBLEM_ID
-- 精确停点：START_POSITION
+- Source: SOURCE_SCOPE
+- Current problem: PROBLEM_ID
+- Exact stop: START_POSITION
 
-## 证据索引
+## Evidence index
 
-- 真实提交后登记 Attempt / Review；不得预造证据。
+- An Attempt / Review is registered after a real submission; evidence must never be pre-created.
 
-## 学习记录
+## Learning record
 
-- 保存做题推进、提示、确认门与证据指针；原始作答以 Attempt 为准。
+- Holds the solving progress, the hints, the confirmation gates and the evidence pointers; the original
+  answer is governed by the Attempt.
 
-## 消息记录路由
+## Message-record routing
 
-本节只是指针：路由表的唯一 owner 是 `00_core/learning_activity_model.md` §2.3
-（本 Exercise 用其中的 **Exercise 变体**）。模板与实例不得复制表正文，防止两份正文漂移。
+This section is only a pointer: the sole owner of the routing table is
+`00_core/learning_activity_model.md` §2.3 (this Exercise uses the **Exercise variant**). A template or an
+instance must never copy the table body, so that two bodies cannot drift.
 
-## 门台账
+## Gate ledger
 
-ledger_since: YYYY-MM-DD | 起算证据: RV0000/AT0000
+ledger_since: YYYY-MM-DD | starting evidence: RV0000/AT0000
 
-规则的唯一 owner 是 `00_core/learning_activity_model.md` §2.4（本 Exercise 用其中的
-**Exercise 变体**）；本节只持有锚与留痕表，不复制规则正文。
+The sole owner of the rules is `00_core/learning_activity_model.md` §2.4 (this Exercise uses the
+**Exercise variant**); this section holds only the anchor and the trace table, and never copies the rule
+body.
 
-| 行ID | 块ID | 门类型 | 闭合依据 | 感受回应 | 授权原文 | 消费于 |
+| Row ID | Block ID | Gate type | Basis of closure | Response to feeling | Verbatim authorization | Consumed at |
 |---|---|---|---|---|---|---|

@@ -331,10 +331,10 @@ class DoctorBoundaryTests(unittest.TestCase):
 
     def test_root_deep_unknown_kind_duplicate_and_sidecar_impersonation_fail(self) -> None:
         cases: list[tuple[str, callable]] = [
-            ("仍在根目录", lambda: write(self.root / "main/10_student/activities/AR-0002_Flat.md", ar_text("AR-0002"))),
-            ("嵌套过深", lambda: write(self.root / "main/10_student/activities/reading/deep/AR-0002_Deep.md", ar_text("AR-0002"))),
-            ("kind 未登记", lambda: write(self.root / "main/10_student/activities/arbitrary/AR-0002_Bad.md", ar_text("AR-0002"))),
-            ("非法旁路文件", lambda: write(self.root / "main/10_student/activities/reading/AR-0001.fake.json", "{}\n")),
+            ("still in the root directory", lambda: write(self.root / "main/10_student/activities/AR-0002_Flat.md", ar_text("AR-0002"))),
+            ("nested too deeply", lambda: write(self.root / "main/10_student/activities/reading/deep/AR-0002_Deep.md", ar_text("AR-0002"))),
+            ("kind is not registered", lambda: write(self.root / "main/10_student/activities/arbitrary/AR-0002_Bad.md", ar_text("AR-0002"))),
+            ("illegal sidecar file", lambda: write(self.root / "main/10_student/activities/reading/AR-0001.fake.json", "{}\n")),
         ]
         for token, mutate in cases:
             with self.subTest(token=token):
@@ -519,6 +519,40 @@ class LiteTransactionTests(unittest.TestCase):
         os.environ.pop("T2AG_SYNC_LITE_FAIL_AT", None)
         self.temporary.cleanup()
 
+    @contextlib.contextmanager
+    def pretend_windows(self):
+        """Let the ACL helper walk its Windows branch on any platform.
+
+        `inherit_destination_acl` opens with `if os.name != "nt": return` and then
+        requires `SystemRoot` to point at a real `System32/icacls.exe`.  Both ACL
+        tests therefore failed on every non-Windows environment -- while what they
+        guard is the **safety** rule that refuses to touch ACLs outside the Lite
+        destination.  On 2026-08-22 the plan was to add
+        `skipUnless(os.name == "nt")`; that was reversed in favour of making them
+        portable: this repo's tests are in practice run in a Linux sandbox, so a
+        skipped safety guard is no guard at all -- the same family that produced
+        P-0083 (a stale fake red for ten days).
+
+        A real fake SystemRoot (holding an empty icacls.exe) is created rather than
+        patching `Path.is_file`: the narrower the patch, the closer the test stays
+        to the real thing.
+
+        `Path` has to be pinned too: `pathlib` reads the same `os.name` when it
+        instantiates, so changing only `os.name` makes `Path(...)` inside
+        `sync_lite` raise `NotImplementedError: cannot instantiate 'WindowsPath'`.
+        It is pinned back to **this platform's** flavour (WindowsPath when run on
+        Windows), so the helper changes nothing about the logic under test -- only
+        its answer to "am I on Windows".
+        """
+        system_root = self.workspace / "fake-system-root"
+        write(system_root / "System32" / "icacls.exe", b"")
+        with (
+            mock.patch.object(sync_lite.os, "name", "nt"),
+            mock.patch.object(sync_lite, "Path", type(self.workspace)),
+            mock.patch.dict(sync_lite.os.environ, {"SystemRoot": str(system_root)}),
+        ):
+            yield system_root
+
     def test_source_manifest_is_exact_and_excludes_protected_noise(self) -> None:
         before = sync_lite.source_projection_manifest(self.src)
         self.assertIn("main/a.txt", before)
@@ -565,7 +599,7 @@ class LiteTransactionTests(unittest.TestCase):
     def test_windows_acl_helper_enables_and_resets_inheritance(self) -> None:
         completed = subprocess.CompletedProcess([], 0, "", "")
         with (
-            mock.patch.object(sync_lite.os, "name", "nt"),
+            self.pretend_windows(),
             mock.patch.object(sync_lite.subprocess, "run", return_value=completed) as run,
         ):
             sync_lite.inherit_destination_acl(
@@ -583,8 +617,9 @@ class LiteTransactionTests(unittest.TestCase):
         locked = self.workspace / "t2ag-lite.lockedbak" / "sentinel.bin"
         write(locked, b"lockedbak sentinel\x00")
         before = (locked.read_bytes(), locked.stat().st_mtime_ns)
-        with self.assertRaisesRegex(RuntimeError, "outside Lite destination"):
-            sync_lite.inherit_destination_acl(self.dst, [locked.parent])
+        with self.pretend_windows():
+            with self.assertRaisesRegex(RuntimeError, "outside Lite destination"):
+                sync_lite.inherit_destination_acl(self.dst, [locked.parent])
         with mock.patch.object(sync_lite, "inherit_destination_acl"):
             sync_lite.install_candidate(self.candidate, self.dst, self.rollback)
         self.assertEqual((locked.read_bytes(), locked.stat().st_mtime_ns), before)
@@ -740,8 +775,13 @@ class LiteMainTransactionTests(unittest.TestCase):
             return None
 
         def fake_build_candidate(
-            src: Path, candidate: Path
+            src: Path, candidate: Path, birth: dict | None = None
         ) -> tuple[int, int, list[tuple[str, Path, Path]]]:
+            # `birth` joined sync_lite.build_candidate in 286c79e (2026-08-12, the
+            # F1-F7 Lite review batch); this fake did not follow, and four Lite
+            # transaction tests were red for ten days as a result (P-0083). The
+            # parameter is accepted and unused: this group proves the transaction
+            # and its rollback, not the contents of the birth certificate.
             target = candidate / "main" / "a.txt"
             write(target, "candidate\n")
             return 1, 0, [("main/a.txt", src / "main/a.txt", target)]

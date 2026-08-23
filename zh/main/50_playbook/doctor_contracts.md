@@ -90,6 +90,7 @@ plan-only 聚合门，均属于基础结构 FAIL。
 | 教学正典载体一致性（G2） | runtime `canonical_teaching_carrier`（`canonical_carrier_findings`） | textbook driver 课程的 `teaching_log.md`（C）与 `emissions.jsonl`（L）必须一致：C 有块 L 无行 **FAIL**（CANON-000，绕过写入器）；L SHA 链断 **FAIL**（001）；页身份与 SourcePageAsset 持久字段不符 **FAIL**（002）；正文哈希与账不符 **FAIL**（003）；L 有行 C 无块 **WARN**（004，emit 中断残留）。双缺/双空静默（祖父条款）。旧 `lesson.md` 不扫。证明的是一致性，不证明「经 `canon_append.py` 写出」（自洽双写过门，见 `canon_carrier.md` 头部） |
 | 规则强制声明的真实性（R-GATE） | runtime `rule_enforcement_integrity`（`rule_enforcement_findings` / `landing_defect`） | 白名单规则文件（`50_playbook/*.md` + `00_core` 三个模型文件）内 `enforcement:` 的声明必须兑现：`check=` 不在 `doctor_checks` 键集、`tool=` 文件缺失、取值不属四取值、字段错位（`enforcement:` 落记录区 / `closure:` 落规则文件）为 **FAIL**（悬空声明=假保障，P-0067 家族）；`context=` 锚失效、`prose_accepted` 空理由为 **WARN**（改措辞不阻断教学）。示例先剥 fenced block 再按行首匹配（自指逃逸，`rule_admission_gate.md` §四）。**不检查「该声明而未声明」**。记录区（changelog/problemlog 正文/memory）与宪法 `t2ag.md` 显式豁免，理由见 `rule_admission_gate.md` §三 |
 | **Main↔Skeleton 批准同源面** | release `distribution_parity`（`check_distribution_parity`） | 同源面内文件字节不一致或 Skeleton 缺失为 **FAIL**；**豁免项两侧已一致为 WARN**（提示移除，防止名单长成盲区）。同源面定义见 §二·一 |
+| **跨语言发行面（Main↔英文版）** | release `cross_edition_parity`（`cross_edition_parity_findings`） | 翻译版与 Main 的**机器标识符**（handler 名／检查 ID／profile 登记）与**分节编号**必须同集：未登记的缺失或多出为 **FAIL**（CE-PAR-001／002）；比对源缺失或不可解析为 **FAIL**（004，宁可红也不缩覆盖面）；同一版内节编号重复致不可判为 **FAIL**（005）；已登记回移欠账为 **INFO**（000，理由必须含回填条件）；豁免项两侧已一致或悬空为 **WARN**（003）。字节同源在跨语言下不可满足（英文面自陈 `skipTest`），故比对单位抬到标识符与编号；**散文措辞不在射程内**——本闸门证明机制在位，不证明译文忠实。未挂载对端时静默 |
 
 ### 二·一 「批准同源面」的定义（P-0065）
 

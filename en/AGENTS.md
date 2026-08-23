@@ -42,10 +42,13 @@ First run does not depend on this file: when `t2ag_context.py` returns
 
 ## Language of this edition
 
-Entry-surface documents are English. Playbooks under `main/50_playbook/` and most
-tool comments are Chinese; read them as authoritative — translation status does
-not change which document governs. Teaching output language is set by
-`teaching_language` in the student profile, not by the language of these files.
+The entry surface, constitution, core contracts, playbooks, instance templates,
+ADR/protocol documents and journal scaffolds are English. The append-only project
+changelog intentionally preserves its historical Chinese entries, and some tool
+messages, compatibility markers and fixtures remain Chinese or bilingual. Those
+remainders do not change which document governs. Teaching output language is set
+by `teaching_language` in the student profile, not by the language of repository
+files.
 
 ## Traversal guidance (no need to read everything at first run)
 

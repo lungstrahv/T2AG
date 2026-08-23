@@ -1,18 +1,18 @@
-# 题库存储与考前检查规范（exam_bank_spec）
+# Problem-bank storage and pre-exam checks (exam_bank_spec)
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> **0.2.0 状态：延期设计，未激活。** 跨课程考试系统明确不属于 0.2.0；本文件保留既有设计供后续另案裁决，不在当前目录/schema/doctor 契约中生效，也不得据此创建 `_exam/`。
+> **0.2.0 status: deferred design, not activated.** A cross-course examination system is explicitly out of scope for 0.2.0; this file preserves the existing design for a separate adjudication later. It is not in effect in the current directory/schema/doctor contracts, and `_exam/` must not be created on its basis.
 >
-> 配套 `main/50_playbook/exam_protocol.md`。本文件只规定题库存储、登记表、题级元数据和考前机械检查。
+> Companion to `main/50_playbook/exam_protocol.md`. This file specifies only problem-bank storage, the registration tables, problem-level metadata, and the mechanical pre-exam checks.
 
-## 一、目录结构
+## 1. Directory structure
 
-> 题库位置固定为 `main/40_course/<COURSE_ID>/_exam/`，与该课
-> `course.md`、`progress.md` 同属一个课程聚合根。
+> The problem bank always lives at `main/40_course/<COURSE_ID>/_exam/`, inside the same course
+> aggregate root as that course's `course.md` and `progress.md`.
 
 ```text
-[课程根]/_exam/
+[course root]/_exam/
 ├ index.md
 └ papers/
    ├ MIT_18100B_2019F/
@@ -22,58 +22,58 @@
    └ Fudan_MathAnalysis_2021S/
 ```
 
-- `index.md` 是卷级登记表，也是池状态唯一真相源。
-- 池别、已用、已考都是登记表列，不搬文件；搬文件会断引用。
-- 原卷 PDF 原样保存，题面读取走 source 缓存规则，禁止转录重排。
-- 下载渠道：MIT OCW 等公开课页可由 agent 下载；国内流传卷由学生取得后归档入库。无网环境下，学生下载，老师登记。
+- `index.md` is the paper-level registration table and the sole source of truth for pool status.
+- The pool, "used", and "sat" are all columns in the registration table; files are never moved — moving a file breaks references.
+- The original paper PDF is kept as-is, problem statements are read through the source-cache rules, and transcribing or re-typesetting is forbidden.
+- Acquisition channels: a public course page such as MIT OCW may be downloaded by the agent; a domestically circulating paper is obtained by the student and archived into the bank. With no network, the student downloads and the teacher registers.
 
-## 二、index.md 卷级表
+## 2. The paper-level table in index.md
 
 ```markdown
-| 卷ID | 校 | 年 | 课程层级(荣誉/普通) | 总时长 | 题数 | 单题基准时长 | 解答(有/无) | 池别 | 状态(在池/已考) |
+| Paper ID | School | Year | Course level (honours/ordinary) | Total time | Problems | Per-problem baseline time | Solution (yes/no) | Pool | Status (in pool/sat) |
 |---|---|---|---|---|---|---|---|---|---|
 ```
 
-## 三、meta.md 题级表
+## 3. The problem-level table in meta.md
 
 ```markdown
-| 题号 | 类型 | 知识节点(对照知识地图) | 难度档 | 已用于教学 | 已考 | 解答页码 | 考前检查备注(PASS/REJECT + 原因) |
+| Problem no. | Type | Knowledge node (against the knowledge map) | Difficulty tier | Used in teaching | Sat | Solution page | Pre-exam check note (PASS/REJECT + reason) |
 |---|---|---|---|---|---|---|---|
 ```
 
-题型枚举：
-- 计算题（求极限 / 导数 / 积分）
-- 证明题
-- 构造题
-- 判断改错题
-- 概念叙述题
+The problem-type enumeration:
+- computation (limits / derivatives / integrals)
+- proof
+- construction
+- true-false-and-correct
+- concept statement
 
-难度定级：L1 基础 / L2 标准 / L3 压轴。三信号取中位数定档，登记后不改：
-- 源课程层级：荣誉课卷整体 +1 档
-- 卷内位置：前 1/3 题偏低，末 1/3 偏高
-- 题型：概念叙述 / 计算偏低，构造 / 多问证明偏高
+Difficulty tiers: L1 basic / L2 standard / L3 hardest. The tier is the median of three signals and is not changed once registered:
+- the source course's level: an honours paper shifts the whole paper +1 tier
+- position within the paper: the first third skews lower, the last third higher
+- problem type: concept statement / computation skew lower, construction / multi-part proof skew higher
 
-## 四、考前适合性检查
+## 4. The pre-exam suitability check
 
-对每道候选题输出 PASS / REJECT + 原因，记入 meta 的「考前检查备注」列：
+For each candidate problem, output PASS / REJECT + a reason, recorded in the meta table's "pre-exam check note" column:
 
-| # | 检查 | 不过则 |
+| # | Check | If it fails |
 |---|---|---|
-| 1 | 知识节点属于当前已教节点 | REJECT-超纲 |
-| 2 | 节点上游依赖均已教 | REJECT-依赖缺 |
-| 3 | `solution.pdf` 存在且含该题 | REJECT-无解答 |
-| 4 | 中 / 英文或官方译本 | REJECT-语言 |
-| 5 | 未打“已用 / 已考”标；题干与已用题非同源改编 | REJECT-已见 |
-| 6 | 入选后仍满足场次配比 | 换抽 |
+| 1 | the knowledge node is among those already taught | REJECT-out-of-scope |
+| 2 | every upstream dependency of the node has been taught | REJECT-missing-dependency |
+| 3 | `solution.pdf` exists and contains this problem | REJECT-no-solution |
+| 4 | Chinese / English, or an official translation | REJECT-language |
+| 5 | not marked "used / sat"; the statement is not a same-source adaptation of a problem already used | REJECT-already-seen |
+| 6 | the sitting's ratios still hold once it is selected | redraw |
 
-小测抽题：练习池未用题 → 逐题检查 → 合格集合内按当日种子随机抽 3。
+Drawing quiz problems: unused problems from the practice pool → check each → randomly draw 3 from the qualifying set on that day's seed.
 
-期末组卷：考核池未用题 → 逐题检查 → 满足 `exam_protocol` 第七节配比约束后随机抽取。
+Assembling the final paper: unused problems from the assessment pool → check each → draw randomly once the ratio constraints of `exam_protocol` §7 are satisfied.
 
-## 五、后续版本拟议 doctor 检查（0.2.0 不执行）
+## 5. Doctor checks proposed for a later version (not executed in 0.2.0)
 
-| 检查 | 级别 |
+| Check | Level |
 |---|---|
-| 考核池卷的题号引用出现在任何 lesson / practice 文件 | FAIL |
-| `papers/` 下有卷夹但 `index.md` 未登记 | WARN |
-| `meta.md` 缺列或缺解答页码 | WARN |
+| a problem-number reference from an assessment-pool paper appears in any lesson / practice file | FAIL |
+| a paper folder exists under `papers/` but is not registered in `index.md` | WARN |
+| `meta.md` is missing a column or a solution page number | WARN |

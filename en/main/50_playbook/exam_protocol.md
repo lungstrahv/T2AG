@@ -1,121 +1,121 @@
-# 语言线卷面考核协议（exam_protocol）
+# The language-track written examination protocol (exam_protocol)
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> 适用：语言线课程的期末卷面考核与循环级小测。规则入口见 `main/50_playbook/course_group_rules.md`；题库存储见 `main/50_playbook/exam_bank_spec.md`；学生参数写入 `main/10_student/profile/profile.md`。
+> Applies to: the final written examination and the cycle-level quiz of a language-track course. The rule entry point is `main/50_playbook/course_group_rules.md`; problem-bank storage is in `main/50_playbook/exam_bank_spec.md`; the student's parameters are written into `main/10_student/profile/profile.md`.
 
-## 一、核心原则：选编，不生成
+## 1. The core principle: compile, do not generate
 
-AI 不生成数学试题，只做下载、登记、按规则抽取。真题已经过教授命题、考生实测和官方解答校准；选择比生成便宜，且验证自带真相源。
+AI does not generate mathematics problems; it downloads, registers, and draws by rule. A real past paper has already been set by a professor, tested on real candidates, and calibrated against an official solution; choosing is cheaper than generating, and verification comes with its own source of truth.
 
-## 二、题库建设
+## 2. Building the problem bank
 
-- 位置：`main/40_course/<COURSE_ID>/_exam/`。source 缓存规则照常适用。
-- 默认卷源范围：US News 相关学科大类排名前 30 高校；限中、日、新加坡、英、法、瑞士、美。学生执行参数可覆盖。
-- 语言规则：中英文卷直接入库；法/日/德语卷仅当附官方英文版或学校提供双语时收录，禁止让模型翻译数学题。
-- 登记表：卷级表为 `_exam/index.md`，题级表为 `_exam/papers/[卷ID]/meta.md`，字段见 `exam_bank_spec.md`。
-- 获取途径：MIT OCW（带解答）、各校公开课页、国内流传卷；无官方解答的卷降级只入练习池。
+- Location: `main/40_course/<COURSE_ID>/_exam/`. The usual source-cache rules apply.
+- Default paper-source scope: universities in the US News top 30 of the relevant subject area; limited to China, Japan, Singapore, the UK, France, Switzerland, and the US. The student's execution parameters may override this.
+- Language rule: Chinese and English papers are admitted directly; a French/Japanese/German paper is admitted only when an official English version is attached or the school provides a bilingual one — the model must never be asked to translate a mathematics problem.
+- Registration tables: the paper-level table is `_exam/index.md` and the problem-level table is `_exam/papers/[paper-ID]/meta.md`; the fields are in `exam_bank_spec.md`.
+- Acquisition routes: MIT OCW (with solutions), the public course pages of each school, papers circulating domestically; a paper with no official solution is downgraded and enters the practice pool only.
 
-## 三、题库时间线与冷却
+## 3. The problem-bank timeline and cooldown
 
 ```
-循环:   1    2◆   3▲   4    5◆   6▲   7    8◆   9▲   10   11◆  12▲  13   14期末
-        ◆=建库日(循环末D7)   ▲=循环小测日
+cycle:  1    2◆   3▲   4    5◆   6▲   7    8◆   9▲   10   11◆  12▲  13   14 final
+        ◆=bank-building day (D7 of the cycle)   ▲=cycle quiz day
 ```
 
-- 建库日在循环 2/5/8/11 的 D7；小测日在 3/6/9/12。
-- 每个建库日从真题源收 1-2 份，限 2018 年及以后；登记后当日种子分池。
-- 任何场次只抽上一个建库日及更早入库的题，避免新题即时暴露。
-- 库存不足时，小测缩至 2 题或顺延至下个建库日后；不启用非真题源救场。
-- 循环 12 后考核池冻结；循环 9 末考核池少于 4 卷时 doctor WARN。
+- A bank-building day is D7 of cycles 2/5/8/11; a quiz day is in 3/6/9/12.
+- Each bank-building day collects 1-2 papers from real-paper sources, limited to 2018 and later; after registration they are split into pools by that day's seed.
+- Any sitting draws only from problems admitted on the previous bank-building day or earlier, so a new problem is never exposed immediately.
+- When stock runs short, a quiz shrinks to 2 problems or is deferred until after the next bank-building day; a non-real-paper source is never brought in to rescue it.
+- After cycle 12 the assessment pool is frozen; if the assessment pool holds fewer than 4 papers at the end of cycle 9, doctor WARNs.
 
-## 四、小测开场语
+## 4. The quiz opening line
 
-所有小测开始时向学生展示：
+Show the student this at the start of every quiz:
 
-> 考试不为制造痛苦，选择学习的人，应知自身真实。
+> An examination is not there to manufacture suffering; whoever chooses to learn should know what is true of themselves.
 
-## 五、考试执行总表
+## 5. The examination execution table
 
-| 维度 | 单一规则 |
+| Dimension | The single rule |
 |---|---|
-| 题源 | 真题选编；限 2018 年及以后；不生成（mistake 变式除外） |
-| 库结构 | `papers/` 每卷一夹，`index/meta` 登记；池别为元数据 |
-| 分池 | 入库当日随机抽签，约 70% 练习池 / 30% 考核池 |
-| 隔离 | 考核池禁入教学；教材题不进测验；至少冷却一个建库周期 |
-| 组卷 | 六项硬约束 + 随机种子；产物为引用清单，不重排题面 |
-| 适合性 | 六条 REJECT 机械清单，判定留痕 |
-| 难度 | 课程层级、卷内位置、题型三信号取中位，登记后不改 |
-| 时限 | 单题基准=源卷总时长÷源卷题数；小测×2、期末×1.2、补考×1.5 |
-| 及格 | 期末 60 → 补考① 60 → 补考② 50 → 未通过结课，可重修，错题库继承 |
-| 提醒 | 考试版提醒梯记账；平均每题提醒 >1 时触发补强块，账单独立呈现 |
-| 复习单元 | 按学习感受、考试结果、依赖链回溯，最多 2 个 |
-| 判卷 | 对照官方解答；学生自评，老师复核 |
-| 错题回收 | 所有场次错题按根因入 `mistake_bank`；变式规则见 `mistake_retest.md` |
-| doctor | 隔离引用 FAIL；登记缺列 WARN；库存和冻结期按规则检查 |
+| Problem source | compiled from real papers; limited to 2018 and later; not generated (a mistake variant excepted) |
+| Bank structure | one folder per paper under `papers/`, registered in `index/meta`; the pool is metadata |
+| Pool split | a random draw on the day of admission, roughly 70% practice pool / 30% assessment pool |
+| Isolation | the assessment pool must never enter teaching; a textbook problem never enters a quiz; at least one bank-building cycle of cooldown |
+| Paper assembly | six hard constraints + a random seed; the artifact is a reference list, and problem statements are never re-typeset |
+| Suitability | a mechanical list of six REJECT conditions, with the judgement left as a trace |
+| Difficulty | the median of three signals — course level, position within the paper, problem type — fixed once registered |
+| Time limit | per-problem baseline = source paper's total time ÷ its problem count; quiz ×2, final ×1.2, resit ×1.5 |
+| Passing | final 60 → resit ① 60 → resit ② 50 → not passed, course closed, may be retaken, the mistake bank carries over |
+| Hints | the exam-version hint ladder is accounted for; when the average is >1 hint per problem, a reinforcement block is triggered and the account is presented separately |
+| Review units | derived from how the study felt, the exam result, and a walk back up the dependency chain; at most 2 |
+| Grading | against the official solution; the student self-assesses and the teacher reviews |
+| Mistake recovery | mistakes from every sitting enter the `mistake_bank` by root cause; the variant rules are in `mistake_retest.md` |
+| doctor | an isolation reference is FAIL; a missing registration column is WARN; stock and the freeze period are checked by rule |
 
-## 六、隔离制
+## 6. The isolation regime
 
-- 入库当天定池别，此后不得改判：约 70% 练习池，30% 考核池。
-- 练习池：平时习题课、循环小测取用。
-- 考核池：任何人包括老师在教学中不得引用题目。
-- 已考卷目从考核池移入练习池；一卷只考一次。
+- The pool is fixed on the day of admission and may never be reassigned afterwards: roughly 70% practice pool, 30% assessment pool.
+- The practice pool: drawn on for ordinary exercise classes and cycle quizzes.
+- The assessment pool: nobody, the teacher included, may reference its problems while teaching.
+- A paper already sat moves from the assessment pool into the practice pool; a paper is sat only once.
 
-## 七、组卷规则
+## 7. Paper assembly rules
 
-期末卷从考核池机械抽取；凑不齐提示补库，不放宽规则。
+The final paper is drawn mechanically from the assessment pool; if it cannot be filled, prompt for more stock rather than relaxing the rules.
 
-- 总题量 8-10 题。
-- 覆盖：本组全部主干碑节点各至少 1 题。
-- 配比：证明题不少于 60%，计算题不多于 40%。
-- 来源：至少 3 所学校、2 个国家；单校不超过 3 题。
-- 难度：荣誉档至少半数。
-- 抽取：用公开随机种子（如当日日期），禁止老师挑“学生会的”。
-- 产物：题目清单，含每题出处与官方解答页码引用；不复印题面成新卷，考试时按清单翻原卷作答。
+- Total: 8-10 problems.
+- Coverage: at least 1 problem for each trunk milestone node of this group.
+- Ratio: proof problems no less than 60%, computation problems no more than 40%.
+- Provenance: at least 3 schools and 2 countries; no more than 3 problems from a single school.
+- Difficulty: at least half from the honours tier.
+- Drawing: use a public random seed (such as the date of the day); the teacher must never pick "the ones the student can do".
+- Artifact: a problem list carrying each problem's provenance and the page reference of its official solution; the statements are never reprinted into a new paper — during the exam, the student turns to the original paper by the list and answers there.
 
-## 八、评分与阈值
+## 8. Grading and thresholds
 
-- 对照官方解答/评分标准逐题给分；学生先自评，老师复核，分歧题精讲。
-- 证明题按步骤分，不搞全对全错。
-- 语言线期末成绩：卷面 70%，过程指标 30%（复发率、反例即答等）。
-- 考后错题按根因入 mistake_bank。
-- mistake_bank 变式只按 `mistake_retest.md` 的受控变形和安全三关执行；期末与补考不得使用自产变式。
+- Score problem by problem against the official solution/marking scheme; the student self-assesses first, the teacher reviews, and disputed problems get a detailed walkthrough.
+- Proof problems are scored by step, never all-or-nothing.
+- The language-track final mark: 70% written paper, 30% process indicators (recurrence rate, instant counterexample recall, and so on).
+- Post-exam mistakes enter the mistake_bank by root cause.
+- A mistake_bank variant is only ever produced through the controlled transformation and the three safety gates of `mistake_retest.md`; a self-produced variant must never be used in a final or a resit.
 
-## 九、时限与补考
+## 9. Time limits and resits
 
-源校考试时长与题量已配套校准，混编卷继承源卷基线：
+Each source school's exam duration and problem count are already calibrated together, and a mixed paper inherits the source paper's baseline:
 
 ```text
-单题基准时长 = 源卷总时长 / 源卷题数
-组卷基线时长 = Σ 各抽中题的单题基准时长
+per-problem baseline time = source paper's total time / its problem count
+assembled paper's baseline time = Σ the per-problem baseline of every drawn problem
 ```
 
-| 场次 | 时长 | 及格线 |
+| Sitting | Duration | Pass mark |
 |---|---|---|
-| 循环小测（大调整窗口日） | 基线 × 2.0，允许分布思考与提醒 | 不计权重，只监控 |
-| 期末卷 | 基线 × 1.2，闭卷连续 | 60% |
-| 补考①（复习单元①后） | 基线 × 1.5 | 60% |
-| 补考②（复习单元②后） | 基线 × 1.5 | 50% |
-| 补考②仍不过 | — | 标记未通过，结课 |
+| cycle quiz (on a major-adjustment window day) | baseline × 2.0; distributed thinking and hints allowed | not weighted, monitoring only |
+| final paper | baseline × 1.2, closed book, continuous | 60% |
+| resit ① (after review unit ①) | baseline × 1.5 | 60% |
+| resit ② (after review unit ②) | baseline × 1.5 | 50% |
+| resit ② still failed | — | marked not passed, course closed |
 
-- 提醒梯与提醒账照旧适用：小测宽用，期末慎用，账单独立呈现。
-- 平均每题提醒 >1 时，触发补强 3 日块。
-- 复习单元①②按学习感受、考试结果、依赖链回溯生成。
+- The hint ladder and the hint account apply as usual: used freely in a quiz, sparingly in a final, and presented as a separate account.
+- When the average exceeds 1 hint per problem, a 3-day reinforcement block is triggered.
+- Review units ① and ② are generated from how the study felt, the exam result, and a walk back up the dependency chain.
 
-## 十、未通过处理
+## 10. Handling a failure
 
-- 该课 `progress.md` 状态改为 `archived（未通过）`，写明卷面轨迹（三次分数）、提醒账、依赖链诊断结论。
-- 未通过不等于放弃：课程可在后续任意组重修立项；状态回 active，进入新循环排期，使用新的考核池卷。
-- mistake_bank 延续不清零，错题资产跨立项继承。
+- That course's `progress.md` status becomes `archived (not passed)`, with the paper trajectory (all three scores), the hint account, and the dependency-chain diagnosis written out.
+- Not passing is not giving up: the course may be re-taken as a new item in any later group; the status returns to active, it enters a new cycle schedule, and it uses new assessment-pool papers.
+- The mistake_bank carries on without being cleared; mistake assets are inherited across the re-take.
 
-## 十一、参数层级
+## 11. Parameter hierarchy
 
-本条款为协议层默认值。放宽系数（2.0/1.2/1.5）与及格线（60/50）如需按学生调整，属建组仪式的参数讨论范围，改动落 `main/10_student/profile/profile.md`。
+These clauses are the protocol-layer defaults. If the relaxation coefficients (2.0/1.2/1.5) and pass marks (60/50) need adjusting for a particular student, that belongs to the parameter discussion of the group-forming ritual, and the change lands in `main/10_student/profile/profile.md`.
 
-## 十二、循环级小测
+## 12. The cycle-level quiz
 
-大调整窗口日可加小测：从练习池按随机种子抽 3 题，时限按本协议“循环小测”规则，只做过程监控，不计权重。
+A quiz may be added on a major-adjustment window day: draw 3 problems from the practice pool by random seed, with the time limit per this protocol's "cycle quiz" rule; it is process monitoring only and carries no weight.
 
-## 十三、doctor 检查
+## 13. Doctor checks
 
-doctor 按 `exam_bank_spec.md` 检查考核池隔离、卷夹登记和 meta 完整性。
+Doctor checks assessment-pool isolation, paper-folder registration, and meta completeness per `exam_bank_spec.md`.

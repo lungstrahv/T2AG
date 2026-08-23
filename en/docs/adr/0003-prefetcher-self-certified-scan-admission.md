@@ -11,26 +11,32 @@ implementation_refs:
   - main/70_tools/t2ag_context.py
 ---
 
-# ADR-0003: 扫描准入的宿主可观察自证
+# ADR-0003: host-observable self-certification for scan admission
 
 **Status:** accepted　**source_evolution:** EV-0019
 
-教材课准入原设计要求宿主 Scan Orchestrator 聚合 PageViewOpened 事件签发 receipt
-（ADR-0002 族）。该组件在现宿主（Cowork/WorkBuddy）不存在且短期不会有（EA-0004、
-P-0056），致 textbook critical 恒 `route_ready + blocking_teach=true`：「降级路径」成为
-唯一路径，却被当临时态维护——每次教材启动都以一个永不满足的条件挂账。
+Textbook-course admission was originally designed to require a host Scan Orchestrator that aggregates
+PageViewOpened events and issues a receipt (the ADR-0002 family). That component does not exist in the
+current hosts (Cowork/WorkBuddy) and will not exist soon (EA-0004, P-0056), so textbook critical was
+permanently `route_ready + blocking_teach=true`: the "degraded path" became the only path, yet was
+maintained as a temporary state — every textbook startup carried a debt against a condition that could
+never be met.
 
-**决定**：session scan complete 的正式判据改为——`source_page_assets.md` §3.1 的 **A1–A5
-经宿主可观察的工具调用投递在本会话内证成**。证成前 pending 状态不得清除；无投递的自报
-opened/complete、Snapshot、历史 receipt、哈希核对均不构成证成（§3.1.3 A 层「不得冒充」
-条款原样有效）。A2/A4 全量预载语义不变。
+**Decision**: the formal criterion for session scan complete becomes — **A1–A5 of
+`source_page_assets.md` §3.1 proven within this session through host-observable tool-call delivery**.
+Before that proof, the pending state must not be cleared; a self-reported opened/complete with no
+delivery, a Snapshot, a historical receipt, and a hash check are none of them proof (the §3.1.3 Layer A
+"must never pose as" clause stands unchanged). The A2/A4 full-preload semantics are unchanged.
 
-**未来态**：宿主获得 orchestrator / interceptor 能力时回收签发权，恢复宿主签发判据并
-supersede 本 ADR；ADR-0002 的 `lesson_emit` egress 边界同样保留为未来态。
+**Future state**: when a host gains orchestrator / interceptor capability, issuance authority returns to
+it, the host-issued criterion is restored, and this ADR is superseded; the `lesson_emit` egress boundary
+of ADR-0002 likewise remains a future state.
 
-**防线**：投递宿主可观察、SHA 链可复算、boot 恒 pending（编译器结构保证）、规范锚点
-测试（`test_context_packet.py::ScanEvidenceSpecTests`）。留痕不防捏造，防发现延迟
-（EV-0018 同判据）。
+**Defences**: delivery is host-observable, the SHA chain is recomputable, boot is always pending
+(guaranteed structurally by the compiler), and the specification anchors are tested
+(`test_context_packet.py::ScanEvidenceSpecTests`). A trace does not prevent fabrication; it prevents
+delayed discovery (the same criterion as EV-0018).
 
-**裁决来源**：学生 2026-08-08 当轮三连裁决；施工单
-`docs/handoffs/T2AG_SCAN_CONTRACT_NORMALIZATION_WORKORDER_2026-08-08.md`（工作区侧）。
+**Adjudication source**: the student's three consecutive adjudications in the round of 2026-08-08; the
+work order is
+`docs/handoffs/T2AG_SCAN_CONTRACT_NORMALIZATION_WORKORDER_2026-08-08.md` (on the workspace side).

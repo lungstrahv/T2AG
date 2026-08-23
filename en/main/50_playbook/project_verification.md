@@ -1,153 +1,185 @@
-# 项目线验证 v1.1（project_verification.md）—— 整合定稿
+# Project-track verification v1.1 (project_verification.md) — consolidated final
 
-**保护级别**：playbook
+**Protection level**: playbook
 
-> **位置**：本文件入 `50_playbook/`（它主体是"怎么验收"的操作细则）；
-> 三机制条款一句话挂入 `main/50_playbook/course_group_rules.md` 验收机制节。
-> 前两份文件（project_rules / project_rules_amendment）废止,内容并入本文件,changelog 记 v1.1。
+> **Placement**: this file lives in `50_playbook/` (it is mostly the operational detail of "how to accept");
+> the three-mechanism clause is hung into the acceptance-mechanism section of `main/50_playbook/course_group_rules.md` as one sentence.
+> The two earlier files (project_rules / project_rules_amendment) are abolished, their content is merged here, and the changelog records v1.1.
 
-## 〇、协议摘要（挂宪法的那句话）
+## 0. Protocol summary (the sentence hung on the constitution)
 
-> 项目线课程每个里程碑必须绑定验证模式（A/B/B-K,建组或 M 启动前登记,大调整窗口可改
-> 未启动 M）,任何模式必须满足三机制：外部真相源、独立性测量、失败留痕。
+> Every milestone of a project-track course must be bound to a verification mode (A/B/B-K, registered before the group is formed or before the M starts; a major-adjustment window may change an M that has not started), and any mode must satisfy the three mechanisms: an external source of truth, an independence measurement, and a trace left by failure.
 
-### 环境惰性与净室验证边界
+### Environment inertia and the clean-room verification boundary
 
-- 启动、doctor、普通课程和普通里程碑验收只检查现有环境，绝不自动创建、删除、重建、
-  升级 `.venv`，也不自动执行 `pip install`。
-- 先使用项目现有解释器做 `python --version`、`pip check`、依赖清单和最小 smoke test。
-- 只有现有环境确有损坏证据，或用户明确要求净室复现时，才提出独立验证环境方案；
-  执行前必须说明包名、锁文件、预计下载量、磁盘占用、缓存位置和耗时，并取得授权。
-- 净室验证使用独立临时目录或 `.venv-verify`，不得删除、覆盖或改写当前 `.venv`。
-- lite 是线上模型审查快照；在 lite 中只审查规则和证据，不执行任何环境验证或下载。
+- Startup, doctor, an ordinary course, and an ordinary milestone acceptance only inspect the existing
+  environment; they never automatically create, delete, rebuild, or upgrade a `.venv`, and never run
+  `pip install` on their own.
+- Use the project's existing interpreter first for `python --version`, `pip check`, the dependency
+  list, and a minimal smoke test.
+- Only when there is real evidence that the existing environment is damaged, or when the user
+  explicitly asks for a clean-room reproduction, may an independent verification environment be
+  proposed; before running it you must state the package names, the lock file, the expected download
+  size, the disk footprint, the cache location, and the time cost, and obtain authorization.
+- Clean-room verification uses an independent temporary directory or `.venv-verify`; it must never
+  delete, overwrite, or rewrite the current `.venv`.
+- Lite is a snapshot for online model review; inside lite, review the rules and the evidence only and
+  perform no environment verification or download.
 
-#### 可选约束方案与当前裁决
+#### Candidate constraint options and the current adjudication
 
-| 方案 | 约束 | 优点 | 代价 | 当前状态 |
+| Option | Constraint | Advantage | Cost | Current status |
 |---|---|---|---|---|
-| A 严格冻结 | 现有 `.venv` 只读复用；缺包即停并申请 | 零意外下载，最稳 | 环境损坏时不能自动自愈 | **默认启用** |
-| B 轻重分离 | 基础环境只跑 doctor/脚本；OCR 重依赖进入独立 `.venv-ocr` | 日常环境小，职责清楚 | 现在拆分会再次下载，需计划迁移 | 下次正式重建时再选 |
-| C 共享缓存 + 预算 | pip/模型缓存复用；单次下载设体积上限，超限即停 | 避免重复拉包 | 缓存本身占空间，需定期报告 | 授权安装时启用 |
+| A strict freeze | reuse the existing `.venv` read-only; on a missing package, stop and request | zero surprise downloads, most stable | cannot self-heal when the environment is damaged | **enabled by default** |
+| B light/heavy split | the base environment only runs doctor/scripts; heavy OCR dependencies go into a separate `.venv-ocr` | small everyday environment, clear responsibilities | splitting now means downloading again; needs a planned migration | choose at the next formal rebuild |
+| C shared cache + budget | reuse the pip/model cache; cap the size of a single download and stop when exceeded | avoids re-pulling packages | the cache itself takes space and needs periodic reporting | enabled when an install is authorized |
 
-当前已有环境健康，因此采用 **A + C 的非破坏组合**：不拆、不删、不重装；未来只有授权安装时
-才复用缓存与申报预算。若预计新增下载超过申报值 20% 或新增磁盘超过 500 MB，立即停止并
-重新请求授权。缓存清理同样需要授权，不能为了腾空间导致下次重新下载。
+The current environment is healthy, so the **non-destructive combination A + C** applies: do not split,
+do not delete, do not reinstall; only when an install is authorized in future are the cache reused and
+the budget declared. If the projected new download exceeds the declared value by 20%, or the new disk
+use exceeds 500 MB, stop immediately and request authorization again. Clearing the cache likewise needs
+authorization; do not free space in a way that forces a re-download next time.
 
-常规环境体检不得递归统计 `.venv` 每个文件。只允许读取：
+A routine environment check must not recursively stat every file in `.venv`. Only these are permitted:
 
-1. `.venv/pyvenv.cfg` 与解释器路径；
-2. `python --version`、`python -m pip check`；
-3. `python -m pip list --not-required` 和目标包的 `pip show`；
-4. 与当前任务直接相关的最小 smoke test。
+1. `.venv/pyvenv.cfg` and the interpreter path;
+2. `python --version`, `python -m pip check`;
+3. `python -m pip list --not-required` and `pip show` on the target package;
+4. the minimal smoke test directly relevant to the current task.
 
-只有专项磁盘审计且用户明确要求时，才允许递归计算包体积。
+Recursive package-size computation is allowed only in a dedicated disk audit that the user explicitly
+asked for.
 
 
-## 一、模式 A · 产品验收型（细化）
+## 1. Mode A · product acceptance (in detail)
 
-**适用**：产出可运行系统/交付物的 M。**外部真相源 = 现实运行**。
+**Applies to**: an M producing a runnable system or deliverable. **The external source of truth = real execution.**
 
-### 验收仪式五步（M 末,约 90 分钟,全过才算完成）
-1. **可复现性检查**（15min）：用现有项目解释器核对版本、`pip check`、锁文件和
-   最小 smoke test，再运行主流程。环境异常记 problemlog；不得把删除并重建当前
-   `.venv` 当作普通验收步骤。净室重建只按上方授权边界另行执行
-2. **客观验收**（20min）：对照该 M 登记的验收标准逐条勾。标准必须在 M 启动时
-   就写成可判定句（"连跑 3 天""一致率≥80%"）;验收日发现标准含糊=标准制定事故,
-   记 problemlog,当场重写为可判定句再勾
-3. **讲解口试**（20min）：当日种子从 git 历史随机抽 2-3 个学生自写函数,
-   不看笔记逐行讲:为什么这么写/改成 X 会怎样/当初的坑。
-   卡壳判定=说不出设计理由（说错但能自洽推理不算卡壳）,计入卡壳账
-4. **盲改挑战**（30min,核心步）：老师按本 M 内容即兴出一个 15-30min 变更需求
-   （加过滤条件/改输出格式/换数据源字段）。要求:①与已有功能同技术栈 ②有可判定
-   完成标准 ③老师出题后自己先想一遍解法确认可行。学生独立实现,提醒梯记账
-   （一级方向提示=1,二级步骤提示=2,三级代示范=该项不过）
-5. **留档**（5min）：五步结果入 `progress.md` 教学记录；③④暴露的概念错误入
-   mistake_bank;输出验收确认块（同结课仪式格式）
+### The five-step acceptance ritual (at the end of the M, about 90 minutes, complete only if all five pass)
+1. **Reproducibility check** (15min): use the existing project interpreter to check the versions,
+   `pip check`, the lock file, and a minimal smoke test, then run the main flow. Record an environment
+   anomaly in the problem log; deleting and rebuilding the current `.venv` must never be treated as an
+   ordinary acceptance step. A clean-room rebuild is performed separately, only within the
+   authorization boundary above
+2. **Objective acceptance** (20min): tick off the acceptance criteria registered for this M one by one.
+   The criteria must have been written as decidable sentences when the M started ("runs 3 days in a
+   row", "consistency rate ≥80%"); finding a vague criterion on acceptance day = a criterion-setting
+   incident, recorded in the problem log, rewritten as a decidable sentence on the spot and only then
+   ticked
+3. **Oral explanation** (20min): seeded by the day, draw 2–3 student-written functions at random from
+   the git history and have them explained line by line without notes: why it was written this way /
+   what would happen if changed to X / what the pitfall was at the time.
+   A stall = being unable to state the design reason (saying something wrong but reasoning coherently
+   is not a stall) and goes into the stall account
+4. **Blind-modification challenge** (30min, the core step): the teacher improvises a 15–30min change
+   request from this M's content (add a filter condition / change the output format / swap a data-source
+   field). Requirements: ① the same technology stack as the existing feature ② a decidable completion
+   criterion ③ the teacher works out a solution themselves after setting it, to confirm feasibility.
+   The student implements it independently, and the hint ladder is accounted for
+   (a level-one direction hint = 1, a level-two step hint = 2, a level-three worked demonstration = this
+   item fails)
+5. **Archived** (5min): the results of all five steps go into the `progress.md` teaching record;
+   conceptual errors exposed by ③ and ④ go into the mistake bank; emit an acceptance confirmation block
+   (in the same format as the session-close ritual)
 
-### 失败梯
-不过项→补做窗口（占缓冲,只补不过项）→复验→仍不过→大调整窗口范围裁决:
-砍非核心项"带注完成"或整 M 结转下组。核心/非核心 M 启动时划定,验收日不许改。
+### The failure ladder
+Failed item → a catch-up window (it consumes buffer and covers only the failed items) → re-verification →
+still failing → a scope adjudication in the major-adjustment window: cut the non-core items as
+"completed with a note", or roll the whole M into the next group. Core vs non-core is fixed when the M
+starts and may not be changed on acceptance day.
 
-## 二、模式 B · 评测机型（细化）
+## 2. Mode B · judge-machine type (in detail)
 
-**适用**：刷题/算法/工具练习类 M。**外部真相源 = OJ 评测机**（Codeforces/洛谷/LeetCode,
-建组登记平台与账号,doctor 凭提交记录核账）。
+**Applies to**: an M of problem drilling, algorithms, or tool practice. **The external source of truth = the OJ judge**
+(Codeforces / Luogu / LeetCode; register the platform and account when the group is formed, and doctor
+reconciles against the submission record).
 
-### M 参数（启动时登记,可判定）
+### M parameters (registered at start, decidable)
 ```
-| 分段(rating带) | 题量 | tag范围(对照课程知识节点) | AC率下限 | 首杀率下限 |
-例: | CF 1200-1400 | 20题 | 二分/前缀和/构造 | ≥60% | ≥50% |
+| segment (rating band) | problem count | tag range (mapped to course knowledge nodes) | AC-rate floor | first-kill-rate floor |
+e.g.: | CF 1200-1400 | 20 problems | binary search / prefix sums / constructive | ≥60% | ≥50% |
 ```
 
-### 日常流转
-- 选题:从登记 tag+分段内选,禁止专挑已会题型刷量（每 tag 至少配额,登记表管）
-- **首杀定义**:不看任何题解/AI 提示直接 AC。看过题解=该题标记"已解锁",
-  不计首杀,且 **3 天后必须变形重做**:换一道同 tag 同分段未做过的题替考
-- AI 使用边界:赛前赛中禁用;赛后复盘可让 AI 讲题解,讲完的题一律按"已解锁"处理
-- WA 账:每题 AC 前的 WA 次数照录（OJ 自动有）,均值即独立性辅助指标
-- 错误回收:每个"已解锁"题和高 WA 题按根因入 mistake_bank
-  （边界条件/复杂度误判/数据结构选型/读题错——算法错误同样归概念层）
+### Day-to-day flow
+- Problem selection: choose within the registered tags and band; deliberately farming already-mastered problem types for volume is forbidden (each tag has at least a quota, governed by the registration table)
+- **Definition of a first kill**: an AC with no editorial and no AI hint whatsoever. Having read an
+  editorial = that problem is marked "unlocked", does not count as a first kill, and **must be redone in
+  a variant after 3 days**: substitute an unattempted problem of the same tag and band as the retake
+- The AI boundary: forbidden before and during a contest; in the post-contest review AI may explain an
+  editorial, and any problem so explained is treated as "unlocked" from then on
+- The WA account: the number of WAs before each AC is recorded as-is (the OJ has it automatically), and
+  the mean is an auxiliary independence indicator
+- Error recovery: every "unlocked" problem and every high-WA problem goes into the mistake bank by root
+  cause (boundary condition / complexity misjudgement / data-structure choice / misreading the problem —
+  an algorithmic error is a conceptual error too)
 
-### M 验收（30 分钟,对账即可——评测机已经考完了）
-1. 对照参数表核数:题量/AC 率/首杀率,提交记录为准
-2. 现场首杀一题:同分段新题限时一道,老师旁观不提示（模式 B 的"盲改"等价物）
-3. 留档同 A 步 5
+### M acceptance (30 minutes, a reconciliation is enough — the judge has already given the exam)
+1. Check the numbers against the parameter table: problem count / AC rate / first-kill rate, with the submission record governing
+2. One live first kill: one unseen problem in the same band under time limit, with the teacher watching and giving no hints (mode B's equivalent of the blind modification)
+3. Archiving is the same as A step 5
 
-### 失败梯
-指标不达→**降段清障**（1400 不动退 1200,清 10 题再升,降段留痕）→
-仍不达→范围裁决同 A。rating 带的升降属大调整窗口权限。
+### The failure ladder
+An indicator falls short → **drop a band to clear the blockage** (1400 stuck → go back to 1200, clear
+10 problems and then climb; the drop leaves a trace) →
+still short → the same scope adjudication as A. Moving a rating band up or down is a major-adjustment-window
+authority.
 
-## 二B、模式 B-K · 评测机型 Kaggle 变体
+## 2B. Mode B-K · the Kaggle variant of the judge-machine type
 
-**适用**：数据科学竞赛/评测类 M。**外部真相源 = Kaggle 私榜或固定种子 CV 分数**。
+**Applies to**: an M of data-science competition or evaluation. **The external source of truth = the Kaggle private leaderboard or a fixed-seed CV score.**
 
-继承模式 B 全部规则，仅以下四条不同：
+It inherits every rule of mode B; only these four differ:
 
-| 维度 | 模式 B（OJ） | 模式 B-K（Kaggle） |
+| Dimension | Mode B (OJ) | Mode B-K (Kaggle) |
 |---|---|---|
-| 真相源信号 | AC/WA 二值 | 私榜百分位 / 固定种子 CV 分数（连续） |
-| 首杀定义 | 不看题解直接 AC | 未看该赛任何公开 notebook/讨论区方案的提交进入目标百分位 |
-| 解锁处理 | 看题解=解锁，3 天后同 tag 变形重做 | 看 kernel=解锁，3 天后换数据集或换特征组独立复现该技术 |
-| 独立性辅助账 | 平均 WA 次数 | 提交次数/分数增幅比（次数暴涨分数不动=在拟合公榜，记账示警） |
+| Source-of-truth signal | binary AC/WA | private-leaderboard percentile / fixed-seed CV score (continuous) |
+| First-kill definition | an AC without reading an editorial | a submission reaching the target percentile without having read any public notebook or discussion solution for that competition |
+| Handling an unlock | reading the editorial = unlocked; redo a same-tag variant after 3 days | reading a kernel = unlocked; after 3 days, reproduce that technique independently on another dataset or another feature group |
+| Auxiliary independence account | mean WA count | submissions-to-score-gain ratio (a spike in submissions with a flat score = fitting the public leaderboard; record it as a warning) |
 
-**M 参数登记格式**：
+**M parameter registration format**:
 ```
-| 比赛 | 目标（私榜百分位或CV分） | 提交预算 | 允许解锁数 | 首杀率下限 |
+| competition | target (private-LB percentile or CV score) | submission budget | permitted unlocks | first-kill-rate floor |
 ```
 
-- 提交预算是纪律不是资源：超预算继续提交 = 该 M 记 problemlog，验收降档处理。
-- 公榜（public LB）只做过程信号，验收一律不认公榜——公榜可被反复提交拟合，认公榜=认 AI 赞许。
-- AI 使用边界（继承 B）：冲榜提交前禁用 AI 生成建模代码；AI 可讲概念、review 已写代码；AI 代写过的技术按“已解锁”处理。
+- The submission budget is discipline, not a resource: continuing to submit over budget = the problem log records that M and acceptance is downgraded.
+- The public LB is a process signal only; acceptance never recognizes the public LB — it can be fitted by repeated submission, and recognizing it is recognizing AI approval.
+- The AI boundary (inherited from B): AI-generated modelling code is forbidden before a leaderboard submission; AI may explain a concept and review code already written; any technique AI wrote is treated as "unlocked".
 
-## 三、M 级绑定与换模规则（自上一轮讨论,定稿）
+## 3. M-level binding and the mode-switch rule (from the last discussion round, final)
 
-- 每 M 一个模式，登记于 `progress.md` 里程碑表「验证模式」列
-- 大调整窗口可改**未启动 M** 的模式,留痕（原/新/理由一行）;
-  进行中与已完成的 M 不可换——不给"当时的疲惫"投票权
-- 独立性账按 M 分行呈现（盲改提醒/卡壳 vs 首杀率/WA 均值）,**不跨模式折算**
+- One mode per M, registered in the "Verification mode" column of the `progress.md` milestone table
+- A major-adjustment window may change the mode of an **M that has not started**, with a trace (old / new / reason, one line);
+  an in-progress or completed M may not be switched — "the fatigue of the moment" gets no vote
+- The independence account is presented per M on its own row (blind-modification hints / stalls vs first-kill rate / mean WA), and is **never converted across modes**
 
-## 四、doctor 检查（汇总替换旧条目）
-| 检查 | 级别 |
+## 4. Doctor checks (this table replaces the old entries)
+| Check | Level |
 |---|---|
-| 已启动 M 缺验证模式登记 | WARN |
-| M 标记完成但无对应验收记录（A:五步/B:对账） | FAIL |
+| a started M lacks a verification-mode registration | WARN |
+| an M marked complete with no matching acceptance record (A: the five steps / B: the reconciliation) | FAIL |
 
-0.2.0 的机械载体是 `progress.md` Completion nodes 表中的「验证模式」「验收标准」
-与「关闭证据」三列。验收标准在节点启动前登记，不能冒充完成证据；节点未完成时
-关闭证据必须为 `—`。模式只能是 `A / B / B-K`；`in_progress` 与 `completed`
-视为已启动。
+The mechanical carrier in 0.2.0 is the three columns "Verification mode", "Acceptance criteria", and
+"Closure evidence" in the `progress.md` Completion nodes table. Acceptance criteria are registered before
+the node starts and must never masquerade as completion evidence; while a node is unfinished, the closure
+evidence must be `—`. The mode may only be `A / B / B-K`; `in_progress` and `completed` both count as
+started.
 
-`completed` 的关闭证据必须是仓内验收记录指针，格式为
-`main/<path>.md#VER-<COURSE>-<NODE>-<YYYYMMDD>`。目标标题使用同一 `VER-*` ID，
-并至少包含节点、验证模式、`passed` 结论和验收日期。模式 A 的五个步骤字段为
-「可复现性检查 / 客观验收 / 讲解口试 / 盲改挑战 / 留档」；模式 B / B-K 的字段为
-「指标对账 / 现场独立验证 / 留档」。每个步骤的 canonical 写法是
-`passed · <非空实际结果摘要>`；兼容 `: / ： / ; / ；` 分隔符时，分隔符后也必须存在
-至少包含一个 Unicode 字母或数字的摘要；仅有标点或符号不算实际结果。裸 `passed`、
-`passed ·`、`passed：   `、`passed · :`、缺字段或非 `passed` 均不闭合。
-整条记录的 `结论：passed` 不能替代任何步骤的实际结果摘要。只把预设标准复制到关闭
-证据、或只切换状态，均必须 FAIL。
+The closure evidence of a `completed` node must be a pointer to an in-repository acceptance record, in
+the format `main/<path>.md#VER-<COURSE>-<NODE>-<YYYYMMDD>`. The target heading uses the same `VER-*` ID
+and contains at least the node, the verification mode, a `passed` conclusion, and the acceptance date.
+The five step fields of mode A are
+"Reproducibility check / Objective acceptance / Oral explanation / Blind-modification challenge / Archived";
+the fields of mode B / B-K are
+"Metric reconciliation / Live independent verification / Archived". The canonical spelling of each step is
+`passed · <a non-empty summary of the actual result>`; when the compatible separators `: / ： / ; / ；` are
+used, a summary containing at least one Unicode letter or digit must still follow the separator —
+punctuation or symbols alone do not count as an actual result. A bare `passed`,
+`passed ·`, `passed:   `, `passed · :`, a missing field, or anything other than `passed` all leave it
+unclosed. A `Conclusion: passed` for the record as a whole cannot substitute for any step's actual result
+summary. Copying the pre-set criteria into the closure evidence, or merely flipping the status, must both
+FAIL.
 
-外部评测账号、学生项目仓 Git 历史和休息日目前没有稳定的仓内证据接口，因此
-“提交断档 >7 天”和“git 间隔 >7 天”是开课/验收时的人工检查，不得由 doctor
-猜测或伪造通过。
+An external judge account, the git history of a student project repository, and rest days currently have
+no stable in-repository evidence interface, so "a submission gap of >7 days" and "a git interval of >7
+days" are manual checks at course start or acceptance; doctor must never guess them or fake a pass.

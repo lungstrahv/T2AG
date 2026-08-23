@@ -5,6 +5,137 @@
 
 ---
 
+## [2026-08-22] 镜像 Main 021 套件转绿（P-0083）（不升版）
+
+- **同源镜像**：`test_021_closeout.py` 单件——测试替身补 `birth` 参数（`sync_lite.build_candidate`
+  于 286c79e/08-12 加入，替身没跟，四条 Lite 事务测试红了 10 天）；两条 ACL 测试改为
+  `pretend_windows()` 可移植化而非 `skipUnless`。SHA-256 与 Main 全同。
+- **判断反转留痕**：首判「整文件 Windows 专属，加 skipUnless」，逐条读失败消息后发现
+  6 条里 4 条是真缺陷——**诊断完成之前不得消音**。
+- **不动检查面**：无新增/修改 doctor 检查，三值锚与上一条目同值＝零漂移自证。
+- 本仓至此 `70_tools` 下全部测试文件全绿。
+- 未做：Skeleton 仓 commit（宿主，EA-0003）。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = e83bc543bcf6aa013dd9b60ae36bbc4e0bcd1c80abfbd8a6b89043bea91fa6db (n=65) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+> 三值与上一条目同值＝本批只动测试层。
+
+## [2026-08-22] 镜像 Main 空实例路径补测（P-0081）（不升版）
+
+- **同源镜像**：`test_context_packet.py` 单件——拆分一条捆绑测试、两处无守卫读键补守卫、
+  新增两条契约测试（first-run 包形状特例钉死 + 渲染器空实例不崩）。SHA-256 与 Main 全同。
+- **本仓是这批缺陷唯一能被发现的地方**：Main 永远不可能是空实例，first-run 分支在那边
+  根本执行不到；同族第二例（`test_packet_reports_both_accounts_and_component_table`
+  的 `KeyError: 'cost'`）正是在本仓复跑时抓到的。
+- **产品面零改动**：曾提议给 first-run 包补三个空值键统一形状，被裁否——缺键的 KeyError
+  是 fail-fast，补齐会让忘记分支的消费方安静渲染出一堂空课。新测试专门挡住这个方案。
+- **不动检查面**：无新增/修改 doctor 检查，三值锚与上一条目同值＝零漂移自证。
+- 未做：Skeleton 仓 commit（宿主，EA-0003）。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = e83bc543bcf6aa013dd9b60ae36bbc4e0bcd1c80abfbd8a6b89043bea91fa6db (n=65) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+> 三值与上一条目同值＝本批只动测试层。
+
+## [2026-08-22] 镜像 Main 跨语言闸门 `release.cross_edition_parity`（不升版）
+
+- **同源镜像**：从 Main 投影 parity 面 4 件——`t2ag_doctor.py`（CE 比较器 + 对端解析
+  + 带回填条件的豁免表）、`validation_workflow.json`（64→65，`release.cross_edition_parity`
+  入 release profile）、`test_release_contracts.py`（CE-R1…R6 登记）、
+  `doctor_contracts.md`（§二 检查矩阵新增一行）；`contract_test_support.py` 已同源。
+  逐件 SHA-256 与 Main 比对全同。
+- **本仓也是对端之一**：`CROSS_EDITION_PEERS` 把 `t2ag-skeleton` 与 Main 同列，
+  对端均为 `t2ag-skeleton-en`；检查不再设 flavor 门，改由「对端是否挂载」决定是否静默。
+  单版持有者（试用者的常态）永远解析不到对端，release 跑一次只多一行 INFO，教学期零影响。
+- **检查面变动**：新增一个 **release** 原子，runtime 计划与检查数不变
+  （46 checks / plan e95a4591 未动），仅原子集 sha 随之刷新，见下方锚定断言。
+- 未做：Skeleton 仓 commit（宿主，EA-0003）。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = e83bc543bcf6aa013dd9b60ae36bbc4e0bcd1c80abfbd8a6b89043bea91fa6db (n=65) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+> 前两值与上一条目同值、第三值刷新＝本批只在 release 面加了一个原子，教学面零漂移。
+
+## [2026-08-22] 镜像 Main 判卷流水线 §8.1–8.4 + 碑序列对账（不升版）
+
+- **同源镜像**：`exam_protocol.md` 单件——§八 由两行简版扩为判卷流水线四节
+  （8.1 顺序即条款：评分点表**先于开封**盲提取／学生自评映射／逐点三值核查／正误与优化
+  严格分离；8.2 等价替代旗＝模型依赖残留圈住不消灭，精讲签认后方计分；8.3 判卷记录须
+  达**可重放**标准否则不得结算；8.4 成绩构成原条款不变），§七 增碑序列快照对账。
+  SHA-256 与 Main 比对全同；隐私预检干净（纯规则面，零实例）。
+- **不动检查面**：本批无新增/修改 doctor 检查，runtime 计划与原子集**锚值不变**
+  （46 checks / plan e95a4591 / atom e1fb159f n=64，与上一条目同值＝零漂移自证）。
+- `model_dependent` 仍为 `unknown`——改判须 DP 记分卡实测（R-GATE §二），本批不改判。
+- 未做：Skeleton 仓 commit（宿主，EA-0003）。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = e1fb159fe4471b37f05dbd6a3b4906d08a9f2d989e594524f89ccb8295e674e6 (n=64) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+> 本批不注册新检查，三值与上一条目同值＝零漂移自证。
+
+## [2026-08-21] 镜像 Main 考试系统骨架（EX 批仪器面 + 模板）（不升版）
+
+- **同源镜像**：从 Main 投影 parity 面 5 件——`exam_protocol.md`（§十三/§七 范围闸/§十四，
+  回填 `enforcement: check=runtime.exam_banks`）、`exam_bank_spec.md`（**揭封**：0.2.0
+  「延期设计」封条撤，§五 已实现）、`course_group_rules.md`（§六 措辞对齐+§三 结算边界，
+  §四 未动）、`t2ag_doctor.py`（`runtime.exam_banks`＋`check_groups` 扩 `container_mode`/
+  `STALL-TRIAGE-001`）、`validation_workflow.json`（63→64）；另模板 5 件——组模板
+  `calendar.md.template`/`plan.md.template`（考试触发锚机读键+`container_mode`）、
+  `_templates/course/_exam/` 三件（`exam_ledger`/`index`/`papers/_README`，隐私预检干净）。
+  逐件 SHA-256 与 Main 比对全同。
+- **实例侧不随行**：MATH1607H `_exam/` 实例、G01/G02 日历机读值、`profile.md` §考核参数
+  均为 Main 实例内容。**空库短路 PASS** 是 EX-4 裁定的合法初态——Skeleton 无课程实例，
+  `runtime.exam_banks` 静默，0 FAIL 语义不变（本轮实测确认）。
+- **执行注记**：本镜像由宪法同源批会话按用户「同步到 skeleton」指令代执行（EX 批出单方
+  为并行会话）；同步前逐件核向，五件均 Main 在前，无反向投影。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = e1fb159fe4471b37f05dbd6a3b4906d08a9f2d989e594524f89ccb8295e674e6 (n=64) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+> 本 lane 认 46 checks / atom n=64，与 Main 同日 EX 条目锚值一致。
+> 沙箱不执行 git 写操作，commit 归宿主。
+
+## [2026-08-21] 镜像 Main 五条 open 问题批（P-0068/69/70/71/73）仪器面（不升版）
+
+- **同源镜像**：从 Main 投影本批的**仪器面**共 9 件——`t2ag_doctor.py` /
+  `validation_workflow.json` / `contract_test_support.py` / `test_runtime_contracts.py` /
+  `t2ag_context.py` / `test_context_packet.py` / `sync_lite.py` /
+  `test_distribution_foundation.py` / `60_journal/t2ag_version_ledger.md`，
+  逐件 SHA-256 与 Main 比对全同。
+- **新增三条 runtime 检查**：`runtime.domain_tier_reconciliation`（P-0073 N2 档位对账）、
+  `runtime.recommendation_ledger`（P-0069 建议台账格式）、`runtime.gate_visibility`
+  （P-0068 quiet 课审计零损失）。三者在空实例上均按冷启动护栏静默或只报观测态 INFO，
+  **Skeleton 保持 0 FAIL 0 WARN 语义不变**。
+- **`t2ag_context.py` 启动新鲜度仪器**（P-0070）：mtime 比对 ＋ 双通道对读，坐实分歧才
+  拦教学正文。对空模板无影响（无课程即无可比对象）。
+- **`sync_lite.py` 收窄**（P-0071）：`_project_handoffs` 与宪法六份名单整体删除，写入与
+  check-only 两路径均播报 `handoffs: not shipped`；版本台账六份锚改写为工作区级真实
+  位置（SHA 未变，复核字节对齐）。**Skeleton 实例不持有这六份，按本表去找必然落空，
+  那是声明过的边界**。
+- **实例侧不随行**：`profile.md` 的 domain→tier 表、`30_group/recommendations.md`
+  台账、AIF1001r 的 `gate_visibility: quiet` 均为 Main 实例内容，不投影到 Skeleton；
+  三条检查对其缺席的正确反应就是静默（这正是冷启动护栏所守）。
+- 验证：Skeleton runtime doctor **0 FAIL**；`test_runtime_contracts.py` 108/108。
+- 未做：Skeleton 仓 commit（宿主，EA-0003）。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = efe34587ba5c795a6712230ff2718fbd0dc84144e468d0d2be576cb1c1ecc425 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 45 ← 同上
+- doctor_checks atom set sha256 = 71b9012502e87db46c8b4f2bfcb3a983a55f204a143ab41f1d0cdaaafc78f7b3 (n=63) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+---
+
 ## [2026-08-21] 镜像 Main 宪法同源盲区收口：分节同源仪器 + VI-§6 sink（不升版）
 
 - **同源镜像**：从 Main 投影 `release.constitution_parity` 仪器面（`t2ag_doctor.py` /

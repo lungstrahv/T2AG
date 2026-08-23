@@ -339,13 +339,14 @@ def main(argv: list[str] | None = None) -> int:
         "--reading-root",
         type=Path,
         default=None,
-        help="可选第三仓（阅读系统）根路径；缺省时 receipt 不含 reading 绑定",
+        help="the optional root path of the third repository (the reading system); without it the receipt carries no reading binding",
     )
     args = parser.parse_args(argv)
     workspace = args.workspace.resolve()
     main_root = workspace / "t2ag"
     skel = workspace / "t2ag-skeleton"
-    # EV-0023：第三仓路径不再硬编码维护者机器字面量，由调用方显式传入。
+    # EV-0023: the third repository's path is no longer a hard-coded maintainer machine literal; the caller
+    # passes it explicitly.
     reading = args.reading_root.resolve() if args.reading_root else None
     if args.validate_chain:
         head_path, head_data, chain = validate_receipt_chain(workspace)

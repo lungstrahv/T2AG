@@ -5,6 +5,232 @@
 
 ---
 
+## [2026-08-22] English-edition user-facing strings, batch one (P-0082); no version bump
+
+- **Scope**: 14 string literals in `main/70_tools/t2ag_context.py` — the first-run strings a
+  reader meets on their very first screen, plus the `render_markdown` title and notice family
+  that appears on **every** render. Logic unchanged.
+- **Four of them had consumers**, and the heaviest was missed by the first draft of the work
+  order: `不是新的真相源` is asserted by `check_context_packet_contract` in `t2ag_doctor.py`,
+  not merely by a test. Translating it is nevertheless safe **because its English spelling is
+  already registered in `MARKER_VARIANTS`** — the table exists precisely so that adding a
+  language is a data change, not a code change.
+- **Two assertions were raw `assertIn` on a Chinese heading**, which `marker_assertions`'
+  own docstring forbids: pinning one edition's spelling turns a correct translation into a
+  false negative. They were registered in `MARKER_VARIANTS` and switched to
+  `assert_states_rule`, so the next translation will not re-break them.
+- **Deliberately not done**: the other ~150 Chinese literals in this file. The line between
+  "translate" and "keep" is not machine-decidable — `section_any(memory, "上次课摘要")` and
+  friends are lookup keys into files, and translating one breaks behaviour.
+- **A dead assertion was brought back to life** (escalated by the executor, resolved by the
+  work-order author): `test_context_packet.py` carries
+  `assertIn("never call that ratio an end-to-end token reduction", l0_markdown)`, and the
+  work order's mandated wording for the cost notice did **not** contain that phrase. Since
+  `context_packet.md` is not an L0 selection source, the only text that can satisfy that
+  assertion is the rendered cost notice itself — so the assertion could never have passed in
+  this edition, and nobody noticed because the empty-skeleton path returns before it runs.
+  Third sighting of the P-0081 shape: an assertion whose only truth-making environment does
+  not exist here. The translation was aligned to the phrase the assertion (and
+  `context_packet.md` §5, "The cost account and acceptance") already uses, which makes the
+  tool output, the playbook and the test agree on one wording instead of three.
+- **Verification**: `t2ag_test.py --component context` plan-bound run passed; runtime doctor
+  0 FAIL / 0 WARN; `--format markdown` and `--include-l1 --format markdown` both EXIT=0;
+  the render_markdown residual-CJK check returns 0; the rendered cost notice was
+  literal-joined and confirmed to contain the asserted phrase.
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = aec13fee43834daf6c19a4d2af804b9c4e890b57d06424f188cebd5a6af00807
+- runtime checks = 41
+- doctor_checks atom set sha256 = 5c934fac9e32a866cf93e0e1c14e6d36aa596dd4f7e15958d30b5255a230c877 (n=59)
+
+> Anchors unchanged: no check registered or removed. `MARKER_VARIANTS` is data, not an atom.
+
+---
+
+## [2026-08-22] Rule layer fully English; the marker registry absorbs every private lookup table; no version bump
+
+- **Scope**: the rule layer of this edition is now English end to end — all of `50_playbook/**`, the
+  `00_core/` contracts (`learning_activity_model.md`, `pattern_retire_loop.md` prose), the instance
+  templates (`40_course/_templates`, `30_group/_templates`, `10_student`, `80_interface`, `cloud`),
+  `docs/adr/**`, `docs/protocol/**`, and the `60_journal` scaffolds. Measured zh-CN characters across the
+  tree: 145,090 at the start of the translation work → 19,666 now.
+- **Deliberately left in zh-CN** (each is an identity, not prose): `t2ag_changelog.md` (an append-only
+  provenance record that nothing reads to decide behaviour; a downstream instance appends in its own
+  language); the canonical keys of `MARKER_VARIANTS`; the `【模式】复利回路·…` declaration blocks written
+  by `migrate_020.py`; the Chinese prompt-injection patterns in `context_scan.py`; the Chinese OCR
+  misrecognition table in `ocr_correct_flow.md`; and `INVITED_USE_GRANT.md`, whose Chinese half is the
+  governing text.
+- **Three private lookup tables absorbed into the registry** — each was a silent false negative waiting
+  for the first English instance:
+  - doctor's profile `required_sections` listed only zh-CN spellings, so a generated English profile
+    failed all four required sections. Measured: 4/4 fail before, 4/4 pass after.
+  - `t2ag_context` read `## 上次课摘要`, `## 活跃知识点`, `待解决`, `需要回看`, `知识点树形图` and the two
+    `reasoning_patterns` headings by one literal each; `section_any()` now resolves them through the
+    registry.
+  - `problem_statement()` matched `- 题面:` literally, and its answer-leak guard matched
+    `提示|答案|解答|讲解` literally — a translated `problems.md` would have leaked the solution into the
+    packet. Both now build their alternation from the registry.
+- **Two hand-written bilingual alternations converted** (the last in their files): the changelog
+  anchored/corroborating block headings, and the three next-action bullet labels. The latter had drifted:
+  the code said `Next step plan` while the registry and the generated templates say `Next-step plan`, so
+  a correctly generated English progress file failed both readers.
+- **`t2ag_state_refresh` and `build_journal_index` now emit English**, and the caches they own were
+  regenerated; the memory GENERATED blocks carry a note that hand-editing them is drift.
+- **`changelog_management.md` had taught a spelling the gate rejects** (`Anchoring claims` vs the
+  accepted `Anchored assertions`); doc, code and registry are now one list.
+- Verified: runtime doctor `0 FAIL`; `runtime.skeleton_privacy` `0 FAIL, 0 WARN`; 22 of 24 test suites
+  green, with `test_021_closeout` (Windows ACL + Lite transaction, needs a real host) and
+  `test_context_packet` (1 error) at or below the zh-CN canonical's baseline.
+
+#### Anchored assertions (required)
+- runtime plan sha256 = aec13fee43834daf6c19a4d2af804b9c4e890b57d06424f188cebd5a6af00807 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | head -1`
+- runtime checks = 41 ← as above
+- doctor_checks atom set sha256 = 5c934fac9e32a866cf93e0e1c14e6d36aa596dd4f7e15958d30b5255a230c877 ← the sorted `doctor_checks` key set of `validation_workflow.json`
+
+#### Corroborating assertions (optional, entry-specific)
+- the rule layer carries no zh-CN prose ← `grep -c "[一-鿿]" main/50_playbook/*.md | grep -v ":0" | wc -l` (only the deliberate residues above)
+- the registry resolves the profile sections ← `grep -c "每周可投入学习时间" main/70_tools/t2ag_doctor.py`
+
+---
+
+## [2026-08-22] The 021 suite is green again (P-0083): diagnose before silencing; no version bump
+
+- **A reversed judgement, recorded first.** `test_021_closeout.py` was red in all three
+  editions with the same six failures. The first call was "Windows-only, environment state,
+  not a defect", and a whole-file `skipUnless(os.name == "nt")` had already been written up.
+  Reading the failure messages one by one reversed it: **only two are Windows-bound; the other
+  four are real.** `sync_lite.build_candidate` gained a third parameter `birth` in **286c79e
+  (2026-08-12)** and the test double never followed --
+  `fake_build_candidate() takes 2 positional arguments but 3 were given` -- **red for ten
+  days**. Those four guard Lite's rollback promise: a failed candidate build must restore the
+  previous Lite exactly. Nobody had executed them in ten days.
+- **Had the first call been built, four real defects would have been silenced permanently by
+  one decorator.** The lesson: **do not silence before the diagnosis is complete.** "This test
+  can never be green in this environment" is a claim about the environment, and it has to be
+  established failure by failure; generalising it over a whole file replaces per-case fact with
+  an unproven universal.
+- **Fix one**: the double accepts `birth: dict | None = None` (accepted and unused -- this
+  group proves the transaction and its rollback, not the birth certificate), with an in-place
+  comment naming the commit and the ten days.
+- **Fix two (the reversal)**: the two genuinely Windows-bound tests were made **portable
+  rather than skipped**. A new `pretend_windows()` helper creates a real fake `SystemRoot`
+  holding an empty `icacls.exe`, and pins `sync_lite.Path` to **this platform's** flavour --
+  `pathlib` reads the same `os.name` when it instantiates, so changing only `os.name` makes
+  `Path(...)` raise `NotImplementedError: cannot instantiate 'WindowsPath'` (the first attempt
+  hit exactly that; it is recorded in the helper's docstring). Why not skip: this repo's tests
+  are in practice run in a Linux sandbox, and these two guard the safety rule that refuses to
+  touch ACLs outside the Lite destination -- a skipped guard is no guard, which is the very
+  disease P-0083 describes. The patch surface is deliberately narrow: a real file on disk
+  rather than patching `Path.is_file`.
+- **Verification**: 31 run / 0 failures / 1 skip (pre-existing) in all three editions. Every
+  test file under `70_tools` in this edition is now green.
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = aec13fee43834daf6c19a4d2af804b9c4e890b57d06424f188cebd5a6af00807 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 41 ← 同上
+- doctor_checks atom set sha256 = 5c934fac9e32a866cf93e0e1c14e6d36aa596dd4f7e15958d30b5255a230c877 (n=59) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+> All three anchors are unchanged from the previous entry: this batch touched the test layer
+> only. The sandbox performs no git writes; commits belong to the host.
+
+---
+
+## [2026-08-22] Empty-instance path now under test (P-0081); product unchanged; no version bump
+
+- **Found here first.** A trial reader running `test_context_packet.py` on this edition hit
+  `KeyError: 'route'`. The diagnosis took three steps and **the middle two were wrong**, which
+  is worth recording: (1) "the test forgot a guard" -- incomplete; (2) "the two builders
+  disagree about the shape of one state, so the product is defective" -- **wrong direction**;
+  (3) the maintainer's correction: first run *is* a special case, by design.
+- **The rejected fix, recorded so it is not attempted again**: filling the first-run packet
+  with empty `route` / `cost` / `l1_empty_reason` to make the shape uniform. `status:
+  first_run_required` is exactly the signal that says "this packet has a different shape,
+  branch on it", and the absent keys make a consumer that forgot to branch fail loudly.
+  Filling them in disguises the special case as an ordinary packet: the forgetful consumer
+  stops crashing and quietly renders an empty lesson instead. **No product code changed.**
+- **The real defect is the shape of the coverage.** The Chinese Main can never be an empty
+  instance -- `initialized()` is always true there -- so the first-run branch is unreachable
+  in Main and only the two Skeletons can exercise it. Nobody had run this file on a Skeleton.
+  Same family as P-0077's second root cause, from the other side: that one was a suite aborting
+  before its tail ever ran, this one is an environment that cannot trigger the branch at all.
+- **Changes (test layer only)**: the bundled test was split so that "a stale snapshot must be
+  rejected" keeps running on an empty instance instead of being skipped along with the routing
+  half; two new contract tests pin the special shape and prove `--include-l1` markdown
+  rendering does not crash on a first-run packet (that early return was bought by an earlier
+  incident and had **zero** test cover). Both new tests force the branch with
+  `mock.patch.object(context, "initialized", return_value=False)`, so **Main can now reach this
+  path too** -- closing the hole matters more than fixing the two lines.
+- **Verification**: 48 run, 7 skipped, 0 errors here; Main 61/61; Chinese Skeleton 61 run,
+  8 skipped, 0 errors. Every test file under `70_tools` was run on both Skeletons; all green
+  except `test_021_closeout.py`, which is Windows-only (`icacls`/`SystemRoot`) with no platform
+  guard and fails identically in all three editions -- an environment state, not a defect.
+- **Also opened**: P-0082 -- this edition's first-run user-facing strings are still Chinese
+  (five of them, in code literals, which a file-by-file translation inventory cannot see).
+  Scheduled separately, not built in this batch.
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = aec13fee43834daf6c19a4d2af804b9c4e890b57d06424f188cebd5a6af00807 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 41 ← 同上
+- doctor_checks atom set sha256 = 5c934fac9e32a866cf93e0e1c14e6d36aa596dd4f7e15958d30b5255a230c877 (n=59) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+> All three anchors are unchanged from the previous entry: this batch touched the test layer
+> only. The sandbox performs no git writes; commits belong to the host.
+
+---
+
+## [2026-08-22] The cross-edition gate `release.cross_edition_parity`; no version bump
+
+- **Why this edition needed it most**: `check_distribution_parity` only ever runs the Chinese
+  Main against the Chinese Skeleton, and `test_distribution_foundation.py` skips outright when
+  it finds no same-language sibling -- it says so in the skip message: "cross-edition byte
+  parity is not a satisfiable contract". So this edition had **no parity gate at all**. It was
+  generated from `a347bcd`, hand-translated, and then nothing watched it. Its `0 FAIL` proved
+  only that it still matched its own frozen contract. That is the `carrier_mismatch` family of
+  P-0065/P-0074 one layer up: a declared constraint with no checker able to falsify it.
+- **What was actually missing** (measured, not estimated): 8 doctor handlers, 6 registered
+  check ids with their profile entries, and 14 numbered sections -- all of them landed on the
+  Chinese side between 2026-08-18 and 2026-08-22. Nothing here is *wrong*; it is *behind*.
+- **The unit of comparison** is neither bytes nor prose titles but the two things a translation
+  must preserve: machine identifiers (handler names, check ids, profile registrations, carried
+  over verbatim by standing ruling) and section numbers (`## 一、` = `## 1.`, `### 二·一` =
+  `### 2.1`). Prose wording is deliberately out of scope: the gate proves the mechanism is
+  present, not that the translation reads well.
+- **Numbering normalisation took two rounds to converge**, and both lessons are in the code:
+  the CJK separators `·` / `．` / `点` and the digit `〇` must be parsed, and a bare child
+  number is qualified by its nearest `##` parent while a dotted one is not -- the test is the
+  dot, not "does it lead with the parent's number", because the fifth child of §5 is written
+  `### 5.` and the other rule reads it as a repeat of its own parent. `lesson_recover.md`
+  remains undecidable (the Chinese side writes `### 2.` beside its own child `### 2.1`) and is
+  registered as a file-level exemption with the reason stated.
+- **Fluency is a design constraint, not a side effect**: this is a *release* check, so it never
+  runs during teaching; and it resolves its peer edition by directory name, so a reader holding
+  only this Skeleton -- which is every trial user -- gets one INFO line during a release run and
+  nothing else, ever. Findings appear only for someone holding both editions, which is exactly
+  the person who should see them.
+- **Runs from either side.** The orientation is fixed independently of which repo invoked it,
+  so the exemption table means the same thing in both editions instead of reading backwards here.
+- **The debt is registered, not hidden**: 38 gaps are listed as INFO with a mandatory refill
+  condition each, and every one flips to a stale WARN the moment both editions agree again.
+  Landing this gate here also paid off its own first three entries.
+- **Verification**: `test_release_contracts.py` 12/12 (CE-R1…R6 new); runtime doctor
+  0 FAIL / 2 WARN, one being the known sandbox environment note and the other this entry's own
+  state-drift anchor, now recorded below.
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = aec13fee43834daf6c19a4d2af804b9c4e890b57d06424f188cebd5a6af00807 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 41 ← 同上
+- doctor_checks atom set sha256 = 5c934fac9e32a866cf93e0e1c14e6d36aa596dd4f7e15958d30b5255a230c877 (n=59) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
+> The first two anchors are unchanged from the previous entry: this landed a **release** atom
+> only, so the runtime teaching surface did not move. The sandbox performs no git writes;
+> commits belong to the host.
+
+---
+
 ## [2026-08-20] English entry-surface edition (LV-5); no version bump
 
 - **Scope**: entry surface translated to English (`README.md`, `AGENTS.md`, the constitution

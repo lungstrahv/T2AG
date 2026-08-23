@@ -1,33 +1,42 @@
-# 测试选择与证据复用（test_strategy）
+# Test selection and evidence reuse (test_strategy)
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-本规则把“保存测试能力”和“本次执行组合”分开。测试代码是长期资产；一次任务只生成
-内存中的执行计划，不生成临时 Python suite，也不在执行后删除测试代码。
+This rule separates "keeping test capability" from "this run's combination". Test code is a long-term
+asset; one task only produces an in-memory execution plan — it does not generate a temporary Python
+suite, and it does not delete test code afterwards.
 
-本规则与 Doctor profile 分层共同组成三形态基础能力，由 `distribution_foundation` 组件和
-`test_distribution_foundation.py` 做原子自检；Lite 只携带并供审查，不执行。
-完整检测树见 `validation_flow.md`。`validation_workflow.json` 管 profile、V0–V3、预算与
-防越级门；`test_dependencies.json` 只管理测试库存、档位、组件和源码依赖。
+Together with the Doctor profile tiers, this rule forms the three-form base capability, self-checked
+atomically by the `distribution_foundation` component and `test_distribution_foundation.py`; Lite
+carries it for review only and does not execute it.
+The full detection tree is in `validation_flow.md`. `validation_workflow.json` governs profiles, V0–V3,
+budgets and the anti-escalation gate; `test_dependencies.json` governs only the test inventory, tiers,
+components, and source dependencies.
 
-## 1. 持久层
+## 1. The persistent layer
 
-- 原子断言保存在稳定的 `test_*.py` 或共享断言库中；按领域组织，不按某次施工单组织。
-- `70_tools/test_dependencies.json` 是测试、组件、档位与源码依赖的唯一清单。
-- 清单显式区分 `kind=atomic` 与 `kind=scenario`；前者只能是 `70_tools/test_*.py`，后者
-  只能位于 `70_tools/scenarios/` 且不得使用 `test_` 文件名。
-- `70_tools/t2ag_test.py` 校验清单完整性，按组件或改动路径选择测试，并给每个被选文件
-  绑定 SHA-256。
-- 也可用稳定 `--test ID` 明确组合原子测试；普通执行最多三个测试命令。
-- 普通发现范围内新增或删除 `test_*.py` 时，必须同一批更新依赖清单；不得用 glob 把新增
-  测试自动纳入迁移、发布或全量边界。
-- 需要真实物理根、故障注入或跨仓编排的完整场景放在 `70_tools/scenarios/`，不使用
-  `test_` 文件名，也不参加普通测试发现。
+- Atomic assertions live in stable `test_*.py` files or a shared assertion library; they are organized by
+  domain, not by whichever work order created them.
+- `70_tools/test_dependencies.json` is the single manifest of tests, components, tiers, and source
+  dependencies.
+- The manifest distinguishes `kind=atomic` from `kind=scenario` explicitly; the former may only be
+  `70_tools/test_*.py`, and the latter may only live under `70_tools/scenarios/` and must not use a
+  `test_` filename.
+- `70_tools/t2ag_test.py` validates the manifest's completeness, selects tests by component or by changed
+  path, and binds a SHA-256 to each selected file.
+- Atomic tests may also be combined explicitly by stable `--test ID`; an ordinary run allows at most
+  three test commands.
+- When a `test_*.py` is added or removed within ordinary discovery scope, the dependency manifest must be
+  updated in the same batch; a glob must never be used to sweep a new test automatically into a
+  migration, release, or full-run boundary.
+- A complete scenario needing a real physical root, fault injection, or cross-repository orchestration
+  goes in `70_tools/scenarios/`, does not use a `test_` filename, and does not take part in ordinary test
+  discovery.
 
-## 2. 临时组合
+## 2. The ad-hoc combination
 
-现场组合只存在于 `t2ag.test_plan.v1` 内存对象及标准输出中。先列计划，再用完全相同的
-选择参数和 plan SHA 执行：
+An on-the-fly combination exists only inside the `t2ag.test_plan.v1` in-memory object and in standard
+output. List the plan first, then execute with exactly the same selection parameters and plan SHA:
 
 ```powershell
 python -B main/70_tools/t2ag_test.py --test foundation.structure --test doctor.postcheck --tier fast --plan-only
@@ -38,49 +47,59 @@ python -B main/70_tools/t2ag_test.py --component transaction --tier deep --plan-
 python -B main/70_tools/t2ag_test.py --component release_suite --tier release_only --plan-only
 ```
 
-没有 `--execute-plan` 时选择器只输出计划，不启动测试；SHA 不匹配时拒绝执行。release_only
-执行还要求 `--release-reason`，而 `release_suite` 聚合项始终只读。执行器按清单顺序启动
-已保存的测试文件。禁止拼接并落盘 `test_adhoc.py`、
-`test_current_batch.py` 等一次性代码；因此也不存在“用完删除临时测试文件”的清理步骤。
-需要留存的只是计划 SHA、测试文件 SHA 和结果摘要。
+Without `--execute-plan`, the selector only prints the plan and starts no test; a SHA mismatch refuses to
+execute. A release_only run additionally requires `--release-reason`, and the `release_suite` aggregate is
+always read-only. The executor starts the saved test files in manifest order. Concatenating and writing
+one-off code such as `test_adhoc.py` or
+`test_current_batch.py` to disk is forbidden — which is also why there is no "delete the temporary test
+file afterwards" cleanup step.
+What has to be kept is only the plan SHA, the test-file SHAs, and the result summary.
 
-## 3. 档位
+## 3. Tiers
 
-| 档位 | 默认用途 | 内容 |
+| Tier | Default use | Contents |
 |---|---|---|
-| `fast` | V1 与普通 V2 定向回归 | 直接相关的本地契约和 round-trip |
-| `deep` | 受影响的核心事务、迁移、恢复 | `fast` 加相关深度测试 |
-| `release_only` | 冻结候选或正式发布 | 对应的发布原子契约、矩阵证据和显式场景 |
+| `fast` | V1 and ordinary V2 targeted regression | the directly related local contracts and round-trips |
+| `deep` | the affected core transactions, migrations, recovery | `fast` plus the related deep tests |
+| `release_only` | a frozen candidate or a formal release | the corresponding release atomic contracts, matrix evidence, and explicit scenarios |
 
-档位是上限，不是“始终跑满”的命令。普通任务不得因为清单中存在 `deep` 或
-`release_only` 条目而自动升级；未进入本次档位的条目在计划中标为 deferred。
-普通选择超过三个可执行测试文件时，计划仍可查看，但执行器必须拒绝并要求缩小组合。
+A tier is a ceiling, not an order to "always run everything". An ordinary task must never escalate
+automatically because a `deep` or `release_only` entry exists in the manifest; an entry outside this
+run's tier is marked deferred in the plan.
+When an ordinary selection exceeds three executable test files, the plan may still be viewed, but the
+executor must refuse and demand a smaller combination.
 
-发布测试也必须按组件定向选择。`release_receipts`、`release_evidence`、`release_gates`、
-`release_faults`、`release_shadow` 各自只绑定直接工具；`release_suite` 是没有 changed-path
-映射且只能 `--plan-only` 的显式聚合组件，任何普通改动都不能自动选中或执行它。物理根
-scenario 在组合中只登记为 deferred，必须按计划给出所需 fixture 后显式调用。
+Release tests must likewise be selected by component. `release_receipts`, `release_evidence`,
+`release_gates`,
+`release_faults`, and `release_shadow` each bind only their direct tools; `release_suite` is an explicit
+aggregate component with no changed-path mapping and `--plan-only` execution, and no ordinary change may
+select or execute it automatically. A physical-root scenario is registered in a combination only as
+deferred, and must be invoked explicitly after the required fixture is supplied per the plan.
 
-## 4. 现行领域入口
+## 4. Current domain entry points
 
-- `test_runtime_contracts.py`：profile、路由、teacher、state refresh、skin。
-- `test_activity_contracts.py`：活动模型、课程模板、证据和可执行路径。
-- `test_release_contracts.py`：候选隔离及发布流程契约，仅发布档位。
-- `test_release_receipts.py`：receipt chain 原子契约。
-- `test_release_evidence.py`：结构化 evidence 原子契约。
-- `test_release_gates.py`：gate matrix 与冻结成员原子契约。
-- `test_release_fault_contracts.py`：故障边界枚举原子契约，不执行完整故障矩阵。
-- `test_release_shadow_contracts.py`：shadow 授权、清理与不可覆写原子契约。
-- `test_legacy_migrations.py`：历史迁移兼容，只在相应迁移受影响时运行。
-- `test_022_close_roundtrip.py`：包含 close runtime 的独有断言；不再保留重复入口。
-- `scenarios/release_reading_bridge_saga.py`：完整物理根 release scenario，须显式提供 fixture。
-- `scenarios/release_shadow_apply.py`：完整物理根 shadow apply/rollback/second-run 场景。
+- `test_runtime_contracts.py`: profiles, routing, teacher, state refresh, skin.
+- `test_activity_contracts.py`: the activity model, course templates, evidence, and executable paths.
+- `test_release_contracts.py`: candidate isolation and release-process contracts; release tier only.
+- `test_release_receipts.py`: the receipt-chain atomic contracts.
+- `test_release_evidence.py`: the structured-evidence atomic contracts.
+- `test_release_gates.py`: the gate matrix and frozen-member atomic contracts.
+- `test_release_fault_contracts.py`: the fault-boundary enumeration atomic contracts; it does not run the full fault matrix.
+- `test_release_shadow_contracts.py`: the shadow authorization, cleanup, and non-overwritability atomic contracts.
+- `test_legacy_migrations.py`: historical migration compatibility; run only when the relevant migration is affected.
+- `test_022_close_roundtrip.py`: holds the assertions unique to the close runtime; no duplicate entry point is kept.
+- `scenarios/release_reading_bridge_saga.py`: the full physical-root release scenario; a fixture must be supplied explicitly.
+- `scenarios/release_shadow_apply.py`: the full physical-root shadow apply/rollback/second-run scenario.
 
-## 5. 变更与删除规则
+## 5. Rules for changing and deleting
 
-删除测试必须证明断言已并入其他稳定入口，或被现行契约明确退役；只因运行慢、当前任务
-未选中或已经通过，不构成删除理由。重复断言先合并，历史迁移和发布证据测试降档保留。
+Deleting a test must prove the assertion has been merged into another stable entry point, or explicitly
+retired by a current contract; being slow, not selected by the current task, or already passing are none
+of them grounds for deletion. Duplicate assertions are merged first, and historical migration and release
+evidence tests are kept at a lower tier.
 
-SHA 未变化且依赖未受影响的结果允许复用。finding 修复只重跑受影响组件；冻结候选才统一
-执行一次 `release_only` 组合和完整独立复审。选择结果超出普通任务预算时，记录 deferred
-项，等待正式候选，不得自动扩大验证范围。
+A result may be reused when the SHA has not changed and its dependencies were not affected. A finding fix
+re-runs only the affected components; only a frozen candidate runs the `release_only` combination once
+and gets a full independent re-review. When the selection result exceeds an ordinary task's budget,
+record the deferred items and wait for a formal candidate; never widen the verification scope
+automatically.

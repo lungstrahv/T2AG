@@ -1,115 +1,176 @@
-# 开课知识点抽查（mistake_retest）
+# The start-of-class knowledge spot-check (mistake_retest)
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> 每次正式课程开头触发。抽查单位是“知识点”，不是固定题目；题目只是知识点的变式探针。
-> 当堂理解不等于延迟提取成功，结果在结课仪式中统一写回课程 `mistake_bank.md`。
+> Triggered at the start of every formal class. The unit of the spot-check is a "knowledge point", not
+> a fixed problem; a problem is only a variant probe for the knowledge point.
+> Understanding in the moment is not successful delayed retrieval, and the results are all written back
+> to the course `mistake_bank.md` in the session-close ritual.
 
-## 一、抽查组成
+## 1. Composition of the spot-check
 
-每次开课默认最多 11 个独立判定槽位：
+Each class start has at most 11 independently judged slots by default:
 
-| 来源 | 数量 | 选择范围 |
+| Source | Count | Selection range |
 |---|---:|---|
-| 课程覆盖抽查 | 2 | 已完成 LearningActivity 中 1 个近期知识点 + 1 个远期知识点 |
-| 活跃错误知识点 | 0-8 | 当前强化周期到期的 `active` 条目 |
-| 陈年反刍 | 0-1 | `aged` 条目；占独立第 11 槽，不挤占课程覆盖 |
+| Course-coverage sampling | 2 | 1 recent and 1 distant knowledge point from completed LearningActivities |
+| Active error knowledge points | 0-8 | `active` entries whose current reinforcement cycle is due |
+| Aged rumination | 0-1 | an `aged` entry; it occupies the separate 11th slot and never crowds out course coverage |
 
-- 近期知识点来自最近 1-4 节课；远期知识点优先选择至少 6 节课未确认或最久未复测的内容。
-- 活跃条目不足 8 个则全部抽查；超过 8 个时先选“上次失败、等待修复”的条目，其余按日期种子轮换。
-- `maintenance` 不是永久掌握：远期抽查失败后开启新的强化周期并转回 `active`。
-- 无陈年条目时跳过第 11 槽，不为了凑题制造记录。
+- A recent knowledge point comes from the last 1-4 classes; a distant one prefers content unconfirmed
+  for at least 6 classes or longest since its last retest.
+- If there are fewer than 8 active entries, check them all; with more than 8, take the ones that
+  "failed last time and are awaiting repair" first, and rotate the rest on a date seed.
+- `maintenance` is not permanent mastery: failing a distant spot-check opens a new reinforcement cycle
+  and moves the entry back to `active`.
+- With no aged entry, skip the 11th slot; never manufacture a record to fill the quota.
 
-## 二、知识点状态机
+## 2. The knowledge-point state machine
 
-一个 `M-xxxx` 条目对应一个稳定知识点键；同一知识点再次出错时合并证据，不重复建条目。
+One `M-xxxx` entry corresponds to one stable knowledge-point key; when the same knowledge point goes
+wrong again, merge the evidence rather than creating a duplicate entry.
 
-| 结果 | 定义 | 是否计入独立正确 |
+| Result | Definition | Counts as an independent correct answer |
 |---|---|---|
-| `✓` | 无答案提示，使用不同表面题完成 | 是 |
-| `△` | 提示后完成、部分完成或判定证据不足 | 否，但占一次尝试 |
-| `✗` | 错误、无法提取或根因仍在 | 否 |
+| `✓` | completed with no answer hint, on a different surface problem | yes |
+| `△` | completed after a hint, partially completed, or the evidence is insufficient to judge | no, but it consumes one attempt |
+| `✗` | wrong, unable to retrieve, or the root cause is still there | no |
 
-- 当堂讲解后复述只写“当堂理解”，不进入正式复测计数。
-- 正式复测默认跨会话且距上次正式复测至少 3 天；同一原题重复作答不计。
-- `maintenance` 条件：当前强化周期累计 3 次 `✓`；若出现过 `✗`，最后一次 `✗` 后还需连续 2 次 `✓`。
-- `aged` 条件：当前强化周期达到 6 次仍未通过，或出现第 3 次 `✗`。前两次错误继续修复，第三次错误只触发转陈年，不再追加密集练习。
-- 这里的“6”是一次密集修复周期的尝试上限，不是知识点只保留 6 节课；`maintenance` 条目在整门课中继续参加最久未确认优先的远期抽查。
-- 陈年反刍不受六次密集上限驱动；每张复习卷对同一知识点最多形成 1 次正式结果，必须在两个不同学习日期连续得到 2 次 `✓` 才可转回 `maintenance`。答错则连续计数归零，仍留在 `aged`，不追加密集轰炸。
-- 课程结束只归档记录，不宣称永久掌握；课程恢复或关联知识再次出现时仍可远期抽查。
+- A restatement right after an explanation is recorded as "understood in the moment" only and does not
+  enter the formal retest count.
+- A formal retest is cross-session by default and at least 3 days after the previous formal retest;
+  re-answering the same original problem does not count.
+- The `maintenance` condition: 3 cumulative `✓` in the current reinforcement cycle; if a `✗` has
+  occurred, 2 consecutive `✓` are additionally required after the last `✗`.
+- The `aged` condition: 6 attempts reached in the current reinforcement cycle without passing, or a
+  3rd `✗`. The first two errors continue to be repaired; the third error only triggers the move to
+  aged, with no further intensive drilling.
+- The "6" here is the attempt ceiling of one intensive repair cycle, not a claim that a knowledge point
+  is kept for only 6 classes; a `maintenance` entry keeps taking part in the distant spot-check, which
+  prioritizes the longest-unconfirmed, for the rest of the course.
+- Aged rumination is not driven by the six-attempt intensive ceiling; one review paper yields at most 1
+  formal result per knowledge point, and 2 consecutive `✓` on two different study dates are required to
+  move back to `maintenance`. A wrong answer resets the consecutive count to zero, the entry stays
+  `aged`, and no further bombardment is added.
+- The end of a course only archives the records; it never declares permanent mastery. When the course
+  resumes, or related knowledge appears again, the distant spot-check still applies.
 
-## 三、知识点探针
+## 3. Knowledge-point probes
 
-为避免十道同质习题，逻辑上独立判定，呈现上可组合成 2-4 组小场景。
+To avoid ten homogeneous drill problems, judgement is logically independent while presentation may be
+combined into 2-4 small scenarios.
 
-| 探针 | 操作 | 适合检查 |
+| Probe | Operation | Good for checking |
 |---|---|---|
-| P1 复述 | 用自己的话给定义、规则或机制 | 基础提取 |
-| P2 辨析 | 比较近似概念或判断边界 | 概念区分 |
-| P3 构造 | 给例子、反例、测试用例 | 生成能力 |
-| P4 迁移 | 换数字、情境或表达形式 | 跨题迁移 |
-| P5 诊断 | 找证明、代码或论证中的错误 | 根因识别 |
-| P6 连接 | 说明两个知识点的依赖关系 | 知识结构 |
+| P1 restate | give the definition, rule or mechanism in their own words | basic retrieval |
+| P2 discriminate | compare near-neighbour concepts or judge a boundary | conceptual distinction |
+| P3 construct | give an example, a counterexample, a test case | generative ability |
+| P4 transfer | change the numbers, the setting or the form of expression | cross-problem transfer |
+| P5 diagnose | find the error in a proof, a piece of code or an argument | root-cause identification |
+| P6 connect | state the dependency between two knowledge points | knowledge structure |
 
-同一知识点连续复测不得使用同一探针和同一表面题。每个知识点必须单独记录结果，即使多个知识点被包装在同一场景里。
+Consecutive retests of the same knowledge point must not use the same probe and the same surface
+problem. Every knowledge point must be recorded separately, even when several of them are wrapped into
+one scenario.
 
-## 四、变式安全三关
+## 4. The three safety gates for a variant
 
-1. 模型必须完整自解，确认问题有解且判定明确。
-2. 变式题、判定依据和所用探针随复测记录落盘。
-3. 条件扰动、跨语境迁移首次只用于日常抽查；无争议后才可进入非正式小测，正式考试仍走 `exam_protocol.md`。
+1. The model must solve it completely itself, confirming the problem has a solution and a clear
+   judgement.
+2. The variant problem, the basis of judgement, and the probe used are all written to disk with the
+   retest record.
+3. A condition perturbation or a cross-context transfer is used only in the everyday spot-check the
+   first time; only after it proves uncontroversial may it enter an informal quiz, and a formal exam
+   still goes through `exam_protocol.md`.
 
-## 五、Praxis 课程边界
+## 5. The Praxis course boundary
 
-- `course_type: praxis` 课程的事实性、技术性知识可以进入本状态机（绑完成语义轴，非 `default_driver`；见 `00_core/domain_model.md` §2.0）。
-- 判断力、纪律和人格养成不能用答对三题认证，必须由真实行动、事前记录和长期复盘提供证据。
-- IV1001 的行为证据进入 `10_student/engagements/EG-0001_TradingDiscipline/trade_journal.md`，不得用知识测验替代。
+- Factual and technical knowledge in a `course_type: praxis` course may enter this state machine (it is
+  bound to the completion-semantics axis, not to `default_driver`; see `00_core/domain_model.md` §2.0).
+- Judgement, discipline, and character formation cannot be certified by three correct answers; they need
+  evidence from real action, a record made beforehand, and long-term review.
+- IV1001's behavioural evidence goes into
+  `10_student/engagements/EG-0001_TradingDiscipline/trade_journal.md` and must never be replaced by a
+  knowledge quiz.
 
-## 六、陈年复习卷与可选日历
+## 6. The aged review paper and the optional calendar
 
-学生始终可要求“根据本课程陈年知识点生成复习卷”。此外可在 `main/10_student/profile/profile.md` 配置日历模式：
+The student may always ask for "a review paper generated from this course's aged knowledge points". In
+addition, a calendar mode may be configured in `main/10_student/profile/profile.md`:
 
-| 模式 | 行为 |
+| Mode | Behaviour |
 |---|---|
-| `off` | 不主动建议或触发，只响应学生请求 |
-| `suggest` | 到首选窗口时建议，学生确认后生成；默认值 |
-| `auto` | 学生已明确授权时，到首选窗口直接触发 |
+| `off` | never suggests or triggers on its own; responds to a student request only |
+| `suggest` | suggests when the preferred window arrives and generates after the student confirms; the default |
+| `auto` | triggers directly at the preferred window when the student has authorized it explicitly |
 
-- 日历按“实际学习日期”计数，不按自然日计数；同一自然日最多计 1 个学习日期，休息日不计。3-1-3 的自然日跨度是 7 天，但一个学习周期是 6 个学习日期。
-- 首选触发窗口不是机械到期日，而是刚学完与陈年知识点关联紧密的一章、模块或知识簇之后。关联闭合优先于日历数字。
-- 每经过一个完整学习周期仍没有合适的关联闭合点，`suggest/auto` 只发一次待复习提醒；不为了赶日历生成脱离课程上下文的卷。
-- 来源只能是本课程 `aged` 知识点，按知识点生成新变式，不复刻原题；每题保留知识点键、探针、判定依据和写回目标。
-- 复习卷保存到课程 `book/course_materials/exercises/aged_review_YYYY-MM-DD.md`，并由当前
-  Lesson 或 Exercise 主载体回链；不得为 Exercise-first 预造 Lesson。
-- 一张卷对同一知识点最多提供 1 次正式成功证据；须在两个不同学习日期连续正确 2 次才转回 `maintenance`。一次卷内堆多道同类题不能提前过关。
+- The calendar counts "actual study dates", not calendar days; one calendar day counts as at most 1
+  study date, and a rest day does not count. The calendar span of 3-1-3 is 7 days, but one study cycle
+  is 6 study dates.
+- The preferred trigger window is not a mechanical due date; it is just after finishing a chapter,
+  module, or knowledge cluster tightly related to the aged knowledge point. Closing the relation takes
+  precedence over the calendar number.
+- If a full study cycle passes with no suitable point of related closure, `suggest/auto` sends a single
+  review reminder; never generate a paper detached from the course context just to keep up with the
+  calendar.
+- The source may only be this course's `aged` knowledge points, generating a new variant per knowledge
+  point rather than reproducing the original problem; each problem keeps the knowledge-point key, the
+  probe, the basis of judgement, and the write-back target.
+- The review paper is saved to
+  `book/course_materials/exercises/aged_review_YYYY-MM-DD.md` in the course, and is linked back from the
+  current Lesson or Exercise main carrier; never pre-create a Lesson for an Exercise-first course.
+- One paper provides at most 1 formal success evidence per knowledge point; 2 consecutive correct
+  answers on two different study dates are required to move back to `maintenance`. Piling several
+  same-kind problems into one paper cannot shortcut the pass.
 
-### 6.1 候选窗口
+### 6.1 The candidate window
 
-- “课程学习环节”按教学方案中的命名部分、阶段、模块或知识簇计数，不按 lesson 文件数机械计数。一个环节可以覆盖几节或半节 lesson；计数跟方案结构走。
-- 默认每完成约 3 个课程学习环节进入一次候选窗口。窗口只允许建议或触发，不表示必须出卷；实际出卷仍要等关联紧密的知识簇闭合，并且存在可抽取的 `aged` 条目。
-- 6 个实际学习日期组成的学习周期只承担防遗忘提醒；课程学习环节计数决定内容节奏。两者不得互相替代。
+- A "course study segment" is counted by the named parts, stages, modules or knowledge clusters of the
+  teaching plan, not mechanically by the number of lesson files. One segment may cover several lessons
+  or half a lesson; the count follows the structure of the plan.
+- By default a candidate window arrives after roughly every 3 course study segments. A window only
+  permits a suggestion or a trigger and does not mean a paper must be produced; producing one still
+  waits for a tightly related knowledge cluster to close, and for `aged` entries to exist to draw from.
+- The study cycle of 6 actual study dates carries only the forgetting-prevention reminder; the course
+  study-segment count sets the content rhythm. Neither may substitute for the other.
 
-### 6.2 题量与时限反推
+### 6.2 Working back from problem count to time limit
 
-- 定位：陈年复习卷是“基本概念防错检查”，不是第二场综合考试。标准时限上限为 50 分钟，不要求坐满。
-- 规划正确率默认 80%，只用于为回忆、检查和轻微卡顿留出时间，不是知识点的通过阈值；状态迁移仍逐知识点按正式结果判断。
-- 组卷前为每题估计一次“顺利答对所需时间” `t_i`；缺少历史数据时，基本概念题按 3 分钟、联想题按 6 分钟估算。
-- 卷面时限按 `T = ceil_5(Σt_i / 0.80)` 计算，`ceil_5` 表示向上取整到 5 分钟。50 分钟卷最多装入约 40 分钟的顺利作答工作量；若计算结果超过 50 分钟，拆成多张卷并分别重算，不压缩作答时间。
-- 约 80% 题目只检查单个知识点、相邻定义或直接边界；约 20% 题目连接 2-3 个关联紧密的已学知识点，不做远距离迁移。总题数达到 5 题时，原则上每 5 题安排约 1 道联想题；不足 5 题不为凑比例强加联想题。
-- 联想题覆盖的每个知识点仍须单独判定，且同一张卷内各自最多形成 1 次正式结果。
-- 抽样优先级、正式提示规则和答案隔离仍待后续裁决；不得因此改变本节已确定的时限、题型结构和证据规则。
+- Positioning: an aged review paper is a "basic-concept error check", not a second comprehensive exam.
+  The standard time limit is capped at 50 minutes, and there is no requirement to use it all.
+- The planning accuracy rate is 80% by default, used only to leave room for recall, checking and a
+  slight stall; it is not a pass threshold for a knowledge point, and state transitions are still judged
+  per knowledge point on the formal result.
+- Before assembling the paper, estimate a "time to answer it correctly without difficulty" `t_i` for
+  each problem; with no historical data, estimate 3 minutes for a basic-concept problem and 6 minutes
+  for a connecting problem.
+- The paper's time limit is `T = ceil_5(Σt_i / 0.80)`, where `ceil_5` means rounding up to 5 minutes. A
+  50-minute paper holds at most about 40 minutes of smooth answering; if the computed result exceeds 50
+  minutes, split it into several papers and recompute each, rather than compressing the answering time.
+- About 80% of problems check a single knowledge point, an adjacent definition, or a direct boundary;
+  about 20% connect 2-3 tightly related knowledge points already studied, with no long-distance
+  transfer. Once the total reaches 5 problems, arrange roughly 1 connecting problem per 5; below 5
+  problems, do not force one in just to hit the ratio.
+- Every knowledge point a connecting problem covers is still judged separately, and each yields at most
+  1 formal result within one paper.
+- Sampling priority, the formal hint rule, and answer isolation await a later adjudication; that must
+  not change the time limit, problem-type structure, and evidence rules already settled in this section.
 
-## 七、写回与节奏
+## 7. Write-back and rhythm
 
-- 结果先暂记，结课按 `session_close.md` 重算当前周期摘要和状态。
-- 课程覆盖题答错时，新建或合并对应知识点为 `active`；答对只写入本次当前活动主载体
-  的抽查记录。
-- 抽查允许分组、口头化和交互化，但不得因情绪状态篡改对错标准。
-- 如果 11 个槽位明显挤压正课，学生可要求分两段完成；未完成槽位保留，不伪造结果。
+- Results are held provisionally first, and the session close recomputes the current cycle summary and
+  the states per `session_close.md`.
+- When a course-coverage problem is answered wrong, create or merge the corresponding knowledge point as
+  `active`; a correct answer is written only into the spot-check record of this session's current
+  activity main carrier.
+- The spot-check may be grouped, delivered orally, and made interactive, but the correct/incorrect
+  standard must never be bent for an emotional state.
+- If 11 slots would clearly squeeze the main class, the student may ask to complete it in two parts;
+  unfinished slots are kept and results are never faked.
 
-## 八、关联文件
+## 8. Related files
 
-- `[课程]/mistake_bank.md`
+- `[course]/mistake_bank.md`
 - `main/50_playbook/lesson_recover.md`
 - `main/50_playbook/session_close.md`
 - `main/20_teacher/overlay.md`

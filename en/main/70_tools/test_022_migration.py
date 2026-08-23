@@ -21,6 +21,7 @@ if str(TOOLS) not in sys.path:
 
 import activity_ledger as ledger
 import migrate_022_activity_close as mig
+import t2ag_doctor as doctor
 from migration_test_support import write_test_authorization
 
 
@@ -88,6 +89,9 @@ class PlanDryRunMainTests(unittest.TestCase):
         sibling = ROOT.parent / sibling_name
         if not sibling.is_dir():
             self.skipTest("workspace sibling distribution absent")
+        # LV-5: byte parity holds within one language edition, not across two.
+        if doctor.edition_language(sibling) != doctor.edition_language(ROOT):
+            self.skipTest("workspace sibling is a different language edition")
         local_base = ROOT / "main/40_course/_templates/course"
         sibling_base = sibling / "main/40_course/_templates/course"
 

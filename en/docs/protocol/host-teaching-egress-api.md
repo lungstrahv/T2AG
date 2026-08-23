@@ -110,7 +110,7 @@ issued → expired (logical)
 
 ## Status template API (same boundary)
 
-Fixed host templates (e.g. “正在核对教材页面”) also pass the emission boundary so freeform
+Fixed host templates (for example “checking the textbook page”) also pass the emission boundary so freeform
 cannot be smuggled as “status”:
 
 ```text

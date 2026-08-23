@@ -1,8 +1,10 @@
-# Lesson Map（覆盖当前 LessonScope）
+# Lesson Map (covering the current LessonScope)
 
-> 每个节点必须回指 `SourcePageAsset` / 完整页键。禁止 mastery、completion、学生确认字段。
-> active boundary 与教材块清单用于生成开场知识树和页内覆盖清单，不代表已经讲授。
+> Every node must point back at a `SourcePageAsset` / a complete page key. Mastery, completion and
+> student-confirmation fields are forbidden.
+> The active boundary and the textbook block list are used to generate the opening knowledge tree and the
+> in-page coverage list; they do not mean anything has been taught.
 
-| 序 | pdf_page_index | asset_id / page_key | active boundary | 教材块清单 |
+| Seq | pdf_page_index | asset_id / page_key | active boundary | Textbook block list |
 |---:|---:|---|---|---|
 | 1 |  |  |  |  |

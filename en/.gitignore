@@ -13,7 +13,7 @@ __pycache__/
 .cache/
 *.exe
 *.o
-# SQL 运行时数据（schema.sql 等文本脚本仍然入库）
+# SQL runtime data (text scripts such as schema.sql are still tracked)
 *.db
 *.sqlite
 *.sqlite3

@@ -1,7 +1,8 @@
-# ActivityRecord 空模板域
+# The ActivityRecord empty template domain
 
-首次启动前不创建真实 `AR-*`。只有发生了实际活动且用户确认记录时，
-才按 `activity_management.md` 创建稳定 ID 文件。
+Do not create a real `AR-*` before first run. Only when a real activity has happened and the user confirms
+recording it is a stable-ID file created per `activity_management.md`.
 
-合法结构为 `activities/<activity_kind>/AR-NNNN_Title.md`；0.2.1 初始只登记 `reading/`。
-Skeleton 不得保存真实 AR 或 sidecar。
+The legal structure is `activities/<activity_kind>/AR-NNNN_Title.md`; 0.2.1 initially registers only
+`reading/`.
+The Skeleton must never hold a real AR or sidecar.

@@ -2,50 +2,52 @@
 > 【参数】域=知识点（COURSE_ID）｜时机=事后归因｜归因层=概念层｜消费方=开课抽查→改理解｜退出=maintenance/aged｜再入=陈年卷答错→回强化
 > 【边界】工具、环境与流程问题转投 `00_core/t2ag_problemlog.md`
 
-# COURSE_ID 知识点错题库（mistake_bank）
+# COURSE_ID knowledge-point mistake bank (mistake_bank)
 
-> 一个条目对应一个稳定知识点键，不对应固定题目。不同表面题只作为错误证据或复测变式。
-> 当堂理解不计正式正确；正式结果使用 `✓/△/✗`，状态规则以 `50_playbook/mistake_retest.md` 为准。
+> One entry corresponds to one stable knowledge-point key, not to a fixed problem. A different surface
+> problem serves only as evidence of the error or as a retest variant.
+> Understanding in the moment does not count as a formal correct answer; formal results use `✓/△/✗`, and the
+> state rules are governed by `50_playbook/mistake_retest.md`.
 
 next_id: 1
 
 ---
 
-## 条目格式
+## Entry format
 
 ```markdown
 ### M-0001
-- 知识点键：课程/章节/知识点
-- 首次日期：YYYY-MM-DD
-- 来源：lessonNN / 教材页码
-- 错误证据：一句话
-- 根因标签：标签
-- 根因：概念层原因
-- 正确理解：一句话
-- 当堂理解：未确认 / 讲解后复述 / 独立修正
-- 当前周期：1
-- 状态：active / maintenance / aged
-- 当前周期摘要：尝试 0/6｜独立正确 0/3｜失败 0｜错后连续正确 0/2
-- 最近正式复测：—
-- 下次允许复测：YYYY-MM-DD
-- 陈年连续正确：0/2
-- 最近陈年复习卷：—
-- 下次陈年日历检查：—
+- Knowledge point key: course / chapter / knowledge point
+- First date: YYYY-MM-DD
+- Source: lessonNN / textbook page
+- Error evidence: one sentence
+- Root-cause tag: tag
+- Root cause: the concept-layer reason
+- Correct understanding: one sentence
+- Understood in the moment: unconfirmed / restated after explanation / corrected independently
+- Current cycle: 1
+- Status: active / maintenance / aged
+- Current cycle summary: attempts 0/6 | independent correct 0/3 | failures 0 | consecutive correct after an error 0/2
+- Last formal retest: —
+- Next retest allowed: YYYY-MM-DD
+- Aged consecutive correct: 0/2
+- Latest aged review set: —
+- Next aged calendar check: —
 
-| 周期 | 日期 | 间隔课次 | 探针/变式 | 结果 | 提示 | 判定依据 |
+| Cycle | Date | Sessions elapsed | Probe/variant | Result | Hint | Basis of judgement |
 |---:|---|---:|---|---|---|---|
 ```
 
 ---
 
-## 活跃知识点
+## Active knowledge points
 
-暂无。
+None yet.
 
-## 维护知识点
+## Maintenance knowledge points
 
-暂无。
+None yet.
 
-## 陈年知识点
+## Aged knowledge points
 
-暂无。
+None yet.

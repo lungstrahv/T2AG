@@ -96,13 +96,13 @@ def validate_progress_identity(
     errors: list[str] = []
     if meta.get("type") != "course_progress":
         errors.append(
-            "progress type 必须为 course_progress："
-            f"{meta.get('type') or '缺失'}"
+            "progress type must be course_progress: "
+            f"{meta.get('type') or 'missing'}"
         )
     if meta.get("course_id") != expected_course_id:
         errors.append(
-            "progress course_id 必须等于目录课程 ID："
-            f"{meta.get('course_id') or '缺失'} != {expected_course_id}"
+            "progress course_id must equal the directory course ID: "
+            f"{meta.get('course_id') or 'missing'} != {expected_course_id}"
         )
     # 0.2.2: truth_scope is preferred; truth_source:true remains accepted for 0.2.1.
     truth_scope = (meta.get("truth_scope") or "").strip()
@@ -115,14 +115,14 @@ def validate_progress_identity(
         bits = {part.strip() for part in truth_scope.split(",") if part.strip()}
         if not required_bits.issubset(bits):
             errors.append(
-                "progress truth_scope 必须包含 course_lifecycle,course_frontend,"
-                f"activity_position：{truth_scope or '缺失'}"
+                "progress truth_scope must contain course_lifecycle,course_frontend,"
+                f"activity_position: {truth_scope or 'missing'}"
             )
     elif meta.get("truth_source") != "true":
         errors.append(
-            "progress 必须声明 truth_scope 或 truth_source: true："
-            f"truth_scope={meta.get('truth_scope') or '缺失'} "
-            f"truth_source={meta.get('truth_source') or '缺失'}"
+            "progress must declare truth_scope or truth_source: true: "
+            f"truth_scope={meta.get('truth_scope') or 'missing'} "
+            f"truth_source={meta.get('truth_source') or 'missing'}"
         )
     if errors:
         raise ActivityContractError(errors)
@@ -163,7 +163,7 @@ def resolve_course_book_path(
         relative = PurePosixPath(raw_path)
     except (TypeError, ValueError):
         relative = PurePosixPath("__invalid__")
-        errors.append(f"课程 book 路径非法：{raw_path or '缺失'}")
+        errors.append(f"the course book path is illegal: {raw_path or 'missing'}")
 
     if (
         not raw_path
@@ -172,18 +172,18 @@ def resolve_course_book_path(
         or any(part in {"", ".", ".."} for part in relative.parts)
         or relative.as_posix() != raw_path
     ):
-        errors.append(f"课程 book 路径必须为 canonical POSIX 相对路径：{raw_path or '缺失'}")
+        errors.append(f"the course book path must be a canonical POSIX relative path: {raw_path or 'missing'}")
     try:
         relative.relative_to(expected_root)
     except ValueError:
         errors.append(
-            f"课程持久题源越出 book 域：{raw_path or '缺失'}"
+            f"the course persistent problem source escapes the book domain: {raw_path or 'missing'}"
         )
 
     target = root.joinpath(*relative.parts)
     book_root = root.joinpath(*expected_root.parts)
     if not book_root.is_dir():
-        errors.append(f"课程 book 根不存在：{expected_root.as_posix()}")
+        errors.append(f"the course book root does not exist: {expected_root.as_posix()}")
     else:
         try:
             resolved_book = book_root.resolve(strict=True)
@@ -191,18 +191,18 @@ def resolve_course_book_path(
             resolved_target.relative_to(resolved_book)
         except (OSError, RuntimeError, ValueError):
             errors.append(
-                f"课程持久题源解析后越出 book 域或不可解析：{raw_path or '缺失'}"
+                f"the course persistent problem source escapes the book domain once resolved, or will not resolve: {raw_path or 'missing'}"
             )
 
     current = root
     for part in relative.parts:
         current = current / part
         if (current.exists() or current.is_symlink()) and _is_link_or_reparse(current):
-            errors.append(f"课程持久题源路径不得经过链接或 reparse point：{raw_path}")
+            errors.append(f"the course persistent problem source path must not pass through a link or reparse point: {raw_path}")
             break
 
     if must_exist and not target.is_file():
-        errors.append(f"课程持久题源不存在：{raw_path or '缺失'}")
+        errors.append(f"the course persistent problem source does not exist: {raw_path or 'missing'}")
     if errors:
         raise ActivityContractError(list(dict.fromkeys(errors)))
     return target
@@ -368,10 +368,10 @@ class ActivityRoute:
     @property
     def lesson_context_label(self) -> str:
         if self.lesson_context_kind == "current":
-            return f"{self.lesson_context_id}（当前活动）"
+            return f"{self.lesson_context_id} (current activity)"
         if self.lesson_context_kind == "historical":
-            return f"{self.lesson_context_id}（历史兼容）"
-        return "无"
+            return f"{self.lesson_context_id} (historical compatibility)"
+        return "none"
 
     def relative(self, path: Path) -> str:
         return path.relative_to(ROOT).as_posix()
@@ -456,7 +456,7 @@ def resolve_activity(
     is_file = exists or (lambda path: path.is_file())
 
     if not is_file(progress):
-        raise ActivityContractError([f"progress.md 不存在：{course_id}"])
+        raise ActivityContractError([f"progress.md does not exist: {course_id}"])
     if snapshot is None:
         progress_content = reader(progress)
         snapshot = ProgressSnapshot(
@@ -466,12 +466,12 @@ def resolve_activity(
         )
     elif snapshot.path != progress:
         raise ActivityContractError(
-            [f"progress snapshot 路径不匹配：{snapshot.path} != {progress}"]
+            [f"the progress snapshot path does not match: {snapshot.path} != {progress}"]
         )
     meta = snapshot.meta
     validate_progress_identity(meta, course_id)
     if meta.get("lifecycle_status") != "ongoing":
-        raise ActivityContractError([f"课程不是 ongoing：{course_id}"])
+        raise ActivityContractError([f"the course is not ongoing: {course_id}"])
 
     required = (
         "current_activity", "current_activity_id", "resume_path",
@@ -492,11 +492,11 @@ def resolve_activity(
     carrier = root / "__invalid_activity__"
     carrier_fields: tuple[str, str, str] | None = None
     if course_driver not in {"textbook", "goal", "project", "praxis"}:
-        errors.append(f"course_driver 非法：{course_driver or '缺失'}")
+        errors.append(f"course_driver is illegal: {course_driver or 'missing'}")
 
     if activity_type == "lesson":
         if not re.fullmatch(r"lesson\d+", activity_id):
-            errors.append(f"current_activity_id 非法：lesson -> {activity_id or '缺失'}")
+            errors.append(f"current_activity_id is illegal: lesson -> {activity_id or 'missing'}")
         else:
             expected_resume = (
                 f"main/40_course/{course_id}/lessons/{activity_id}/{activity_id}.md"
@@ -506,7 +506,7 @@ def resolve_activity(
         if current_lesson and current_lesson not in NO_LESSON and current_lesson != activity_id:
             errors.append(
                 "compatibility current_lesson disagrees with the explicit activity pointer: "
-                f"{current_lesson} != {activity_id or '缺失'}"
+                f"{current_lesson} != {activity_id or 'missing'}"
             )
     elif activity_type == "exercise":
         # Before E, Udddd remains readable. Once this Course has a ledger,
@@ -524,7 +524,7 @@ def resolve_activity(
                     course_id, activity_id, doc.aliases
                 )
             except ledger_contract.LedgerError as exc:
-                errors.append(f"legacy Exercise 无有效 course-scoped alias：{exc}")
+                errors.append(f"the legacy Exercise has no valid course-scoped alias: {exc}")
             else:
                 errors.append(
                     "0.2.2 progress must not route a legacy Exercise directly: "
@@ -534,7 +534,7 @@ def resolve_activity(
             re.fullmatch(r"exercise\d{2,}", activity_id)
             or (not post_022 and re.fullmatch(r"U\d{4}", activity_id))
         ):
-            errors.append(f"current_activity_id 非法：exercise -> {activity_id or '缺失'}")
+            errors.append(f"current_activity_id is illegal: exercise -> {activity_id or 'missing'}")
         else:
             expected_resume = (
                 f"main/40_course/{course_id}/exercises/{activity_id}/exercise.md"
@@ -547,7 +547,7 @@ def resolve_activity(
             )
             if not is_file(problems):
                 errors.append(
-                    "当前 Exercise 缺 problems.md："
+                    "the current Exercise lacks problems.md: "
                     f"main/40_course/{course_id}/exercises/{activity_id}/problems.md"
                 )
             elif course_driver == "textbook":
@@ -570,7 +570,7 @@ def resolve_activity(
             )
         carrier = progress
     elif activity_type:
-        errors.append(f"current_activity 非法：{activity_type}")
+        errors.append(f"current_activity is illegal: {activity_type}")
 
     if expected_resume and resume_path != expected_resume:
         errors.append(
@@ -587,9 +587,9 @@ def resolve_activity(
             or carrier_meta.get("course_id") != course_id
             or carrier_meta.get(id_field) != expected_id
         ):
-            errors.append(f"当前活动主载体 frontmatter 不匹配：{resume_path}")
+            errors.append(f"the current activity main carrier frontmatter does not match: {resume_path}")
     elif expected_resume and not is_file(carrier):
-        errors.append(f"当前活动主载体不存在：{expected_resume}")
+        errors.append(f"the current activity main carrier does not exist: {expected_resume}")
 
     lesson_kind = "none"
     lesson_id = ""

@@ -39,12 +39,14 @@ import campaign_receipt as campaign  # noqa: E402
 import occurrence_classify as occurrence  # noqa: E402
 import t2ag_state_refresh as state_refresh  # noqa: E402
 
-# EV-0022/EV-0023：常量不再携带维护者机器字面量。
-# apply 已永久退役（下方 PRODUCTION_MIGRATION_APPLY_ENABLED = False），
-# 此根只服务 dry-run oracle；派生自代码所在仓根，与 activity_close.INSTANCE_ROOT 同语义。
+# EV-0022/EV-0023: the constants no longer carry a maintainer machine literal.
+# apply is permanently retired (PRODUCTION_MIGRATION_APPLY_ENABLED = False below), so this root serves
+# only the dry-run oracle; it derives from the repository root the code lives in, with the same semantics
+# as activity_close.INSTANCE_ROOT.
 PRODUCTION_ROOT = Path(__file__).resolve().parents[2]
-# 第三仓（阅读系统）仅存在于维护者工作区；经 T2AG_READING_ROOT 显式提供，
-# 缺省指向不存在的占位路径，repository_binding 按 {"present": False} 处理。
+# The third repository (the reading system) exists only in the maintainer's workspace; it is supplied
+# explicitly through T2AG_READING_ROOT, defaults to a non-existent placeholder path, and
+# repository_binding treats it as {"present": False}.
 READING_ROOT = (
     Path(os.environ["T2AG_READING_ROOT"]).resolve()
     if os.environ.get("T2AG_READING_ROOT")

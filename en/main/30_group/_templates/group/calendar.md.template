@@ -5,35 +5,39 @@ status: planned
 cycle: CYCLE_SHAPE
 updated: YYYY-MM-DD
 ---
-# GROUP_ID 日历
+# GROUP_ID calendar
 
-> planned 组的容量草案：不产生课程进度，也不改变任何课程生命周期。
-> 激活时必须依据上一组结组证据和用户确认重新核定预算。
+> A planned group's capacity draft: it produces no course progress and changes no course's lifecycle.
+> On activation the budget must be re-decided from the previous group's closing evidence and the user's
+> confirmation.
 
-## 周期容器
+## The cycle container
 
-写明本组使用的循环形状（例如 `3-1-3`：块 A 输入、休息日、块 B 整合），
-以及休息日是否补债。容器来自学生档案，不在本文件重新发明。
+State the cycle shape this group uses (for example `3-1-3`: block A input, a rest day, block B
+integration), and whether a rest day repays debt. The container comes from the student profile and is not
+reinvented in this file.
 
-## 循环安排
+## Cycle schedule
 
-| 循环 | COURSE_ID：块 A → 块 B | 其他成员线 |
+| Cycle | COURSE_ID: block A → block B | Other member tracks |
 |---|---|---|
-| 1 | 输入内容 → 整合内容 | 该循环动作 |
+| 1 | input content → integration content | that cycle's action |
 | 2 | | |
 
-未定容量的成员写明「在激活审查时加入」，不在本表承诺频率。
+A member whose capacity is undecided is written as "to be added at the activation review"; this table
+promises it no frequency.
 
-## 可判定阈值
+## Decidable thresholds
 
-结组审查读取本节，条件必须是能机械判定的：
+The closing review reads this section, and the conditions must be mechanically decidable:
 
-1. 各成员最低次数达成率。
-2. 时间预算总偏差上限。
-3. 启动失败天数上限。
-4. 大调整窗口的执行次数。
+1. Each member's minimum-count attainment rate.
+2. The cap on total time-budget deviation.
+3. The cap on days that failed to start.
+4. The number of major-adjustment windows executed.
 
-## 外部权威
+## External authority
 
-本日历只安排学习与审计活动。涉及外部系统的事实（交易、工作、健康等）仍以对应外部
-真相源为权威，见 `main/50_playbook/cross_repo_reference.md`。
+This calendar schedules study and audit activities only. A fact belonging to an external system (trading,
+work, health, and so on) is still governed by its own external source of truth; see
+`main/50_playbook/cross_repo_reference.md`.

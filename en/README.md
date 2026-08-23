@@ -18,29 +18,42 @@ to their own repositories.
 
 ## Read this before you start: what is and is not translated
 
-This edition is **honest about being partial**. The table is the whole disclosure.
+The rule and user-facing document layers are now English. The edition is not yet
+English-only: historical records and parts of the tool surface deliberately retain
+Chinese or bilingual text. The table is the whole disclosure.
 
 | Layer | Language | Consequence for you |
 |---|---|---|
 | Entry surface (this README, `AGENTS.md`, the constitution `main/t2ag.md`, `first_run.md`, `environment_assumptions.md`, the cloud bridge docs, the profile template, the offline HTML guide) | **English** | You can install, start up, and run a first lesson without reading Chinese. |
 | Teaching output the model produces for you | **Whatever you set** | Controlled by `teaching_language` in your profile. Set it to `en-US` during first run and lessons are taught in English. |
-| Playbook internals (`main/50_playbook/**`, ~111k characters) and the tool source comments | **Chinese** | The model reads these fine — it is bilingual, and the harness behaves correctly. **You cannot yet read or modify the harness internals.** |
-| Tool output — `doctor`, `t2ag_context.py`, `state_refresh` | **Chinese** | The very first command in Quick start prints its verdict in Chinese. `result: 0 FAIL, 0 WARN` is machine-readable, and the trailing line means "local teaching run check passed". Roughly 850 message strings are still Chinese. This is the most visible rough edge and we know it. |
+| The rule layer — every playbook in `main/50_playbook/**` and the core contracts in `main/00_core/` | **English** | This is the part that decides how the harness behaves. **You can read and modify the harness internals.** |
+| Tool output — `doctor`, `t2ag_context.py`, `state_refresh` | **Mixed English and Chinese** | Top-level verdicts and many common paths are English. Some diagnostics, generated prompts, compatibility markers and test fixtures remain Chinese or bilingual. Stable IDs such as `FAIL`, `WARN` and `first_run_required` remain machine-readable. |
+| Instance templates, `docs/`, the journal and the group/student scaffolds | **English** | These files can be inspected and filled in without relying on Chinese instructions. A small number of source-language examples and compatibility tokens remain where a test or migration contract needs them. |
+| `main/00_core/t2ag_changelog.md` — this project's own change history | **Chinese, on purpose** | It is an append-only record of what already happened, and the harness forbids editing historical lines. It is provenance, not instruction: nothing reads it to decide behaviour, and once you start your own instance you append your own entries in your own language. |
+| `INVITED_USE_GRANT.md` | **English and Simplified Chinese** | The grant is intentionally bilingual; both language copies travel with the same invited-use package. |
 
 **What this actually costs you.** T2AG is a prompt harness: the documents *are*
-the program. Leaving the internals in Chinese means the machine still works, but
-you lose the ability to inspect *why* it behaves the way it does, and to change
-it. If your reason for trying T2AG is "I want to shape my own learning shell,"
-that part is not available to you in this edition yet. If your reason is "I want
-to see whether this way of studying helps," that part works today.
+the program. The rule layer — the part that determines behaviour — is now English,
+so you can inspect *why* the harness behaves the way it does and change it. The
+remaining language friction is concentrated in diagnostics, compatibility code,
+fixtures and historical provenance rather than in the operating rules or the
+files a new student must fill in.
 
-We are telling you this up front rather than letting you discover it at the first
-Chinese playbook, because a tool that misrepresents its own completeness wastes
-the time of exactly the people generous enough to try it early.
+We are telling you this up front rather than letting you discover it when `doctor`
+prints a mixed-language diagnostic, because a tool that misrepresents its own
+completeness wastes the time of exactly the people generous enough to try it early.
 
-**Known rough edges.** The English entry surface is new and has had one author
-and no external readers. Expect wording that assumes context you do not have.
-That is the single most useful thing you can report back.
+**Translation coverage is not feature parity.** A clean runtime result proves that
+this edition satisfies the contracts it currently carries. It does not prove that
+every mechanism added later to Main has already been backported. When a Chinese
+peer edition is mounted, `release.cross_edition_parity` compares registered
+identifiers and section numbers. Its registered backport-debt lines are disclosures,
+not proof of equivalence; current-Main parity may be claimed only after that debt is
+closed and the release checks for the frozen candidate pass.
+
+**Known rough edges.** The translated corpus is new and has had no external
+readers. Expect wording that assumes context you do not have, and occasional mixed
+language in diagnostics. Those are the most useful things you can report back.
 
 ---
 
@@ -65,7 +78,7 @@ authority.
 Startup formation and construction-helper budget are different things: routine
 takeover may use two read-only helpers, while ordinary system changes and
 verification still default to one helper, three tests, ten minutes. Full rules
-live in `main/50_playbook/startup_orchestration.md` (Chinese).
+live in `main/50_playbook/startup_orchestration.md`.
 
 ## Quick start
 
@@ -119,7 +132,7 @@ control file, the test selector, the dependency manifest and the tree-shaped
 flows. Main and Skeleton are executable; Lite keeps only a byte-identical
 read-only review copy. Base files are enforced by `BASE_VALIDATION_FILES` in
 `t2ag_doctor.py` and are not optional release attachments. Full flow in
-`main/50_playbook/validation_flow.md` (Chinese).
+`main/50_playbook/validation_flow.md`.
 
 Ordinary startup, doctor and first run must never create, delete, rebuild or
 upgrade `.venv`, must never auto-install dependencies, download textbooks, or
@@ -129,11 +142,12 @@ on stdout, and never generates-then-deletes a temporary Python suite.
 
 ## License
 
-**Status**: public release under Apache-2.0 (code) and CC BY-SA 4.0 (prose) —
-see [`LICENSING.md`](../LICENSING.md) for the path boundary. The Invited Use
-Grant remains in force for zips handed to invited individuals before this date.
+This package is **not open source yet**. It ships under
+`INVITED_USE_GRANT.md` — a bilingual (English / 简体中文), per-release,
+revocable grant to invited individuals. Read §3: the consideration for a free
+grant is that you give feedback. Read §5: every learning record you produce
+belongs to you, is never uploaded, and survives revocation.
 
-Code is [Apache-2.0](../LICENSE); prose is [CC BY-SA 4.0](../LICENSE-DOCS.md).
-Read §5 of [`INVITED_USE_GRANT.md`](../INVITED_USE_GRANT.md) either way: every
-learning record you produce belongs to you, is never uploaded, and survives
-revocation. A clone taken from this repository carries the two open licences.
+The author's current plan is Apache-2.0 for the code layer and CC BY-SA 4.0 for
+the prose layer once the trial closes, but that plan is stated in §8 as a plan
+and explicitly not a commitment.

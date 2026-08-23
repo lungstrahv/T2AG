@@ -1,339 +1,318 @@
-# 交接上下文管理流程
+# Handoff context management
 
-**保护级别**：core-playbook
+**Protection level**: core-playbook
 
-> 本文件管理跨对话、跨 agent、跨维护者的上下文交接：何时创建交接、怎样索引、怎样保留长对话的思路连续性、怎样与正式真相源核对，以及何时关闭或归档。
+> This file governs context handoff across conversations, agents and maintainers: when to create a handoff, how to index it, how to preserve the continuity of reasoning from long conversations, how to verify against the formal source of truth, and when to close or archive it.
 >
-> **适用场景**：课程或实施工作未闭合却需要换对话；用户明确要求生成交接；多个长对话形成了后续决策不可缺失的讨论轨迹；项目、专题或维护工作需要转交。
+> **Applies to**: a course or implementation task that has not closed while the conversation must change; the user explicitly asking for a handoff; several long conversations forming a discussion trail later decisions cannot do without; a project, topic or maintenance task being handed over.
 >
-> **核心定位**：交接是恢复证据与任务路由，不是规则源、进度真相源或历史正文的替代品。
+> **Core positioning**: a handoff is recovery evidence and task routing. It is not a rule source, not a progress source of truth, and not a substitute for historical text.
 
 ---
 
-## 一、目标与非目标
+## 1. Goals and non-goals
 
-### 1.1 目标
+### 1.1 Goals
 
-- 让接管者迅速知道当前状态、未闭合事项和下一步动作。
-- 保留决定用户意图与方案选择的讨论轨迹，避免“任务连续、思维断裂”。
-- 按任务范围只加载相关交接，避免无差别吞入全部历史。
-- 让交接有明确的创建、激活、核对、关闭、替代和归档生命周期。
-- 在恢复过程中始终回到正式真相源，禁止形成第二套权威链。
+- Let whoever takes over know the current state, the unclosed items and the next action quickly.
+- Preserve the discussion trail that determined the user's intent and the choice of approach, avoiding "the task continues but the reasoning is severed".
+- Load only the handoffs relevant to the task scope, avoiding indiscriminate swallowing of all history.
+- Give a handoff an explicit lifecycle: creation, activation, verification, closure, supersession, archiving.
+- Always return to the formal source of truth during recovery; forming a second authority chain is forbidden.
 
-### 1.2 非目标
+### 1.2 Non-goals
 
-- 不把每次正常结束的对话都复制成一份交接。
-- 不保存可由正式文件直接读取的全文副本。
-- 不用交接文档定义永久规则；规则必须写回宪法、playbook、课程 `progress.md` 或其他正式定义源。
-- 不把“摘要越短”当作质量目标，也不以模型实际阅读秒数验收。
-- 不要求 skeleton 或 lite 默认携带实例交接；它们只携带本通用流程。
-- 不把 `<handoff_root>` 中的每个文件都称为 Handoff；workorder、plan、evidence、review、
-  release backlog 和 archive 只是同目录支撑材料。
+- Not copying every normally-ended conversation into a handoff.
+- Not storing a full copy of what can be read directly from the formal files.
+- Not defining a permanent rule in a handoff document; a rule must be written back into the constitution, a playbook, a course `progress.md`, or another formal definition source.
+- Not treating "shorter is better" as a quality goal, and not accepting it by how many seconds a model takes to read it.
+- Not requiring a skeleton or lite to carry instance handoffs by default; they carry only this generic process.
+- Not calling every file in `<handoff_root>` a Handoff; a workorder, plan, evidence, review, release backlog and archive are merely supporting material in the same directory.
 
 ---
 
-## 二、基本概念
+## 2. Basic concepts
 
 ### 2.1 handoff root
 
-`<handoff_root>` 是当前工作区约定的交接目录，由入口文件、项目说明或用户指定。常见位置为工作区 `docs/handoffs/` 或实例内 `docs/handoffs/`。
+`<handoff_root>` is the handoff directory agreed for the current workspace, named by an entry file, a project description, or the user. Common locations are the workspace `docs/handoffs/` or an in-instance `docs/handoffs/`.
 
-解析顺序：
+Resolution order:
 
-1. 用户或入口文件明确给出的路径。
-2. 当前工作区已经存在且由项目说明登记的交接目录。
-3. 当前实例内已有的 `docs/handoffs/`。
-4. 均不存在时，视为当前没有交接系统；只有命中本流程创建触发条件并获得当前任务写入授权时才新建，不因普通启动自动生成。
+1. A path explicitly given by the user or an entry file.
+2. A handoff directory that already exists in the current workspace and is registered by the project description.
+3. An existing `docs/handoffs/` inside the current instance.
+4. When none exists, there is no handoff system right now; a new one is created only when this process's creation trigger fires and the current task has write authorization — never automatically on an ordinary startup.
 
-一次启动只能解析出一个 runtime `<handoff_root>`。工作区入口已经登记交接目录时，实例内同名
-`docs/handoffs/` 只能作为发行投影或支撑材料目录；其 `README.md` 必须明确标注“非运行时索引”
-并指向唯一 runtime 索引，不得再复制 `Active Handoffs` 表。Doctor 对 Main 执行 release
-handoff 检查时必须拒绝这种影子索引。
+One startup may resolve exactly one runtime `<handoff_root>`. When the workspace entry has already registered a handoff directory, an in-instance `docs/handoffs/` of the same name may only be a release projection or a supporting-material directory; its `README.md` must state plainly that it is **not the runtime index** and point at the single runtime index, and must never copy the `Active Handoffs` table. When doctor runs the release handoff check on Main, it must refuse such a shadow index.
 
-`<handoff_root>/README.md` 是索引入口。目录可以保持扁平，也可以按 `active/`、`topics/`、`archive/` 分层；索引字段与生命周期不因目录形态改变。不得仅为追求目录整齐而移动仍被外部链接引用的历史文件。
+`<handoff_root>/README.md` is the index entry point. The directory may stay flat, or be layered as `active/`, `topics/`, `archive/`; the index fields and lifecycle do not change with directory shape. Never move a historical file that outside links still reference merely for tidiness.
 
-`handoffs/` 是历史形成的物理容器名，不是领域类型声明。是否属于真正 Handoff 只看
-`artifact_role`；文件位于该目录、文件名含 report/workorder/review，或被某份 Handoff 引用，
-都不能让它自动进入恢复路由。
+`handoffs/` is a physical container name formed by history, not a domain type declaration. Whether something is a real Handoff depends only on `artifact_role`; sitting in that directory, having report/workorder/review in its filename, or being referenced by some Handoff, none of these admit a file to the recovery route.
 
 ### 2.2 scope
 
-合法范围：
+Legal scopes:
 
-- `course_session`：未闭合的具体课程/lesson 会话。
-- `project`：项目架构、发行、维护或实施交接。
-- `topic`：跨多个对话持续演化的专题讨论。
-- `implementation`：尚未完成或尚未验证的具体改动批次。
+- `course_session`: a specific unclosed course/lesson session.
+- `project`: a project architecture, release, maintenance or implementation handoff.
+- `topic`: a topic that keeps evolving across several conversations.
+- `implementation`: a specific change batch not yet finished or not yet verified.
 
-同一个 `(scope, applies_to)` 最多只有一份 `active` 交接。同一任务默认原地刷新；用户也可以手动要求生成新交接。新文件不得为空，且只有在内容完整、通过接管演练并写入索引后，才把旧文件标为 `superseded` 并建立双向指针。
+There is at most one `active` handoff per `(scope, applies_to)`. The same task refreshes in place by default; the user may also ask for a new handoff by hand. A new file must not be empty, and only after its content is complete, a takeover rehearsal passes, and the index is written, is the old file marked `superseded` with bidirectional pointers established.
 
 ### 2.3 lane
 
-`lane` 回答“这份跨对话资料属于哪条工作通道”：
+`lane` answers "which work channel this cross-conversation material belongs to":
 
-- `learning`：课程、Lesson、Exercise 或学习会话。
-- `maintenance`：日常维护、局部修复和未完成的小问题。
-- `topic_design`：持续专题、概念设计和跨多轮讨论。
-- `version_campaign`：版本升级、冻结候选、迁移和正式发布。
+- `learning`: a course, Lesson, Exercise or study session.
+- `maintenance`: routine maintenance, local repairs and unfinished small problems.
+- `topic_design`: a sustained topic, conceptual design and multi-round discussion.
+- `version_campaign`: a version upgrade, a frozen candidate, a migration and a formal release.
 
-scope 与 lane 是正交维度。例如未完成的局部工具修复可为
-`scope=implementation + lane=maintenance`；Activity Close 设计可为
-`scope=topic + lane=version_campaign`。
+scope and lane are orthogonal dimensions. An unfinished local tool repair may be
+`scope=implementation + lane=maintenance`; an Activity Close design may be
+`scope=topic + lane=version_campaign`.
 
-正交不等于可以混装：一份 Handoff 只能属于一个 lane。课程恢复中发现维护工单时，课程事实
-留在 `course_session + learning`，维护事项转入 `implementation/project + maintenance` 的独立
-Handoff 或 workorder；二者用链接关联，不得用一个复合 `applies_to` 同时获取两条启动路由。
+Orthogonal does not mean mixable: one Handoff belongs to exactly one lane. When a maintenance work order is discovered during course recovery, the course facts stay in `course_session + learning` and the maintenance item moves into a separate Handoff or work order under `implementation/project + maintenance`; the two are linked, and a compound `applies_to` must never be used to obtain both startup routes at once.
 
 ### 2.4 artifact_role
 
-`artifact_role` 回答“这个文件在工作流中扮演什么角色”：
+`artifact_role` answers "what part this file plays in the workflow":
 
-- `handoff`：恢复与路由文件；只有此角色可以进入 Active Handoffs。
-- `workorder`：施工要求、完成定义与授权边界。
-- `plan`：计划、冻结对象、baseline 或 manifest。
-- `evidence`：实际执行结果、receipt、报告与可复用 SHA。
-- `review`：独立审查、checklist 或裁决结论。
-- `release_backlog`：下一冻结候选才处理的延期验证或发布待办。
-- `archive`：只供历史回看。
+- `handoff`: a recovery and routing file; only this role may enter Active Handoffs.
+- `workorder`: construction requirements, the definition of done, and the authorization boundary.
+- `plan`: a plan, the frozen objects, a baseline or a manifest.
+- `evidence`: actual execution results, receipts, reports and reusable SHAs.
+- `review`: an independent review, a checklist, or an adjudication conclusion.
+- `release_backlog`: deferred verification or release to-dos handled only at the next frozen candidate.
+- `archive`: for historical reference only.
 
-支撑材料可以用 `evidence + release_backlog` 等 `+` 组合角色；真正 Handoff 必须且只能写
-`artifact_role=handoff`。workorder、plan、evidence、review 和 release_backlog 不得伪装成
-`status=active` 来获得启动读取优先级。
+Supporting material may carry a `+`-combined role such as `evidence + release_backlog`; a real Handoff must carry exactly `artifact_role=handoff`. A workorder, plan, evidence, review or release_backlog must never disguise itself as `status=active` to gain startup read priority.
 
 ### 2.5 status
 
-合法状态：
+Legal states:
 
 ```text
-active → resolved → archived
-   ├────→ superseded
-   └────→ stale
+active -> resolved -> archived
+   |----> superseded
+   |----> stale
 ```
 
-- `active`：存在未闭合、可执行的任务，适用基线仍兼容，并明确下一步动作与关闭条件。
-- `resolved`：正式来源已经写回并验证，交接不再参与恢复。
-- `superseded`：被更新、更精确的交接替代。
-- `stale`：仍有历史价值，但基线、路径或下一步已经失效，禁止直接执行。
-- `archived`：仅供历史回看。
+- `active`: an unclosed, executable task exists, the applicable baseline is still compatible, and the next action and closing condition are explicit.
+- `resolved`: the formal source has been written back and verified, and the handoff no longer takes part in recovery.
+- `superseded`: replaced by a newer, more precise handoff.
+- `stale`: still of historical value, but the baseline, path or next step has expired; executing it directly is forbidden.
+- `archived`: for historical reference only.
 
-状态不得仅凭日期推断；必须显式写入文档和索引。
+A state must never be inferred from a date alone; it must be written explicitly in the document and in the index.
 
-交接的内容状态与体积老化分开记录。合法 `aging_state` 为
-`normal / check_1 / check_2 / old`，不得用 `old` 代替 `resolved` 或 `superseded`。
+A handoff's content state and its size aging are recorded separately. The legal `aging_state` values are `normal / check_1 / check_2 / old`, and `old` must never stand in for `resolved` or `superseded`.
 
-### 2.6 最小充分上下文
+### 2.6 Minimum sufficient context
 
-交接优化目标是“在有限上下文中最大化思路连续性”，不是最少字数。
+The optimization goal of a handoff is "maximum continuity of reasoning within a limited context", not the fewest words.
 
-保留判据：
+The retention criterion:
 
-> 删除这段内容，是否可能让接管者对用户意图、当前结论、方案理由、风险或下一步决策产生不同理解？
+> If this passage were deleted, could whoever takes over end up with a different understanding of the user's intent, the current conclusion, the reason for the approach, a risk, or the next decision?
 
-若会，保留；若不会且正式来源已有，改为指针或删除重复。
+If yes, keep it; if no and the formal source already holds it, turn it into a pointer or delete the duplicate.
 
 ---
 
-## 三、创建与读取触发条件
+## 3. Creation and reading triggers
 
-### 3.1 创建交接
+### 3.1 Creating a handoff
 
-满足任一条件时创建或更新交接：
+Create or update a handoff when any of these holds:
 
-1. 用户明确要求生成交接文档。
-2. 课程、实施或维护事务尚未闭合，却需要切换对话、agent 或维护者。
-3. 意外中断导致正式真相源尚未写回，而 lesson、工作区或当前对话保留了更细证据。
-4. 多个长对话形成了后续决策依赖的讨论轨迹，普通状态指针无法保留其理由与演化。
-5. 复杂改动已发生但验证尚未完成，需要明确交出修改范围、风险和验证入口。
+1. The user explicitly asks for a handoff document.
+2. A course, implementation or maintenance matter has not closed, yet the conversation, agent or maintainer must change.
+3. An unexpected interruption left the formal source of truth unwritten while the lesson, workspace or current conversation holds finer evidence.
+4. Several long conversations formed a discussion trail later decisions depend on, which an ordinary state pointer cannot preserve with its reasons and evolution.
+5. A complex change has happened but verification is incomplete, so the change scope, risks and verification entry point must be handed over explicitly.
 
-以下情况默认不创建：
+By default, do not create one when:
 
-- 正常完成 `session_close` 且正式来源、缓存和验证均已闭合。
-- 只需报告当前状态，没有跨对话转交需求。
-- 内容只是正式文件的重复副本。
-- 没有未决问题、未验证改动或需要保留的讨论轨迹。
+- `session_close` completed normally and the formal source, caches and verification all closed.
+- Only the current state needs reporting, with no cross-conversation handover.
+- The content merely duplicates a formal file.
+- There is no open question, no unverified change, and no discussion trail worth keeping.
 
-### 3.2 读取交接
+### 3.2 Reading a handoff
 
-满足以下全部条件才读取：
+Read one only when all of these hold:
 
-1. 已识别当前任务范围。
-2. 索引存在与该任务匹配的 `active` 条目。
-3. 交接的 `applies_to` 与当前课程、项目、专题或实现批次一致。
+1. The current task scope has been identified.
+2. The index has an `active` entry matching that task.
+3. The handoff's `applies_to` matches the current course, project, topic or implementation batch.
 
-无匹配项时不读交接。不得因为某文件日期较新，就把无关专题交接加载进普通课程教学。
+With no match, read no handoff. A newer date on some file must never cause an unrelated topic handoff to be loaded into ordinary course teaching.
 
-典型路由：
+Typical routing:
 
-| 当前情形 | 读取行为 |
+| Situation | Reading behaviour |
 |---|---|
-| 恢复未执行 `session_close` 的课程 | 读匹配的 active `course_session` 交接 |
-| 正常继续已完成结课写回的课程 | 不读历史课堂交接，走 memory → progress → 显式活动路由 |
-| 维护项目架构 | 读匹配的 active `project` 交接 |
-| 恢复专题设计 | 读匹配的 active `topic` 交接 |
-| 当前任务无 active 交接 | 跳过全部无关交接 |
+| resuming a course that never ran `session_close` | read the matching active `course_session` handoff |
+| continuing a course whose close write-back completed normally | read no historical classroom handoff; go memory -> progress -> the explicit activity route |
+| maintaining the project architecture | read the matching active `project` handoff |
+| resuming a topic design | read the matching active `topic` handoff |
+| the current task has no active handoff | skip every unrelated handoff |
 
 ---
 
-## 四、交接文档数据契约
+## 4. The handoff document data contract
 
-每份交接顶部至少包含：
+The top of every handoff contains at least:
 
 ```markdown
-> **handoff_id**：稳定且唯一
-> **scope**：course_session / project / topic / implementation
-> **lane**：learning / maintenance / topic_design / version_campaign
-> **artifact_role**：handoff
-> **applies_to**：课程、lesson、项目、专题或实现批次
-> **status**：active / resolved / superseded / archived
-> **aging_state**：normal / check_1 / check_2 / old
-> **task_match**：什么任务需要读取它
-> **created_at**：带时区时间
-> **updated_at**：带时区时间
-> **version_context**：适用的项目/发行版本；无则写 —
-> **supersedes**：被替代交接；无则写 —
-> **superseded_by**：替代者；无则写 —
-> **close_condition**：什么事实发生后可以 resolved
-> **canonical_sources**：正式规则源、进度源或状态源路径
-> **next_action**：下一步可直接执行的动作
-> **semantic_check**：最近一次四问恢复检查及结果
+> **handoff_id**: stable and unique
+> **scope**: course_session / project / topic / implementation
+> **lane**: learning / maintenance / topic_design / version_campaign
+> **artifact_role**: handoff
+> **applies_to**: the course, lesson, project, topic or implementation batch
+> **status**: active / resolved / superseded / archived
+> **aging_state**: normal / check_1 / check_2 / old
+> **task_match**: which task needs to read it
+> **created_at**: a timezone-bearing time
+> **updated_at**: a timezone-bearing time
+> **version_context**: the applicable project/release version; write — when none
+> **supersedes**: the handoff replaced; write — when none
+> **superseded_by**: the replacement; write — when none
+> **close_condition**: what fact makes resolved possible
+> **canonical_sources**: paths of the formal rule, progress or state sources
+> **next_action**: the next directly executable action
+> **semantic_check**: the most recent four-question recovery check and its result
 ```
 
-路径使用相对当前工作区或实例根的稳定相对路径；通用交接不得写私人绝对路径。时间、版本或路径未知时显式写 `—`，不得猜测。
+Paths use a stable relative path from the current workspace or instance root; a generic handoff must never carry a private absolute path. When a time, version or path is unknown, write `—` explicitly and never guess.
 
 ---
 
-## 五、分层内容结构
+## 5. The layered content structure
 
-每份 `active` Handoff 必须至少出现“最小状态摘要”和“连续性摘要”两个显式标题，供接管方
-分层读取。简单任务若没有额外讨论主线，也要在连续性摘要中明确写“无需要恢复的额外主线”，
-不得靠缺节让接管方猜测是无内容还是漏写。
+Every `active` Handoff must carry at least the two explicit headings "minimum state summary" and "continuity summary", so whoever takes over can read in layers. Even a simple task with no additional discussion line must state in the continuity summary that there is no additional line to recover; a missing section must never leave the taker guessing whether it was empty or omitted.
 
-### 5.1 第一层：最小状态摘要
+### 5.1 Layer one: the minimum state summary
 
-本节用于定位，不承担全部上下文。建议不超过 12 个短行，至少回答：
+This section is for locating and does not carry the whole context. Twelve short lines is a good ceiling, and it answers at least:
 
 ```text
-范围
-状态
-精确停点或当前阶段
-已经完成
-尚未写回或尚未验证
-当前风险/阻塞
-下一步唯一动作
-正式来源
+scope
+status
+the exact stopping point or the current stage
+what is done
+what is not written back or not verified
+current risk / blocker
+the single next action
+the formal sources
 ```
 
-“一分钟摘要”不是正式术语；模型读取秒数不可稳定验收。本节正式名称为“最小状态摘要”。
+"One-minute summary" is not a formal term; a model's read time cannot be accepted reliably. The formal name of this section is the **minimum state summary**.
 
-### 5.2 第二层：连续性摘要
+### 5.2 Layer two: the continuity summary
 
-当任务经过多个长对话、概念逐步澄清或方案多次转向时，本节必须存在。它不设越短越好的硬预算，而按相关性保存所有会改变后续理解的核心讨论点。
+When a task has passed through several long conversations, had its concepts clarified step by step, or turned direction more than once, this section must exist. It has no hard "shorter is better" budget and keeps, by relevance, every core discussion point that would change later understanding.
 
-每条“讨论主线”建议包含：
+Each "discussion line" should contain:
 
 ```text
-起点：最初在问什么
-演化：经过哪些关键反例、澄清或转向
-当前认识：现在接受什么结论
-理由：为什么接受
-被否决方案：否决了什么以及原因
-用户关键原话：必要时保留少量准确措辞
-未解决问题：下一轮仍需裁决什么
+origin: what was originally being asked
+evolution: which key counterexamples, clarifications or turns it passed through
+current understanding: what conclusion is now accepted
+reason: why it is accepted
+rejected approaches: what was rejected and why
+key wording from the user: a small amount of accurate phrasing where needed
+open questions: what still needs adjudication next round
 ```
 
-讨论主线按任务相关性选择，不机械限制为最近 N 次对话。较早但仍决定当前方向的讨论必须保留；最近但无决策影响的重复确认可以省略。
+Discussion lines are chosen by relevance to the task, never mechanically limited to the last N conversations. An older discussion that still determines the current direction must be kept; a recent but decision-free repeated confirmation may be omitted.
 
-### 5.3 第三层：操作与证据
+### 5.3 Layer three: operations and evidence
 
-按任务类型记录：
+Record by task type:
 
-- 已修改、未修改和不得修改的文件。
-- 已执行与尚未执行的验证。
-- 实际错误、工作区状态、失败输出和风险。
-- 课程中的精确教材页、lesson 证据、学生确认状态。
-- 项目中的设计裁决、接口、迁移或兼容边界。
+- files changed, unchanged, and that must not be changed.
+- verifications run and not yet run.
+- actual errors, workspace state, failing output and risks.
+- the exact textbook page in a course, the lesson evidence, the student's confirmation state.
+- design adjudications, interfaces, migrations or compatibility boundaries in a project.
 
-只写已经观察到的事实；计划与完成状态分栏，不把候选方案写成已实施。
+Write only what has been observed; keep plans and completion status in separate columns, and never write a candidate approach as implemented.
 
-### 5.4 第四层：详细历史与原始材料入口
+### 5.4 Layer four: detailed history and the entry point to raw material
 
-长对话全文、详细终端输出、完整设计稿或历史快照按需保存在附录、专题文件或原始记录中。本层提供链接和展开条件，不要求每次接管全量读取。
+The full text of a long conversation, detailed terminal output, a complete design draft or a historical snapshot are stored on demand in an appendix, a topic file or the raw record. This layer supplies the link and the expansion condition; it does not require a full read on every takeover.
 
-### 5.5 体积老化与语义恢复检查
+### 5.5 Size aging and the semantic recovery check
 
-交接每到 350 行或 30,000 字符进行一次检查：
+A handoff is checked each time it reaches 350 lines or 30,000 characters:
 
-| 门槛 | aging_state | 行为 |
+| Threshold | aging_state | Behaviour |
 |---|---|---|
-| 350 行或 30,000 字符 | `check_1` | 执行四问检查，允许原地刷新 |
-| 700 行或 60,000 字符 | `check_2` | 再次检查，并建议生成替代交接 |
-| 1,000 行或 90,000 字符 | `old` | 必须先生成、验证非空替代交接，再退出旧 active |
+| 350 lines or 30,000 characters | `check_1` | run the four-question check; refreshing in place is allowed |
+| 700 lines or 60,000 characters | `check_2` | check again, and recommend generating a replacement handoff |
+| 1,000 lines or 90,000 characters | `old` | a non-empty replacement handoff must be generated and verified before the old active is retired |
 
-四问检查由接管 agent 回答：
+The four-question check is answered by the taking-over agent:
 
-1. 当前未闭合任务是什么？
-2. 下一步唯一可执行动作是什么？
-3. 哪些正式来源必须先核对？
-4. 什么事实发生后可以关闭？
+1. What is the current unclosed task?
+2. What is the single next executable action?
+3. Which formal sources must be verified first?
+4. What fact makes closure possible?
 
-doctor 只负责行数、字符数、字段和索引等机械检查；四问答案由 agent 判断。任一问题无法可靠回答时，
-交接不得继续作为 active 执行入口，应原地修复或生成新交接。
+Doctor is responsible only for mechanical checks — line count, character count, fields and the index; the four answers are the agent's judgement. When any of them cannot be answered reliably, the handoff must not continue as an active execution entry point: repair it in place or generate a new one.
 
-### 5.6 可验证断言与复算来源
+### 5.6 Verifiable assertions and their recomputation source
 
-本节分两层写：先声明**要证明什么**，再声明**哪些证据形式算数**。两层不得合写。
+This section is written in two layers: first what must be proven, then which evidence forms count. The two must never be merged.
 
-#### 5.6.1 要证明什么
+#### 5.6.1 What must be proven
 
-**可验证断言必须附复算来源。** 交接正文中凡出现数量、存在性或哈希断言（「N 个文件」
-「零命中」「sha 为 X」），必须在同一行或紧邻行给出可直接执行的复算命令，格式
-`断言 ← 命令`。无复算来源的此类断言，接管方一律视为未证实，不得作为决策依据。散文性描述
-（「这一批改动不大」）不受此条约束。
+**A verifiable assertion must carry a recomputation source.** Wherever the handoff body states a count, an existence claim or a hash ("N files", "zero hits", "the sha is X"), a directly executable recomputation command must appear on the same line or the line immediately after, in the form `assertion <- command`. Whoever takes over treats such an assertion without a recomputation source as unproven, and it must never be a basis for a decision. Prose description ("this batch of changes is small") is not bound by this clause.
 
-要证明的是**接管方能独立重放出同一个数字**，不是「写交接的人当时看到了这个数字」。因此
-复算来源必须是接管方在其自己的环境里可直接执行的，不能是「我当时跑了一下」。
+What must be proven is that **the taker can independently replay the same number**, not that "the person writing the handoff saw that number at the time". So the recomputation source must be directly executable by the taker in their own environment, never "I ran it back then".
 
-#### 5.6.2 哪些证据形式算数
+#### 5.6.2 Which evidence forms count
 
-以下形式均可作为复算来源，写在 `←` 右侧：
+Any of these may be the recomputation source on the right of `<-`:
 
-| 形式 | 例 | 记账要求 |
+| Form | Example | Accounting requirement |
 |---|---|---|
-| 可直接执行的 shell 命令 | `git status --porcelain \| wc -l` | 原样可粘贴；不得含仅本机存在的别名 |
-| 可直接执行的仓库工具命令 | `python -B main/70_tools/t2ag_doctor.py --profile runtime` | 须写明 profile/参数，输出行可辨认 |
-| 文件路径 + 行锚点 | `grep -n "EA-0001" main/50_playbook/environment_assumptions.md` | 用内容锚点，不用行号 |
-| 已冻结的收据/清单文件 | `docs/handoffs/XXX_sha_table.json` | 须给出文件内定位键，不能只给文件名 |
+| a directly executable shell command | `git status --porcelain \| wc -l` | pasteable as written; no alias that exists only on one machine |
+| a directly executable repository tool command | `python -B main/70_tools/t2ag_doctor.py --profile runtime` | the profile/arguments must be stated and the output lines identifiable |
+| a file path + a content anchor | `grep -n "EA-0001" main/50_playbook/environment_assumptions.md` | use a content anchor, not a line number |
+| a frozen receipt/manifest file | `docs/handoffs/XXX_sha_table.json` | give a locating key inside the file, not just the filename |
 
-本清单可扩展。新增形式须同时声明该形式如何记账，否则不得使用。
+This list is extensible. A new form must declare how it is accounted for at the same time, or it must not be used.
 
-#### 5.6.3 接管方义务
+#### 5.6.3 The taker's obligation
 
-接管时对交接中带复算来源的断言**至少抽验一条**，并在首次回报中说明抽验了哪条、结果是否
-一致。全部一致才可引用交接结论；不一致立即停止推进并按第九节处理。
+On takeover, **spot-check at least one** assertion carrying a recomputation source, and state in the first report which one was checked and whether the result agreed. Only when everything agrees may the handoff's conclusions be cited; on disagreement, stop advancing immediately and follow §9.
 
-抽验的目的是证伪，不是走形式：优先抽验**结论依赖最重**的那条断言，而不是最容易跑的那条。
+The point of the spot check is falsification, not ceremony: prefer the assertion the **conclusion leans on hardest**, not the one that is easiest to run.
 
-#### 5.6.4 引用与转述
+#### 5.6.4 Quotation and paraphrase
 
-引述本节触发词（「N 个」「零命中」「sha 为 X」）而**不是**在断言当前状态时——例如复述历史
-教训或引用规则原文——`release.handoff` 仍会报 WARN。这是刻意的：机械门不区分语气。消解方式
-是改写措辞或补 `←` 来源，不是给门加豁免。
+Quoting this section's trigger words ("N items", "zero hits", "the sha is X") while **not** asserting the current state — restating a historical lesson, or citing a rule verbatim — still raises a WARN from `release.handoff`. That is deliberate: a mechanical gate does not distinguish tone. The resolution is to reword or to add a `<-` source, never to add an exemption to the gate.
 
 ---
 
-## 六、索引规则
+## 6. Index rules
 
-`<handoff_root>/README.md` 同时是恢复路由和支撑材料目录，但两者必须分区。推荐格式：
+`<handoff_root>/README.md` is both the recovery route and the supporting-material directory, but the two must be partitioned. Recommended format:
 
 ```markdown
 ## Active Handoffs
 
-| handoff_id | scope | lane | artifact_role | status | applies_to | task_match | updated_at | 文件 | close_condition |
+| handoff_id | scope | lane | artifact_role | status | applies_to | task_match | updated_at | File | close_condition |
 |---|---|---|---|---|---|---|---|---|---|
 
-## 下一版本 Backlog
+## Next-version backlog
 
-| id | lane | artifact_role | status | 文件 | trigger |
+| id | lane | artifact_role | status | File | trigger |
 |---|---|---|---|---|---|
 
 ## Workorders / Plans
@@ -342,267 +321,228 @@ doctor 只负责行数、字符数、字段和索引等机械检查；四问答�
 
 ## Resolved / Archive Handoffs
 
-| handoff_id | scope | lane | artifact_role | status | applies_to | 文件 | replaced/resolved by |
+| handoff_id | scope | lane | artifact_role | status | applies_to | File | replaced/resolved by |
 |---|---|---|---|---|---|---|---|
 ```
 
-索引规则：
+Index rules:
 
-1. 先按 `artifact_role=handoff + status=active` 过滤，再按当前任务的 `lane`、`scope` 与
-   `applies_to` 匹配。
-2. 不建立跨 scope 的全局“最新优先”排序。
-3. 专题交接不会因为日期更新而自动压过课程或项目交接。
-4. `resolved`、`superseded`、`stale`、`archived` 不参与日常恢复，只在核查历史时展开。
-5. 文件创建、重命名、替代、关闭时，同一批次更新索引。
-6. 索引不得复制交接正文，只保存路由与生命周期字段。
-7. `release_backlog` 只在下一次明确冻结候选或正式发布时读取，不得放入 Active Handoffs。
-8. 历史扁平目录可以保留；先修术语和索引。只有在引用全部可控且另有迁移计划时才移动文件。
-9. **一条索引可以带多个文件。**同一工单产生的工单／裁决单／只读报告／施工报告，合并为一行
-   登记即可，不必逐件建行。索引的职能是可发现性，不是一物一档；把记账成本抬高，只会让人
-   跳过记账。
-10. **入抽屉即记账。**文件放进 `<handoff_root>` 与写它的索引行属于同一个动作，不是两件事。
-   「先放着，回头补索引」不是可接受的中间态——补账窗口一旦打开就不会关闭，见 §6.1。
-11. 不入索引也是一种登记。确有理由不登记的文件（临时草稿、外部投放件），要么移出
-   `<handoff_root>`，要么在索引中显式写一行说明为何不参与路由。**沉默地躺在抽屉里不算处置。**
+1. Filter first by `artifact_role=handoff + status=active`, then match the current task's `lane`, `scope` and `applies_to`.
+2. Do not establish a global "newest first" ordering across scopes.
+3. A topic handoff never automatically outranks a course or project handoff because its date is newer.
+4. `resolved`, `superseded`, `stale` and `archived` take no part in daily recovery and are expanded only when checking history.
+5. Update the index in the same batch as a file is created, renamed, superseded or closed.
+6. The index never copies handoff body text; it stores routing and lifecycle fields only.
+7. `release_backlog` is read only at an explicit frozen candidate or a formal release, and must never enter Active Handoffs.
+8. A historical flat directory may stay; fix the terminology and the index first. Move files only when every reference is under control and a migration plan exists.
+9. **One index row may carry several files.** The work order, adjudication, read-only report and construction report produced by one order may be registered as a single row; a row per artifact is unnecessary. The index exists for discoverability, not one-file-one-record; raising the accounting cost only makes people skip the accounting.
+10. **Into the drawer means into the accounts.** Putting a file into `<handoff_root>` and writing its index row are one action, not two. "Leave it for now, backfill the index later" is not an acceptable intermediate state — once the backfill window opens it never closes; see §6.1.
+11. **Not indexing is also a registration.** A file with a real reason not to be registered (a temporary draft, an artifact delivered outward) must either move out of `<handoff_root>`, or have one explicit row in the index saying why it takes no part in routing. **Lying silently in the drawer is not a disposition.**
 
-### 6.1 索引一致性必须有机械兜底
+### 6.1 Index consistency needs a mechanical backstop
 
-「同一批次更新索引」（规则 5）是一条散文条款。散文条款的失效不会报错，只会积累——
-**每一个孤儿文件都是一次被绕过的规则，而绕过规则本身不产生任何信号。**
+"Update the index in the same batch" (rule 5) is a prose clause. A prose clause does not fail loudly; it accumulates — **every orphan file is one bypassed rule, and bypassing a rule produces no signal at all.**
 
-因此：`<handoff_root>` 的索引一致性必须有一个可执行的检查，且该检查必须挂在一条
-**已被证明每天真的会跑**的通道上（例如例行晨报、启动流程或 CI），而不是「需要时手动跑一下」。
-挂在没人跑的地方，与没有等价。
+Therefore: index consistency for `<handoff_root>` must have an executable check, and that check must hang on a channel **proven to actually run every day** (a routine morning brief, the startup flow, or CI), not "run it by hand when needed". Hanging it where nobody runs it is equivalent to not having it.
 
-最小契约（检查项可扩展，这三项不可少）：
+The minimum contract (checks are extensible; these three are mandatory):
 
-| ID | 检查 | 语义 |
+| ID | Check | Meaning |
 |---|---|---|
-| 索引孤儿 | `<handoff_root>` 顶层每个文件都被索引引用 | 文件存在但不可发现 |
-| 索引悬空 | 索引引用的每个本地路径都真实存在 | 索引指向尸体 |
-| 子目录未提及 | 每个子目录至少被索引提及一次 | 整片资料不可发现 |
+| index orphan | every top-level file in `<handoff_root>` is referenced by the index | the file exists but is undiscoverable |
+| index dangling | every local path the index references really exists | the index points at a corpse |
+| subdirectory unmentioned | every subdirectory is mentioned by the index at least once | a whole body of material is undiscoverable |
 
-执行者由工作区登记，本流程不指定：doctor 只对其所在仓有管辖权，工作区级的
-`<handoff_root>` 需由工作区自己的通道兜底。检查的严厉度为 WARN——它报的是记账债务，
-不是正确性错误，不应阻断当前任务。
+The executor is registered by the workspace and is not named by this process: doctor has jurisdiction only over its own repo, and a workspace-level `<handoff_root>` must be backstopped by the workspace's own channel. The severity is WARN — it reports accounting debt, not a correctness error, and must not block the current task.
 
-仪器**必须红测**：造一个孤儿、一条悬空引用，确认检查真的报出来，再清理。未经红测的检查
-与散文条款是同一种东西——都只是声称自己在工作。
+The instrument **must be red-tested**: manufacture an orphan and a dangling reference, confirm the check really reports them, then clean up. An untested check and a prose clause are the same thing — both merely claim to be working.
 
-**已知覆盖空洞要写在仪器自己身上。**机械检查查不了「索引描述是否属实」（status 写错、
-角色定错一律通过）。查不了的事要在脚本头显式写明，不得靠沉默让人误以为已覆盖。
+**A known coverage hole is written on the instrument itself.** A mechanical check cannot verify "whether the index description is true" (a wrong status or a mis-assigned role passes either way). What it cannot check must be stated explicitly in the script header, never left to silence to imply coverage.
 
 ---
 
-## 七、创建流程
+## 7. The creation flow
 
-1. **确认触发**：说明为什么普通正式来源不足以完成这次跨对话恢复。
-2. **解析 handoff root**：按 2.1 定位现有索引；不得因普通启动自动造目录。
-3. **识别 lane、scope 与 applies_to**：确定工作通道和任务范围，检查是否已有同范围 active
-   Handoff；同一任务默认原地刷新。
-4. **核对正式来源**：读取 canonical sources、实际文件和必要的工作区状态。
-5. **分离事实与计划**：列出已完成、未完成、未验证和候选裁决。
-6. **写元数据**：生成稳定 handoff_id、状态、关闭条件与替代关系。
-7. **写最小状态摘要**：只承担快速定位，不用它替代后续连续性。
-8. **写连续性摘要**：汇总几个既往长对话中仍影响当前判断的讨论主线、理由和未决问题。
-9. **写操作与证据**：保存精确停点、文件、验证、风险和原始材料入口。
-10. **更新索引**：只把 `artifact_role=handoff + status=active` 登记到 Active Handoffs；若替代旧交接，先验证新文件非空且可恢复，再更新旧文件状态和双向指针。
-11. **做权威链检查**：删除任何“交接自动覆盖真相源”的措辞，改为核对与修复流程。
-12. **做接管演练**：只读索引、最小状态摘要和连续性摘要，检查接管者能否判断下一步且不会误用无关交接。
+1. **Confirm the trigger**: state why the ordinary formal sources are insufficient for this cross-conversation recovery.
+2. **Resolve the handoff root**: locate the existing index per §2.1; never create a directory automatically on an ordinary startup.
+3. **Identify lane, scope and applies_to**: fix the work channel and task scope, and check whether an active Handoff of the same scope already exists; the same task refreshes in place by default.
+4. **Verify the formal sources**: read the canonical sources, the actual files, and any necessary workspace state.
+5. **Separate fact from plan**: list what is done, not done, unverified, and awaiting adjudication.
+6. **Write the metadata**: a stable handoff_id, the status, the closing condition and the supersession relations.
+7. **Write the minimum state summary**: for quick locating only; never let it replace the continuity that follows.
+8. **Write the continuity summary**: gather the discussion lines, reasons and open questions from earlier long conversations that still affect the current judgement.
+9. **Write operations and evidence**: store the exact stopping point, the files, the verifications, the risks, and the entry point to raw material.
+10. **Update the index**: register only `artifact_role=handoff + status=active` into Active Handoffs; when superseding an old handoff, first verify the new file is non-empty and recoverable, then update the old file's status and the bidirectional pointers.
+11. **Run the authority-chain check**: delete any wording implying "a handoff automatically overrides the source of truth", replacing it with a verify-and-repair flow.
+12. **Run the takeover rehearsal**: read only the index, the minimum state summary and the continuity summary, and check whether a taker can decide the next step without misusing an unrelated handoff.
 
 ---
 
-## 八、读取与恢复流程
+## 8. The reading and recovery flow
 
-1. 识别当前任务，不先全量读取 handoff root。
-2. 读取索引，只筛选匹配的 `handoff + active` 条目。
-3. 先读最小状态摘要，确认范围、风险和下一步。
-4. 若涉及用户意图、设计理由或多轮概念演化，再读连续性摘要。
-5. 检查版本、更新时间、适用对象和 canonical sources 是否仍存在。
-6. 读取正式真相源和必要的细粒度证据。
-7. 若一致，按正式来源继续；交接只补充上下文和未决事项。
-8. 若冲突，暂停推进，按第九节修复，不直接采纳交接结论。
-9. 只在需要核查细节时展开详细历史或原始材料。
-10. 完成任务后检查交接是否达到 close_condition，并按 §10.1 前置条件确认文件内无未迁移的开放项。
+1. Identify the current task; do not read the whole handoff root first.
+2. Read the index and filter only matching `handoff + active` entries.
+3. Read the minimum state summary first and confirm the scope, risks and next step.
+4. Where user intent, design reasons or multi-round conceptual evolution are involved, then read the continuity summary.
+5. Check whether the version, update time, applicable object and canonical sources still exist.
+6. Read the formal source of truth and any necessary fine-grained evidence.
+7. If they agree, continue from the formal source; the handoff only supplements context and open items.
+8. If they conflict, pause advancing and repair per §9; never adopt the handoff's conclusion directly.
+9. Expand detailed history or raw material only when a detail must be checked.
+10. After the task, check whether the handoff reached its close_condition, and confirm per the §10.1 preconditions that the file holds no un-migrated open item.
 
-### 8.1 恢复后动作授权门
+### 8.1 The post-recovery action authorization gate
 
-读取与恢复本身是只读动作。接管方完成读取后，第一条输出必须是三件事：最小状态复述、
-拟做动作清单、每项动作所依据的授权来源。在用户对该清单作出回应之前不得写入任何文件——
-包括新建 workorder、登记索引、追加 changelog，以及创建“只为留痕”的文件。
+Reading and recovery are themselves read-only. Once the taker has read, the first output must be three things: a restatement of the minimum state, a list of the actions intended, and the authorization source each action rests on. Until the user responds to that list, no file may be written — including creating a work order, registering an index row, appending to a changelog, or creating a file "just to leave a trace".
 
-授权来源只有两类合法形态：
+There are only two legal forms of authorization source:
 
-| 来源 | 效力 |
+| Source | Effect |
 |---|---|
-| 当轮用户指令 | 只覆盖它字面所指、且已在同一轮被具体列出的动作 |
-| Handoff 的 `authorization` 字段 | 历史记录，证明“当时批过什么”，不构成当轮许可 |
+| a user instruction this round | covers only what it literally names, and only actions specifically listed in the same round |
+| a Handoff's `authorization` field | a historical record proving "what was approved at the time"; **does not constitute permission for this round** |
 
-因此：
+Therefore:
 
-1. 概括性认可只覆盖当轮已具体列出的动作。“按你推荐的做”“可以”“继续”这类回应继承的是
-   它所回应的那一份清单，不得展开为清单外的施工；清单不存在时，这类回应只授权继续报告，
-   不授权写入。
-2. 引用 Handoff 的 `authorization` 字段时必须判明它已被消耗还是仍未使用。未使用的历史授权
-   同样要由用户当轮重新确认，不得跨对话自行激活。
-3. 需要独立裁决的对象不得代为选择，即使 Handoff 已写明推荐项：法律许可、版本升级、目录
-   迁移、删除或移动历史文件、新 EV 登记，以及把某项复审判为闭合。
-4. 已越界时不得静默继续：停止施工，报出已写入的文件清单与越界点，等用户裁决保留或回滚。
+1. **A general acknowledgement covers only the actions specifically listed this round.** "Do what you recommend", "ok", "continue" inherit the one list they respond to and must never expand into construction outside it; where no list exists, such a response authorizes continued reporting only, never a write.
+2. When citing a Handoff's `authorization` field, determine whether it has been consumed or is still unused. An unused historical authorization must equally be re-confirmed by the user this round and must never activate itself across conversations.
+3. An object needing independent adjudication must never be chosen on the user's behalf, even where the Handoff names a recommendation: a licence choice, a version bump, a directory migration, deleting or moving a historical file, registering a new EV, and judging a re-review closed.
+4. Once out of bounds, do not silently continue: stop construction, report the list of files already written and the point of overstep, and wait for the user to adjudicate keeping or rolling back.
 
-本门与 `batch_workorder_spec.md`「授权不可放大」同源。那一节管的是工单内不得扩大范围，
-本节管的是跨对话恢复时不得凭历史授权或概括语句自行开工。
+This gate shares a root with `batch_workorder_spec.md`'s "Authorization is non-amplifying". That section governs not widening scope inside a work order; this one governs not starting work on a historical authorization or a general phrase during cross-conversation recovery.
 
 ---
 
-## 九、权威链与冲突修复
+## 9. The authority chain and conflict repair
 
-### 9.1 通用规则
+### 9.1 General rules
 
-交接文档永远不是正式真相源。它可以证明“当时观察到什么、讨论到什么、哪些写回尚未发生”，但不能凭自身改变项目状态。
+A handoff document is never the formal source of truth. It can prove "what was observed at the time, what was discussed, which write-backs have not happened", but it cannot change project state on its own.
 
-发生冲突时：
+On conflict:
 
 ```text
-交接/对话/细粒度记录提供恢复证据
-→ 读取正式真相源
-→ 核对更细文件或实际工作区
-→ 必要时向用户确认
-→ 修复正式真相源
-→ 刷新缓存
-→ 再继续任务
+the handoff / conversation / fine-grained record supplies recovery evidence
+-> read the formal source of truth
+-> verify against a finer file or the actual workspace
+-> confirm with the user where needed
+-> repair the formal source of truth
+-> refresh the caches
+-> then continue the task
 ```
 
-### 9.2 课程场景
+### 9.2 The course case
 
-`progress.md` 始终拥有 Course 生命周期、唯一前台与停点，`activity_ledger.md` 始终拥有
-Activity 生命周期。未执行 `session_close` 的课堂交接只能说明这些分权真相源可能落后。
+`progress.md` always owns the Course lifecycle, the single foreground and the stopping point, and `activity_ledger.md` always owns the Activity lifecycle. A classroom handoff from a session that never ran `session_close` can only indicate that those separated sources of truth may be behind.
 
-若当前活动主载体（Lesson 或 Exercise）或交接显示更细进度：
+If the current activity main carrier (Lesson or Exercise) or the handoff shows finer progress:
 
-1. 暂停讲授新内容。
-2. 按显式活动路由对照当前主载体、对应教材/题目证据和学生明确确认记录；历史 Lesson
-   不能替代当前 Exercise。
-3. 向学生核对实际完成点。
-4. 先修复 `progress.md` 的 `activity_position`，再刷新 memory/learning_path
-   GENERATED 缓存。
-5. 修复后继续课程；不得让交接长期充当临时真相源。
+1. Pause teaching new content.
+2. Compare, via the explicit activity route, the current main carrier, the corresponding textbook/problem evidence and the student's explicit confirmation record; a historical Lesson can never stand in for the current Exercise.
+3. Verify the actual completion point with the student.
+4. Repair `progress.md`'s `activity_position` first, then refresh the memory/learning_path GENERATED caches.
+5. Continue the course after the repair; never let a handoff serve as a temporary source of truth for long.
 
-### 9.3 规则与项目场景
+### 9.3 The rule and project case
 
-- 交接中讨论出的永久规则只有写入对应定义文件并验证后才生效。
-- Git 状态、测试结果和文件内容以实际检查为准，不以交接中的“已完成”措辞为准。
-- 交接引用的版本、路径或接口失效时，标记风险并重新核对，不静默沿用。
+- A permanent rule reached in a handoff takes effect only after it is written into the corresponding definition file and verified.
+- Git status, test results and file contents are governed by an actual check, never by "already done" wording in a handoff.
+- When a version, path or interface a handoff cites has expired, flag the risk and re-verify; never carry on silently.
 
-### 9.4 Version campaign 场景
+### 9.4 The version campaign case
 
-campaign handoff 只记录本次执行的恢复事实与路由，可以保存 `campaign_id`、authorization
-envelope 的正式来源指针、冻结 baseline、当前单元、evidence/recovery checkpoint、保留的
-RT3 门、授权失效事实和下一动作。它不得：
+A campaign handoff records only this execution's recovery facts and routing. It may store the `campaign_id`, the formal source pointer for the authorization envelope, the frozen baseline, the current unit, the evidence/recovery checkpoints, the retained RT3 gates, the authorization expiry facts and the next action. It must never:
 
-- 复制或扩张永久治理规则；通用规则只写 `batch_workorder_spec.md`、`git_workflow.md` 与
-  `remediation_governance.md`；
-- 把 handoff 中的“已授权”当作新授权，或替代用户原始批准与实际 Git/文件状态；
-- 把旧对话、receipt、policy 或 reviewer 结论解释为尚未生成 exact object/body/ID/SHA/result 的
-  RT3 授权；
-- 用新的摘要把 envelope 未列路径、未知仓、风险升级或 RT3 追加进 campaign；
-- 把 recovery checkpoint 写成 release snapshot，或把 clean 写成 reviewed/released。
+- copy or expand a permanent governance rule; generic rules are written only in `batch_workorder_spec.md`, `git_workflow.md` and `remediation_governance.md`;
+- treat "already authorized" in a handoff as new authorization, or substitute for the user's original approval and the actual Git/file state;
+- read an old conversation, a receipt, a policy or a reviewer conclusion as RT3 authorization for an exact object/body/ID/SHA/result not yet generated;
+- use a new summary to add an unlisted path, an unknown repo, a risk escalation or an RT3 into the campaign;
+- write a recovery checkpoint as a release snapshot, or write clean as reviewed/released.
 
-接管者必须回读正式 workorder、authorization envelope 和实际仓库状态。任一不一致按第九节
-停止并修复；handoff 只能说明“上次执行到哪里”，不能让已失效的连续授权复活。RT3 只能在
-精确对象展示后由用户当前轮直接确认。
+The taker must read back the formal work order, the authorization envelope and the actual repository state. Any disagreement stops and repairs per §9; a handoff can say only "where the last execution reached", and can never revive a lapsed continuous authorization. RT3 is confirmed only by the user, directly, in the current round, after the exact object has been displayed.
 
 ---
 
-## 十、关闭、替代与归档
+## 10. Closing, superseding and archiving
 
 ### 10.1 resolved
 
-**摘牌前置条件——判据窄于内容时不得 resolved。**`close_condition` 达成只证明写它的那几件事
-闭合了，不证明文件内其余小节也闭合。转 `resolved` 前必须逐节扫描待办、遗留、待发版项、
-未闭合小节与「下一步」措辞；凡本轮未随之闭合的，先迁入索引的「下一版本 Backlog」或新建
-承接条目并写明 `trigger`，再摘牌。摘牌后文件退出日常加载范围，未迁出的开放项会随文件一起
-下线且无人接管——这是形式闭合早于语义闭合的典型形态，与 §6.3「规则反压缩」同源。
+**Precondition for delisting — never resolve while the criterion is narrower than the content.** Meeting `close_condition` proves only that the few things it names have closed; it does not prove the rest of the file's sections closed too. Before turning `resolved`, scan section by section for to-dos, leftovers, pending release items, unclosed subsections and "next step" wording; anything that did not close in this round must first be migrated into the index's "Next-version backlog", or into a new receiving entry with its `trigger` stated, before delisting. After delisting, the file leaves the daily loading scope, and an open item never migrated out goes offline with it and nobody takes it over — the classic shape of formal closure arriving before semantic closure, sharing a root with §6.3 "rules resist compression".
 
-达到 `close_condition` 且上述前置条件满足后：
+Once `close_condition` is met and the precondition above holds:
 
-1. 写回并验证所有 canonical sources。
-2. 逐节确认文件内无未迁移的开放项；有则先迁出，并在原小节注明迁往哪条 Backlog 条目。
-3. 把文档状态改为 `resolved`，记录完成时间和验证结果。
-4. 从 Active Handoffs 移出，进入 Resolved / Archive Handoffs。
-5. 删除“下一步必须先修复”的临时措辞，或注明已完成结果。
+1. Write back and verify every canonical source.
+2. Confirm section by section that the file holds no un-migrated open item; where it does, migrate first and note in the original subsection which Backlog entry it went to.
+3. Change the document status to `resolved`, recording the completion time and the verification result.
+4. Move it out of Active Handoffs and into Resolved / Archive Handoffs.
+5. Delete the temporary "the next step must repair X first" wording, or note the completed result.
 
-课程交接通常在 `session_close` 完成、doctor 通过且写入确认展示后 resolved。
+A course handoff is usually resolved after `session_close` completes, doctor passes, and the write confirmation has been shown.
 
 ### 10.2 superseded
 
-更新、更精确的交接接替旧文件时：
+When a newer, more precise handoff takes over from an old file:
 
-1. 新文件必须先写入有效的状态、下一步、关闭条件、正式来源和连续性摘要。
-2. 对新文件执行接管演练与四问检查，确认不是空壳。
-3. 新文件写 `supersedes`。
-4. 旧文件再写 `status: superseded` 与 `superseded_by`。
-5. Active Handoffs 只保留新文件。
-6. 不删除旧文件中仍有审计价值的讨论轨迹。
+1. The new file must first carry a valid status, next step, closing condition, formal sources and continuity summary.
+2. Run the takeover rehearsal and the four-question check against the new file, confirming it is not a shell.
+3. The new file writes `supersedes`.
+4. Only then does the old file write `status: superseded` and `superseded_by`.
+5. Active Handoffs keeps only the new file.
+6. Do not delete a discussion trail in the old file that still has audit value.
 
 ### 10.3 archived
 
-`resolved` 或 `superseded` 文件在无需日常回看后可归档。归档只改变存放与索引位置，不改变正式来源，也不自动删除历史。
+A `resolved` or `superseded` file may be archived once daily reference is no longer needed. Archiving changes only where it is stored and indexed; it changes no formal source and deletes no history automatically.
 
 ---
 
-## 十一、与 T2AG 既有流程的接口
+## 11. Interfaces with the existing T2AG processes
 
-### 11.1 启动与课程恢复
+### 11.1 Startup and course recovery
 
-- `t2ag.md` 只提供条件入口：存在约定索引时，按本流程读取匹配 active 交接。
-- `lesson_recover.md` 负责课程恢复；只有未闭合课程命中 active `course_session` 时才加载交接。
-- 正常结课后的课程不读历史课堂交接。
+- `t2ag.md` provides a conditional entry point only: where the agreed index exists, read the matching active handoff per this process.
+- `lesson_recover.md` owns course recovery; a handoff is loaded only when an unclosed course matches an active `course_session`.
+- A course that closed normally reads no historical classroom handoff.
 
-### 11.2 结课
+### 11.2 Session close
 
-- `session_close.md` 完成正式写回和验证后，检查是否有匹配的 active 课程交接。
-- 有则按第十节转为 `resolved` 并更新索引；无则不创建交接来凑流程。
+- After `session_close.md` completes the formal write-back and verification, check for a matching active course handoff.
+- If there is one, turn it `resolved` per §10 and update the index; if there is none, do not create a handoff to complete the ritual.
 
-### 11.3 项目与专题
+### 11.3 Projects and topics
 
-- 项目总交接用于架构、发行、维护和实现状态，不覆盖课程进度。
-- 专题交接保存跨多个长对话的概念演化、决策理由和未决问题，只在相关专题任务中读取。
-- 同一讨论若已经形成正式 playbook，交接保留形成过程和理由，规则正文只引用 playbook。
-- version campaign 交接只记录该 campaign 的基线、checkpoint、保留门和停点；不得成为跨版本
-  的永久授权或审查规则源。
-
----
-
-## 十二、常见错误
-
-- **把摘要越写越短**：只剩停点和待办，导致用户意图与方案理由丢失。改写连续性摘要。
-- **全局按日期排序**：不同 scope 互相覆盖。先按任务匹配，再看更新时间。
-- **交接压过 progress**：制造双真相源。交接只能触发确认与修复。
-- **每次对话都建交接**：产生大量重复文档。正常闭合时依赖正式来源。
-- **只保存最终结论**：看不出结论如何形成、哪些方案被否决。补讨论主线。
-- **复制正式规则全文**：规则后续漂移。改为指针，并只保留当时裁决理由。
-- **旧 active 不退出**：同一 scope 出现多个当前入口。建立 supersedes/superseded_by 并更新索引。
-- **先关闭旧文件再写新文件**：中途失败会造成恢复断链。必须先完成并验证新文件，再替代旧文件。
-- **把 350 行当强制换代**：350 行只是第一次检查；第三次门槛才强制生成已验证的新交接。
-- **把计划写成完成**：接管者误判实施状态。事实、候选、未验证和待办分栏。
-- **用“最近 N 次对话”机械截断**：较早但关键的讨论被丢失。使用最小充分上下文判据。
-- **把目录名当领域类型**：`handoffs/` 内的 workorder、evidence 或 backlog 被误读成 active
-  Handoff。按 `artifact_role` 分区索引，只让 `handoff + active` 进入恢复路由。
-- **把发布待办挂 Active**：日常启动反复加载发布成本。把它登记为
-  `lane=version_campaign + artifact_role=release_backlog`，等待明确候选触发。
-- **只诊断不立仪器**：查出一批孤儿、写下「建议加一条一致性检查」，然后不做。诊断书本身会
-  变成新的孤儿——它躺在同一个抽屉里，也没人索引它。判据是：这次处置结束后，**下一次同类
-  失效由谁发现**？答案若是「下次再有人想起来查」，那就等于没处置。见 §6.1。
-- **把「补账」当常态**：允许文件先躺着、索引回头补，补账窗口就永远不会关闭。记账要么与
-  放文件同批发生，要么不会发生。
+- The project master handoff covers architecture, release, maintenance and implementation state, and never overrides course progress.
+- A topic handoff stores the conceptual evolution, decision reasons and open questions across several long conversations, and is read only in the relevant topic task.
+- Where a discussion has already become a formal playbook, the handoff keeps the process and the reasoning, and the rule text only cites the playbook.
+- A version campaign handoff records only that campaign's baseline, checkpoints, retained gates and stopping point; it must never become a cross-version permanent authorization or a review rule source.
 
 ---
 
-## 十三、关联文件
+## 12. Common mistakes
 
-- `main/t2ag.md` —— 接管入口、结构登记与权威链。
-- `main/00_core/t2ag_memory.md` —— 日常恢复指针与关键决策索引。
-- `main/50_playbook/lesson_recover.md` —— 课程跨会话恢复。
-- `main/50_playbook/session_close.md` —— 课程正式写回与交接关闭触发。
-- `main/50_playbook/playbook_management.md` —— playbook 分级保护与发行同步纪律。
-- `<handoff_root>/README.md` —— 运行时交接索引，不随 skeleton 注入实例内容。
+- **Writing the summary ever shorter**: only the stopping point and to-dos survive, losing user intent and the reasons for the approach. Rewrite the continuity summary.
+- **Sorting globally by date**: different scopes override each other. Match by task first, then look at the update time.
+- **A handoff outranking progress**: this manufactures two sources of truth. A handoff can only trigger verification and repair.
+- **Creating a handoff every conversation**: this produces many duplicate documents. Rely on the formal sources when a session closes normally.
+- **Storing only the final conclusion**: it becomes impossible to see how the conclusion formed and which approaches were rejected. Add the discussion lines.
+- **Copying a formal rule verbatim**: the rule later drifts. Use a pointer, and keep only the adjudication reasoning of the time.
+- **An old active never retiring**: several current entry points appear in one scope. Establish supersedes/superseded_by and update the index.
+- **Closing the old file before writing the new one**: a failure midway breaks the recovery chain. Complete and verify the new file first, then supersede.
+- **Treating 350 lines as a forced generation change**: 350 lines is only the first check; the third threshold forces a verified new handoff.
+- **Writing a plan as completion**: the taker misjudges the implementation state. Keep fact, candidate, unverified and to-do in separate columns.
+- **Truncating mechanically by "the last N conversations"**: an older but critical discussion is lost. Use the minimum-sufficient-context criterion.
+- **Treating a directory name as a domain type**: a workorder, evidence or backlog inside `handoffs/` is misread as an active Handoff. Partition the index by `artifact_role`, and let only `handoff + active` enter the recovery route.
+- **Hanging a release to-do on Active**: the daily startup repeatedly loads release cost. Register it as `lane=version_campaign + artifact_role=release_backlog` and wait for an explicit candidate trigger.
+- **Diagnosing without installing an instrument**: finding a batch of orphans, writing "we should add a consistency check", then not doing it. The diagnosis itself becomes a new orphan — it lies in the same drawer, and nobody indexes it either. The criterion is: after this disposition, **who finds the next failure of the same kind**? If the answer is "next time somebody thinks to look", nothing was disposed of. See §6.1.
+- **Treating backfill as normal**: allowing a file to lie there with the index backfilled later means the backfill window never closes. Accounting happens in the same batch as placing the file, or it does not happen.
+
+---
+
+## 13. Related files
+
+- `main/t2ag.md` — the takeover entry point, structural registration and the authority chain.
+- `main/00_core/t2ag_memory.md` — daily recovery pointers and the key-decision index.
+- `main/50_playbook/lesson_recover.md` — cross-session course recovery.
+- `main/50_playbook/session_close.md` — formal course write-back and the handoff-closing trigger.
+- `main/50_playbook/playbook_management.md` — playbook grading protection and release sync discipline.
+- `<handoff_root>/README.md` — the runtime handoff index; never injected with instance content by the skeleton.
