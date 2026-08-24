@@ -100,3 +100,73 @@ Set-Location -LiteralPath $target
 
 After the copy succeeds, the edition's own `AGENTS.md` and `main/t2ag.md` become
 the authoritative startup instructions.
+
+`robocopy` uses nonstandard exit codes. Values `0` through `7` are successful or
+nonfatal copy states; only `8` or higher is a copy failure. Agents must use the
+explicit check above instead of treating every nonzero value as failure.
+
+### Bash copy route (macOS / Linux)
+
+Run this from the extracted or cloned bilingual repository root after replacing
+the two input values. This route requires `rsync` and refuses an existing target
+or a target inside the bilingual checkout.
+
+```bash
+set -eu
+
+edition="en" # exactly "zh" or "en"
+target="$HOME/Documents/my-t2ag"
+
+case "$edition" in
+  zh|en) ;;
+  *) echo "edition must be zh or en" >&2; exit 1 ;;
+esac
+
+command -v rsync >/dev/null 2>&1 || {
+  echo "rsync is required for the exclusion-preserving copy route" >&2
+  exit 1
+}
+
+release_root="$(pwd -P)"
+source="$release_root/$edition"
+target_parent="$(dirname "$target")"
+
+test -d "$target_parent" || {
+  echo "target parent does not exist: $target_parent" >&2
+  exit 1
+}
+target_parent="$(cd "$target_parent" && pwd -P)"
+target="$target_parent/$(basename "$target")"
+
+case "$target" in
+  "$release_root"|"$release_root"/*)
+    echo "target must be outside the bilingual release checkout: $target" >&2
+    exit 1
+    ;;
+esac
+test ! -e "$target" || {
+  echo "target already exists: $target" >&2
+  exit 1
+}
+
+mkdir "$target"
+rsync -a \
+  --exclude='.git/' --exclude='__pycache__/' --exclude='.venv/' \
+  --exclude='.cache/' --exclude='.recovery/' --exclude='.staging/' \
+  --exclude='.uploads/' "$source/" "$target/"
+
+for required in AGENTS.md README.md main/t2ag.md; do
+  test -e "$target/$required" || {
+    echo "installed copy is missing $required" >&2
+    exit 1
+  }
+done
+test ! -e "$target/.git" || {
+  echo "installed copy must not contain .git" >&2
+  exit 1
+}
+cd "$target"
+```
+
+After the copy succeeds, the edition's own `AGENTS.md` and `main/t2ag.md` become
+the authoritative startup instructions.
