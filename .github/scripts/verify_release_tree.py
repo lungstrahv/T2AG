@@ -16,24 +16,23 @@ import sys
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 EDITIONS = ("zh", "en")
 
 REQUIRED_ROOT_FILES = frozenset(
     {
         ".gitattributes",
+        ".github/scripts/test_verify_release_tree.py",
+        ".github/scripts/verify_release_tree.py",
         ".github/workflows/release-structure.yml",
         ".gitignore",
         "AGENTS.md",
         "INSTALL.md",
-        "INVITED_USE_GRANT.md",
         "LICENSE",
         "LICENSE-DOCS.md",
         "LICENSING.md",
         "NOTICE",
         "README.md",
-        "tools/test_verify_release_tree.py",
-        "tools/verify_release_tree.py",
     }
 )
 
@@ -41,7 +40,6 @@ REQUIRED_EDITION_FILES = frozenset(
     {
         "AGENTS.md",
         "README.md",
-        "INVITED_USE_GRANT.md",
         "LICENSE",
         "LICENSE-DOCS.md",
         "LICENSING.md",
@@ -60,6 +58,8 @@ REQUIRED_EDITION_FILES = frozenset(
 
 FORBIDDEN_EDITION_FILES = frozenset(
     {
+        # Historical private grants do not ship in current public GitHub copies.
+        "INVITED_USE_GRANT.md",
         # The 2026-08-21 Skeleton boundary explicitly keeps this instance ledger out.
         "main/30_group/recommendations.md",
     }
@@ -225,4 +225,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

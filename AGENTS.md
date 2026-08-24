@@ -49,13 +49,13 @@ same work.
 
 ## Public release-tree validation / 公开发行树验证
 
-During construction, `python -B tools/verify_release_tree.py --worktree` is a
+During construction, `python -B .github/scripts/verify_release_tree.py --worktree` is a
 preview only. Before claiming that GitHub contents are structurally complete, run
 the unit tests and verify the committed tree:
 
 ```text
-python -B -m unittest tools/test_verify_release_tree.py
-python -B tools/verify_release_tree.py --tree HEAD
+python -B .github/scripts/test_verify_release_tree.py
+python -B .github/scripts/verify_release_tree.py --tree HEAD
 ```
 
 只有第二条对已提交 Git tree 的 PASS 才能证明 GitHub ZIP / clone 的路径面；本地空目录、

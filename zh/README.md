@@ -16,8 +16,7 @@ AR、书籍、sidecar、候选贡献或消费回执。两个系统始终各写�
 但不携带真实学生、课程进度或个人原话。
 
 **使用许可**：从公开 GitHub 仓取得的副本中，代码按 Apache-2.0、散文按
-CC BY-SA 4.0 授权；路径边界见 `LICENSING.md`，归属声明见 `NOTICE`。公开之前由授权人
-直接交付的邀请包仍按随包的 `INVITED_USE_GRANT.md` 执行。两类副本的适用许可不要混用。
+CC BY-SA 4.0 授权；路径边界见 `LICENSING.md`，归属声明见 `NOTICE`。
 
 ## 一分钟启动与 Agent 偏好
 

@@ -34,7 +34,6 @@ Chinese or bilingual text. The table is the whole disclosure.
 | Tool output — `doctor`, `t2ag_context.py`, `state_refresh` | **Mixed English and Chinese** | Top-level verdicts and many common paths are English. Some diagnostics, generated prompts, compatibility markers and test fixtures remain Chinese or bilingual. Stable IDs such as `FAIL`, `WARN` and `first_run_required` remain machine-readable. |
 | Instance templates, `docs/`, the journal and the group/student scaffolds | **English** | These files can be inspected and filled in without relying on Chinese instructions. A small number of source-language examples and compatibility tokens remain where a test or migration contract needs them. |
 | `main/00_core/t2ag_changelog.md` — this project's own change history | **Chinese, on purpose** | It is an append-only record of what already happened, and the harness forbids editing historical lines. It is provenance, not instruction: nothing reads it to decide behaviour, and once you start your own instance you append your own entries in your own language. |
-| `INVITED_USE_GRANT.md` | **English and Simplified Chinese** | This historical grant travels with invited-use packages delivered before the public repository; GitHub copies use the open-source licences described below. |
 
 **What this actually costs you.** T2AG is a prompt harness: the documents *are*
 the program. The rule layer — the part that determines behaviour — is now English,
@@ -167,7 +166,3 @@ on stdout, and never generates-then-deletes a temporary Python suite.
 A copy obtained from the public GitHub repository is open source: the code layer
 is licensed under Apache-2.0 and the prose layer under CC BY-SA 4.0. See
 `LICENSING.md` for the path boundary and `NOTICE` for attribution notices.
-
-Invited packages delivered directly by the author before the repository became
-public remain governed by the bundled `INVITED_USE_GRANT.md`. Do not mix the
-licensing terms for those historical packages with copies obtained from GitHub.

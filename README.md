@@ -17,8 +17,8 @@ the same source snapshot; one tag always covers both.
 
 | 版本 / Edition | 入口 / Entry | 生成来源 / Generated from |
 |---|---|---|
-| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | Skeleton source version 0.2.3, commit `dcc6812` |
-| English (translated edition) | [`en/README.md`](en/README.md) | Skeleton EN source version 0.2.3, commit `26f05f8` |
+| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | Skeleton source version 0.2.3, commit `c70d642` |
+| English (translated edition) | [`en/README.md`](en/README.md) | Skeleton EN source version 0.2.3, commit `42c6f98` |
 
 > **版本状态 / Version status**：表中的 `0.2.3` 只标识生成来源与运行版本，不构成发行资格
 > 声明。当前台账为 `candidate_review: not_run`、`release_qualification: not_claimed`；最近完成
@@ -116,16 +116,10 @@ contract. Full manual and agent instructions: [`INSTALL.md`](INSTALL.md).
 
 代码采用 [Apache-2.0](LICENSE)，散文采用 [CC BY-SA 4.0](LICENSE-DOCS.md)；
 路径边界与「为何散文才是 copyleft 的那一半」见 [`LICENSING.md`](LICENSING.md)。
-本仓转 public 之前直接交付给受邀者的发行包，仍以
-[`INVITED_USE_GRANT.md`](INVITED_USE_GRANT.md)（双语）为准；从本仓 clone 的副本
-适用上述两份开源许可证。
 
 Code is licensed under [Apache-2.0](LICENSE), and prose under
 [CC BY-SA 4.0](LICENSE-DOCS.md) — [`LICENSING.md`](LICENSING.md) maps which
 paths are which and explains why the prose is the copyleft half.
-Release zips handed directly to invited individuals before this repository went
-public remain governed by [`INVITED_USE_GRANT.md`](INVITED_USE_GRANT.md)
-(bilingual); a clone taken from here carries the two open licences instead.
 
 ---
 

@@ -16,7 +16,6 @@ jobs:
         with:
           python-version: "3.13"
       - name: Unit-test the release-tree gate
-        run: python -B -m unittest tools/test_verify_release_tree.py
+        run: python -B .github/scripts/test_verify_release_tree.py
       - name: Verify the committed bilingual Git tree
-        run: python -B tools/verify_release_tree.py --tree HEAD
-
+        run: python -B .github/scripts/verify_release_tree.py --tree HEAD

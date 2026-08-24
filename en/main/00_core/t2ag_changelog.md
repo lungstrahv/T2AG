@@ -5,6 +5,27 @@
 
 ---
 
+## [2026-08-24] Current public distribution carries only the two open-source licences (no version bump)
+
+- Remove the historical `INVITED_USE_GRANT.md` and its current-distribution
+  pointers from the Skeleton tree. Public GitHub copies now present only
+  Apache-2.0 for code and CC BY-SA 4.0 for prose.
+- Historical privately delivered copies are not rewritten: they keep the terms
+  bundled with those copies. This change only stops copying that historical grant
+  into new public HEADs.
+- `rule_migration`: retire `INVITED_USE_GRANT.md` and its README/`LICENSING.md`
+  entry points from the current public distribution. Current owners are `LICENSE`,
+  `LICENSE-DOCS.md`, `LICENSING.md`, and `NOTICE`; consumers are the README,
+  single-edition copy route, and release-tree verifier.
+- The download flow, runtime version, and Apache-2.0 / CC BY-SA 4.0 path boundary
+  do not change.
+
+#### Anchored assertions (required)
+
+- runtime plan sha256 = 1c62ce53564266964dd3fec8ae87fe031f53467de35ca58d964a2d40a0ca5755
+- runtime checks = 46
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66)
+
 ## [2026-08-24] Repair the public bilingual repository structure (no version bump)
 
 - Add the three `_templates/course/_exam/` files required by the exam-bank

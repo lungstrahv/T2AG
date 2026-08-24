@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 
-TOOLS = Path(__file__).resolve().parent
-sys.path.insert(0, str(TOOLS))
+SCRIPTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPTS))
 
 import verify_release_tree as verifier  # noqa: E402
 
@@ -44,6 +44,13 @@ class ReleaseTreeTests(unittest.TestCase):
         findings = verifier.validate_paths(paths)
         self.assertTrue(any("forbidden instance files" in row for row in findings))
 
+    def test_historical_invited_grant_in_current_editions_fails(self) -> None:
+        paths = valid_surface()
+        for edition in verifier.EDITIONS:
+            paths.add(f"{edition}/INVITED_USE_GRANT.md")
+        findings = verifier.validate_paths(paths)
+        self.assertTrue(any("forbidden instance files" in row for row in findings))
+
     def test_unregistered_root_file_fails(self) -> None:
         paths = valid_surface()
         paths.add("mystery.txt")
@@ -59,4 +66,3 @@ class ReleaseTreeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-

@@ -5,6 +5,23 @@
 
 ---
 
+## [2026-08-24] 当前公开发行只携带双开源许可（不升版）
+
+- 从当前 Skeleton 发行树移除历史 `INVITED_USE_GRANT.md` 及 README/许可边界中的现役入口；
+  公开 GitHub 副本只展示 Apache-2.0（代码）与 CC BY-SA 4.0（散文）。
+- 历史私下交付副本不被改写：它们继续保留并适用各自随包条款；本次只停止把历史授权书
+  复制进新的公开发行 HEAD。
+- `rule_migration`：`INVITED_USE_GRANT.md` 与其 README/`LICENSING.md` 入口执行 `retire`
+  （范围＝当前公开发行树）；现行许可 owner 为 `LICENSE`、`LICENSE-DOCS.md`、
+  `LICENSING.md`、`NOTICE`；消费方为 README、单语复制流程与发行树验证器。
+- 下载方式、运行版本及 Apache-2.0 / CC BY-SA 4.0 路径边界不变。
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198
+- runtime checks = 46
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66)
+
 ## [2026-08-24] 公开双语仓结构缺口修复（不升版）
 
 - 删除误入 Skeleton 的 `30_group/recommendations.md`；该台账属于已施工实例，恢复本文件
