@@ -310,6 +310,8 @@ MARKER_VARIANTS: dict[str, tuple[str, ...]] = {
     "不得越级": ("no level skipping",),
     "逐文件相对路径、大小、SHA-256": (
         "per-file relative path, size and SHA-256",),
+    "symlink、junction、mount/reparse point": (
+        "symlink, junction, or mount/reparse point",),
     "0.2.0 冻结验收边界": ("0.2.0 frozen acceptance boundary",),
     "清单外新提出的理论攻击面": (
         "a theoretical attack surface newly raised outside the manifest",),

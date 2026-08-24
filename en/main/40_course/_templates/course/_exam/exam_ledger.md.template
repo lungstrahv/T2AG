@@ -1,0 +1,87 @@
+---
+type: exam_ledger
+course_id: <COURSE_ID>
+schema_version: exam_ledger.v1
+truth_scope: exam_settlement
+updated: 2026-08-21T00:00:00Z
+---
+> [Mode] Retire loop · decay (`00_core/pattern_retire_loop.md` instance)
+> [Parameters] domain=course-level exam debt | timing=pre-event evidence | attribution layer=process | consumer=settlement gate (review / resit chain) | exit=settled/archived | re-entry=course retake opened
+> [Boundary] Send knowledge-root causes to this course's `mistake_bank` and leave a pointer here; send reasoning patterns to `10_student/profile/reasoning_patterns.md`; send system defects to `00_core/t2ag_problemlog.md`.
+
+# <COURSE_ID> exam ledger
+
+> This file is the sole source of truth for this course's exam settlement:
+> sittings, verdicts, resit history, and assistance accounting. Group-level
+> `review.md` references conclusions from this file but does not copy them.
+> Exam storage and pool state belong to `_exam/index.md`; protocol rules belong
+> to `50_playbook/exam_protocol.md`.
+
+next_id: 1
+
+## 1. Parameter snapshot
+
+Freeze these values before an exam. Change them only during group creation or a
+major adjustment window, and always leave a record.
+
+| Parameter | Value | Source |
+|---|---|---|
+| Review units | inherit (protocol default 2; legal values 0/1/2) | `10_student/profile/profile.md` |
+| Pass mark | inherit (final 60 / resit 1: 60 / resit 2: 50) | `exam_protocol.md` §9 |
+| Time multiplier | inherit (quiz ×2.0 / final ×1.2 / resit ×1.5) | `exam_protocol.md` §9 |
+| Grade weighting | written paper 70% / process indicators 30% | `course_group_rules.md` §3 |
+
+## 2. Settlement-gate state
+
+| Field | Value |
+|---|---|
+| Exam debt status | `open` |
+| Sittings used | 0 |
+| Next sitting | — (await trigger: quiz by group calendar; final by calendar + scope gate) |
+| Review units used | 0 |
+
+Legal exam-debt states: `open` / `in_remediation` / `settled` / `archived`.
+
+- `settled`: the pass mark was reached; the debt exits.
+- `archived`: resit 2 still failed; record the course as not passed and close it,
+  updating the lifecycle in `progress.md`.
+- Re-entry after either exit requires opening a course retake: return the lifecycle
+  to active, schedule a new cycle, use a fresh assessment paper, and retain the
+  existing mistake bank (`exam_protocol.md` §10).
+
+## 3. Sittings
+
+No sittings. Add the first as `### EX-0001` using the scaffold below.
+
+<!-- Sitting scaffold; keep it. Content inside the fence is exempt from live-rule scanning. -->
+
+```text
+### EX-NNNN | <sitting type> | <YYYY-MM-DD>
+
+- Sitting type: cycle_quiz / final / makeup_1 / makeup_2
+
+Pre-event evidence (freeze when the paper is assembled; do not rewrite after the exam):
+- Covered nodes: <main-trunk milestone nodes completed by the opening date>
+- Uncovered nodes and disposition: <move to the next group under course_group_rules.md §4 range elasticity>
+- Difficulty distribution: L1 n / L2 n / L3 n
+- Time baseline: sum of per-problem baselines = n minutes × multiplier = n minutes
+- Random seed: <public seed, such as the date>
+- Suitability checks: PASS n / REJECT n (per-problem record in papers/<PAPER_ID>/meta.md)
+- Reference list: <PAPER_ID#problem → official solution page> (do not reproduce a new paper)
+
+Post-exam settlement:
+- Written score: — / —
+- Process indicators: recurrence — (from mistake_bank) | immediate counterexample — (from reasoning_patterns.md)
+- Weighted result: written 70% + process 30% = —
+- Verdict: pass / fail
+- Assistance account: total — | average/problem — (>1 triggers a three-day reinforcement block)
+
+Process-layer attribution (owned here; required after fail):
+- Root cause: <insufficient capacity / broken loop / review units skipped / insufficient bank / other process cause>
+- Forbidden external attributions: luck, an unfair paper, or a model glitch are not accepted.
+
+Concept-layer root cause (routed elsewhere; leave only a pointer here):
+- Dependency-chain diagnosis: <one sentence>
+- mistake_bank pointer: M-xxxx (write source=EX-NNNN in that entry; reuse the knowledge key)
+```
+

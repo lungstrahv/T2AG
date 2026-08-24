@@ -17,8 +17,8 @@ the same source snapshot; one tag always covers both.
 
 | 版本 / Edition | 入口 / Entry | 生成来源 / Generated from |
 |---|---|---|
-| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | Skeleton source version 0.2.3, commit `251ca57` |
-| English (translated edition) | [`en/README.md`](en/README.md) | Skeleton EN source version 0.2.3, commit `0d892d3` |
+| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | Skeleton source version 0.2.3, commit `dcc6812` |
+| English (translated edition) | [`en/README.md`](en/README.md) | Skeleton EN source version 0.2.3, commit `26f05f8` |
 
 > **版本状态 / Version status**：表中的 `0.2.3` 只标识生成来源与运行版本，不构成发行资格
 > 声明。当前台账为 `candidate_review: not_run`、`release_qualification: not_claimed`；最近完成

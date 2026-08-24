@@ -1,0 +1,49 @@
+---
+type: exam_index
+course_id: <COURSE_ID>
+schema_version: exam_index.v1
+truth_scope: exam_pool_state
+updated: 2026-08-21T00:00:00Z
+---
+# <COURSE_ID> paper-level exam-bank register
+
+> This table is the sole source of truth for pool state. Pool assignment, use,
+> and sitting status are columns in this table; do not move files, because moving
+> them breaks references. Problem-level metadata lives in
+> `papers/<PAPER_ID>/meta.md`; field definitions and the six mechanical pre-exam
+> checks are in `50_playbook/exam_bank_spec.md`. Preserve each original paper PDF
+> unchanged. Reading a problem uses the source-cache rules; never re-transcribe or
+> reformat a paper.
+
+**Current inventory: 0 papers (empty bank)**
+
+An empty bank is not a defect. Under adjudication EX-4, the Skeleton ships before
+papers are collected; Doctor treats an empty bank as valid. If there are not
+enough papers for a sitting, request more inventory rather than weakening the
+paper-selection rules (`exam_protocol.md` §7).
+
+## 1. Admission constraints
+
+- Admit selected real past papers only; do not generate them, except for approved
+  mistake variants. Papers must be from 2018 or later.
+- Source institutions: universities in the relevant US News subject top 30,
+  limited to China, Japan, Singapore, the United Kingdom, France, Switzerland,
+  and the United States.
+- Chinese and English papers may enter directly. French, Japanese, or German
+  papers require an official English or bilingual edition; a model must not
+  translate mathematics examination questions.
+- A paper with no official solution is restricted to the practice pool.
+- On admission, assign the pool by a recorded random draw: approximately 70%
+  practice and 30% assessment. Never reclassify it later.
+
+## 2. Paper-level table
+
+| Paper ID | Institution | Year | Course level | Total time | Problems | Baseline time/problem | Solutions | Pool | Status |
+|---|---|---|---|---|---|---|---|---|---|
+
+Values: Course level = honours / standard; Solutions = yes / no; Pool = practice /
+assessment; Status = available / sat.
+
+> After an assessment paper has been sat, move its table classification to the
+> practice pool. A paper may be used for assessment only once.
+

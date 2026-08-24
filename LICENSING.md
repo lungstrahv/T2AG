@@ -15,6 +15,7 @@ Both editions, `zh/` and `en/`:
 
 - `main/70_tools/**` — every `.py`, `.json`, test and schema
 - `main/*/bin/**` and any executable script anywhere in the tree
+- `tools/**` and `.github/**` — public-release verification code and CI configuration
 - `*.json` configuration and contract files wherever they sit
 
 ## Which paths are prose (CC BY-SA 4.0)

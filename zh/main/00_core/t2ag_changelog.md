@@ -5,6 +5,20 @@
 
 ---
 
+## [2026-08-24] 公开双语仓结构缺口修复（不升版）
+
+- 删除误入 Skeleton 的 `30_group/recommendations.md`；该台账属于已施工实例，恢复本文件
+  2026-08-21 条目声明的“不随行”边界。
+- 新增 `cloud/outbox/README.md` 作为可跟踪占位，使 GitHub ZIP / clone 保留 Cloud 协议要求的
+  `cloud/outbox/` 路径；占位文件不是 `CD-*` 指令，不进入发送账。
+- 本批只修复发行结构和验证载体，不改变运行版本、下载方式或许可方案。
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198
+- runtime checks = 46
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66)
+
 ## [2026-08-23] 镜像 Main：冻结时点绑定＋台账唯一真相源＋LV-5 三层回移（不升版）
 
 - **同源镜像**（与 Main 当日批 SHA-256 全同）：①新检查 `release.candidate_binding`

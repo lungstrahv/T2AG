@@ -1,0 +1,22 @@
+# papers/ — original-paper storage
+
+Use one directory per paper. The directory name is the paper ID, for example
+`MIT_18100B_2019F/`:
+
+```text
+papers/<PAPER_ID>/
+├── paper.pdf      original paper, preserved unchanged
+├── solution.pdf   official solution; without it the paper is practice-only
+└── meta.md        problem-level register; fields are in exam_bank_spec.md §3
+```
+
+Rules:
+
+- A paper directory not registered in `../index.md` produces a Doctor WARN.
+- Missing `meta.md` columns or official-solution page references produce a WARN.
+- Any assessment-pool paper/problem reference found in a lesson or exercise
+  produces a FAIL, preserving assessment isolation.
+
+The initial bank is empty. See `50_playbook/exam_bank_spec.md` §1 before adding
+the first paper.
+

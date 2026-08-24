@@ -5,6 +5,26 @@
 
 ---
 
+## [2026-08-24] Repair the public bilingual repository structure (no version bump)
+
+- Add the three `_templates/course/_exam/` files required by the exam-bank
+  initialization contract; the English Skeleton now carries the same standalone
+  template surface as the Chinese source edition.
+- Add `cloud/outbox/README.md` as a tracked placeholder, so GitHub ZIP downloads
+  and clones preserve the `cloud/outbox/` protocol path. The placeholder is not a
+  `CD-*` directive and never counts as send evidence.
+- Register the English candidate-isolation wording for the existing
+  `symlink / junction / mount-reparse` rule, removing a translated-surface false
+  FAIL without weakening the rule.
+- This batch repairs distribution structure and validation carriers only. It does
+  not change the runtime version, download flow, or licensing scheme.
+
+#### Anchored assertions (required)
+
+- runtime plan sha256 = 1c62ce53564266964dd3fec8ae87fe031f53467de35ca58d964a2d40a0ca5755
+- runtime checks = 46
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66)
+
 ## [2026-08-23] Freeze-point binding + ledger as single source of truth; no version bump
 
 - **New check** `release.candidate_binding` (CAND-BIND-001..003, CR-3=B, 2026-08-23):
