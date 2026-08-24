@@ -166,6 +166,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_skeleton_textbook", "check_distribution_parity", "check_constitution_parity",
     "check_cross_edition_parity",
     "check_skeleton_privacy", "check_release_package_surface",
+    "check_release_candidate_binding",
     "check_decision_record_citations",
     "check_line_endings", "check_release_line_endings",
 }
@@ -1008,9 +1009,10 @@ def version_bump_precondition_findings(
                 "VER-BUMP-001",
                 "FAIL",
                 f"runtime version {current} whose predecessor {predecessor} has no "
-                f"`implementation_status` record in the version ledger: the bump left "
-                f"the previous version with no closure evidence "
-                f"(ledger {VERSION_LEDGER_REL})",
+                f"row in the version ledger ({VERSION_LEDGER_REL} is the single "
+                f"source of truth for version status, CR-1=A; constitution §7 "
+                f"points, it does not carry): the bump left the previous version "
+                f"with no closure evidence",
             )
         )
     elif status != "complete":
@@ -7879,6 +7881,11 @@ def package_root_prefix(names: list[str]) -> str:
     return f"{root}/"
 
 
+PACKAGE_UNREADABLE_PREFIX = (
+    "the release package is unreadable, so release-surface cleanliness cannot be judged"
+)
+
+
 def manifest_package_drift(archive: Path) -> str:
     """Cross-check a package against the manifest that claims to describe it. Pure."""
     for candidate in sorted(archive.parent.glob("*.manifest.json")):
@@ -7891,7 +7898,14 @@ def manifest_package_drift(archive: Path) -> str:
         declared = str(claim.get("zip_sha256", ""))
         if not declared:
             return f"{candidate.name} claims {archive.name} but has no zip_sha256"
-        actual = hashlib.sha256(archive.read_bytes()).hexdigest()
+        try:
+            archive_bytes = archive.read_bytes()
+        except OSError as error:
+            return (
+                f"{PACKAGE_UNREADABLE_PREFIX}, and its manifest cannot be checked: "
+                f"{archive.name} {error}"
+            )
+        actual = hashlib.sha256(archive_bytes).hexdigest()
         if declared != actual:
             return (
                 f"release package and manifest disagree: {archive.name} actual sha256 "
@@ -7977,7 +7991,7 @@ def skeleton_package_findings(archive: Path) -> list[str]:
                         )
                         break
     except (OSError, zipfile.BadZipFile) as error:
-        findings.append(f"the release package is unreadable, so release-surface cleanliness cannot be judged: {archive.name} {error}")
+        findings.append(f"{PACKAGE_UNREADABLE_PREFIX}: {archive.name} {error}")
     return findings
 
 
@@ -8009,6 +8023,170 @@ def built_skeleton_packages(root: Path) -> list[Path]:
     return sorted(found)
 
 
+RELEASE_CANDIDATE_LINE = re.compile(
+    r"^-\s*(\d+\.\d+\.\d+)\s+`release_candidate`\s*[：:]\s*(.+)$"
+)
+RELEASE_CANDIDATE_PAIR = re.compile(r"\b(zh|en)\s*`([0-9a-f]{7,40}(?:\+wt)?)`")
+RELEASE_CANDIDATE_EDITIONS = ("zh", "en")
+PACKAGE_VERSION_TOKEN = re.compile(r"-(\d+\.\d+\.\d+)-")
+
+
+def release_candidate_binding_findings(
+    ledger_text: str, manifests: list[dict[str, object]]
+) -> list[tuple[str, str, str]]:
+    """CAND-BIND-001..003 — the commit frozen at closeout must be the commit served. Pure.
+
+    CR-3=B (2026-08-23, reopening RP-2=c with new evidence: two recurrences
+    within twelve hours, the second *after* the package generator was already in
+    service).  The generator only guarantees the package matches its source at
+    pack time; this check guarantees the ledger's frozen closeout commit matches
+    the package still being served.  Both ends of the assertion are frozen at
+    closeout, so ordinary commits after closeout never redden anything — that
+    standing-red failure mode is exactly why a package==HEAD assertion was
+    rejected when RP-2 was first adjudicated.
+
+    Serving identity is machine-read: a manifest without `superseded_by` is the
+    serving one; the edition is judged name-first with the manifest field as
+    fallback (hand-written edition fields are prose).  No frozen line → silent
+    (nothing is bound yet).  Frozen but no manifest → INFO, not WARN: release
+    manifests are gitignored, a fresh clone legitimately has none, and a
+    standing red in every clean environment is the noise machine this repo has
+    already paid for.  The empty set still speaks.
+
+    Completeness contract (review addition, 2026-08-23, CAND-BIND-004..006):
+    the assertion must not rest on optimistic parsing.  Any ledger data row
+    (a line beginning `-`) that mentions `release_candidate` must parse into a
+    binding — a corrupted freeze
+    is not a freeze, and silently downgrading it to "not frozen yet" is exactly
+    the direction this check exists to eliminate (FAIL).  Once a version is
+    frozen, every edition in `RELEASE_CANDIDATE_EDITIONS` must appear exactly
+    once: a missing edition leaves that delivery surface unbound (FAIL), and a
+    duplicated edition is self-contradictory (FAIL).
+    """
+    findings: list[tuple[str, str, str]] = []
+    counts: dict[str, dict[str, list[str]]] = {}
+    for line in ledger_text.splitlines():
+        stripped = line.strip()
+        # Only ledger data rows can claim a freeze.  Explanatory prose in the
+        # ledger header legitimately names the field and must not self-trigger.
+        if "release_candidate" not in stripped or not stripped.startswith("-"):
+            continue
+        match = RELEASE_CANDIDATE_LINE.match(stripped)
+        pairs = RELEASE_CANDIDATE_PAIR.findall(match.group(2)) if match else []
+        if not match or not pairs:
+            findings.append((
+                "CAND-BIND-004", "FAIL",
+                "A ledger line mentioning release_candidate cannot be parsed as a "
+                f"freeze binding: {stripped!r} — a corrupted freeze is not a "
+                "freeze and must not silently downgrade to \"not frozen yet\" "
+                "(format is frozen by RELEASE_CANDIDATE_LINE/RELEASE_CANDIDATE_PAIR)",
+            ))
+            continue
+        version = match.group(1)
+        for edition, commit in pairs:
+            counts.setdefault(version, {}).setdefault(edition, []).append(commit)
+    if not counts:
+        return findings  # no freeze lines (and none corrupted): silence is the design
+    frozen: dict[tuple[str, str], str] = {}
+    for version, editions in sorted(counts.items()):
+        for required in RELEASE_CANDIDATE_EDITIONS:
+            got = editions.get(required, [])
+            if not got:
+                findings.append((
+                    "CAND-BIND-005", "FAIL",
+                    f"The freeze binding for {version} lacks its {required} end: "
+                    "CR-3=B requires both ends frozen — a one-sided freeze leaves "
+                    "the other edition's delivery surface unbound",
+                ))
+            elif len(got) > 1:
+                findings.append((
+                    "CAND-BIND-006", "FAIL",
+                    f"The {required} end of {version} is frozen {len(got)} times "
+                    f"({', '.join(got)}): duplicated freezes contradict each other "
+                    "and nothing can be asserted",
+                ))
+            else:
+                frozen[(version, required)] = got[0]
+    if not frozen:
+        return findings
+    serving: dict[tuple[str, str], list[str]] = {}
+    for claim in manifests:
+        if not isinstance(claim, dict) or claim.get("superseded_by"):
+            continue
+        package = str(claim.get("package", ""))
+        version_match = PACKAGE_VERSION_TOKEN.search(package)
+        if not version_match:
+            continue
+        if package.startswith(f"{SKELETON_RELEASE_NAME}-en-"):
+            edition = "en"
+        elif package.startswith(f"{SKELETON_RELEASE_NAME}-"):
+            edition = "zh"
+        else:
+            edition = str(claim.get("edition", "")) or "zh"
+        commit = str(claim.get("source_commit_short", ""))
+        serving.setdefault((version_match.group(1), edition), []).append(commit)
+    for (version, edition), commit in sorted(frozen.items()):
+        active = serving.get((version, edition), [])
+        if not active:
+            findings.append((
+                "CAND-BIND-002", "INFO",
+                f"The ledger froze {version} {edition}=`{commit}` but no serving "
+                "manifest for that edition is available to verify — manifests are "
+                "not tracked, so a clean environment is legitimately empty; if the "
+                "release directory should hold a package, this is a gap, not "
+                "cleanliness",
+            ))
+        elif len(active) > 1:
+            findings.append((
+                "CAND-BIND-003", "WARN",
+                f"{version} {edition} has {len(active)} unretired manifests "
+                f"({', '.join(sorted(active))}): the serving identity is ambiguous "
+                "and the freeze binding cannot be asserted; old packages should "
+                "carry superseded_by or move to a retired directory",
+            ))
+        elif active[0] != commit:
+            findings.append((
+                "CAND-BIND-001", "WARN",
+                f"Serving {edition} package commit `{active[0]}` != the closeout "
+                f"commit `{commit}` frozen in the ledger ({version}): the delivery "
+                "surface drifted from the closeout point — either the package was "
+                "rebuilt without updating the ledger, or the ledger froze and the "
+                "package was never rebuilt",
+            ))
+    return findings
+
+
+def check_release_candidate_binding() -> None:
+    """CAND-BIND-001..003: the serving package must match the frozen closeout commit."""
+    ledger = ROOT / VERSION_LEDGER_REL
+    if not ledger.is_file():
+        return  # a missing ledger is already reported by check_version_bump_precondition
+    manifests: list[dict[str, object]] = []
+    workspace = ROOT.parent
+    for relative in PACKAGE_SEARCH_ROOTS:
+        base = workspace / relative if relative != "." else workspace
+        if not base.is_dir():
+            continue
+        for candidate in sorted(base.rglob(f"{SKELETON_RELEASE_NAME}*.manifest.json")):
+            if "retired" in candidate.parts:
+                continue  # a retired manifest no longer carries serving identity
+            try:
+                claim = json.loads(candidate.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as error:
+                report(
+                    "WARN",
+                    "Release manifest unreadable, freeze binding cannot be "
+                    f"verified: {candidate.name} {error}",
+                )
+                continue
+            if isinstance(claim, dict):
+                manifests.append(claim)
+    for code, severity, message in release_candidate_binding_findings(
+        read(ledger), manifests
+    ):
+        report(severity, f"{code} {message}")
+
+
 def check_release_package_surface() -> None:
     """FAIL on any built package that would disclose history or identity.
 
@@ -8035,7 +8213,10 @@ def check_release_package_surface() -> None:
         findings = skeleton_package_findings(archive)
         for finding in findings:
             report("FAIL", f"{finding}(this package must not be distributed)")
-        drift = manifest_package_drift(archive)
+        unreadable = any(
+            finding.startswith(PACKAGE_UNREADABLE_PREFIX) for finding in findings
+        )
+        drift = "" if unreadable else manifest_package_drift(archive)
         if drift:
             report("FAIL", drift)
         if not findings and not drift:
@@ -9154,6 +9335,7 @@ def execute_doctor_checks(
         "check_cross_edition_parity": check_cross_edition_parity,
         "check_skeleton_privacy": check_skeleton_privacy,
         "check_release_package_surface": check_release_package_surface,
+        "check_release_candidate_binding": check_release_candidate_binding,
         "check_decision_record_citations": check_decision_record_citations,
         "check_line_endings": check_line_endings,
         "check_release_line_endings": check_release_line_endings,

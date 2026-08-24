@@ -264,9 +264,9 @@ V0–V3、预算与防越级门以它为准，绑定 plan SHA）。
 
 ## 7. 版本  [max 14]
 
-- 当前运行版本：`0.2.3`；`implementation_status`：`partial`（教材发送边界 defense-in-depth +
-  宿主 egress 契约；**未**实现宿主 interceptor；扫描完成判据现行为 ADR-0003 自证）
-- 0.2.3 `candidate_review`：`not_run`；仓内 `release_qualification`：`not_claimed`
+- 当前运行版本：`0.2.3`
+- 版本状态三字段（`implementation_status`／`candidate_review`／`release_qualification`）
+  唯一真相源＝`60_journal/t2ag_version_ledger.md`；本节只指不载（CR-1=A 2026-08-23，P-0086）
 - 0.2.3 权威入口：`docs/adr/0002-host-controlled-textbook-teaching-egress.md`、
   `docs/adr/0003-prefetcher-self-certified-scan-admission.md`、
   `docs/protocol/host-teaching-egress-api.md`

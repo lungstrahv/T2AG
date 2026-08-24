@@ -17,6 +17,7 @@
     "activity.close": {"path": "main/70_tools/test_022_activity_close.py", "tier": "fast", "kind": "atomic"},
     "activity.close_roundtrip": {"path": "main/70_tools/test_022_close_roundtrip.py", "tier": "fast", "kind": "atomic"},
     "doctor.postcheck": {"path": "main/70_tools/test_022_doctor_postcheck.py", "tier": "fast", "kind": "atomic"},
+    "doctor.marker_robustness": {"path": "main/70_tools/test_marker_robustness.py", "tier": "fast", "kind": "atomic"},
     "lifecycle.runtime": {"path": "main/70_tools/test_022_lifecycle_runtime.py", "tier": "fast", "kind": "atomic"},
     "transaction.core": {"path": "main/70_tools/test_022_transaction.py", "tier": "deep", "kind": "atomic"},
     "transaction.kill_recover": {"path": "main/70_tools/test_022_kill_recover.py", "tier": "deep", "kind": "atomic"},
@@ -38,8 +39,8 @@
       "tests": ["foundation.structure", "contracts.runtime"]
     },
     "doctor": {
-      "sources": ["main/70_tools/t2ag_doctor.py", "main/70_tools/validation_control.py", "main/70_tools/validation_workflow.json", "main/70_tools/test_022_doctor_postcheck.py", "main/50_playbook/doctor_contracts.md", "main/50_playbook/validation_flow.md"],
-      "tests": ["doctor.postcheck", "contracts.runtime"]
+      "sources": ["main/70_tools/t2ag_doctor.py", "main/70_tools/validation_control.py", "main/70_tools/validation_workflow.json", "main/70_tools/test_022_doctor_postcheck.py", "main/50_playbook/doctor_contracts.md", "main/50_playbook/validation_flow.md", "main/70_tools/test_marker_robustness.py", "main/70_tools/marker_assertions.py"],
+      "tests": ["doctor.postcheck", "contracts.runtime", "doctor.marker_robustness"]
     },
     "playbook_taxonomy": {
       "sources": [

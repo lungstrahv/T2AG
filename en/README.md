@@ -5,7 +5,11 @@
 > uninitialized profile is still validated as a Skeleton empty template; once you
 > complete `first_run.md` and set the profile to `initialized`, that copy is
 > automatically validated as a personal instance, independent of directory name.
-> The original `t2ag-skeleton/` repository always keeps its empty-template identity.
+> The maintained Skeleton source always keeps its empty-template identity.
+
+Empty-template identity marker: `t2ag-skeleton`. You may freely rename the copied
+directory; after first run, `initialization_status` in the profile identifies the
+personal instance.
 
 0.2.3 Skeleton provides the activity ledger, the `exerciseNN` templates, and the
 atomic activity lifecycle/close tools. It keeps the classified reading
@@ -30,7 +34,7 @@ Chinese or bilingual text. The table is the whole disclosure.
 | Tool output — `doctor`, `t2ag_context.py`, `state_refresh` | **Mixed English and Chinese** | Top-level verdicts and many common paths are English. Some diagnostics, generated prompts, compatibility markers and test fixtures remain Chinese or bilingual. Stable IDs such as `FAIL`, `WARN` and `first_run_required` remain machine-readable. |
 | Instance templates, `docs/`, the journal and the group/student scaffolds | **English** | These files can be inspected and filled in without relying on Chinese instructions. A small number of source-language examples and compatibility tokens remain where a test or migration contract needs them. |
 | `main/00_core/t2ag_changelog.md` — this project's own change history | **Chinese, on purpose** | It is an append-only record of what already happened, and the harness forbids editing historical lines. It is provenance, not instruction: nothing reads it to decide behaviour, and once you start your own instance you append your own entries in your own language. |
-| `INVITED_USE_GRANT.md` | **English and Simplified Chinese** | The grant is intentionally bilingual; both language copies travel with the same invited-use package. |
+| `INVITED_USE_GRANT.md` | **English and Simplified Chinese** | This historical grant travels with invited-use packages delivered before the public repository; GitHub copies use the open-source licences described below. |
 
 **What this actually costs you.** T2AG is a prompt harness: the documents *are*
 the program. The rule layer — the part that determines behaviour — is now English,
@@ -86,12 +90,15 @@ live in `main/50_playbook/startup_orchestration.md`.
 
 ## Quick start
 
-1. Copy the directory's contents to a new target directory, **excluding `.git/`** —
-   otherwise the copy carries this repository's commit history and the
-   maintainer's remote along with it, and goes on committing onto them:
+1. Enter the **English edition directory containing this README**, then copy the
+   current directory into a new target, excluding `.git/` and runtime caches.
+   This works both in a standalone Skeleton checkout and in the public bilingual
+   repository's `en/` directory:
 
    ```powershell
-   robocopy .\t2ag-skeleton-en .\my-t2ag /E /XD .git
+   $target = Join-Path $env:USERPROFILE "Documents\my-t2ag"
+   robocopy . $target /E /XD .git __pycache__ .venv .cache .recovery .staging .uploads
+   Set-Location $target
    ```
 
 2. In the target directory, run the three read-only startup branches in parallel
@@ -157,12 +164,10 @@ on stdout, and never generates-then-deletes a temporary Python suite.
 
 ## License
 
-This package is **not open source yet**. It ships under
-`INVITED_USE_GRANT.md` — a bilingual (English / 简体中文), per-release,
-revocable grant to invited individuals. Read §3: the consideration for a free
-grant is that you give feedback. Read §5: every learning record you produce
-belongs to you, is never uploaded, and survives revocation.
+A copy obtained from the public GitHub repository is open source: the code layer
+is licensed under Apache-2.0 and the prose layer under CC BY-SA 4.0. See
+`LICENSING.md` for the path boundary and `NOTICE` for attribution notices.
 
-The author's current plan is Apache-2.0 for the code layer and CC BY-SA 4.0 for
-the prose layer once the trial closes, but that plan is stated in §8 as a plan
-and explicitly not a commitment.
+Invited packages delivered directly by the author before the repository became
+public remain governed by the bundled `INVITED_USE_GRANT.md`. Do not mix the
+licensing terms for those historical packages with copies obtained from GitHub.

@@ -417,8 +417,10 @@ deserve to count as evidence. This is the same lesson as "scan with a reliable i
   line endings only, and writes `LINE ENDING DRIFT` directly in the error message, pointing here
   instead of making someone re-run the matrix. Mount points: plan binding, the authorization
   receipt, the post-close hash, and the plan content hash.
-- The L1/L2 doctor scans awaiting approval are in
-  `docs/handoffs/T2AG_HOST_BYTE_DRIFT_PREVENTION_PLAN_2026-08-06.md`.
+- L2 has landed as `release.line_endings` (registered 2026-08-07, running in the release
+  profile); L1 remains deferred (adjudicated 2026-08-19, not scheduled). The original plan is
+  `docs/handoffs/T2AG_HOST_BYTE_DRIFT_PREVENTION_PLAN_2026-08-06.md` (P-0088 erratum on its
+  status line).
 
 > **rule_migration** (§6.3): the §8 row "CRLF/LF warning | usually harmless; do not rewrite the
 > whole repository to silence the notice" is judged `retire + replace`. The first half of the old

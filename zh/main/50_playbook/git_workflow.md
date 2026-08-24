@@ -340,8 +340,9 @@ SHA 绑定证据。还原后确认全仓无 CRLF 残留——扫描要用可靠�
 - `activity_close.line_ending_drift()` — SHA 失配时判别是否仅行尾差异，并在错误信息里
   直接写明 `LINE ENDING DRIFT`，指向本节而不是让人重跑矩阵。挂载点：plan 绑定、授权
   收据、post-close 哈希、plan 内容哈希四处。
-- 待批准的 L1/L2 doctor 扫描见
-  `docs/handoffs/T2AG_HOST_BYTE_DRIFT_PREVENTION_PLAN_2026-08-06.md`。
+- L2 已落地为 `release.line_endings`（2026-08-07 注册，release profile 在跑）；
+  L1 仍缓（2026-08-19 裁，不排期），方案原件见
+  `docs/handoffs/T2AG_HOST_BYTE_DRIFT_PREVENTION_PLAN_2026-08-06.md`（P-0088 勘误在其 status 行）。
 
 > **rule_migration**（§6.3）：§八「CRLF/LF warning｜通常无害；不要为消除提示批量改写全
 > 仓库」判定为 `retire + replace`。旧表述的前半句（“通常无害”）是本类事故的放行条件，

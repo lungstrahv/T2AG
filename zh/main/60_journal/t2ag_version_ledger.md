@@ -1,6 +1,21 @@
 # T2AG 版本台账（canonical，自宪法 §7 下沉 2026-08-08/EV-0020）
 
-> 当前运行版本与现行状态见 `main/t2ag.md` §7；本文件持有历史版本的权威锚与 SHA。
+> **本文件是版本状态三字段（`implementation_status`／`candidate_review`／
+> `release_qualification`）的唯一真相源**（CR-1=A 2026-08-23，P-0086）；
+> `main/t2ag.md` §7 只指不载，当前运行版本号以 §7 首行为准。
+> 旧头行「现行状态见 §7」构成循环指针，已废（08-23 审查改准）。
+> **写入归属（08-23 裁、同日收窄为三分层）**：
+> ①**源内在状态** `implementation_status`：随三仓源与包发行，重打前写入——
+> 实例日后升版时 VER-BUMP 依赖前驱行；
+> ②**生成后资格** `candidate_review`／`release_qualification`：权威值归 **Main 台账＋
+> 独立评审证据**；Skeleton 与包内的 `not_run`／`not_claimed` 是**构建时快照**，
+> 不冒充最终资格——V3 结果是包生成后的事实，要求它预先存在于被审包内即
+> 「写通过→重打→新包未受审」的无限循环；
+> ③**冻结绑定行** `release_candidate`（含包 commit）：包与来源 commit 确定后、
+> **完整 V3 之前**只写 Main 台账并单独提交——Main 不打包无 commit 循环；
+> V3 运行时若无绑定行，candidate_binding 走「无行→静默」分支，那次 V3 的绿即
+> 缺覆盖的绿。绑定证明「审的是哪两个候选」，不证明「审查通过」。
+> 绑定行两端必须 zh/en 各恰一次（CAND-BIND-004..006 强制，写坏/缺端/重复皆 FAIL）。
 
 > **锚的解析根（P-0071 修，2026-08-21）**：下列六份权威 handoff 位于**工作区级**
 > `<workspace>/docs/handoffs/archive/v0.2.x/`，**不在仓内** `t2ag/docs/handoffs/`。
@@ -29,7 +44,12 @@
   `45548a3d66f717df6d92c8c5ae163bc89ca504c55cb9d1e4867e834a615dcffd`
 - 0.2.2 仓内 `release_qualification`：`finalization_delta_passed`；独立结论见
   `<workspace>/docs/handoffs/archive/v0.2.2/T2AG_022_FINALIZATION_DELTA_REVIEW_2026-08-05.md`（`finalization_delta_passed`）
-- 最近 release 资格版本：`0.2.2`（保留）
+- 0.2.3 范围改判与收口权威：
+  `<workspace>/docs/handoffs/T2AG_023_SCOPE_CUT_AND_CLOSEOUT_2026-08-23.md`
+- 0.2.3 `implementation_status`：`complete`（宿主 interceptor 已于 2026-08-23
+  显式改判出范围，归位为 EV-0013 开放演化项；判据 batch_workorder_spec.md §1.4.1 情形 #3）
+- 0.2.3 `candidate_review`：`not_run`；仓内 `release_qualification`：`not_claimed`
+- 最近 release 资格版本：`0.2.2`（保留——0.2.3 未取得发行资格）
 
 ## Lite 边界（P-0071 收窄，2026-08-21）
 

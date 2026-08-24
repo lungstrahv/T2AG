@@ -25,7 +25,7 @@ Both editions:
 - `main/50_playbook/**` — every playbook and protocol
 - `main/10_student/`, `20_teacher/`, `30_group/`, `40_course/`, `80_interface/`
   — contracts, templates and guidance text
-- `README.md`, `INSTALL.md`, `AGENTS.md`, `docs/**`, `t2ag_directory_guide.html`
+- `README.md`, `AGENTS.md`, `docs/**`, `t2ag_directory_guide.html`
 - `*.template` files: prose, even when a tool consumes them — a template is
   text a person reads and edits, not a program
 

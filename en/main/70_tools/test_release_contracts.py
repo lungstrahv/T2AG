@@ -11,6 +11,7 @@ TESTS = (
     contracts.test_offline_guide_version_drift_is_enforced,
     contracts.test_skeleton_package_surface_is_enforced,
     contracts.test_release_package_surface_severity_split,
+    contracts.test_unreadable_package_fails_closed_without_aborting_surface,
     contracts.test_candidate_replay_isolation_contract,
     contracts.test_cross_edition_parity_r1_numbering_styles_are_silent,
     contracts.test_cross_edition_parity_r2_identifier_fork_fails,
@@ -18,6 +19,7 @@ TESTS = (
     contracts.test_cross_edition_parity_r4_debt_reports_info_then_goes_stale,
     contracts.test_cross_edition_parity_r5_unreadable_source_fails_loudly,
     contracts.test_cross_edition_parity_r6_peer_resolution_is_symmetric,
+    contracts.test_release_candidate_binding_freezes_both_ends,
     contracts.test_init_example_payload_is_documented_and_rejected,
 )
 

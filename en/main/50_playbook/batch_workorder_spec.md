@@ -112,7 +112,22 @@ Closing out is defined by exactly those three fields in the version ledger:
 missing predecessor record, a record that is not `complete`, or letting a neighbouring version's
 record answer on its behalf, are all FAIL. A predecessor whose `candidate_review` has not passed
 reports WARN — it may still be the runtime version, but it must not be cited as a basis for
-release qualification.
+release qualification. The version ledger is the **single source of truth** for those three
+fields; constitution §7 points, it does not carry (CR-1=A 2026-08-23, P-0086: two coexisting
+carriers once made the check report "no record" for a version whose status was recorded).
+If the version has an external release surface, closeout also writes a `release_candidate`
+freeze-binding row (one commit per edition, each exactly once — enforced by
+CAND-BIND-004..006). Ownership splits three ways (adjudicated 2026-08-23, narrowed same day):
+the **source-intrinsic status** `implementation_status` follows the source and ships with the
+package (written into all three ledgers before repacking); the **post-build qualifications**
+`candidate_review` / `release_qualification` have their authoritative values in the Main
+ledger plus independent review evidence — the in-package `not_run` / `not_claimed` values are
+**build-time snapshots**, never final qualification; the **binding row** is written after
+repacking and **before the full V3 run**, into Main only, as its own commit — a V3 executed
+with no binding row lets candidate_binding fall silent, making that green under-covered.
+The binding proves *which* two candidates are under review, not that the review passed.
+Comparing the serving package against the frozen commit is carried by
+check=release.candidate_binding (CR-3=B 2026-08-23).
 
 #### Triggering situations (a question of judgement, exhaustive)
 
@@ -125,6 +140,13 @@ A new number is assigned only in the following three situations; everything else
 | 1 | **Structural generation change** | the domain model, a migrator or a directory contract changed, and an old-version instance needs migration to run under the new version |
 | 2 | **External distribution needs a reviewed number** | a delivery, an open-source release or an external trial needs to cite a version with `candidate_review: passed`, and the newest reviewed version is not sufficient |
 | 3 | **Closing out after the previous version's partial items are finished** | the unimplemented items left when the previous version was declared are now done, or have been explicitly ruled out of scope, and the number advances on closure |
+
+The adjudicator clause for situation #3 (CR-2=B 2026-08-23): whether an item has been
+"explicitly ruled out of scope" is adjudicated by **the student in person**; the constructing
+party must not sign for itself. Evidence shape and knock-on boundaries follow precedent rather
+than additional written criteria: `T2AG_023_SCOPE_CUT_AND_CLOSEOUT_2026-08-23.md` (the
+authority file records what was moved out and the substitute guarantee, and does not advance
+the ADR/EV decision status of the item moved out).
 
 **Explicitly not triggering**: adding a doctor check, adding or changing a playbook, repairing an
 existing defect, or an independent EV-numbered batch. Those are accounted for through EV and the

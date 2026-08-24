@@ -440,6 +440,13 @@
         "runtime.skeleton_privacy"
       ]
     },
+    "release.candidate_binding": {
+      "phase": "release",
+      "handler": "check_release_candidate_binding",
+      "depends_on": [
+        "release.package_surface"
+      ]
+    },
     "runtime.version_bump_precondition": {
       "phase": "runtime",
       "handler": "check_version_bump_precondition",
@@ -529,6 +536,7 @@
         "release.dirty_tree",
         "release.skeleton_textbook",
         "release.package_surface",
+        "release.candidate_binding",
         "release.distribution_parity",
         "release.constitution_parity",
         "release.cross_edition_parity",

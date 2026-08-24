@@ -15,6 +15,7 @@ import zipfile
 import sys
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 import activity_ledger as ledger_contract
 import t2ag_activity as activity
@@ -27,6 +28,13 @@ spec = importlib.util.spec_from_file_location("t2ag_doctor_under_test", SCRIPT.w
 doctor = importlib.util.module_from_spec(spec)
 assert spec and spec.loader
 spec.loader.exec_module(doctor)
+
+lite_spec = importlib.util.spec_from_file_location(
+    "sync_lite_under_test", SCRIPT.with_name("sync_lite.py")
+)
+sync_lite = importlib.util.module_from_spec(lite_spec)
+assert lite_spec and lite_spec.loader
+lite_spec.loader.exec_module(sync_lite)
 
 state_spec = importlib.util.spec_from_file_location(
     "t2ag_state_refresh_under_test",
@@ -1491,6 +1499,48 @@ def test_offline_guide_version_drift_is_enforced(root: Path) -> None:
     assert_message(doctor.fails, "流程源标题版本漂移")
 
 
+def test_lite_redaction_preserves_privacy_detector_literal(root: Path) -> None:
+    """Detector data stays executable while real host paths remain redacted.
+
+    The full-regenerate Lite path once replaced the Doctor's own bare
+    maintainer-name pattern with ``<host_user>``.  That both weakened privacy
+    scanning and made the test-management byte contract fail after every clean
+    regeneration.  The exception is intentionally narrower than a file
+    exemption: only the bare rule is preserved; path-shaped identity still
+    redacts.
+    """
+    old_user = sync_lite.HOST_USER
+    old_rules = sync_lite.HOST_REDACTIONS
+    try:
+        sync_lite.HOST_USER = "FixtureUser"
+        sync_lite.HOST_REDACTIONS = sync_lite._build_host_redactions("FixtureUser")
+        payload = (
+            b"regex=|FixtureUser|\n"
+            b'entry=(r"FixtureUser", "username")\n'
+            b"stray=FixtureUser\n"
+            b"path=C:\\Users\\FixtureUser\\T2AC\n"
+        )
+        detector = root / "main/70_tools/t2ag_doctor.py"
+        ordinary = root / "main/50_playbook/notes.md"
+        detector_bytes, detector_hits = sync_lite.redact_projected_text(detector, payload)
+        ordinary_bytes, ordinary_hits = sync_lite.redact_projected_text(ordinary, payload)
+    finally:
+        sync_lite.HOST_USER = old_user
+        sync_lite.HOST_REDACTIONS = old_rules
+
+    if detector_bytes.count(b"FixtureUser") != 2:
+        raise AssertionError("Lite must preserve exactly the two executable detector literals")
+    if b"stray=FixtureUser" in detector_bytes or b"C:\\Users\\FixtureUser" in detector_bytes:
+        raise AssertionError("privacy-detector prose and paths must still be redacted")
+    if detector_hits != 2:
+        raise AssertionError(f"expected path + stray redactions, got {detector_hits}")
+    masked = sync_lite.mask_privacy_detector_literals(detector_bytes, b"FixtureUser")
+    if b"FixtureUser" in masked:
+        raise AssertionError("the final residual scan must reject non-detector occurrences")
+    if b"FixtureUser" in ordinary_bytes or ordinary_hits != 4:
+        raise AssertionError("ordinary projected text must retain full host redaction")
+
+
 def test_skeleton_package_surface_is_enforced(root: Path) -> None:
     """NEGATIVE: what strangers receive is the zip, not the checked-out tree.
 
@@ -1600,6 +1650,76 @@ def test_release_package_surface_severity_split(root: Path) -> None:
     run_silently(doctor.check_release_package_surface)
     if doctor.fails:
         raise AssertionError(f"a quarantined .bak copy must not be re-flagged: {doctor.fails}")
+
+
+def test_unreadable_package_fails_closed_without_aborting_surface(root: Path) -> None:
+    """An unreadable archive must FAIL without aborting the remaining surface."""
+    race = root / "race"
+    archive = race / "t2ag-skeleton-0.9.9-deadbee.zip"
+    payload = b"release bytes"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    archive.write_bytes(payload)
+    write(
+        race / "release.manifest.json",
+        json.dumps(
+            {
+                "package": archive.name,
+                "zip_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        )
+        + "\n",
+    )
+    original_read_bytes = Path.read_bytes
+
+    def locked_read_bytes(path: Path) -> bytes:
+        if path == archive:
+            raise PermissionError("locked by fixture")
+        return original_read_bytes(path)
+
+    # The package may become locked after the scanner succeeds. Manifest
+    # reconciliation must convert that race into a finding, never an exception.
+    with mock.patch.object(Path, "read_bytes", locked_read_bytes):
+        finding = doctor.manifest_package_drift(archive)
+    if not finding.startswith(doctor.PACKAGE_UNREADABLE_PREFIX):
+        raise AssertionError(f"the manifest race must fail closed: {finding!r}")
+
+    # If the scanner already found the lock, do not reopen the same archive;
+    # continue checking later packages and retain an accurate clean count.
+    known_locked = root / "t2ag-skeleton-0.9.9-locked.zip"
+    clean = root / "t2ag-skeleton-0.9.9-clean.zip"
+    reports: list[tuple[str, str]] = []
+    manifest_calls: list[Path] = []
+    original_packages = doctor.built_skeleton_packages
+    original_findings = doctor.skeleton_package_findings
+    original_drift = doctor.manifest_package_drift
+    original_report = doctor.report
+    try:
+        doctor.built_skeleton_packages = lambda _root: [known_locked, clean]
+        doctor.skeleton_package_findings = lambda item: (
+            [f"{doctor.PACKAGE_UNREADABLE_PREFIX}：{item.name} locked by fixture"]
+            if item == known_locked
+            else []
+        )
+
+        def record_manifest(item: Path) -> str:
+            manifest_calls.append(item)
+            return ""
+
+        doctor.manifest_package_drift = record_manifest
+        doctor.report = lambda level, message: reports.append((level, message))
+        doctor.check_release_package_surface()
+    finally:
+        doctor.built_skeleton_packages = original_packages
+        doctor.skeleton_package_findings = original_findings
+        doctor.manifest_package_drift = original_drift
+        doctor.report = original_report
+
+    if manifest_calls != [clean]:
+        raise AssertionError(f"known unreadable archives must not be reopened: {manifest_calls}")
+    if not any(level == "FAIL" and known_locked.name in message for level, message in reports):
+        raise AssertionError(f"the unreadable archive must remain a FAIL: {reports}")
+    if not any(level == "INFO" and "1/2" in message for level, message in reports):
+        raise AssertionError(f"later packages must still be checked: {reports}")
 
 
 def test_hint_gate_contract(root: Path) -> None:
@@ -2832,6 +2952,92 @@ def test_manifest_package_drift_pairs_by_claim_not_filename(root: Path) -> None:
     write(broken / "t2ag-skeleton-0.9.9-eeeeeee.manifest.json", "{not json")
     if "不可解析" not in doctor.manifest_package_drift(archive):
         raise AssertionError("a malformed manifest must be reported, not skipped")
+
+
+def test_release_candidate_binding_freezes_both_ends(root: Path) -> None:
+    """CR-3=B（2026-08-23 用户裁决，重开 RP-2=c）：冻结绑定的四个面。纯函数直调。
+
+    (1) 台账无 `release_candidate` 行 → 静默（尚无绑定对象，不得预支断言）；
+    (2) 冻结 commit == 现役包 commit → 静默（收口后的普通提交不点红——断言两端
+        都冻结在收口那一刻，这正是当年拒绝「包==HEAD」的理由）；
+    (3) 现役包 ≠ 冻结 commit → CAND-BIND-001 WARN（十二小时两次复发的那个病）；
+    (4) 同版别两份未退役 manifest → CAND-BIND-003 WARN（「现役是谁」含混）；
+        带 `superseded_by` 的 manifest 不参与现役身份。
+    (5) 单边冻结（只写 zh 漏 en）→ CAND-BIND-005 FAIL——「两端皆冻」不许静默缺端；
+    (6) 含 release_candidate 但解析不出绑定的行 → CAND-BIND-004 FAIL——
+        断言不得建在乐观解析上，写坏的冻结不是冻结；
+    (7) 同版别重复冻结 → CAND-BIND-006 FAIL（互相矛盾无从断言）。
+    (8) 头部说明文字可提字段名但不是数据行，不得自触发 CAND-BIND-004。
+    """
+    frozen_line = "- 0.2.3 `release_candidate`：zh `c602f6f`／en `a539db7`\n"
+
+    def manifest(package: str, commit: str, **extra: object) -> dict[str, object]:
+        claim: dict[str, object] = {
+            "package": package, "source_commit_short": commit,
+        }
+        claim.update(extra)
+        return claim
+
+    zh = manifest("t2ag-skeleton-0.2.3-c602f6f.zip", "c602f6f")
+    en = manifest("t2ag-skeleton-en-0.2.3-a539db7.zip", "a539db7")
+
+    # (1) nothing frozen -> silent even with manifests present.
+    if doctor.release_candidate_binding_findings("- 0.2.2 …\n", [zh, en]):
+        raise AssertionError("no release_candidate line must mean no findings")
+
+    # (2) frozen and matching -> silent.
+    if doctor.release_candidate_binding_findings(frozen_line, [zh, en]):
+        raise AssertionError("matching frozen commit must stay silent")
+
+    # (3) serving package drifted from the frozen commit -> WARN.
+    drifted = manifest("t2ag-skeleton-0.2.3-16f1642.zip", "16f1642")
+    codes = [c for c, _, _ in doctor.release_candidate_binding_findings(
+        frozen_line, [drifted, en])]
+    if codes != ["CAND-BIND-001"]:
+        raise AssertionError(f"drift must raise CAND-BIND-001, got {codes}")
+
+    # (4) two unretired manifests for one edition -> ambiguity WARN; a
+    #     superseded manifest drops out of the serving identity.
+    stale = manifest("t2ag-skeleton-0.2.3-f27a431.zip", "f27a431")
+    codes = [c for c, _, _ in doctor.release_candidate_binding_findings(
+        frozen_line, [zh, stale, en])]
+    if codes != ["CAND-BIND-003"]:
+        raise AssertionError(f"ambiguous serving identity must warn, got {codes}")
+    stale["superseded_by"] = "t2ag-skeleton-0.2.3-c602f6f.zip"
+    if doctor.release_candidate_binding_findings(frozen_line, [zh, stale, en]):
+        raise AssertionError("a superseded manifest must not contest serving identity")
+
+    # (5) one-sided freeze: zh only, en missing -> FAIL, never silent.
+    one_sided = "- 0.2.3 `release_candidate`：zh `c602f6f`\n"
+    rows = doctor.release_candidate_binding_findings(one_sided, [zh, en])
+    codes = [c for c, _, _ in rows]
+    severities = [s for _, s, _ in rows]
+    if "CAND-BIND-005" not in codes or "FAIL" not in severities:
+        raise AssertionError(f"a one-sided freeze must FAIL with CAND-BIND-005, got {rows}")
+
+    # (6) a line that mentions release_candidate but cannot be parsed -> FAIL.
+    for broken_line in (
+        "- 0.2.3 release_candidate：zh c602f6f／en a539db7\n",   # no backticks anywhere
+        "- 0.2.3 `release_candidate`：见下一行\n",                # parses, zero pairs
+    ):
+        rows = doctor.release_candidate_binding_findings(broken_line, [zh, en])
+        codes = [c for c, _, _ in rows]
+        if codes != ["CAND-BIND-004"]:
+            raise AssertionError(
+                f"a malformed freeze line must FAIL with CAND-BIND-004, got {rows} "
+                f"for {broken_line!r}"
+            )
+
+    # (7) the same version frozen twice -> contradictory, FAIL per doubled edition.
+    doubled = frozen_line + "- 0.2.3 `release_candidate`：zh `16f1642`／en `71ddbc2`\n"
+    codes = [c for c, _, _ in doctor.release_candidate_binding_findings(doubled, [zh, en])]
+    if codes != ["CAND-BIND-006", "CAND-BIND-006"]:
+        raise AssertionError(f"a duplicated freeze must FAIL per edition, got {codes}")
+
+    # (8) The real ledger header documents ownership using the field name.
+    prose = "> `release_candidate` 冻结绑定行在重打之后只写 Main 台账。\n"
+    if doctor.release_candidate_binding_findings(prose, [zh, en]):
+        raise AssertionError("explanatory ledger prose must not impersonate a data row")
 
 
 def test_group_activation_notary(root: Path) -> None:

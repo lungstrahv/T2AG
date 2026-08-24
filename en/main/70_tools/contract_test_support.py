@@ -16,6 +16,7 @@ import zipfile
 import sys
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 import activity_ledger as ledger_contract
 import t2ag_activity as activity
@@ -1633,6 +1634,76 @@ def test_release_package_surface_severity_split(root: Path) -> None:
     run_silently(doctor.check_release_package_surface)
     if doctor.fails:
         raise AssertionError(f"a quarantined .bak copy must not be re-flagged: {doctor.fails}")
+
+
+def test_unreadable_package_fails_closed_without_aborting_surface(root: Path) -> None:
+    """An unreadable archive must FAIL without aborting the remaining surface."""
+    race = root / "race"
+    archive = race / "t2ag-skeleton-en-0.9.9-deadbee.zip"
+    payload = b"release bytes"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    archive.write_bytes(payload)
+    write(
+        race / "release.manifest.json",
+        json.dumps(
+            {
+                "package": archive.name,
+                "zip_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        )
+        + "\n",
+    )
+    original_read_bytes = Path.read_bytes
+
+    def locked_read_bytes(path: Path) -> bytes:
+        if path == archive:
+            raise PermissionError("locked by fixture")
+        return original_read_bytes(path)
+
+    # The package may become locked after the scanner succeeds. Manifest
+    # reconciliation must convert that race into a finding, never an exception.
+    with mock.patch.object(Path, "read_bytes", locked_read_bytes):
+        finding = doctor.manifest_package_drift(archive)
+    if not finding.startswith(doctor.PACKAGE_UNREADABLE_PREFIX):
+        raise AssertionError(f"the manifest race must fail closed: {finding!r}")
+
+    # If the scanner already found the lock, do not reopen the same archive;
+    # continue checking later packages and retain an accurate clean count.
+    known_locked = root / "t2ag-skeleton-en-0.9.9-locked.zip"
+    clean = root / "t2ag-skeleton-en-0.9.9-clean.zip"
+    reports: list[tuple[str, str]] = []
+    manifest_calls: list[Path] = []
+    original_packages = doctor.built_skeleton_packages
+    original_findings = doctor.skeleton_package_findings
+    original_drift = doctor.manifest_package_drift
+    original_report = doctor.report
+    try:
+        doctor.built_skeleton_packages = lambda _root: [known_locked, clean]
+        doctor.skeleton_package_findings = lambda item: (
+            [f"{doctor.PACKAGE_UNREADABLE_PREFIX}: {item.name} locked by fixture"]
+            if item == known_locked
+            else []
+        )
+
+        def record_manifest(item: Path) -> str:
+            manifest_calls.append(item)
+            return ""
+
+        doctor.manifest_package_drift = record_manifest
+        doctor.report = lambda level, message: reports.append((level, message))
+        doctor.check_release_package_surface()
+    finally:
+        doctor.built_skeleton_packages = original_packages
+        doctor.skeleton_package_findings = original_findings
+        doctor.manifest_package_drift = original_drift
+        doctor.report = original_report
+
+    if manifest_calls != [clean]:
+        raise AssertionError(f"known unreadable archives must not be reopened: {manifest_calls}")
+    if not any(level == "FAIL" and known_locked.name in message for level, message in reports):
+        raise AssertionError(f"the unreadable archive must remain a FAIL: {reports}")
+    if not any(level == "INFO" and "1/2" in message for level, message in reports):
+        raise AssertionError(f"later packages must still be checked: {reports}")
 
 
 def test_hint_gate_contract(root: Path) -> None:
@@ -5143,6 +5214,98 @@ def test_activity_genesis_transition_from_planned(root: Path) -> None:
     assert entry is not None and entry.state == "ongoing", index
     assert entry.binding_status == "unbound", entry.binding_status
     assert entry.last_event_id == "ALE-000001", entry.last_event_id
+
+
+def test_release_candidate_binding_freezes_both_ends(root: Path) -> None:
+    """CR-3=B (2026-08-23 user adjudication, reopening RP-2=c): four surfaces.
+
+    (1) no `release_candidate` line in the ledger → silent (nothing is bound
+        yet, the assertion must not be advanced on credit);
+    (2) frozen commit == serving commit → silent (ordinary commits after
+        closeout never redden — both ends of the assertion are frozen at the
+        closeout instant, which is why package==HEAD was rejected);
+    (3) serving package != frozen commit → CAND-BIND-001 WARN (the
+        twice-in-twelve-hours recurrence this mechanism exists for);
+    (4) two unretired manifests for one edition → CAND-BIND-003 WARN
+        (ambiguous serving identity); a manifest with `superseded_by` drops
+        out of the serving identity.
+    (5) a one-sided freeze (zh written, en missing) → CAND-BIND-005 FAIL —
+        "both ends frozen" admits no silent missing end;
+    (6) a line mentioning release_candidate that cannot be parsed →
+        CAND-BIND-004 FAIL — the assertion must not rest on optimistic parsing;
+    (7) the same version frozen twice → CAND-BIND-006 FAIL (self-contradictory).
+    (8) header prose may name the field but is not a data row and must stay silent.
+    """
+    del root
+    frozen_line = "- 0.2.3 `release_candidate`：zh `c602f6f`／en `a539db7`\n"
+
+    def manifest(package: str, commit: str, **extra: object) -> dict[str, object]:
+        claim: dict[str, object] = {
+            "package": package, "source_commit_short": commit,
+        }
+        claim.update(extra)
+        return claim
+
+    zh = manifest("t2ag-skeleton-0.2.3-c602f6f.zip", "c602f6f")
+    en = manifest("t2ag-skeleton-en-0.2.3-a539db7.zip", "a539db7")
+
+    # (1) nothing frozen -> silent even with manifests present.
+    if doctor.release_candidate_binding_findings("- 0.2.2 …\n", [zh, en]):
+        raise AssertionError("no release_candidate line must mean no findings")
+
+    # (2) frozen and matching -> silent.
+    if doctor.release_candidate_binding_findings(frozen_line, [zh, en]):
+        raise AssertionError("matching frozen commit must stay silent")
+
+    # (3) serving package drifted from the frozen commit -> WARN.
+    drifted = manifest("t2ag-skeleton-0.2.3-16f1642.zip", "16f1642")
+    codes = [c for c, _, _ in doctor.release_candidate_binding_findings(
+        frozen_line, [drifted, en])]
+    if codes != ["CAND-BIND-001"]:
+        raise AssertionError(f"drift must raise CAND-BIND-001, got {codes}")
+
+    # (4) two unretired manifests for one edition -> ambiguity WARN; a
+    #     superseded manifest drops out of the serving identity.
+    stale = manifest("t2ag-skeleton-0.2.3-f27a431.zip", "f27a431")
+    codes = [c for c, _, _ in doctor.release_candidate_binding_findings(
+        frozen_line, [zh, stale, en])]
+    if codes != ["CAND-BIND-003"]:
+        raise AssertionError(f"ambiguous serving identity must warn, got {codes}")
+    stale["superseded_by"] = "t2ag-skeleton-0.2.3-c602f6f.zip"
+    if doctor.release_candidate_binding_findings(frozen_line, [zh, stale, en]):
+        raise AssertionError("a superseded manifest must not contest serving identity")
+
+    # (5) one-sided freeze: zh only, en missing -> FAIL, never silent.
+    one_sided = "- 0.2.3 `release_candidate`：zh `c602f6f`\n"
+    rows = doctor.release_candidate_binding_findings(one_sided, [zh, en])
+    codes = [c for c, _, _ in rows]
+    severities = [s for _, s, _ in rows]
+    if "CAND-BIND-005" not in codes or "FAIL" not in severities:
+        raise AssertionError(f"a one-sided freeze must FAIL with CAND-BIND-005, got {rows}")
+
+    # (6) a line that mentions release_candidate but cannot be parsed -> FAIL.
+    for broken_line in (
+        "- 0.2.3 release_candidate：zh c602f6f／en a539db7\n",   # no backticks anywhere
+        "- 0.2.3 `release_candidate`：see next line\n",           # parses, zero pairs
+    ):
+        rows = doctor.release_candidate_binding_findings(broken_line, [zh, en])
+        codes = [c for c, _, _ in rows]
+        if codes != ["CAND-BIND-004"]:
+            raise AssertionError(
+                f"a malformed freeze line must FAIL with CAND-BIND-004, got {rows} "
+                f"for {broken_line!r}"
+            )
+
+    # (7) the same version frozen twice -> contradictory, FAIL per doubled edition.
+    doubled = frozen_line + "- 0.2.3 `release_candidate`：zh `16f1642`／en `71ddbc2`\n"
+    codes = [c for c, _, _ in doctor.release_candidate_binding_findings(doubled, [zh, en])]
+    if codes != ["CAND-BIND-006", "CAND-BIND-006"]:
+        raise AssertionError(f"a duplicated freeze must FAIL per edition, got {codes}")
+
+    # (8) The real ledger header documents ownership using the field name.
+    prose = "> the `release_candidate` freeze-binding row stays with Main.\n"
+    if doctor.release_candidate_binding_findings(prose, [zh, en]):
+        raise AssertionError("explanatory ledger prose must not impersonate a data row")
 
 
 def test_init_example_payload_is_documented_and_rejected(root: Path) -> None:

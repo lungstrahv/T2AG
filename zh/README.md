@@ -3,19 +3,21 @@
 > 空实例原件。它可复制为新的 T2AG 实例，但自身不得承载真实学生数据。
 > 复制到任意新目录后，未初始化 profile 仍按 Skeleton 空模板验收；完成
 > `first_run.md` 并把 profile 改为 initialized 后，该副本自动按个人实例验收，
-> 不依赖目录名。原始 `t2ag-skeleton/` 仓本身永远保持空模板身份。
+> 不依赖目录名。被维护为发行源的 Skeleton 仓本身永远保持空模板身份。
+
+空模板识别标记：`t2ag-skeleton`。复制后的目录可以自由改名；完成首次初始化后，
+系统改由 profile 的 `initialization_status` 识别个人实例。
 
 0.2.3 Skeleton 提供 activity ledger、exerciseNN 模板、原子 activity lifecycle/close 工具，
 并保留分类 reading ActivityRecord 空容器和双向 JSON 候选桥接能力；它不含真实课程活动、
 AR、书籍、sidecar、候选贡献或消费回执。两个系统始终各写各仓。
 
-本 Skeleton 按可复用开源基础的方向持续维护，通用教学机制由真实实例反馈验证后再吸收，
+本 Skeleton 作为可复用开源基础持续维护，通用教学机制由真实实例反馈验证后再吸收，
 但不携带真实学生、课程进度或个人原话。
 
-**使用许可**：当前对外形态是**受邀试用**，不是一般开源授权。先读仓库根的
-`INVITED_USE_GRANT.md`（授权范围与边界）与 `LICENSING.md`（各层许可证的适用面）。
-「按开源方向维护」是路线陈述，**不构成使用许可**；未落在受邀授权范围内的用途，
-不能凭这句话推定。
+**使用许可**：从公开 GitHub 仓取得的副本中，代码按 Apache-2.0、散文按
+CC BY-SA 4.0 授权；路径边界见 `LICENSING.md`，归属声明见 `NOTICE`。公开之前由授权人
+直接交付的邀请包仍按随包的 `INVITED_USE_GRANT.md` 执行。两类副本的适用许可不要混用。
 
 ## 一分钟启动与 Agent 偏好
 
@@ -35,11 +37,14 @@ Main 的身份池容量，后者是含 Main 的同时运行上限，首次启动
 
 ## 快速开始
 
-1. 复制目录内容到新的目标目录，**排除 `.git/`**——否则副本会连本仓的提交历史与
-   维护者 remote 一起带走，并在其上继续提交：
+1. 先进入**包含本 README 的中文版本目录**，再把当前目录复制到一个全新的目标目录，
+   排除 `.git/` 与运行缓存。这样既适用于独立 Skeleton checkout，也适用于公开双语仓的
+   `zh/` 目录：
 
    ```powershell
-   robocopy .\t2ag-skeleton .\my-t2ag /E /XD .git
+   $target = Join-Path $env:USERPROFILE "Documents\my-t2ag"
+   robocopy . $target /E /XD .git __pycache__ .venv .cache .recovery .staging .uploads
+   Set-Location $target
    ```
 
 2. 在目标目录按 `startup_orchestration.md` 并行运行三条只读启动支路

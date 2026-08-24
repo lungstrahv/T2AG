@@ -193,6 +193,22 @@ recovery checkpoint 只证明存在恢复点，不进入 release 资格判断。
    `runtime.problemlog_closure`）；`occurrence_count >= 2` 的问题不得再以散文修复收尾，
    必须落 `check=`（doctor 检查）或 `tool=`（代码强制）。字段语义 canonical：
    `00_core/t2ag_problemlog.md` 头部回灌契约。
+4. **marker 闸门必须跟规则，不得跟表面**（2026-08-20 LV-5；本条 2026-08-23 随 C11
+   回移入中文面）。检验用 grep 短语证明「文档 D 陈述规则 R」时，短语是散文的一部分——
+   散文会被换行、句首大写、加粗、改空距、翻译。表面动了而规则没动，闸门就会否决一份
+   完全满足它的文档——`remediation_governance.md` §7 又一例：检验读的载体不是它担保的
+   事实。该缺陷类在全中文散文时期不可见（无空格可换行、无大小写），翻译工作一日内连出
+   三例。两条义务随之成立：①被匹配的短语必须登记 `MARKER_VARIANTS`（一个 canonical
+   身份＋各语言版拼写），被匹配的字面量不得与被展示的字面量混放；模式一律经
+   `field_line_re`／`heading_re`／`marker_alternation` 从注册表构造，不得内联书写，
+   给构造器传未登记键本身即测试失败；②匹配器靠**变异**证明而非目测——保义变异（换行/
+   大小写/强调/空距）不得改变判定，删除 marker 必须改变判定，后半条防闸门空转绿。
+   enforcement: tool=70_tools/test_marker_robustness.py
+   **诚实边界**：本条证明闸门跨表面变化跟得住规则，不证明规则正文正确，也测不出
+   「该标记而未标记」（与 R-GATE 同限）；大小写宽容同样覆盖机器 token 型 marker
+   （如 `paused`），此放宽记录在测试 docstring。**中文面现状（C11 回移时点）**：
+   注册表与构造器已在位，但既有中文检验的 call-site 仍是裸字面量比对——迁移属
+   L2/D15 冻结项；对应两条测试用例以具名 skip 等待激活，不作静音处理。
 
 ## 九、外部来源回指契约（`source_catalog`，2026-08-16，EV-0026）
 

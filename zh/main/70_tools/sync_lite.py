@@ -203,6 +203,40 @@ def redact_host_bytes(data: bytes) -> tuple[bytes, int]:
     return data, hits
 
 
+def is_privacy_detector_source(source: Path) -> bool:
+    """Whether *source* is the one file whose bare detector literal is executable data."""
+    return source.as_posix().endswith("/main/70_tools/t2ag_doctor.py")
+
+
+PRIVACY_DETECTOR_TOKEN = b"__T2AG_PRIVACY_DETECTOR_HOST_USER__"
+
+
+def mask_privacy_detector_literals(data: bytes, user: bytes) -> bytes:
+    """Mask only the two executable detector shapes, never arbitrary prose."""
+    if not user:
+        return data
+    if PRIVACY_DETECTOR_TOKEN in data:
+        raise RuntimeError("privacy-detector mask token already exists in source")
+    fragments = (
+        b"|" + user + b"|",
+        b'(r"' + user + b'", "',
+    )
+    for fragment in fragments:
+        data = data.replace(fragment, fragment.replace(user, PRIVACY_DETECTOR_TOKEN))
+    return data
+
+
+def redact_projected_text(source: Path, data: bytes) -> tuple[bytes, int]:
+    user = HOST_USER.encode("utf-8") if HOST_USER else b""
+    protected = is_privacy_detector_source(source) and bool(user)
+    if protected:
+        data = mask_privacy_detector_literals(data, user)
+    redacted, hits = redact_host_bytes(data)
+    if protected:
+        redacted = redacted.replace(PRIVACY_DETECTOR_TOKEN, user)
+    return redacted, hits
+
+
 # 相对 main 根（或同步根）的二进制白名单。每条必须注释：是什么、为何 lite 需要。
 # 例外是清单腐化的起点——新增前先问「审查是否真的缺它」。
 ALLOWED_BINARY_REL: dict[str, str] = {
@@ -491,7 +525,7 @@ def sha256_file(path: Path) -> str:
 def expected_projection_sha256(source: Path) -> str:
     """Hash of what the Lite copy of *source* should contain (post-redaction for text)."""
     if source.suffix.lower() in TEXT_EXT:
-        data, hits = redact_host_bytes(source.read_bytes())
+        data, hits = redact_projected_text(source, source.read_bytes())
         if hits:
             return hashlib.sha256(data).hexdigest()
     return sha256_file(source)
@@ -501,7 +535,7 @@ def copy_projected_file(source: Path, target: Path) -> int:
     """Copy one projected file applying host redaction to text payloads; return hits."""
     if source.suffix.lower() in TEXT_EXT:
         data = source.read_bytes()
-        redacted, hits = redact_host_bytes(data)
+        redacted, hits = redact_projected_text(source, data)
         if hits:
             target.write_bytes(redacted)
             shutil.copystat(source, target)
@@ -791,7 +825,10 @@ def check_current_projection(src: Path, dst: Path) -> int:
             if rel.parts and rel.parts[0] in PRESERVE_DST_TOP:
                 continue
             try:
-                if needle in path.read_bytes():
+                data = path.read_bytes()
+                if is_privacy_detector_source(path):
+                    data = mask_privacy_detector_literals(data, needle)
+                if needle in data:
                     residual.append(rel.as_posix())
             except OSError:
                 residual.append(rel.as_posix() + " (unreadable)")

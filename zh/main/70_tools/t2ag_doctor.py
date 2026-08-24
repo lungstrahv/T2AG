@@ -166,6 +166,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_skeleton_textbook", "check_distribution_parity",
     "check_constitution_parity", "check_cross_edition_parity",
     "check_skeleton_privacy", "check_release_package_surface",
+    "check_release_candidate_binding",
     "check_decision_record_citations",
     "check_line_endings", "check_release_line_endings",
 }
@@ -213,6 +214,472 @@ EXPECTED_FLOWS = {
     "skin", "git", "batch", "exercise_loop",
 }
 CORE_PLAYBOOK_MARKER = "**保护级别**：core-playbook"
+
+# --- LV-5 三层回移（C11，2026-08-23）：注册表与函数套件自 EN 版整体回移，
+# 使其在 EN 再生时不被抹除，并为中文面提供换行/大小写/强调/引用块耐受的匹配设施。
+# 中文面判据严格度不变：既有检查的字面量比对未改写（call-site 迁移属 L2/D15）。
+# ---------------------------------------------------------------------------
+# LV-5 (2026-08-20): prose-marker language registry.
+#
+# Many gates prove a rule is present by grepping a literal phrase out of a
+# playbook.  That works until the playbook ships in a second language, at which
+# point a correctly-built edition fails closed for the wrong reason: the rule is
+# there and the checker is blind.  Deleting the greps would be worse -- a
+# declared constraint with no checker is the `carrier_mismatch` pattern these
+# gates exist to prevent.
+#
+# So the marker keeps ONE canonical identity (its zh-CN spelling, which is the
+# historical one) and gains a table of accepted spellings per language edition.
+# Adding a language is a data change, not a code change; forgetting to register a
+# translation still fails closed, which is the correct direction.
+MARKER_VARIANTS: dict[str, tuple[str, ...]] = {
+    # --- teaching contract (20_teacher, context_packet) ---
+    "统一只读活动路由": ("unified read-only activity route",),
+    "当前 Lesson/Exercise 主载体": ("current Lesson/Exercise main carrier",),
+    "不把概念桥接回当前题": ("does not bridge the concept back to the current problem",),
+    "先给短目录、树形地图": ("give a short table of contents or tree map first",),
+    "对象类型表": ("object type table",),
+    "新 Exercise 未授权阶段": ("unauthorized stage of a new Exercise",),
+    # --- context packet / workflow ---
+    "不是新的真相源": ("is not a new source of truth",),
+    "## L1 · 当前一步直接证据": ("## L1 · direct evidence for the current step",),
+    "## L2 · 触发式完整读取": ("## L2 · trigger-based full reads",),
+    "完整序列化 Markdown": ("fully serialized Markdown",),
+    "即时摘录 + 触发式展开": ("immediate excerpt + triggered expansion",),
+    "同一对话内未变化的 L0 不重复读取": (
+        "an unchanged L0 is not re-read within the same conversation",),
+    "Main 消费纪律": ("Main consumption discipline",),
+    "先建依赖树，再分配 Agent": ("build the dependency tree first, then assign agents",),
+    "不得只展示 ID/SHA 让学生盲签": (
+        "never show only an ID/SHA and have the student sign blind",),
+    "步骤 2：消费 progress.md 当前切片": (
+        "Step 2: consume the current slice of progress.md",),
+    "L2 读取对应「教学记录」": ("L2 reads the corresponding teaching record",),
+    "不得返回缺教材的 `ready`": ("never return `ready` without the textbook",),
+    "只回读这些实际目标": ("read back only these actual targets",),
+    "原 L0 上下文包立即失效": ("the previous L0 context packet expires immediately",),
+    # --- authorization governance ---
+    "授权不可放大与闭环止损": (
+        "Authorization is non-amplifying and budget stop-loss closes the loop",),
+    "授权不可放大": ("Authorization is non-amplifying",),
+    "尚未生成的对象不可预授权": ("an object not yet generated cannot be pre-authorized",),
+    "receipt 只记录授权证据": ("a receipt records only authorization evidence",),
+    "默认最多两轮 finding 整改": (
+        "at most two rounds of finding remediation by default",),
+    "恢复后动作授权门": ("post-recovery action authorization gate",),
+    "概括性认可只覆盖当轮已具体列出的动作": (
+        "a general acknowledgement covers only the actions specifically listed this round",),
+    "不构成当轮许可": ("does not constitute permission for this round",),
+    # --- course / activity templates ---
+    "### 2.2 多块长篇讲解的地图优先协议": (
+        "### 2.2 Map-first protocol for long multi-block explanations",),
+    "一次只深入一个分支": ("go deep into one branch at a time",),
+    "无法在不泄露的前提下制作有用总览时，宁可省略总览": (
+        "when no useful overview can be made without leaking, omit the overview",),
+    "先地图、后逐支": ("map first, then branch by branch",),
+    "学生希望怎样确认后再继续": (
+        "how the student wants to confirm before continuing",),
+    "### 步骤 3：按 current_activity 恢复主载体": (
+        "### Step 3: restore the main carrier per current_activity",),
+    "#### `lesson` 分支": ("#### `lesson` branch",),
+    "#### `exercise` 分支": ("#### `exercise` branch",),
+    "Exercise 首启不得读取或构造 Lesson 路径": (
+        "an Exercise first start must not read or construct a Lesson path",),
+    "教材原文窗口 **仅在 `lesson` + `course_driver: textbook`**": (
+        "the textbook source window applies **only to `lesson` + `course_driver: textbook`**",),
+    "Micro close 和完整结课都必须原子完成": (
+        "both a Micro close and a full close must complete atomically",),
+    "Exercise 结课不得顺手": ("an Exercise close must never be done casually",),
+    # --- cloud contract ---
+    "## 已处理会话": ("## Processed sessions",),
+    "## 部件变更指令": ("## Component change directives",),
+    "## 云端交接": ("## Cloud handoffs",),
+    "不得生成教学 receipt": ("must not generate teaching receipts",),
+    # --- test management / candidate replay ---
+    "runtime（默认、启动安全）": ("runtime (default, startup-safe)",),
+    "不得越级": ("no level skipping",),
+    "逐文件相对路径、大小、SHA-256": (
+        "per-file relative path, size and SHA-256",),
+    "0.2.0 冻结验收边界": ("0.2.0 frozen acceptance boundary",),
+    "清单外新提出的理论攻击面": (
+        "a theoretical attack surface newly raised outside the manifest",),
+    # --- handoff index ---
+    "下一版本 Backlog": ("Next-version backlog",),
+    # --- profile sections ---
+    "每周可投入学习时间": ("Time available per week",),
+    "学习目标": ("Learning goals",),
+    "期望的辅导方式": ("Preferred tutoring style",),
+    "辅导与展现偏好": ("Tutoring and presentation preferences",),
+    "个体基线": ("Individual baseline",),
+    "已有基础": ("Existing foundation",),
+    "编程基础": ("Programming background",),
+    "未提供": ("not provided",),
+    # --- knowledge ledgers ---
+    "## 活跃知识点": ("## Active knowledge points",),
+    "## 维护知识点": ("## Maintenance knowledge points",),
+    "## 陈年知识点": ("## Aged knowledge points",),
+    "当前周期": ("Current cycle",),
+    "当前周期摘要": ("Current cycle summary",),
+    "知识点键": ("Knowledge point key",),
+    "陈年连续正确": ("Aged consecutive correct",),
+    "下次陈年日历检查": ("Next aged calendar check",),
+    "最近陈年复习卷": ("Latest aged review set",),
+    # --- exercises / project verification ---
+    "题号": ("Problem number",),
+    "题面": ("Problem statement",),
+    "状态": ("Status",),
+    "难度": ("Difficulty",),
+    "来源页": ("Source page",),
+    "错误级别": ("Error level",),
+    "依赖 completion node": ("Depends on completion node",),
+    "思路观察": ("Reasoning observation",),
+    "反馈": ("Feedback",),
+    "页码": ("Page",),
+    "可复现性检查": ("Reproducibility check",),
+    "客观验收": ("Objective acceptance",),
+    "留档": ("Archived",),
+    "盲改挑战": ("Blind-modification challenge",),
+    "讲解口试": ("Oral explanation",),
+    "指标对账": ("Metric reconciliation",),
+    "现场独立验证": ("Live independent verification",),
+    "关闭证据": ("Closure evidence",),
+    "验收标准": ("Acceptance criteria",),
+    # --- memory pointers ---
+    "活跃课程组": ("Active course group",),
+    "当前课程": ("Current course",),
+    "Lesson 上下文": ("Lesson context",),
+    "当前教学活动": ("Current teaching activity",),
+    "当前教师": ("Current teacher",),
+    "日期": ("Date",),
+    "学到哪": ("Got to",),
+    # --- trading boundary ---
+    "交易行为唯一真相源": ("single source of truth for trading behaviour",),
+    "纪律唯一真相源": ("single source of truth for discipline",),
+    # --- record fields and headings consumed by field_line_re / heading_re (L3) ---
+    "作答": ("Answer",),
+    "结果": ("Result",),
+    "最小状态摘要": ("Minimum state summary",),
+    "连续性摘要": ("Continuity summary",),
+    "零命中": ("zero hits",),
+    # --- source_page_assets prose rules asserted by test_context_packet (L3.5) ---
+    "B 层不算数": ("Layer B does not count",),
+    "宿主能观察到内容本体进入本轮模型上下文这一事件本身": (
+        "the host can observe the event of the content body entering this round's\nmodel context",
+    ),
+    "A1–A5 经**宿主可观察投递**在本会话内证成": (
+        "A1–A5 proven within this session through **host-observable delivery**",
+    ),
+    "因此「只读 frontmatter」能满足全部前置而**正文一字未投递**": (
+        "So \"reading frontmatter only\" can satisfy every precondition while **not one\nword of the body has been delivered**",
+    ),
+    "等 pending 状态**不得清除**": (
+        "pending states such as `pending_visual_scan` **must not be cleared**",
+    ),
+    "（§3.1.3 A 层「不得冒充」条款原样有效）": (
+        "(the §3.1.3 Layer A \"must never pose as\" clause stands unchanged)",
+    ),
+    "故 A1 要求**完整正文段**投递，宿主观察事件须能区分「正文投递」与「仅 frontmatter 投递」": (
+        "Hence A1 requires a **complete body segment** delivery, and the\nhost-observed event must distinguish \"body delivered\" from \"frontmatter only\"",
+    ),
+    "**子进程摘要**": ("a **subprocess summary**",),
+    "证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体": (
+        "that proves the script read the file, and **not** that this round's model context received the content body",
+    ),
+    # --- instance-template structural labels (batch E) ---
+    # Every one of these is a heading, a field label, or a table header that some
+    # tool greps.  They are registered before the templates are translated, not
+    # after: a translated template with an unregistered label is a silent false
+    # negative, which is the whole defect family this registry exists to close.
+    "Lesson 开场概览": ("Lesson opening overview",),
+    "一、解题思维总纲": ("1. General principles of solving",),
+    "二、活跃思维模式": ("2. Active thinking patterns",),
+    "下一步计划": ("Next-step plan",),
+    "下次允许复测": ("Next retest allowed",),
+    "最近正式复测": ("Last formal retest",),
+    "活跃知识点": ("Active knowledge points",),
+    "开场知识树": ("Opening knowledge tree",),
+    "知识点树形图": ("Knowledge-point tree",),
+    "教材块清单": ("Textbook block list",),
+    "学习范围": ("Study scope",),
+    "精确停顿点": ("Exact stop",),
+    "当前题目": ("Current problem",),
+    "当前进度": ("Current progress",),
+    "当前值": ("Current value",),
+    "详情位置": ("Details location",),
+    "项目": ("Item",),
+    "生命周期": ("Lifecycle",),
+    "容量状态": ("Capacity status",),
+    "恢复入口": ("Recovery entry",),
+    "学生档案": ("Student profile",),
+    "时间预算": ("Time budget",),
+    "课程代码": ("Course code",),
+    "课程名称": ("Course name",),
+    "课程成员": ("Course members",),
+    "课程组": ("Course group",),
+    "待解决": ("open",),
+    "需要回看": ("needs review",),
+    "主题": ("Topic",),
+    "月份": ("Month",),
+    "标题": ("Title",),
+    "路径": ("Path",),
+    "提示": ("Hint",),
+    "答案": ("Answer key",),
+    "解答": ("Solution",),
+    "讲解": ("Explanation",),
+    "暂无": ("None yet",),
+    # gate-ledger row columns (learning_activity_model §2.4)
+    "行ID": ("Row ID",),
+    "块ID": ("Block ID",),
+    "门类型": ("Gate type",),
+    "闭合依据": ("Basis of closure",),
+    "感受回应": ("Response to feeling",),
+    "消费于": ("Consumed at",),
+    # cloud ledger section labels used without the "## " prefix
+    "云端交接": ("Cloud handoffs",),
+    "已处理会话": ("Processed sessions",),
+    "部件变更指令": ("Component change directives",),
+    "首次启动后创建": ("created after first run",),
+    "维护知识点": ("Maintenance knowledge points",),
+    "陈年知识点": ("Aged knowledge points",),
+    "已解答": ("Answered",),
+    "回看原因": ("Reason to revisit",),
+    "下一步": ("Next step",),
+    "下次第一件事": ("First thing next time",),
+    "学到哪": ("Reached",),
+    "课程": ("Course",),
+    "当前活动": ("Current activity",),
+    "停点": ("Stop",),
+    "历史兼容": ("historical compatibility",),
+    # --- t2ag_memory.md section headings read by t2ag_context ---
+    "上次课摘要": ("Last session summary",),
+    "当前状态指针": ("Current state pointers",),
+    # --- profile sections a completed first run must carry an answer in ---
+    # The tuple already held historical zh-CN spellings; the English edition's
+    # generated headings join the same list rather than a second lookup table.
+    "每周可投入学习时间": ("Time available per week",),
+    "学习目标": ("Learning goals",),
+    "辅导与展现偏好": ("期望的辅导方式", "Tutoring and presentation preferences"),
+    "已有基础": ("编程基础", "个体基线", "Individual baseline"),
+    # --- changelog verification-layer block headings (changelog_management.md §3) ---
+    "锚定断言": ("Anchored assertions",),
+    "佐证断言": ("Corroborating assertions",),
+    # --- overlay default-row anchor (read AND written by t2ag_init) ---
+    "(默认)": ("(default)",),
+    # --- activity-route prose rules asserted by test_activity_contracts (L3.5) ---
+    "不写 `current_lesson`": ("does not write `current_lesson`",),
+    "连续 Scope **5–8**": ("contiguous Scope of **5–8**",),
+    "不得自动清理": ("never clean up automatically",),
+    "不产生 pending、CLR 或自动 pause": (
+        "produces no pending, no CLR and no automatic pause",
+    ),
+    "progress + 当前活动主载体 + 真实台账": (
+        "progress + current activity's main carrier + the real ledger",
+    ),
+    # --- gate-ledger row kinds and section headings ---
+    "块过渡": ("block transition",),
+    "翻页": ("page turn",),
+    "题目闭环": ("problem closure",),
+    "提示授权": ("hint authorization",),
+    "## 门台账": ("## Gate ledger",),
+    # --- table headings and record fields ---
+    "文件": ("File", "file"),
+    "内容组连接表": ("Content group map",),
+    "作答上下文": ("Answer context",),
+    "节点": ("Node",),
+    "验证模式": ("Verification mode",),
+    "结论": ("Conclusion",),
+    "验收日期": ("Acceptance date",),
+    # --- progress inline markers ---
+    "mistake_bank（内联）": ("mistake_bank (inline)",),
+    "待填": ("to be filled in",),
+    "无": ("none",),
+}
+
+
+def _normalize_surface(text: str) -> str:
+    """Surface-normalized view of `text`, for marker matching.
+
+    Strips blockquote continuation prefixes, collapses whitespace, and strips Markdown
+    emphasis runs.  Four surface properties have now been found to move independently
+    of the rule: line wrap, letter case, emphasis placement (the registry stores
+    `applies **only to X**` while prose bolds the whole phrase), and the `> ` a
+    blockquote puts at the start of every continuation line.  Each was found the same
+    way -- a document that states the rule failing the gate that checks for it.
+
+    That four kept appearing is itself the argument for giving a rule a machine-owned
+    anchor: normalization can only chase surface properties already discovered.
+    """
+    without_quotes = re.sub(r"(?m)^[ \t]*>[ \t]?", "", text)
+    return re.sub(r"[*_]{1,3}", "", re.sub(r"\s+", " ", without_quotes))
+
+
+def _collapse_ws(text: str) -> str:
+    """Whitespace-collapsed view of `text` (kept for callers that need only this)."""
+    return re.sub(r"\s+", " ", text)
+
+
+def has_marker(content: str, marker: str) -> bool:
+    """True when `content` carries this marker in ANY shipped language edition.
+
+    Matching is wrap-tolerant.  A marker is a phrase, and prose gets re-wrapped: a
+    marker that happens to straddle a line break is still present to a reader and
+    still absent to a naive substring search, so the gate would FAIL on a document
+    that satisfies it.  That failure mode is invisible in zh-CN (no spaces to wrap
+    on) and constant in English -- it bit this translation on the first playbook.
+    Collapsing whitespace on both sides costs nothing and removes the whole class.
+    """
+    candidates = (marker,) + MARKER_VARIANTS.get(marker, ())
+    if any(c in content for c in candidates):
+        return True
+    # Fallback: whitespace-collapsed and case-insensitive.  A marker is a phrase, and
+    # English capitalizes at the start of a sentence or a bold run, so the registry
+    # spelling and the prose spelling differ by case for no meaningful reason.  For a
+    # multi-word phrase the false-positive risk of ignoring case is negligible, while
+    # the false-negative it removes is a gate failing on a document that satisfies it.
+    flat = _normalize_surface(content).casefold()
+    return any(_normalize_surface(c).casefold() in flat for c in candidates)
+
+
+def marker_spellings(marker: str) -> tuple[str, ...]:
+    """Every accepted spelling of a marker, canonical first (LV-5)."""
+    return (marker,) + MARKER_VARIANTS.get(marker, ())
+
+
+def heading_rows(text: str, heading: str):
+    """table_after_heading, tried against every language spelling of `heading`."""
+    for name in marker_spellings(heading):
+        rows = table_after_heading(text, name)
+        if rows:
+            return rows
+    return []
+
+
+def section_text(text: str, heading: str):
+    """markdown_section, tried against every language spelling of `heading`."""
+    for name in marker_spellings(heading):
+        found = markdown_section(text, name)
+        if found:
+            return found
+    return None
+
+
+def cell_index(cells, name: str) -> int:
+    """Index of a header cell by any of its language spellings; -1 when absent."""
+    for spelling in marker_spellings(name):
+        if spelling in cells:
+            return cells.index(spelling)
+    return -1
+
+
+def row_value(row: dict, name: str, default: str = "") -> str:
+    """dict.get across every language spelling of the key."""
+    for spelling in marker_spellings(name):
+        if spelling in row:
+            return row[spelling]
+    return default
+
+
+def gate_is(row: dict, kind: str) -> bool:
+    """True when a gate-ledger row is of `kind` in any language edition."""
+    return row.get("gate") in marker_spellings(kind)
+
+
+def gate_starts(row: dict, kind: str) -> bool:
+    """True when a gate-ledger row's kind starts with `kind` in any edition."""
+    return any(str(row.get("gate", "")).startswith(k) for k in marker_spellings(kind))
+
+
+def marker_alternation(canonical: str) -> str:
+    """Regex alternation over every registered spelling of `canonical`.
+
+    L3 (2026-08-20).  Before this, a bilingual gate was written by hand as an inline
+    `(?:状态|Status)` alternation at each call site.  That put the spelling list in
+    18 scattered places instead of the registry, with three consequences: a third
+    language means editing 18 regexes; the canonical identity exists nowhere; and
+    `test_marker_robustness` -- which walks MARKER_VARIANTS -- could not see any of
+    them.  The gate built to catch surface-tracking defects protected 111 markers and
+    none of these.  Measured at the time: 5 of 5 sampled sites still failed under a
+    case change, the same defect that had just been fixed elsewhere.
+    """
+    return "|".join(re.escape(sp) for sp in marker_spellings(canonical))
+
+
+def field_line_re(canonical: str, value: str = r"(.+)") -> re.Pattern[str]:
+    """`- **Label**: value` / `- Label: value` in any edition, case-insensitively.
+
+    A record field label is a phrase, so it is subject to exactly the surface drift
+    that `doctor_contracts.md` §8.4 governs: case at the start of a line, optional
+    bold, and either colon width.  Building it from the registry means one identity,
+    one place to add a language, and coverage by the mutation test.
+    """
+    return re.compile(
+        rf"^-\s*(?:\*\*)?(?:{marker_alternation(canonical)})(?:\*\*)?\s*[：:]\s*{value}\s*$",
+        re.MULTILINE | re.IGNORECASE,
+    )
+
+
+def heading_re(canonical: str) -> re.Pattern[str]:
+    """A heading naming `canonical`, in any edition, case-insensitively.
+
+    Registry keys for headings carry their own `##` prefix, so strip the leading
+    hashes off each spelling before building the alternation: the prefix belongs to
+    the pattern, not to the phrase.  Heading depth is deliberately not pinned --
+    promoting a section from `###` to `##` does not change which rule is stated.
+    """
+    stripped = "|".join(
+        re.escape(sp.lstrip("# ").strip()) for sp in marker_spellings(canonical)
+    )
+    return re.compile(rf"^#+\s+.*(?:{stripped})", re.MULTILINE | re.IGNORECASE)
+
+
+def marker_position(content: str, marker: str) -> int:
+    """Offset of `marker` in `content`, or -1 -- registry-aware and surface-tolerant.
+
+    Some gates assert not just presence but ORDER (a document must branch on
+    `current_activity` before it details each branch).  Those sites used raw
+    `content.find(literal)`, which bypasses the registry entirely: a translated
+    edition scores -1 on every marker and the ordering assertion collapses into
+    "missing", naming the wrong defect.  Positions are computed against one
+    surface-normalized view so they stay mutually comparable.
+    """
+    flat = _normalize_surface(content).casefold()
+    best = -1
+    for spelling in marker_spellings(marker):
+        at = flat.find(_normalize_surface(spelling).casefold())
+        if at >= 0 and (best < 0 or at < best):
+            best = at
+    return best
+
+
+def marker_offset(content: str, marker: str) -> int:
+    """Exact offset of `marker` in `content` as given, or -1.
+
+    Companion to `marker_position`, which returns a position in the SURFACE-NORMALIZED
+    view -- comparable with another `marker_position`, but **not** an index into
+    `content`.  Slicing with a normalized-view offset takes a wrong-but-plausible span
+    and the caller sees a truncated block rather than an error, so the two are separate
+    functions with separate names.  This one matches a spelling verbatim: real index,
+    no surface tolerance.
+    """
+    best = -1
+    for spelling in marker_spellings(marker):
+        at = content.find(spelling)
+        if at >= 0 and (best < 0 or at < best):
+            best = at
+    return best
+
+
+def missing_markers(content: str, markers) -> list[str]:
+    """Canonical spellings of the markers absent from `content`, in order."""
+    return [m for m in markers if not has_marker(content, m)]
+
+
+fails: list[str] = []
+warns: list[str] = []
+infos: list[str] = []
+
+
+
 fails: list[str] = []
 warns: list[str] = []
 infos: list[str] = []
@@ -534,9 +1001,9 @@ def version_bump_precondition_findings(
             (
                 "VER-BUMP-001",
                 "FAIL",
-                f"运行版本 {current} 的前驱 {predecessor} 在版本台账无 "
-                f"`implementation_status` 记录：升版把前一版本留在了无收口证据的状态"
-                f"（台账 {VERSION_LEDGER_REL}）",
+                f"运行版本 {current} 的前驱 {predecessor} 在版本台账无该版本行"
+                f"（台账 {VERSION_LEDGER_REL} 是版本状态唯一真相源，CR-1=A；"
+                f"宪法 §7 只指不载）：升版把前一版本留在了无收口证据的状态",
             )
         )
     elif status != "complete":
@@ -7372,6 +7839,9 @@ def package_root_prefix(names: list[str]) -> str:
     return f"{root}/"
 
 
+PACKAGE_UNREADABLE_PREFIX = "发行包不可读，无法判定发行面清洁"
+
+
 def manifest_package_drift(archive: Path) -> str:
     """Cross-check a package against the manifest that claims to describe it. Pure.
 
@@ -7407,7 +7877,14 @@ def manifest_package_drift(archive: Path) -> str:
         declared = str(claim.get("zip_sha256", ""))
         if not declared:
             return f"{candidate.name} 声称描述 {archive.name} 却无 zip_sha256，核对无从进行"
-        actual = hashlib.sha256(archive.read_bytes()).hexdigest()
+        try:
+            archive_bytes = archive.read_bytes()
+        except OSError as error:
+            return (
+                f"{PACKAGE_UNREADABLE_PREFIX}，且无法核对 manifest："
+                f"{archive.name} {error}"
+            )
+        actual = hashlib.sha256(archive_bytes).hexdigest()
         if declared != actual:
             return (
                 f"发行包与其 manifest 不符：{archive.name} 实测 sha256 {actual[:12]}…，"
@@ -7499,7 +7976,7 @@ def skeleton_package_findings(archive: Path) -> list[str]:
                         )
                         break
     except (OSError, zipfile.BadZipFile) as error:
-        findings.append(f"发行包不可读，无法判定发行面清洁：{archive.name} {error}")
+        findings.append(f"{PACKAGE_UNREADABLE_PREFIX}：{archive.name} {error}")
     return findings
 
 
@@ -7529,6 +8006,151 @@ def built_skeleton_packages(root: Path) -> list[Path]:
     return sorted(found)
 
 
+RELEASE_CANDIDATE_LINE = re.compile(
+    r"^-\s*(\d+\.\d+\.\d+)\s+`release_candidate`\s*[：:]\s*(.+)$"
+)
+RELEASE_CANDIDATE_PAIR = re.compile(r"\b(zh|en)\s*`([0-9a-f]{7,40}(?:\+wt)?)`")
+RELEASE_CANDIDATE_EDITIONS = ("zh", "en")
+PACKAGE_VERSION_TOKEN = re.compile(r"-(\d+\.\d+\.\d+)-")
+
+
+def release_candidate_binding_findings(
+    ledger_text: str, manifests: list[dict[str, object]]
+) -> list[tuple[str, str, str]]:
+    """CAND-BIND-001..003 — 台账冻结的收口 commit 必须等于现役包的 commit。纯函数。
+
+    CR-3=B（2026-08-23，携新证据重开 RP-2=c：十二小时内两次复发，第二次发生在
+    生成器投入使用之后）。生成器只保证「打包那一刻同源」，本检查保证「台账冻结的
+    收口 commit == 仍在发行面服务的包」。断言两端都冻结在收口那一刻，收口之后的
+    普通提交不会点红——正是 RP-2 当年拒绝「包 == HEAD」断言的那个理由。
+
+    现役身份机器可读：invited 面上**未带 `superseded_by`** 的 manifest 即现役；
+    版别先按包名判、manifest 字段仅作兜底（RP-1 教训：手写 edition 字段是散文）。
+    台账无 `release_candidate` 行 → 静默（尚无绑定对象）。已冻结但无 manifest 可核
+    → INFO 不 WARN：manifest 不入库（2026-08-19 裁决），干净环境合法为空，
+    每个干净环境常红即 P-0077 噪音机；但空集必须发声（P-0085）。
+
+    完整性契约（2026-08-23 审查补，CAND-BIND-004..006）：断言不得建在乐观解析上。
+    台账里任何**含 `release_candidate` 的数据行（`-` 起始）**都必须解析成冻结绑定，写坏即 FAIL——
+    写坏的冻结不是冻结，静默降级成「尚未冻结」正是本检查要消灭的方向；一个版本
+    一旦冻结，`RELEASE_CANDIDATE_EDITIONS` 两端必须**各恰一次**——缺端＝该版别的
+    交付面退回无绑定态（FAIL），重复＝互相矛盾无从断言（FAIL）。
+    """
+    findings: list[tuple[str, str, str]] = []
+    counts: dict[str, dict[str, list[str]]] = {}
+    for line in ledger_text.splitlines():
+        stripped = line.strip()
+        # Only ledger data rows can claim a freeze.  Explanatory prose in the
+        # ledger header legitimately names the field and must not self-trigger.
+        if "release_candidate" not in stripped or not stripped.startswith("-"):
+            continue
+        match = RELEASE_CANDIDATE_LINE.match(stripped)
+        pairs = RELEASE_CANDIDATE_PAIR.findall(match.group(2)) if match else []
+        if not match or not pairs:
+            findings.append((
+                "CAND-BIND-004", "FAIL",
+                f"台账中含 release_candidate 的数据行无法解析为冻结绑定：{stripped!r}"
+                "——写坏的冻结不是冻结，不得静默降级为「尚未冻结」"
+                "（格式由 RELEASE_CANDIDATE_LINE/RELEASE_CANDIDATE_PAIR 冻结）",
+            ))
+            continue
+        version = match.group(1)
+        for edition, commit in pairs:
+            counts.setdefault(version, {}).setdefault(edition, []).append(commit)
+    if not counts:
+        return findings  # 无冻结行（也无写坏的行）：静默属设计
+    frozen: dict[tuple[str, str], str] = {}
+    for version, editions in sorted(counts.items()):
+        for required in RELEASE_CANDIDATE_EDITIONS:
+            got = editions.get(required, [])
+            if not got:
+                findings.append((
+                    "CAND-BIND-005", "FAIL",
+                    f"{version} 的冻结绑定缺 {required} 端：CR-3=B 要求两端皆冻，"
+                    "单边冻结等于把另一版别的交付面留在无绑定状态",
+                ))
+            elif len(got) > 1:
+                findings.append((
+                    "CAND-BIND-006", "FAIL",
+                    f"{version} 的 {required} 端被冻结 {len(got)} 次"
+                    f"（{'、'.join(got)}）：同版别多次冻结互相矛盾，绑定无从断言",
+                ))
+            else:
+                frozen[(version, required)] = got[0]
+    if not frozen:
+        return findings
+    serving: dict[tuple[str, str], list[str]] = {}
+    for claim in manifests:
+        if not isinstance(claim, dict) or claim.get("superseded_by"):
+            continue
+        package = str(claim.get("package", ""))
+        version_match = PACKAGE_VERSION_TOKEN.search(package)
+        if not version_match:
+            continue
+        if package.startswith(f"{SKELETON_RELEASE_NAME}-en-"):
+            edition = "en"
+        elif package.startswith(f"{SKELETON_RELEASE_NAME}-"):
+            edition = "zh"
+        else:
+            edition = str(claim.get("edition", "")) or "zh"
+        commit = str(claim.get("source_commit_short", ""))
+        serving.setdefault((version_match.group(1), edition), []).append(commit)
+    for (version, edition), commit in sorted(frozen.items()):
+        active = serving.get((version, edition), [])
+        if not active:
+            findings.append((
+                "CAND-BIND-002", "INFO",
+                f"台账已冻结 {version} {edition}=`{commit}`，发行面无该版别的现役 "
+                "manifest 可核对——manifest 不入库，干净环境属正常；"
+                "若发行目录本应有包，这是缺口而非清洁（P-0085 同义）",
+            ))
+        elif len(active) > 1:
+            findings.append((
+                "CAND-BIND-003", "WARN",
+                f"{version} {edition} 有 {len(active)} 份未退役 manifest"
+                f"（{'、'.join(sorted(active))}）：「现役是谁」含混，冻结绑定无从断言；"
+                "旧包应带 superseded_by 或移入退役目录",
+            ))
+        elif active[0] != commit:
+            findings.append((
+                "CAND-BIND-001", "WARN",
+                f"现役 {edition} 包 commit `{active[0]}` ≠ 台账冻结的收口 commit "
+                f"`{commit}`（{version}）：交付面与收口时点漂移——"
+                "重打包后未更新台账，或台账冻结后包未重打",
+            ))
+    return findings
+
+
+def check_release_candidate_binding() -> None:
+    """CAND-BIND-001..003: the serving package must match the frozen closeout commit."""
+    ledger = ROOT / VERSION_LEDGER_REL
+    if not ledger.is_file():
+        return  # 台账缺失已由 check_version_bump_precondition 报，不重复
+    manifests: list[dict[str, object]] = []
+    workspace = ROOT.parent
+    for relative in PACKAGE_SEARCH_ROOTS:
+        base = workspace / relative if relative != "." else workspace
+        if not base.is_dir():
+            continue
+        for candidate in sorted(base.rglob(f"{SKELETON_RELEASE_NAME}*.manifest.json")):
+            if "retired" in candidate.parts:
+                continue  # 退役目录里的 manifest 不再是现役身份
+            try:
+                claim = json.loads(candidate.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as error:
+                report(
+                    "WARN",
+                    f"发行 manifest 不可解析，冻结绑定无法核对：{candidate.name} {error}",
+                )
+                continue
+            if isinstance(claim, dict):
+                manifests.append(claim)
+    for code, severity, message in release_candidate_binding_findings(
+        read(ledger), manifests
+    ):
+        report(severity, f"{code} {message}")
+
+
 def check_release_package_surface() -> None:
     """FAIL on any built package that would disclose history or identity.
 
@@ -7554,7 +8176,10 @@ def check_release_package_surface() -> None:
         findings = skeleton_package_findings(archive)
         for finding in findings:
             report("FAIL", f"{finding}（该包不得对外分发）")
-        drift = manifest_package_drift(archive)
+        unreadable = any(
+            finding.startswith(PACKAGE_UNREADABLE_PREFIX) for finding in findings
+        )
+        drift = "" if unreadable else manifest_package_drift(archive)
         if drift:
             report("FAIL", drift)
         if not findings and not drift:
@@ -8638,6 +9263,7 @@ def execute_doctor_checks(
         "check_cross_edition_parity": check_cross_edition_parity,
         "check_skeleton_privacy": check_skeleton_privacy,
         "check_release_package_surface": check_release_package_surface,
+        "check_release_candidate_binding": check_release_candidate_binding,
         "check_decision_record_citations": check_decision_record_citations,
         "check_line_endings": check_line_endings,
         "check_release_line_endings": check_release_line_endings,

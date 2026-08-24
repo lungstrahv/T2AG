@@ -102,7 +102,16 @@ enforcement: check=runtime.version_bump_precondition
 收口的定义就是版本台账里那三个字段：`implementation_status: complete`、
 `candidate_review: passed`、`release_qualification`。前驱缺记录、记为非 `complete`，
 或让邻近版本的记录代答，都是 FAIL；前驱 `candidate_review` 未 passed 报 WARN——
-它仍可作为运行版本，但不能被引用为发行资格依据。
+它仍可作为运行版本，但不能被引用为发行资格依据。版本台账是这三个字段的**唯一真相源**，
+宪法 §7 只指不载（CR-1=A 2026-08-23，P-0086：双载体并存曾使检查对有记录的版本报「无记录」）。
+若该版本有对外发行面，收口另有 `release_candidate` 冻结绑定行（各版别 commit
+各恰一次，CAND-BIND-004..006 强制）。归属三分层（08-23 裁＋同日收窄）：
+**源内在状态** `implementation_status` 随源与包发行（重打前写入三仓台账）；
+**生成后资格** `candidate_review`／`release_qualification` 权威值归 Main 台账＋
+独立评审证据，包内值只是**构建时快照**、不冒充最终资格；**绑定行**在重打后、
+**完整 V3 之前**只写 Main 并单独提交——V3 无绑定行则 candidate_binding 静默，
+绿灯缺覆盖。绑定证明「审的是哪两个候选」，不证明「审查通过」。现役包与冻结
+commit 的比对由 check=release.candidate_binding 承担（CR-3=B 2026-08-23）。
 
 #### 触发情形（判断题，穷举）
 
@@ -115,6 +124,11 @@ enforcement: prose_accepted（理由：「值不值得开一个新版本」是�
 | 1 | **结构性换代** | domain model、迁移器或目录契约改变，旧版本的实例需要迁移才能在新版本下运行 |
 | 2 | **对外发行需要一个受审的号** | 交付、开源或外部试用要引用一个 `candidate_review: passed` 的版本，而现有最新受审版本不够用 |
 | 3 | **前版 partial 项补齐后收口** | 前一版本声明时留下的未实现项已完成或已显式改判出范围，收口后顺势进位 |
+
+情形 #3 的裁决人条款（CR-2=B 2026-08-23）：「已显式改判出范围」成立与否由**学生本人**
+裁决认定，施工方不得自签；证据形态与连带边界不另立判据，依先例
+`T2AG_023_SCOPE_CUT_AND_CLOSEOUT_2026-08-23.md`（权威件记录移出项与替代保证，
+且不连带推进被移出项的 ADR/EV 决策状态）。
 
 **明确不触发的**：新增 doctor 检查、新增或修改 playbook、修缮既有缺陷、EV 编号的独立批次。
 这些走 EV 与 changelog 记账，不动版本号。**升版是战役的产物，不是时间或工作量的产物**——

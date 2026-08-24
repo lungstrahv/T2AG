@@ -9,8 +9,10 @@ TESTS = (
     contracts.test_fixture_mutations_cannot_silently_noop,
     contracts.test_flow_and_offline_guide,
     contracts.test_offline_guide_version_drift_is_enforced,
+    contracts.test_lite_redaction_preserves_privacy_detector_literal,
     contracts.test_skeleton_package_surface_is_enforced,
     contracts.test_release_package_surface_severity_split,
+    contracts.test_unreadable_package_fails_closed_without_aborting_surface,
     contracts.test_candidate_replay_isolation_contract,
     contracts.test_constitution_parity_r1_section_drift_fails,
     contracts.test_constitution_parity_r2_stale_exemption_warns,
@@ -23,6 +25,7 @@ TESTS = (
     contracts.test_cross_edition_parity_r5_unreadable_source_fails_loudly,
     contracts.test_cross_edition_parity_r6_peer_resolution_is_symmetric,
     contracts.test_manifest_package_drift_pairs_by_claim_not_filename,
+    contracts.test_release_candidate_binding_freezes_both_ends,
     contracts.test_init_example_payload_is_documented_and_rejected,
 )
 

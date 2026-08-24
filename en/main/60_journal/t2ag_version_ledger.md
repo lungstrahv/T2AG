@@ -1,6 +1,32 @@
 # T2AG version ledger (canonical; sunk from constitution §7 on 2026-08-08 / EV-0020)
 
-> The current runtime version and present state are in `main/t2ag.md` §7; this file holds the authoritative anchors and SHAs of historical versions.
+> **This file is the single source of truth for the three version-status fields**
+> (`implementation_status` / `candidate_review` / `release_qualification`)
+> (CR-1=A 2026-08-23, P-0086); constitution §7 points, it does not carry — the
+> runtime version number itself is read from §7's first line.
+> The old header ("present state is in §7") formed a circular pointer and is
+> retired (2026-08-23 review correction).
+> **Write ownership (adjudicated 2026-08-23, narrowed the same day into three
+> layers)**:
+> (1) the **source-intrinsic status** `implementation_status` follows the three
+> sources and ships with the package, written before repacking — an instance's
+> later version bump needs the predecessor row;
+> (2) the **post-build qualifications** `candidate_review` /
+> `release_qualification` have their authoritative values in the **Main ledger
+> plus independent review evidence**; the `not_run` / `not_claimed` values in a
+> Skeleton or package are **build-time snapshots**, never final qualification —
+> a V3 verdict is a post-build fact, and requiring it to pre-exist inside the
+> reviewed package is the infinite loop "write pass → repack → new package
+> unreviewed";
+> (3) the `release_candidate` **freeze-binding row** (which references package
+> commits) is written once the packages and their source commits exist, and
+> **before the full V3 run**, into Main only, as its own commit — Main is never
+> packaged, so there is no commit cycle; a V3 executed with no binding row lets
+> candidate_binding fall into its silent branch, making that green
+> under-covered. The binding proves *which* two candidates are under review,
+> not that the review passed. A binding row must carry zh/en exactly once each
+> (enforced by CAND-BIND-004..006; corrupted, missing or duplicated ends all
+> FAIL).
 
 - 0.2.0 baseline structural authority：`60_journal/T2AG_0.2.0_STRUCTURE_PLAN.md`；migrator：`70_tools/migrate_020.py`
 - 0.2.1 incremental construction authority：`T2AG-STUDENT-PROFILE-READING-BRIDGE-20260730`
@@ -20,4 +46,11 @@
   `45548a3d66f717df6d92c8c5ae163bc89ca504c55cb9d1e4867e834a615dcffd`
 - 0.2.2 in-repo `release_qualification`: `finalization_delta_passed`; the independent conclusion is in
   `docs/handoffs/T2AG_022_FINALIZATION_DELTA_REVIEW_2026-08-05.md`（`finalization_delta_passed`）
-- Most recent release-qualified version: `0.2.2` (retained)
+- 0.2.3 scope re-adjudication and closeout authority:
+  `<workspace>/docs/handoffs/T2AG_023_SCOPE_CUT_AND_CLOSEOUT_2026-08-23.md`
+- 0.2.3 `implementation_status`：`complete`（the host interceptor was explicitly
+  re-adjudicated out of scope on 2026-08-23 and returned to EV-0013 as an open
+  evolution item; criterion: batch_workorder_spec.md §1.4.1 situation #3）
+- 0.2.3 `candidate_review`：`not_run`；in-repo `release_qualification`：`not_claimed`
+- Most recent release-qualified version: `0.2.2` (retained — 0.2.3 has not
+  obtained release qualification)

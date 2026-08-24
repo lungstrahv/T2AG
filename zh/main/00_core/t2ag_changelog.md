@@ -5,6 +5,30 @@
 
 ---
 
+## [2026-08-23] 镜像 Main：冻结时点绑定＋台账唯一真相源＋LV-5 三层回移（不升版）
+
+- **同源镜像**（与 Main 当日批 SHA-256 全同）：①新检查 `release.candidate_binding`
+  （CAND-BIND-001..003，CR-3=B：台账冻结收口 commit == 现役包 commit，两端皆冻）＋
+  契约测试（release contracts 21/21）；②宪法 §7 只指不载（CR-1=A，台账为版本状态唯一
+  真相源）＋`VER-BUMP-001` 文案改准；③spec §1.4.1 真相源/`release_candidate`/裁决人
+  三条款（CR-1/3/2）；④LV-5 三层回移（C11）：doctor 内 460 行 LV-5 块（MARKER_VARIANTS
+  196 条＋函数套件）＋`marker_assertions.py`＋`test_marker_robustness.py`（7 过＋2 具名
+  skip，点名 L2/D15 债）＋`test_dependencies.json` 挂 `doctor.marker_robustness`；
+  ⑤git_workflow §11.5 指针改准（P-0088）。
+- **判据严格度未改**：中文面既有字面量比对原样；call-site 迁移属 L2/D15。
+- **批2（同日审查回填，`4ae0e24` 之后）**：①CAND-BIND-004..006 双端完整性契约
+  （写坏/缺端/重复皆 FAIL）＋红测三面；②ledger 循环指针改准＋0.2.3 状态三行写入
+  （「状态随源、绑定归 Main」08-23 裁；同日收窄：绑定行须在**完整 V3 之前**写入
+  Main 并单独提交——V3 无绑定行则 candidate_binding 静默；包内
+  `not_run`/`not_claimed` 为构建时快照、不冒充最终资格）；
+  ③spec §1.4.1 归属条款。三值锚与本条目同值＝批2 未动检查集。
+- 未做：Skeleton 仓 commit（宿主，EA-0003）。
+
+#### 锚定断言（必填）
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66) ← `python -B -c "import hashlib,json,pathlib; k=sorted(json.loads(pathlib.Path('main/70_tools/validation_workflow.json').read_text(encoding='utf-8'))['doctor_checks']); print(len(k), hashlib.sha256(chr(10).join(k).encode()).hexdigest())"`
+
 ## [2026-08-22] 镜像 Main 021 套件转绿（P-0083）（不升版）
 
 - **同源镜像**：`test_021_closeout.py` 单件——测试替身补 `birth` 参数（`sync_lite.build_candidate`

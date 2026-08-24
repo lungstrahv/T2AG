@@ -155,8 +155,8 @@ Version updates, a `version_campaign`, and major governance-surface changes must
 
 ## 7. Version  [max 14]
 
-- Runtime version: `0.2.3`; `implementation_status`: `partial` (textbook delivery boundary defense-in-depth + host egress contract; the host interceptor is **not** implemented; the scan-completion criterion is currently ADR-0003 self-certification)
-- 0.2.3 `candidate_review`: `not_run`; in-repo `release_qualification`: `not_claimed`
+- Runtime version: `0.2.3`
+- The three version-status fields (`implementation_status` / `candidate_review` / `release_qualification`) have a single source of truth: `60_journal/t2ag_version_ledger.md`; this section points, it does not carry (CR-1=A 2026-08-23, P-0086)
 - 0.2.3 authoritative entry points: `docs/adr/0002-host-controlled-textbook-teaching-egress.md`, `docs/adr/0003-prefetcher-self-certified-scan-admission.md`, `docs/protocol/host-teaching-egress-api.md`
 - Historical version authority anchors and the SHA ledger are canonical in `60_journal/t2ag_version_ledger.md`
 - A version update must synchronize this file, memory, the changelog, the README, and the Skeleton and Lite identity entry points.

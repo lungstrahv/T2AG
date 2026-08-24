@@ -5,6 +5,41 @@
 
 ---
 
+## [2026-08-23] Freeze-point binding + ledger as single source of truth; no version bump
+
+- **New check** `release.candidate_binding` (CAND-BIND-001..003, CR-3=B, 2026-08-23):
+  the closeout commit frozen in the version ledger must equal the serving package's
+  commit; both ends freeze at closeout, so ordinary commits never redden. Serving
+  identity is machine-read from unretired manifests (no `superseded_by`), edition
+  judged name-first. Registered in workflow + release profile + handler surfaces;
+  contract test added (release contracts 15/15).
+- **Constitution §7 points, it does not carry** (CR-1=A): the version ledger is the
+  single source of truth for the three status fields; `VER-BUMP-001` wording now says
+  "no row in the ledger". `batch_workorder_spec.md` §1.4.1 gains the source-of-truth,
+  `release_candidate` freeze and adjudicator clauses (CR-1/3/2).
+- **git_workflow §11.5 pointer corrected** (P-0088): L2 landed 2026-08-07 as
+  `release.line_endings`; the "awaiting approval" pointer was stale.
+- **Batch 2 (same-day review backfill, after `ccd8ae0`)**: (a) completeness
+  contract CAND-BIND-004..006 — a `release_candidate` data row that is corrupted,
+  one-sided or duplicated now FAILs; the assertion no longer rests on optimistic
+  parsing; contract test gains three surfaces. (b) The ledger's circular header
+  ("present state is in §7") is retired; 0.2.3 status rows written under the
+  "status follows the source, binding stays with Main" adjudication (status rows
+  ship with the package; the freeze-binding row is Main-only, so no commit
+  cycle), narrowed the same day: the binding row must be written and committed
+  **before the full V3 run** — a V3 with no binding row lets candidate_binding
+  fall silent — and in-package `not_run` / `not_claimed` are build-time
+  snapshots, never final qualification. (c) spec §1.4.1 gains the ownership
+  clause. The three anchored values
+  are unchanged from this entry — batch 2 does not touch the check set.
+- Not done here: repository commit (host, EA-0003).
+
+#### Anchored assertions (required)
+
+- runtime plan sha256 = 1c62ce53564266964dd3fec8ae87fe031f53467de35ca58d964a2d40a0ca5755
+- runtime checks = 46
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66)
+
 ## [2026-08-23] English backport debt closed; no version bump
 
 - **Scope**: backported the frozen cross-edition machine list: the exam-bank runtime gate,
