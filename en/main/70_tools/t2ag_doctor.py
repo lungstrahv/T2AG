@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic doctor for the T2AG 0.2.3 object model."""
+"""Deterministic doctor for the T2AG 0.2.4 object model."""
 from __future__ import annotations
 
 import argparse
@@ -45,13 +45,12 @@ COURSE_SNAPSHOTS: dict[str, ProgressSnapshot] = {}
 COURSE_ROUTES: dict[str, ActivityRoute] = {}
 
 
-def detect_flavor() -> str:
-    if ROOT.name == "t2ag-lite":
+def detect_flavor(root: Path = ROOT) -> str:
+    if root.name == "t2ag-lite":
         return "lite"
-    if ROOT.name == "t2ag-skeleton":
-        return "skeleton"
-    profile = MAIN / "10_student/profile/profile.md"
-    readme = ROOT / "README.md"
+    main = root / "main"
+    profile = main / "10_student/profile/profile.md"
+    readme = root / "README.md"
     profile_text = (
         profile.read_text(encoding="utf-8-sig", errors="replace")
         if profile.is_file() else ""
@@ -65,6 +64,12 @@ def detect_flavor() -> str:
         profile_text,
         re.MULTILINE,
     ))
+    # A Personal Instance may intentionally keep the directory name produced by
+    # the release archive. Lifecycle state outranks packaging names.
+    if initialized:
+        return "main"
+    if root.name == "t2ag-skeleton":
+        return "skeleton"
     if not initialized and "t2ag-skeleton" in readme_text:
         return "skeleton"
     return "main"
@@ -190,6 +195,10 @@ ALLOWED_COURSE_TYPES = {"mastery", "project", "praxis"}
 ALLOWED_COURSE_DRIVERS = {"textbook", "goal", "project", "praxis"}
 ALLOWED_BINDING_STATES = {"idle", "active", "paused", "closed"}
 ALLOWED_CONTAINER_MODES = {"schedule", "progress"}
+PROFILE_TIMEZONE_RE = re.compile(
+    r"^(?:UTC|[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)+)$"
+)
+PROFILE_CUTOFF_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 # A coarse criterion carries a light consequence: a stall only triggers one triage
 # question (no points lost, nothing blocked), so calendar days are threshold enough.
 # The precise learning-day cursor is left to the rulings that *do* count toward the
@@ -228,6 +237,41 @@ CORE_PLAYBOOK_MARKERS = (
     "**Protection level**: core-playbook",
 )
 CORE_PLAYBOOK_MARKER = CORE_PLAYBOOK_MARKERS[0]
+
+
+def activity_close_profile_errors(profile_meta: dict[str, str]) -> list[str]:
+    """Validate portable close preferences without imposing author-local values."""
+    errors: list[str] = []
+    if profile_meta.get("activity_close_preference_schema") != (
+        "activity_close_preferences.v1"
+    ):
+        errors.append(
+            "Activity close global preference contract lacks activity_close_preferences.v1"
+        )
+    timezone_name = profile_meta.get("learning_timezone", "")
+    if not PROFILE_TIMEZONE_RE.fullmatch(timezone_name):
+        errors.append(
+            f"Activity close learning timezone is invalid: {timezone_name!r} "
+            "(expected UTC or an IANA region name)"
+        )
+    cutoff = profile_meta.get("learning_day_cutoff", "")
+    if not PROFILE_CUTOFF_RE.fullmatch(cutoff):
+        errors.append(
+            f"Activity close learning-day cutoff is invalid: {cutoff!r} (expected HH:MM)"
+        )
+    return errors
+
+
+def initialized_profile_content_errors(content: str) -> list[str]:
+    """Reject unresolved schema placeholders, not optional learner information."""
+    if re.search(
+        r"<(?:required|confirm|confirm-or-none|off\s*\|\s*suggest\s*\|\s*auto)>|"
+        r"[（(](?:待填写|to be filled in)[）)]",
+        content,
+        re.IGNORECASE,
+    ):
+        return ["an initialized profile still contains first-run required placeholders"]
+    return []
 # ---------------------------------------------------------------------------
 # LV-5 (2026-08-20): prose-marker language registry.
 #
@@ -742,33 +786,6 @@ def markdown_section(content: str, title: str) -> str:
     return match.group(1).strip() if match else ""
 
 
-def profile_section_has_answer(content: str, titles: tuple[str, ...]) -> bool:
-    for title in titles:
-        body = markdown_section(content, title)
-        if not body:
-            continue
-        for raw in body.splitlines():
-            line = raw.strip()
-            if not line or line.startswith(">") or line.startswith("<!--"):
-                continue
-            checkbox = re.match(r"^-\s*\[([ xX])\]\s*(.*)$", line)
-            if checkbox:
-                if checkbox.group(1).lower() == "x" and checkbox.group(2).strip():
-                    return True
-                continue
-            if line.startswith("-"):
-                value = line[1:].strip()
-                if "：" in value:
-                    value = value.split("：", 1)[1].strip()
-                elif ":" in value:
-                    value = value.split(":", 1)[1].strip()
-                if value and value not in {"—", "未提供"}:
-                    return True
-            elif line not in {"—", "未提供"}:
-                return True
-    return False
-
-
 def flat_yaml(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
@@ -1161,27 +1178,10 @@ def check_version_and_profile() -> None:
                 "FAIL",
                 f"{FLAVOR} profile lacks the student-confirmed exercise_hint_gate: enabled|disabled",
             )
-        if re.search(
-            r"<(?:required|confirm|confirm-or-none|off\s*\|\s*suggest\s*\|\s*auto)>"
-            r"|[（(](?:待填写|to be filled in)[）)]",
-            content,
-            re.IGNORECASE,
-        ):
-            report("FAIL", "an initialized profile still contains first-run required placeholders")
-        # LV-5: these four were a private lookup table duplicating what
-        # MARKER_VARIANTS already models (one canonical label, several accepted
-        # spellings). A translated edition's generated profile would have failed
-        # this check for the one reason that is intended, so the list now lives in
-        # the registry and a new language is a data change here too.
-        required_sections = (
-            "每周可投入学习时间", "学习目标", "辅导与展现偏好", "已有基础",
-        )
-        missing = [
-            label for label in required_sections
-            if not profile_section_has_answer(content, marker_spellings(label))
-        ]
-        if missing:
-            report("FAIL", f"initialized profile has unconfirmed required information: {missing}")
+        for error in initialized_profile_content_errors(content):
+            report("FAIL", error)
+        # First-run profile details are optional orientation evidence. Course
+        # goals, time, foundation, and tool habits belong to the later plan conversation.
 
 
 def check_skin_system() -> None:
@@ -7002,10 +7002,20 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
         )
     first_run = MAIN / "50_playbook/first_run.md"
     first_run_content = read(first_run) if first_run.is_file() else ""
-    if missing_markers(
-        first_run_content, ("先地图、后逐支", "学生希望怎样确认后再继续")
-    ):
-        report("FAIL", "first run did not collect the long-explanation map and branch-confirmation preferences")
+    optional_profile_markers = (
+        "Offer exactly this compact five-item profile block",
+        "every item is optional",
+        "Do not ask for teaching language here",
+    )
+    missing_optional_profile = [
+        marker for marker in optional_profile_markers if marker not in first_run_content
+    ]
+    if missing_optional_profile:
+        report(
+            "FAIL",
+            "first run does not preserve the five-optional-item and edition-language "
+            f"boundary: {missing_optional_profile}",
+        )
     route_tool = MAIN / "70_tools/t2ag_activity.py"
     if not route_tool.is_file():
         report("FAIL", "missing the unified LearningActivity router: main/70_tools/t2ag_activity.py")
@@ -9150,18 +9160,8 @@ def check_activity_ledgers(
             f"Activity ledger migration is incomplete: {len(ledger_paths)}/{len(courses)}",
         )
     profile_meta = frontmatter(MAIN / "10_student/profile/profile.md")
-    required_profile = {
-        "activity_close_preference_schema": "activity_close_preferences.v1",
-        "learning_timezone": "Asia/Singapore",
-        "learning_day_cutoff": "04:00",
-    }
-    for key, expected in required_profile.items():
-        if profile_meta.get(key) != expected:
-            report(
-                "FAIL",
-                f"Activity close global preference contract is missing: {key}="
-                f"{profile_meta.get(key)} expected={expected}",
-            )
+    for error in activity_close_profile_errors(profile_meta):
+        report("FAIL", error)
     for key in activity_ledger_contract.PREF_KEYS:
         if profile_meta.get(key) not in {"on", "off"}:
             report("FAIL", f"Activity close global preference is invalid: {key}")

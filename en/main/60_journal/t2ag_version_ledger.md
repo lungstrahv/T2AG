@@ -52,5 +52,10 @@
   re-adjudicated out of scope on 2026-08-23 and returned to EV-0013 as an open
   evolution item; criterion: batch_workorder_spec.md §1.4.1 situation #3）
 - 0.2.3 `candidate_review`：`not_run`；in-repo `release_qualification`：`not_claimed`
-- Most recent release-qualified version: `0.2.2` (retained — 0.2.3 has not
-  obtained release qualification)
+- Most recent release-qualified version: `0.2.3` (authority lives in the Main ledger
+  plus independent review evidence; the preceding source-package row remains the
+  0.2.3 build-time snapshot)
+- 0.2.4 `implementation_status`: `partial`
+- 0.2.4 `candidate_review`: `not_run`; in-repo `release_qualification`: `not_claimed`
+- 0.2.4 is currently a development baseline only; no candidate has been frozen and no
+  independent review or release qualification has been obtained

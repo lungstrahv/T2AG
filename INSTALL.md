@@ -1,87 +1,68 @@
-# T2AG installation / T2AG 安装
+# Install T2AG / 安装 T2AG
 
-This repository is one bilingual release checkout. It contains two complete
-editions:
+The downloaded or cloned folder is a bilingual **Release Source**. It contains
+both `zh/` and `en/` and is not the folder used for learning. Installation copies
+one selected edition into a sibling **Personal Instance** named exactly `t2ag`.
 
-- `zh/` — Chinese edition and maintained source of truth;
-- `en/` — English translated edition.
+下载或 clone 得到的是同时包含 `zh/` 与 `en/` 的双语**发行源**，不是日常学习目录。
+安装会把所选版本复制到同级、名称精确为 `t2ag` 的**个人实例**。
 
-本仓库是一个双语发行 checkout，同时包含两个完整版本：`zh/` 为中文正本，`en/` 为
-英文翻译版。安装的含义是把其中一个版本复制到新的个人目录；双语 checkout 本身不是个人实例。
+## Required language prompt / 必须使用的语言问题
 
-## Human path / 用户操作路径
+Before writing any file, ask exactly:
 
-1. On GitHub, select **Code → Download ZIP**. The downloaded archive contains both
-   `zh/` and `en/`.
-2. Extract the archive.
-3. Choose exactly one edition: `zh/` for Chinese or `en/` for English.
-4. Copy the contents of that edition into a new, dedicated personal directory.
-5. Open the personal directory with an AI agent and send `T2AG`.
+```text
+Choose your language / 选择你的语言：
+1. 中文
+2. English
+```
 
-1. 在 GitHub 选择 **Code → Download ZIP**；下载的是同时包含 `zh/` 和 `en/` 的双语包。
-2. 解压压缩包。
-3. 只选择一个版本：中文选 `zh/`，英文选 `en/`。
-4. 将所选版本的内容完整复制到一个全新、专用的个人目录。
-5. 用 AI agent 打开个人目录并发送 `T2AG`。
+There is **no default language**. Do not infer the answer from the conversation,
+browser, operating system, location, or model response language. If the user does
+not answer, stop before copying. 中文与 English 都必须由用户明确选择；不回答就不写入。
 
-## Agent installation contract / Agent 安装契约
+## Installation contract / 安装契约
 
-An agent asked to install T2AG from this repository must execute the following
-route in order:
+1. Resolve the absolute Release Source path. Its parent is the installation parent.
+2. Set the target to the exact sibling path `<installation-parent>/t2ag`.
+3. Refuse if `t2ag` already exists. Never merge, overwrite, or silently rename it.
+4. Copy only the selected `zh/` or `en/` edition into `t2ag`. Exclude `.git`,
+   `__pycache__`, `.venv`, `.cache`, `.recovery`, `.staging`, and `.uploads`.
+5. Verify `t2ag/AGENTS.md`, `t2ag/README.md`, and `t2ag/main/t2ag.md` exist and
+   `t2ag/.git` does not exist.
+6. Enter `t2ag`, read its `AGENTS.md` and `main/t2ag.md` in full, and perform first
+   initialization there. Chinese fixes the initial teaching language to `zh-CN`;
+   English fixes it to `en-US`.
+7. First run offers only five optional profile items: preferred name; learning
+   level; whether to introduce a reference curriculum; learning interests; and
+   self-introduction. An empty response uses documented defaults without follow-up.
+8. Run state refresh check and Doctor as required by the selected edition.
+9. Only after successful initialization and verification, ask separately whether
+   to delete the exact Release Source. Do not delete it without explicit confirmation.
 
-1. Determine two inputs from the user's request:
-   - `edition`: exactly `zh` or `en`;
-   - `target`: an explicit personal directory outside this bilingual checkout.
-   If either input is missing or ambiguous, ask the user before writing files.
-2. Resolve the absolute source and target paths and report them before copying.
-3. Refuse to copy if the target is the bilingual repository root, its `zh/` or
-   `en/` source directory, or any other tracked source checkout.
-4. Create the target only when it does not exist. If it exists and is not empty,
-   stop and ask the user; never merge into or overwrite an existing directory.
-5. Copy the complete selected edition while excluding `.git`, `__pycache__`,
-   `.venv`, `.cache`, `.recovery`, `.staging`, and `.uploads`.
-6. Verify that the target contains `AGENTS.md`, `README.md`, and `main/t2ag.md`,
-   and that the target does not contain a copied `.git` directory.
-7. Enter the target, read `AGENTS.md` and `main/t2ag.md` in full, and follow their
-   first-run route. The installation request does not authorize dependency
-   installation, textbook downloads, creation of real courses or Engagements,
-   deletion, Git commits, or remote uploads.
+目标目录固定为发行源同级的 `t2ag`。目标已存在即停止；只复制所选语言版本。初始化和
+验证成功后，才单独询问是否删除发行源；语言选择、复制成功或初始化成功都不构成删除授权。
 
-收到从本仓安装 T2AG 的请求后，agent 必须依次执行：
+## PowerShell reference route
 
-1. 从用户请求中确定两个输入：`edition` 只能是 `zh` 或 `en`；`target` 必须是双语 checkout
-   之外的明确个人目录。任一输入缺失或含糊时，写文件前先询问用户。
-2. 解析并报告源目录与目标目录的绝对路径，然后才复制。
-3. 如果目标是双语仓根、仓内 `zh/`/`en/` 源目录或其他受 Git 跟踪的源 checkout，拒绝复制。
-4. 仅在目标不存在时创建。目标已存在且非空时停止并询问；不得合并或覆盖已有目录。
-5. 完整复制所选版本，同时排除 `.git`、`__pycache__`、`.venv`、`.cache`、`.recovery`、
-   `.staging` 与 `.uploads`。
-6. 核验目标中存在 `AGENTS.md`、`README.md`、`main/t2ag.md`，且没有复制 `.git`。
-7. 进入目标目录，完整读取 `AGENTS.md` 与 `main/t2ag.md`，再按首次运行流程继续。安装请求
-   不授权安装依赖、下载教材、创建真实课程或 Engagement、删除文件、Git commit 或远端上传。
-
-### PowerShell copy route
-
-Run this from the extracted or cloned bilingual repository root after replacing
-the two input values:
+Run from the bilingual Release Source root after the user has explicitly chosen
+`zh` or `en`. This route copies and verifies; it does not delete the Release Source.
 
 ```powershell
-$edition = "zh" # exactly "zh" or "en"
-$target = Join-Path $env:USERPROFILE "Documents\my-t2ag"
-
+$edition = "zh" # exact explicit choice: "zh" or "en"
 if ($edition -notin @("zh", "en")) { throw "edition must be zh or en" }
+
 $releaseRoot = (Resolve-Path -LiteralPath ".").Path
 $source = (Resolve-Path -LiteralPath (Join-Path $releaseRoot $edition)).Path
-$target = [System.IO.Path]::GetFullPath($target)
-$releasePrefix = $releaseRoot.TrimEnd("\") + "\"
+$installParent = Split-Path -Parent $releaseRoot
+$target = Join-Path $installParent "t2ag"
 
-if ($target -eq $releaseRoot -or $target.StartsWith(
-        $releasePrefix,
-        [System.StringComparison]::OrdinalIgnoreCase
-    )) {
-    throw "target must be outside the bilingual release checkout: $target"
-}
 if (Test-Path -LiteralPath $target) { throw "target already exists: $target" }
+foreach ($required in @("AGENTS.md", "README.md", "main\t2ag.md")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $source $required))) {
+        throw "selected edition is missing $required"
+    }
+}
 
 New-Item -ItemType Directory -Path $target | Out-Null
 robocopy $source $target /E /XD .git __pycache__ .venv .cache .recovery .staging .uploads
@@ -89,65 +70,41 @@ if ($LASTEXITCODE -ge 8) { throw "copy failed with robocopy exit code $LASTEXITC
 
 foreach ($required in @("AGENTS.md", "README.md", "main\t2ag.md")) {
     if (-not (Test-Path -LiteralPath (Join-Path $target $required))) {
-        throw "installed copy is missing $required"
+        throw "personal instance is missing $required"
     }
 }
 if (Test-Path -LiteralPath (Join-Path $target ".git")) {
-    throw "installed copy must not contain .git"
+    throw "personal instance must not contain .git"
 }
 Set-Location -LiteralPath $target
 ```
 
-After the copy succeeds, the edition's own `AGENTS.md` and `main/t2ag.md` become
-the authoritative startup instructions.
+`robocopy` exit codes `0`–`7` are successful or nonfatal; `8` or higher is failure.
+After initialization and verification, a model may ask whether to delete
+`$releaseRoot`. If the user explicitly confirms, change into `$target` first,
+re-resolve and report the exact Release Source, verify it is the previously recorded
+path and is not `$target` or its parent, then delete only that directory.
 
-`robocopy` uses nonstandard exit codes. Values `0` through `7` are successful or
-nonfatal copy states; only `8` or higher is a copy failure. Agents must use the
-explicit check above instead of treating every nonzero value as failure.
+## Bash reference route (macOS / Linux)
 
-### Bash copy route (macOS / Linux)
-
-Run this from the extracted or cloned bilingual repository root after replacing
-the two input values. This route requires `rsync` and refuses an existing target
-or a target inside the bilingual checkout.
+Run from the bilingual Release Source root after the explicit language choice.
+This route requires `rsync` and does not delete the Release Source.
 
 ```bash
 set -eu
-
-edition="en" # exactly "zh" or "en"
-target="$HOME/Documents/my-t2ag"
-
-case "$edition" in
-  zh|en) ;;
-  *) echo "edition must be zh or en" >&2; exit 1 ;;
-esac
-
-command -v rsync >/dev/null 2>&1 || {
-  echo "rsync is required for the exclusion-preserving copy route" >&2
-  exit 1
-}
+edition="en" # exact explicit choice: "zh" or "en"
+case "$edition" in zh|en) ;; *) echo "edition must be zh or en" >&2; exit 1 ;; esac
+command -v rsync >/dev/null 2>&1 || { echo "rsync is required" >&2; exit 1; }
 
 release_root="$(pwd -P)"
 source="$release_root/$edition"
-target_parent="$(dirname "$target")"
+install_parent="$(dirname "$release_root")"
+target="$install_parent/t2ag"
 
-test -d "$target_parent" || {
-  echo "target parent does not exist: $target_parent" >&2
-  exit 1
-}
-target_parent="$(cd "$target_parent" && pwd -P)"
-target="$target_parent/$(basename "$target")"
-
-case "$target" in
-  "$release_root"|"$release_root"/*)
-    echo "target must be outside the bilingual release checkout: $target" >&2
-    exit 1
-    ;;
-esac
-test ! -e "$target" || {
-  echo "target already exists: $target" >&2
-  exit 1
-}
+test ! -e "$target" || { echo "target already exists: $target" >&2; exit 1; }
+for required in AGENTS.md README.md main/t2ag.md; do
+  test -e "$source/$required" || { echo "selected edition is missing $required" >&2; exit 1; }
+done
 
 mkdir "$target"
 rsync -a \
@@ -156,17 +113,21 @@ rsync -a \
   --exclude='.uploads/' "$source/" "$target/"
 
 for required in AGENTS.md README.md main/t2ag.md; do
-  test -e "$target/$required" || {
-    echo "installed copy is missing $required" >&2
-    exit 1
-  }
+  test -e "$target/$required" || { echo "personal instance is missing $required" >&2; exit 1; }
 done
-test ! -e "$target/.git" || {
-  echo "installed copy must not contain .git" >&2
-  exit 1
-}
+test ! -e "$target/.git" || { echo "personal instance must not contain .git" >&2; exit 1; }
 cd "$target"
 ```
 
-After the copy succeeds, the edition's own `AGENTS.md` and `main/t2ag.md` become
-the authoritative startup instructions.
+After successful first run and verification, deletion remains a separate,
+explicitly confirmed operation against the previously recorded Release Source path.
+
+## Result / 结果
+
+During installation there may temporarily be two folders:
+
+- the downloaded Release Source, whose name is chosen by the browser or Git; and
+- the generated Personal Instance, always named `t2ag`.
+
+The learner works only in `t2ag`. The Release Source may be kept as an installer
+or deleted after the separate confirmation. It is never the live learning instance.

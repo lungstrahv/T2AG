@@ -1,4 +1,4 @@
-# T2AG 0.2.3 Skeleton
+# T2AG 0.2.4 Skeleton
 
 > 空实例原件。它可复制为新的 T2AG 实例，但自身不得承载真实学生数据。
 > 复制到任意新目录后，未初始化 profile 仍按 Skeleton 空模板验收；完成
@@ -8,9 +8,10 @@
 空模板识别标记：`t2ag-skeleton`。复制后的目录可以自由改名；完成首次初始化后，
 系统改由 profile 的 `initialization_status` 识别个人实例。
 
-0.2.3 Skeleton 提供 activity ledger、exerciseNN 模板、原子 activity lifecycle/close 工具，
-并保留分类 reading ActivityRecord 空容器和双向 JSON 候选桥接能力；它不含真实课程活动、
-AR、书籍、sidecar、候选贡献或消费回执。两个系统始终各写各仓。
+0.2.4 Skeleton 处于开发态：首次启动资料缩减为五项可选，Edition 固定 `zh-CN`，安装器
+把所选 Edition 复制为同级 `t2ag/`，并在初始化成功后另问是否删除发行源。版本状态为
+`partial / not_run / not_claimed`；它不含真实课程活动、AR、书籍、sidecar、候选贡献或
+消费回执。最近 release 资格基线仍为 0.2.3。
 
 本 Skeleton 作为可复用开源基础持续维护，通用教学机制由真实实例反馈验证后再吸收，
 但不携带真实学生、课程进度或个人原话。

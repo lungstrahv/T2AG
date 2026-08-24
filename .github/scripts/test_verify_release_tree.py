@@ -63,6 +63,14 @@ class ReleaseTreeTests(unittest.TestCase):
         findings = verifier.validate_root_agents("stopped_budget token")
         self.assertTrue(findings)
 
+    def test_language_selection_contract_markers_are_mandatory(self) -> None:
+        complete = "\n".join(verifier.ROOT_INSTALL_MARKERS)
+        self.assertEqual(verifier.validate_root_install(complete), [])
+        findings = verifier.validate_root_install(
+            "Choose your language / 选择你的语言"
+        )
+        self.assertTrue(findings)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

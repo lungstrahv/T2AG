@@ -13,10 +13,10 @@ drives it.
 
 Authority boundary
 ------------------
-This tool materializes structure from `_templates`. It does not decide anything
-that belongs to the user: course choice, hint-gate mode, timezone, group
-membership, teacher assignment. Missing required input is an error, never a
-default. It does not create `.venv`, install dependencies, download textbooks,
+This tool materializes structure from `_templates`. The five first-run profile
+questions are optional and use the public defaults below; course choice, group
+membership and teacher assignment still belong to the user and are never
+invented. It does not create `.venv`, install dependencies, download textbooks,
 generate Engagements, or run git. It does not run Doctor or state refresh on the
 user's behalf — it prints the commands the playbook requires next, because
 "generated" is not "verified".
@@ -30,6 +30,7 @@ import json
 import re
 import shutil
 import sys
+from datetime import date
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
@@ -59,35 +60,18 @@ PLACEHOLDER_ALLOWLIST = frozenset(
     }
 )
 
-PROFILE_REQUIRED_ANSWERS = (
+PROFILE_QUESTION_FIELDS = (
     "nickname",
-    "school",
-    "stage",
-    "direction",
-    "weekly_time",
-    "goals",
-    "tutoring_preference",
-    "long_explanation_mode",
-    "branch_confirmation",
-    "cycle_structure",
-    "small_adjustment",
-    "big_adjustment",
-    "aged_review_mode",
-    "existing_basis",
-    "current_difficulty",
-    "teaching_notes",
-    "exercise_hint_gate",
-    "learning_timezone",
-    "learning_day_cutoff",
-    "lesson_actual_review",
-    "lesson_student_feedback",
-    "lesson_knowledge_absorption",
-    "exercise_problem_review",
-    "exercise_knowledge_mastery",
-    "updated",
+    "learning_level",
+    "reference_curriculum",
+    "learning_interests",
+    "self_introduction",
 )
+PROFILE_REQUIRED_ANSWERS: tuple[str, ...] = ()
 ONOFF = ("on", "off")
 ANSWER_ENUMS = {
+    "learning_level": ("secondary_school", "university", "bachelor"),
+    "reference_curriculum": ("yes", "no", "pending_generation"),
     "exercise_hint_gate": ("enabled", "disabled"),
     "long_explanation_mode": ("map-first", "continuous", "user-defined"),
     "aged_review_mode": ("off", "suggest", "auto"),
@@ -97,6 +81,16 @@ ANSWER_ENUMS = {
     "exercise_problem_review": ONOFF,
     "exercise_knowledge_mastery": ONOFF,
 }
+LEARNING_LEVEL_LABELS = {
+    "secondary_school": "中学在读",
+    "university": "大学在读",
+    "bachelor": "学士",
+}
+REFERENCE_CURRICULUM_LABELS = {
+    "yes": "是",
+    "no": "否",
+    "pending_generation": "有待生成",
+}
 AGENT_DEFAULTS = {
     "agent_pool_limit": 6,
     "agent_max_active": 3,
@@ -104,6 +98,32 @@ AGENT_DEFAULTS = {
     "agent_startup_readiness": "learning_ready_first",
     "agent_background_reporting": "blockers_only",
 }
+PROFILE_DEFAULTS = {
+    "nickname": "同学",
+    "learning_level": "secondary_school",
+    "reference_curriculum": "pending_generation",
+    "learning_interests": "有待生成",
+    "self_introduction": "未提供",
+    "tutoring_preference": "先给整体地图，再逐支展开；每步结束后确认再继续",
+    "long_explanation_mode": "map-first",
+    "branch_confirmation": "每支讲完确认",
+    "cycle_structure": "按课程与活动生成",
+    "small_adjustment": "每循环至多调整一处运行参数",
+    "big_adjustment": "每三个循环一次调整窗口",
+    "aged_review_mode": "suggest",
+    "exercise_hint_gate": "enabled",
+    "learning_timezone": "UTC",
+    "learning_day_cutoff": "04:00",
+    "lesson_actual_review": "on",
+    "lesson_student_feedback": "on",
+    "lesson_knowledge_absorption": "on",
+    "exercise_problem_review": "on",
+    "exercise_knowledge_mastery": "on",
+}
+
+
+def default_answers() -> dict[str, object]:
+    return {**PROFILE_DEFAULTS, **AGENT_DEFAULTS, "updated": date.today().isoformat()}
 
 
 class GenerationError(Exception):
@@ -196,7 +216,7 @@ def load_answers(args: argparse.Namespace) -> dict[str, object]:
     elif args.answers_json:
         payload = json.loads(args.answers_json)
     else:
-        raise fail("init 需要 --answers 或 --answers-json；不得由工具代填学生答案")
+        payload = {}
     if not isinstance(payload, dict):
         raise fail("answers 必须是 JSON 对象")
     # 示例必须保持为合法 JSON，才能真实展示输入形状；也因此必须按键拒绝，
@@ -207,25 +227,34 @@ def load_answers(args: argparse.Namespace) -> dict[str, object]:
             "逐项与用户确认后另存为自己的 answers.json，并删除 example_only 键。"
             "字段说明见 main/70_tools/answers.schema.json"
         )
-    missing = [key for key in PROFILE_REQUIRED_ANSWERS if key not in payload]
-    if missing:
-        raise fail(f"answers 缺必答项（这些必须由用户确认，不能默认）：{missing}")
+    allowed_keys = set(default_answers()) | {"example_only"}
+    unknown = sorted(set(payload) - allowed_keys)
+    if unknown:
+        raise fail(f"answers 含未知字段，拒绝猜测：{unknown}")
+    answers = default_answers()
+    answers.update(
+        {
+            key: value
+            for key, value in payload.items()
+            if key != "example_only" and value is not None and str(value).strip()
+        }
+    )
     for key, allowed in ANSWER_ENUMS.items():
-        if str(payload[key]) not in allowed:
-            raise fail(f"answers.{key} 非法：{payload[key]!r}，允许 {list(allowed)}")
-    if not DATE_RE.match(str(payload["updated"])):
+        if str(answers[key]) not in allowed:
+            raise fail(f"answers.{key} 非法：{answers[key]!r}，允许 {list(allowed)}")
+    if not DATE_RE.match(str(answers["updated"])):
         raise fail("answers.updated 必须是 YYYY-MM-DD")
-    goals = payload["goals"]
-    if not isinstance(goals, list) or not goals:
-        raise fail("answers.goals 必须是非空列表")
-    return payload
+    pool = int(answers["agent_pool_limit"])
+    active = int(answers["agent_max_active"])
+    if not (1 <= pool <= 6 and 1 <= active <= 3 and active <= pool):
+        raise fail("agent_pool_limit/agent_max_active 必须满足 1–6、1–3 且 active ≤ pool")
+    return answers
 
 
-def render_profile(answers: dict[str, object]) -> str:
+def render_profile(answers: dict[str, object], *, teaching_language: str = "zh-CN") -> str:
     def value(key: str) -> str:
         return str(answers[key])
 
-    goals = "\n".join(f"- {item}" for item in answers["goals"])
     frontmatter = "\n".join(
         [
             "---",
@@ -243,6 +272,9 @@ def render_profile(answers: dict[str, object]) -> str:
             "activity_close_first_prompt_status: pending",
             "activity_close_first_prompt_at: none",
             f"learning_timezone: {value('learning_timezone')}",
+            f"teaching_language: {teaching_language}",
+            f"learning_level: {value('learning_level')}",
+            f"reference_curriculum: {value('reference_curriculum')}",
             f"learning_day_cutoff: {value('learning_day_cutoff')}",
             f"lesson_actual_review: {value('lesson_actual_review')}",
             f"lesson_student_feedback: {value('lesson_student_feedback')}",
@@ -257,30 +289,23 @@ def render_profile(answers: dict[str, object]) -> str:
         f"{frontmatter}\n"
         "# 学生档案\n\n"
         "> 由 `70_tools/t2ag_init.py init` 从用户确认的答案生成。\n"
-        "> 未经用户确认的信息不得补写；变更偏好后同步刷新 memory 缓存。\n\n"
+        "> 五项资料都可跳过；未回答项使用公开默认值。变更偏好后同步刷新 memory 缓存。\n\n"
         "## 基本信息\n\n"
-        f"- 姓名或昵称：{value('nickname')}\n"
-        f"- 学校或机构：{value('school')}\n"
-        f"- 年级或阶段：{value('stage')}\n"
-        f"- 学习方向：{value('direction')}\n\n"
-        "## 每周可投入学习时间\n\n"
-        f"- {value('weekly_time')}\n\n"
-        "## 学习目标\n\n"
-        f"{goals}\n\n"
-        "## 辅导与展现偏好\n\n"
-        f"- 一般辅导偏好：{value('tutoring_preference')}\n"
-        f"- 多块长篇讲解：{value('long_explanation_mode')}\n"
-        f"- 分支间确认方式：{value('branch_confirmation')}\n\n"
-        "## 执行参数\n\n"
-        f"- 周期结构：{value('cycle_structure')}\n"
-        f"- 小调整频率：{value('small_adjustment')}\n"
-        f"- 大调整窗口：{value('big_adjustment')}\n"
-        f"- 陈年复习卷模式：{value('aged_review_mode')}\n\n"
-        "## 个体基线\n\n"
-        f"- 已有基础：{value('existing_basis')}\n"
-        f"- 当前困难：{value('current_difficulty')}\n"
-        f"- 稳定教学注意事项：{value('teaching_notes')}\n"
+        f"- 称呼：{value('nickname')}\n"
+        f"- 学习水平：{LEARNING_LEVEL_LABELS[value('learning_level')]}\n"
+        f"- 是否引入参考培养方案：{REFERENCE_CURRICULUM_LABELS[value('reference_curriculum')]}\n\n"
+        "## 学习兴趣\n\n"
+        f"- {value('learning_interests')}\n\n"
+        "## 自我介绍\n\n"
+        f"{value('self_introduction')}\n"
     )
+
+
+def profile_teaching_language(profile_text: str) -> str:
+    match = re.search(r"^teaching_language:\s*(\S+)\s*$", profile_text, re.MULTILINE)
+    if not match or match.group(1).startswith("<"):
+        return "zh-CN"
+    return match.group(1)
 
 
 def switch_release_identity(root: Path, art_file: str, notes: list[str]) -> None:
@@ -356,13 +381,18 @@ def cmd_init(args: argparse.Namespace) -> int:
     root = require_root(Path(args.root))
     answers = load_answers(args)
     profile_path = root / "main/10_student/profile/profile.md"
-    if profile_is_initialized(read_text(profile_path)):
+    profile_text = read_text(profile_path)
+    if profile_is_initialized(profile_text):
         raise fail(
             "profile 已 initialized：这不是首次启动。改偏好请直接编辑 profile，"
             "不要用 init 重置实例。"
         )
     notes: list[str] = []
-    write_text(profile_path, render_profile(answers), allow_overwrite=True)
+    write_text(
+        profile_path,
+        render_profile(answers, teaching_language=profile_teaching_language(profile_text)),
+        allow_overwrite=True,
+    )
     notes.append("profile → initialized")
     switch_release_identity(root, args.art_file, notes)
     print("[OK] first run initialized")

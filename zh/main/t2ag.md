@@ -1,4 +1,4 @@
-# T2AG 0.2.3 宪法
+# T2AG 0.2.4 宪法
 
 > T2AG 是一个以文件为长期记忆、以可审计状态推进学习的个人教学系统。
 > 本文件是启动入口和最高本地规则；实现细节下沉到 domain model 与 playbook。
@@ -264,10 +264,11 @@ V0–V3、预算与防越级门以它为准，绑定 plan SHA）。
 
 ## 7. 版本  [max 14]
 
-- 当前运行版本：`0.2.3`
+- 当前运行版本：`0.2.4`
 - 版本状态三字段（`implementation_status`／`candidate_review`／`release_qualification`）
   唯一真相源＝`60_journal/t2ag_version_ledger.md`；本节只指不载（CR-1=A 2026-08-23，P-0086）
-- 0.2.3 权威入口：`docs/adr/0002-host-controlled-textbook-teaching-egress.md`、
+- 0.2.4 当前开发状态与三字段：`60_journal/t2ag_version_ledger.md`
+- 0.2.3 已发行基线权威入口：`docs/adr/0002-host-controlled-textbook-teaching-egress.md`、
   `docs/adr/0003-prefetcher-self-certified-scan-admission.md`、
   `docs/protocol/host-teaching-egress-api.md`
 - 历史版本权威锚与 SHA 台账 canonical：`60_journal/t2ag_version_ledger.md`

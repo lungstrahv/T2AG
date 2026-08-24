@@ -353,23 +353,54 @@ def assert_message(collection: list[str], token: str) -> None:
 
 
 def test_profile_placeholder(root: Path) -> None:
-    reset(root)
-    write(root / "README.md", f"{FIXTURE_VERSION}\n")
-    write(root / "AGENTS.md", f"{FIXTURE_VERSION}\n")
-    write(root / "main/bin/t2ag", f"{FIXTURE_VERSION}\n")
-    write(root / "main/t2ag.md", FIXTURE_CONSTITUTION)
-    write(root / "main/00_core/t2ag_memory.md", f"{FIXTURE_VERSION}\n")
-    write(
-        root / "main/10_student/profile/profile.md",
-        "---\ninitialization_status: initialized\n---\n"
-        "## 每周可投入学习时间\n- （待填写）\n"
-        "## 学习目标\n- [ ] （待填写）\n"
-        "## 编程基础\n- （待填写）\n"
-        "## 期望的辅导方式\n- （待填写）\n",
+    errors = doctor.initialized_profile_content_errors(
+        "## Learning interests\n\n- (to be filled in)\n"
     )
-    run_silently(doctor.check_version_and_profile)
-    assert_message(doctor.fails, "required placeholders")
-    assert_message(doctor.fails, "has unconfirmed required information")
+    assert errors == [
+        "an initialized profile still contains first-run required placeholders"
+    ], errors
+    optional = doctor.initialized_profile_content_errors(
+        "## Learning interests\n\n- To be generated\n\n## Self-introduction\n\nNot provided\n"
+    )
+    assert optional == [], optional
+
+    release = root / "t2ag-skeleton"
+    profile = release / "main/10_student/profile/profile.md"
+    write(
+        profile,
+        "---\ninitialization_status: uninitialized\n---\n# Student profile\n",
+    )
+    write(release / "README.md", "# T2AG English Skeleton\n")
+    assert doctor.detect_flavor(release) == "skeleton"
+    write(
+        profile,
+        "---\ninitialization_status: initialized\n---\n"
+        "# Student profile\n\n## Learning interests\n\n- To be generated\n\n"
+        "## Self-introduction\n\nNot provided\n",
+    )
+    assert doctor.detect_flavor(release) == "main"
+
+    for timezone_name, cutoff in (
+        ("Asia/Shanghai", "00:00"),
+        ("America/New_York", "04:00"),
+        ("UTC", "23:59"),
+    ):
+        errors = doctor.activity_close_profile_errors(
+            {
+                "activity_close_preference_schema": "activity_close_preferences.v1",
+                "learning_timezone": timezone_name,
+                "learning_day_cutoff": cutoff,
+            }
+        )
+        assert errors == [], (timezone_name, cutoff, errors)
+    errors = doctor.activity_close_profile_errors(
+        {
+            "activity_close_preference_schema": "activity_close_preferences.v1",
+            "learning_timezone": "New York",
+            "learning_day_cutoff": "24:00",
+        }
+    )
+    assert len(errors) == 2 and all("invalid" in error for error in errors), errors
 
 
 def test_profile_container_contract(root: Path) -> None:
@@ -2659,29 +2690,10 @@ def copy_release_without_links(source: Path, fixture: Path) -> None:
 
 SYNTHETIC_INIT_ANSWERS = {
     "nickname": "synthetic student",
-    "school": "synthetic institute",
-    "stage": "synthetic stage",
-    "direction": "synthetic direction",
-    "weekly_time": "1 小时",
-    "goals": ["验证公开生成路径的 Exercise-first 往返"],
-    "tutoring_preference": "逐步确认",
-    "long_explanation_mode": "map-first",
-    "branch_confirmation": "每支讲完确认",
-    "cycle_structure": "synthetic cycle",
-    "small_adjustment": "每循环一次",
-    "big_adjustment": "每三循环",
-    "aged_review_mode": "suggest",
-    "existing_basis": "合成测试",
-    "current_difficulty": "not provided",
-    "teaching_notes": "not provided",
-    "exercise_hint_gate": "enabled",
-    "learning_timezone": "Asia/Singapore",
-    "learning_day_cutoff": "04:00",
-    "lesson_actual_review": "on",
-    "lesson_student_feedback": "on",
-    "lesson_knowledge_absorption": "on",
-    "exercise_problem_review": "on",
-    "exercise_knowledge_mastery": "on",
+    "learning_level": "university",
+    "reference_curriculum": "no",
+    "learning_interests": "Exercise-first public generation roundtrip",
+    "self_introduction": "synthetic test instance",
     "updated": "2026-07-26",
 }
 
@@ -5352,7 +5364,7 @@ def test_release_candidate_binding_freezes_both_ends(root: Path) -> None:
 
 
 def test_init_example_payload_is_documented_and_rejected(root: Path) -> None:
-    """The public example has the real shape but can never become user consent."""
+    """The five-question example is optional, documented, and never consent."""
     del root
     spec_init = importlib.util.spec_from_file_location(
         "t2ag_init_example_contract", SCRIPT.with_name("t2ag_init.py")
@@ -5364,16 +5376,17 @@ def test_init_example_payload_is_documented_and_rejected(root: Path) -> None:
     schema_path = SCRIPT.with_name("answers.schema.json")
     payload = json.loads(example.read_text(encoding="utf-8"))
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    required = set(init_mod.PROFILE_REQUIRED_ANSWERS)
-    if set(schema.get("required", [])) != required:
-        raise AssertionError("answers.schema.json required fields drifted from t2ag_init")
-    optional = set(init_mod.AGENT_DEFAULTS)
+    if schema.get("required") != [] or init_mod.PROFILE_REQUIRED_ANSWERS:
+        raise AssertionError("all five first-run profile questions must remain optional")
+    allowed = set(init_mod.default_answers())
     if schema.get("additionalProperties") is not False:
         raise AssertionError("answers.schema.json must reject misspelled/unknown fields")
-    if set(schema.get("properties", {})) != required | optional | {"example_only"}:
-        raise AssertionError("answers.schema.json properties drifted from required + optional inputs")
-    if set(payload) != required | {"example_only"} or payload["example_only"] is not True:
-        raise AssertionError("answers.example.json must carry exactly the real shape plus the refusal marker")
+    if set(schema.get("properties", {})) != allowed | {"example_only"}:
+        raise AssertionError("answers.schema.json properties drifted from public defaults")
+    if set(payload) != set(init_mod.PROFILE_QUESTION_FIELDS) | {"example_only"}:
+        raise AssertionError("answers.example.json must show exactly five questions plus refusal marker")
+    if payload["example_only"] is not True:
+        raise AssertionError("answers.example.json lost the refusal marker")
     args = type("Args", (), {"answers": str(example), "answers_json": None})()
     try:
         init_mod.load_answers(args)
@@ -5382,11 +5395,24 @@ def test_init_example_payload_is_documented_and_rejected(root: Path) -> None:
             raise AssertionError(f"the refusal must name the marker: {exc}") from exc
     else:
         raise AssertionError("the example payload was accepted as user-confirmed answers")
+    defaults_args = type("Args", (), {"answers": None, "answers_json": "{}"})()
+    defaults = init_mod.load_answers(defaults_args)
+    if defaults["learning_level"] != "secondary_school":
+        raise AssertionError("empty answers must default to secondary_school")
+    if defaults["learning_interests"] != "to be generated":
+        raise AssertionError("empty answers must retain the pending interest marker")
+    if defaults["reference_curriculum"] != "pending_generation":
+        raise AssertionError("empty answers must keep reference curriculum pending")
     customized = {key: value for key, value in payload.items() if key != "example_only"}
     customized.update({"agent_pool_limit": 2, "agent_max_active": 1})
-    rendered = init_mod.render_profile(customized)
+    custom_args = type(
+        "Args", (), {"answers": None, "answers_json": json.dumps(customized)}
+    )()
+    rendered = init_mod.render_profile(init_mod.load_answers(custom_args))
     if "agent_pool_limit: 2" not in rendered or "agent_max_active: 1" not in rendered:
         raise AssertionError("documented optional agent overrides were silently ignored")
+    if "- Learning level: University student" not in rendered:
+        raise AssertionError("the selected learning level was not rendered")
 
 
 def test_english_backport_observers_are_executable(root: Path) -> None:

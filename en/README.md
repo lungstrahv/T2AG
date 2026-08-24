@@ -1,4 +1,4 @@
-# T2AG 0.2.3 Skeleton (English edition)
+# T2AG 0.2.4 Skeleton (English edition)
 
 > An empty instance master. Copy it to create a new T2AG instance; it must never
 > carry real student data itself. After copying to any new directory, an
@@ -11,12 +11,13 @@ Empty-template identity marker: `t2ag-skeleton`. You may freely rename the copie
 directory; after first run, `initialization_status` in the profile identifies the
 personal instance.
 
-0.2.3 Skeleton provides the activity ledger, the `exerciseNN` templates, and the
-atomic activity lifecycle/close tools. It keeps the classified reading
-`ActivityRecord` empty containers and the bidirectional JSON candidate bridge
-capability. It contains no real course activity, no AR, no books, no sidecars, no
-candidate contributions and no consumption receipts. The two systems always write
-to their own repositories.
+0.2.4 Skeleton is a development baseline. First run now asks for five optional
+orientation items, this edition fixes the source language to `en-US`, and the
+installer copies the selected edition to a sibling `t2ag/` before separately asking,
+after successful initialization, whether to remove the release source. Its status is
+`partial / not_run / not_claimed`; it contains no real course activity, AR, books,
+sidecars, candidate contributions, or consumption receipts. The most recent
+release-qualified baseline remains 0.2.3.
 
 ---
 

@@ -66,10 +66,23 @@ FORBIDDEN_EDITION_FILES = frozenset(
 )
 
 ROOT_AGENTS_MARKERS = (
-    "Authorization is non-amplifying and budget stop-loss closes the loop",
-    "授权不可放大与闭环止损",
+    "Choose your language / 选择你的语言",
+    "There is no default",
+    "sibling target named `t2ag`",
+    "language choice is not deletion authorization",
+    "语言无默认值",
+    "Authorization is non-amplifying",
     "stopped_budget",
     "token",
+)
+
+ROOT_INSTALL_MARKERS = (
+    "Choose your language / 选择你的语言",
+    "There is **no default language**",
+    "named exactly `t2ag`",
+    "Only after successful initialization and verification",
+    "Do not delete it without explicit confirmation",
+    "目标已存在即停止",
 )
 
 
@@ -180,6 +193,11 @@ def validate_root_agents(content: str) -> list[str]:
     return [f"root AGENTS.md lacks governance markers: {missing}"] if missing else []
 
 
+def validate_root_install(content: str) -> list[str]:
+    missing = [marker for marker in ROOT_INSTALL_MARKERS if marker not in content]
+    return [f"root INSTALL.md lacks language-selection markers: {missing}"] if missing else []
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group()
@@ -199,14 +217,20 @@ def main(argv: list[str] | None = None) -> int:
             identity = "WORKTREE_PREVIEW_ONLY"
             paths = worktree_paths()
             agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+            install = (ROOT / "INSTALL.md").read_text(encoding="utf-8")
         else:
             identity, paths = committed_tree(args.tree)
             agents = _git("show", f"{identity}:AGENTS.md")
+            install = _git("show", f"{identity}:INSTALL.md")
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"FAIL: unable to read release surface: {exc}", file=sys.stderr)
         return 2
 
-    findings = validate_paths(paths) + validate_root_agents(agents)
+    findings = (
+        validate_paths(paths)
+        + validate_root_agents(agents)
+        + validate_root_install(install)
+    )
     if findings:
         for finding in findings:
             print(f"FAIL: {finding}")

@@ -49,7 +49,11 @@
 - 0.2.3 `implementation_status`：`complete`（宿主 interceptor 已于 2026-08-23
   显式改判出范围，归位为 EV-0013 开放演化项；判据 batch_workorder_spec.md §1.4.1 情形 #3）
 - 0.2.3 `candidate_review`：`not_run`；仓内 `release_qualification`：`not_claimed`
-- 最近 release 资格版本：`0.2.2`（保留——0.2.3 未取得发行资格）
+- 最近 release 资格版本：`0.2.3`（资格权威在 Main 台账与独立评审证据；上行保留 0.2.3
+  源包构建时快照）
+- 0.2.4 `implementation_status`：`partial`
+- 0.2.4 `candidate_review`：`not_run`；仓内 `release_qualification`：`not_claimed`
+- 0.2.4 当前仅为开发基线；未冻结候选、未取得独立复审或发行资格
 
 ## Lite 边界（P-0071 收窄，2026-08-21）
 

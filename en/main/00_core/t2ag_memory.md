@@ -1,4 +1,4 @@
-# The T2AG 0.2.3 cross-session memory index
+# The T2AG 0.2.4 cross-session memory index
 
 > The Skeleton's empty-instance cache. Never fill in a real student, course, or group before first run.
 
@@ -47,7 +47,7 @@ means the budget mechanism never takes effect on this instance.
 | Current teacher | — | `main/20_teacher/overlay.md` |
 | Student profile | uninitialized | `main/10_student/profile/profile.md` |
 | active binding | none | created after first run |
-| T2AG version | 0.2.3 | `main/t2ag.md` |
+| T2AG version | 0.2.4 | `main/t2ag.md` |
 | Cloud bridge | paused | `cloud/cloud_sync_state.md` |
 <!-- T2AG_GENERATED:STATE_POINTERS:END -->
 
@@ -77,7 +77,7 @@ means the budget mechanism never takes effect on this instance.
   authorized separately, once the exact object and its body text are visible.
 - Neither an evidence nor a recovery checkpoint is a release snapshot; a formal local version boundary may be named
   only after both the first candidate's full independent re-review and the bounded finalization delta re-review pass.
-- The current version is 0.2.3; Course progress and the activity ledger are now separated, and the Skeleton provides
+- The current version is 0.2.4 (development); Course progress and the activity ledger are now separated, and the Skeleton provides
   an empty ledger, exerciseNN, atomic lifecycle/close and recover capabilities, but carries no real migration or
   session-close instance.
 - The 0.2.1 closing candidate supplied the reading ActivityRecord empty container, six JSON schemas, and the

@@ -1,4 +1,4 @@
-# T2AG 0.2.3 agent entry point
+# T2AG 0.2.4 agent entry point
 
 On entering this repository, read `main/t2ag.md` (the constitution) first: the
 immutable principles, the structure of each domain, and every canonical pointer

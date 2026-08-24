@@ -13,7 +13,7 @@ activity_close_preferences_initialized_at: <set-on-initialization>
 activity_close_first_prompt_status: pending
 activity_close_first_prompt_at: none
 learning_timezone: <confirm-IANA-timezone>
-teaching_language: <confirm-single-value-eg-zh-CN>
+teaching_language: zh-CN
 learning_day_cutoff: <confirm-HH:MM>
 lesson_actual_review: <on|off>
 lesson_student_feedback: <on|off>
@@ -24,42 +24,25 @@ updated: —
 ---
 # 学生档案（空模板）
 
-> 首次启动时与用户逐项确认。不得预填真实姓名、学校、课程、学生编号或推断性格。
+> 首次启动只展示五项可选资料；不得预填真实姓名、学校、课程、学生编号或推断性格。
 
 ## 基本信息
 
-- 姓名或昵称：<required>
-- 学校或机构：<required>
-- 年级或阶段：<required>
-- 学习方向：<required>
-- 每周可投入时间：<required>
+- 称呼：同学
+- 学习水平：secondary_school
+- 是否引入参考培养方案：pending_generation
 
-## 学习目标
+## 学习兴趣
 
-- <required>
+- 有待生成
 
-## 辅导与展现偏好
+## 自我介绍
 
-- 一般辅导偏好：<required>
-- 多块长篇讲解：<map-first | continuous | user-defined>
-- 分支间确认方式：<confirm>
-
-## 执行参数
-
-- 周期结构：<confirm>
-- 小调整频率：<confirm>
-- 大调整窗口：<confirm>
-- 陈年复习卷模式：<off | suggest | auto>
-
-## 个体基线
-
-- 已有基础：<required>
-- 当前困难：<required>
-- 稳定教学注意事项：<confirm-or-none>
+- 未提供
 
 ## 初始化纪律
 
-1. 用户未确认的信息保持占位符。
+1. 五项资料都可跳过；未回答时使用上述公开默认值。
 2. 当前仓库就是一个学生实例，不创建学生编号包装层。
 3. 课程、group、Engagement 与依赖下载均不得擅自生成。
 4. 初始化完成后才将 `initialization_status` 改为 `initialized`。

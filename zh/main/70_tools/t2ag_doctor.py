@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic doctor for the T2AG 0.2.3 object model."""
+"""Deterministic doctor for the T2AG 0.2.4 object model."""
 from __future__ import annotations
 
 import argparse
@@ -45,13 +45,12 @@ COURSE_SNAPSHOTS: dict[str, ProgressSnapshot] = {}
 COURSE_ROUTES: dict[str, ActivityRoute] = {}
 
 
-def detect_flavor() -> str:
-    if ROOT.name == "t2ag-lite":
+def detect_flavor(root: Path = ROOT) -> str:
+    if root.name == "t2ag-lite":
         return "lite"
-    if ROOT.name == "t2ag-skeleton":
-        return "skeleton"
-    profile = MAIN / "10_student/profile/profile.md"
-    readme = ROOT / "README.md"
+    main = root / "main"
+    profile = main / "10_student/profile/profile.md"
+    readme = root / "README.md"
     profile_text = (
         profile.read_text(encoding="utf-8-sig", errors="replace")
         if profile.is_file() else ""
@@ -65,6 +64,12 @@ def detect_flavor() -> str:
         profile_text,
         re.MULTILINE,
     ))
+    # A Personal Instance may intentionally keep the directory name produced by
+    # the release archive. Lifecycle state outranks packaging names.
+    if initialized:
+        return "main"
+    if root.name == "t2ag-skeleton":
+        return "skeleton"
     if not initialized and "t2ag-skeleton" in readme_text:
         return "skeleton"
     return "main"
@@ -201,6 +206,10 @@ ALLOWED_REVIEW_RESULTS = {"correct", "partial", "incorrect", "unresolved"}
 ALLOWED_MISTAKE_STATES = {"active", "maintenance", "aged"}
 ALLOWED_EXAM_DEBT_STATES = {"open", "in_remediation", "settled", "archived"}
 ALLOWED_CONTAINER_MODES = {"schedule", "progress"}
+PROFILE_TIMEZONE_RE = re.compile(
+    r"^(?:UTC|[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)+)$"
+)
+PROFILE_CUTOFF_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 # 粗判据配轻后果：停滞只触发一句分诊问句（不扣分、不阻断），所以门槛用自然日即可。
 # 精确的学习日游标留给「计入评估」那一类判定——那里才需要它。
 STALL_TRIAGE_DAYS = 14
@@ -214,6 +223,38 @@ EXPECTED_FLOWS = {
     "skin", "git", "batch", "exercise_loop",
 }
 CORE_PLAYBOOK_MARKER = "**保护级别**：core-playbook"
+
+
+def activity_close_profile_errors(profile_meta: dict[str, str]) -> list[str]:
+    """Validate portable close preferences without imposing author-local values."""
+    errors: list[str] = []
+    if profile_meta.get("activity_close_preference_schema") != (
+        "activity_close_preferences.v1"
+    ):
+        errors.append("Activity close 全局偏好契约缺 activity_close_preferences.v1")
+    timezone_name = profile_meta.get("learning_timezone", "")
+    if not PROFILE_TIMEZONE_RE.fullmatch(timezone_name):
+        errors.append(
+            f"Activity close 学习时区非法：{timezone_name!r}（须为 UTC 或 IANA 区域名）"
+        )
+    cutoff = profile_meta.get("learning_day_cutoff", "")
+    if not PROFILE_CUTOFF_RE.fullmatch(cutoff):
+        errors.append(
+            f"Activity close 学习日 cutoff 非法：{cutoff!r}（须为 HH:MM）"
+        )
+    return errors
+
+
+def initialized_profile_content_errors(content: str) -> list[str]:
+    """Reject unresolved schema placeholders, not optional learner information."""
+    if re.search(
+        r"<(?:required|confirm|confirm-or-none|off\s*\|\s*suggest\s*\|\s*auto)>|"
+        r"[（(]待填写[）)]",
+        content,
+        re.IGNORECASE,
+    ):
+        return ["initialized profile 仍含首次启动必填占位符"]
+    return []
 
 # --- LV-5 三层回移（C11，2026-08-23）：注册表与函数套件自 EN 版整体回移，
 # 使其在 EN 再生时不被抹除，并为中文面提供换行/大小写/强调/引用块耐受的匹配设施。
@@ -736,33 +777,6 @@ def markdown_section(content: str, title: str) -> str:
     return match.group(1).strip() if match else ""
 
 
-def profile_section_has_answer(content: str, titles: tuple[str, ...]) -> bool:
-    for title in titles:
-        body = markdown_section(content, title)
-        if not body:
-            continue
-        for raw in body.splitlines():
-            line = raw.strip()
-            if not line or line.startswith(">") or line.startswith("<!--"):
-                continue
-            checkbox = re.match(r"^-\s*\[([ xX])\]\s*(.*)$", line)
-            if checkbox:
-                if checkbox.group(1).lower() == "x" and checkbox.group(2).strip():
-                    return True
-                continue
-            if line.startswith("-"):
-                value = line[1:].strip()
-                if "：" in value:
-                    value = value.split("：", 1)[1].strip()
-                elif ":" in value:
-                    value = value.split(":", 1)[1].strip()
-                if value and value not in {"—", "未提供"}:
-                    return True
-            elif line not in {"—", "未提供"}:
-                return True
-    return False
-
-
 def flat_yaml(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
@@ -1148,24 +1162,9 @@ def check_version_and_profile() -> None:
                 "FAIL",
                 f"{FLAVOR} profile 缺学生确认的 exercise_hint_gate: enabled|disabled",
             )
-        if re.search(
-            r"<(?:required|confirm|confirm-or-none|off\s*\|\s*suggest\s*\|\s*auto)>|[（(]待填写[）)]",
-            content,
-            re.IGNORECASE,
-        ):
-            report("FAIL", "initialized profile 仍含首次启动必填占位符")
-        required_sections = {
-            "每周可投入学习时间": ("每周可投入学习时间",),
-            "学习目标": ("学习目标",),
-            "辅导与展现偏好": ("期望的辅导方式", "辅导与展现偏好"),
-            "已有基础": ("编程基础", "个体基线"),
-        }
-        missing = [
-            label for label, titles in required_sections.items()
-            if not profile_section_has_answer(content, titles)
-        ]
-        if missing:
-            report("FAIL", f"initialized profile 必填信息未确认：{missing}")
+        for error in initialized_profile_content_errors(content):
+            report("FAIL", error)
+        # 首启资料是可选定向证据；课程目标、时间、基础与工具习惯留给后续参考学习方案。
 
 
 def check_skin_system() -> None:
@@ -6935,11 +6934,19 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
         )
     first_run = MAIN / "50_playbook/first_run.md"
     first_run_content = read(first_run) if first_run.is_file() else ""
-    if (
-        "先地图、后逐支" not in first_run_content
-        or "学生希望怎样确认后再继续" not in first_run_content
-    ):
-        report("FAIL", "首次启动未采集长篇讲解地图与分支确认偏好")
+    optional_profile_markers = (
+        "五项均可省略",
+        "不得追加学校、年级、专业",
+        "讲解语言不在本步询问",
+    )
+    missing_optional_profile = [
+        marker for marker in optional_profile_markers if marker not in first_run_content
+    ]
+    if missing_optional_profile:
+        report(
+            "FAIL",
+            f"首次启动未保持五项可选资料与 Edition 语言边界：{missing_optional_profile}",
+        )
     route_tool = MAIN / "70_tools/t2ag_activity.py"
     if not route_tool.is_file():
         report("FAIL", "缺统一 LearningActivity 路由器：main/70_tools/t2ag_activity.py")
@@ -9079,18 +9086,8 @@ def check_activity_ledgers(
             f"Activity ledger 迁移不完整：{len(ledger_paths)}/{len(courses)}",
         )
     profile_meta = frontmatter(MAIN / "10_student/profile/profile.md")
-    required_profile = {
-        "activity_close_preference_schema": "activity_close_preferences.v1",
-        "learning_timezone": "Asia/Singapore",
-        "learning_day_cutoff": "04:00",
-    }
-    for key, expected in required_profile.items():
-        if profile_meta.get(key) != expected:
-            report(
-                "FAIL",
-                f"Activity close 全局偏好契约缺失：{key}="
-                f"{profile_meta.get(key)} expected={expected}",
-            )
+    for error in activity_close_profile_errors(profile_meta):
+        report("FAIL", error)
     for key in activity_ledger_contract.PREF_KEYS:
         if profile_meta.get(key) not in {"on", "off"}:
             report("FAIL", f"Activity close 全局偏好非法：{key}")

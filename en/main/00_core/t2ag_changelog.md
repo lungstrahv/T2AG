@@ -5,6 +5,23 @@
 
 ---
 
+## [2026-08-24] 0.2.4 development baseline: English-edition install and five optional first-run items
+
+- The runtime version is now `0.2.4`; the version ledger records
+  `implementation_status=partial`, `candidate_review=not_run`, and
+  `release_qualification=not_claimed`. This is not a candidate, FIN, or release claim.
+- First run now asks for five optional orientation items. The English edition fixes
+  its source language to `en-US` instead of asking for another default language choice.
+- The release source copies only the selected edition to a sibling `t2ag/`; after
+  initialization succeeds, source removal is offered as a separate question.
+- This phase creates only a local development baseline: no push, tag, or GitHub Release.
+
+#### Anchored assertions (required)
+
+- runtime plan sha256 = 1c62ce53564266964dd3fec8ae87fe031f53467de35ca58d964a2d40a0ca5755 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← same command
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66) ← same command
+
 ## [2026-08-24] P-0090 candidate-binding collection boundary remediation (no version bump)
 
 - `release.candidate_binding` now uses a dedicated manifest collector. It admits

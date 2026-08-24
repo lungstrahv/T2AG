@@ -253,7 +253,7 @@ LITE_IDENTITY_REL = frozenset({"README.md", "AGENTS.md"})
 LITE_GUIDE_DIVERGE_REL = frozenset({"t2ag_directory_guide.html"})
 PRESERVE_DST_TOP = frozenset({".git", ".venv", ".recovery", ".staging"})
 
-LITE_README = """# T2AG 0.2.3 线上模型审查快照（t2ag-lite）
+LITE_README = """# T2AG 0.2.4 线上模型审查快照（t2ag-lite）
 
 > **身份**：由主实例 `t2ag/` **全量再生**得到的文本优先审查快照。
 > 不是空白 skeleton，不用于初始化新学生，也不得作为教学写回源。
@@ -263,10 +263,10 @@ LITE_README = """# T2AG 0.2.3 线上模型审查快照（t2ag-lite）
 
 ## 基线与增量
 
-- **运行版本**：`0.2.3`（教材教学发送边界 defense-in-depth + 宿主 egress 契约；**未**宣称 FIN）
-- **最近 release 资格基线**：`0.2.2`，`finalization_delta_passed` 于 2026-08-05
+- **运行版本**：`0.2.4`（开发态；**未**宣称候选或 FIN）
+- **最近 release 资格基线**：`0.2.3`，`finalization_delta_passed` 于 2026-08-24
 - **此后变更**：见 `main/00_core/t2ag_changelog.md` 顶部。
-  **0.2.3 未经候选独立复审与 finalization delta，不在发布资格范围内。**
+  **0.2.4 尚未进行候选独立复审与 finalization delta，不在发布资格范围内。**
 
 - 再生机制：A 案（`main/70_tools/sync_lite.py`）— 每次从 main 整树导出 + 排除清单
 - 源实例：`../t2ag/`
@@ -325,7 +325,7 @@ lite 只能由 main 再生，不是规则源。顺序固定为：
 不要手改 lite 后期望回写 main。半同步靠全量再生灭绝，不靠白名单补丁。
 """
 
-LITE_AGENTS = """# t2ag-lite 0.2.3 启动说明
+LITE_AGENTS = """# t2ag-lite 0.2.4 启动说明
 
 本目录是 **t2ag 主实例的线上审查快照**（由 `main/70_tools/sync_lite.py` 全量再生）。
 
@@ -345,9 +345,9 @@ LITE_AGENTS = """# t2ag-lite 0.2.3 启动说明
 
 ## 版本
 
-- 与源 main 对齐；当前运行版本为 `0.2.3`，权威版本号见 `main/t2ag.md`。
-- **基线与增量**：最近 release 资格基线为 `0.2.2` / `finalization_delta_passed`（2026-08-05）；
-  运行版本 `0.2.3` 未宣称 FIN。此后变更见 `main/00_core/t2ag_changelog.md` 顶部；
+- 与源 main 对齐；当前运行版本为 `0.2.4`，权威版本号见 `main/t2ag.md`。
+- **基线与增量**：最近 release 资格基线为 `0.2.3` / `finalization_delta_passed`（2026-08-24）；
+  运行版本 `0.2.4` 未宣称候选或 FIN。此后变更见 `main/00_core/t2ag_changelog.md` 顶部；
   未经候选独立复审与 finalization delta 的条目不在发布资格范围内。
 - 本文件在每次 `sync_lite.py` 运行时重写为审查身份说明。
 """

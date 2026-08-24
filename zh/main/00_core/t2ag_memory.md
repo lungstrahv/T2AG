@@ -1,4 +1,4 @@
-# T2AG 0.2.3 跨会话记忆索引
+# T2AG 0.2.4 跨会话记忆索引
 
 > Skeleton 空实例缓存。首次启动前不得填入真实学生、课程或 group。
 
@@ -45,7 +45,7 @@
 | 当前教师 | — | `main/20_teacher/overlay.md` |
 | 学生档案 | uninitialized | `main/10_student/profile/profile.md` |
 | active binding | 无 | 首次启动后创建 |
-| T2AG 版本 | 0.2.3 | `main/t2ag.md` |
+| T2AG 版本 | 0.2.4 | `main/t2ag.md` |
 | Cloud bridge | paused | `cloud/cloud_sync_state.md` |
 <!-- T2AG_GENERATED:STATE_POINTERS:END -->
 
@@ -75,7 +75,7 @@
   和正文可见后单独授权。
 - evidence/recovery checkpoint 都不是 release snapshot；首次候选完整独立复审与有界
   finalization delta 独立复审均通过后，才能指认正式本地版本边界。
-- 当前版本为 0.2.3；Course progress 与 activity ledger 已分权，Skeleton 提供空 ledger、
+- 当前版本为 0.2.4（开发态）；Course progress 与 activity ledger 已分权，Skeleton 提供空 ledger、
   exerciseNN、原子 lifecycle/close 和 recover 通用能力，但不携带真实迁移或结课实例。
 - 0.2.1 收口候选已提供 reading ActivityRecord 空容器、六份 JSON schema 和双方各写各仓的
   context/contribution/receipt saga；Skeleton 不含真实 AR、书籍、sidecar 或 receipt。

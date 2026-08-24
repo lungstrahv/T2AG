@@ -1,72 +1,49 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "t2ag.answers.v1",
-  "title": "T2AG 首次启动答案",
-  "description": "answers.json 的字段表。配套 answers.example.json 是合法 JSON，并带 example_only 拒绝标记。",
+  "$id": "t2ag.answers.v2",
+  "title": "T2AG 首次启动可选资料",
+  "description": "五项用户资料全部可选；省略时由 t2ag_init.py 使用公开默认值。语言在安装阶段选择，不进入 answers.json。",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "example_only": {
-      "type": "boolean",
-      "description": "只用于示例文件；值为 true 时 t2ag_init.py 必须拒绝消费。",
-      "examples": [true]
+    "example_only": {"type": "boolean", "description": "示例拒绝标记；true 时工具不得消费。"},
+    "nickname": {"type": "string", "default": "同学", "description": "希望被怎样称呼。"},
+    "learning_level": {
+      "enum": ["secondary_school", "university", "bachelor"],
+      "default": "secondary_school",
+      "description": "学习水平：中学在读、大学在读、学士。"
     },
-    "nickname": {"type": "string", "description": "学生希望被怎么称呼。", "examples": ["小林"]},
-    "school": {"type": "string", "description": "学校名。", "examples": ["示例大学"]},
-    "stage": {"type": "string", "description": "所处学习阶段。", "examples": ["本科三年级"]},
-    "direction": {"type": "string", "description": "学习方向或专业。", "examples": ["计算机科学"]},
-    "weekly_time": {"type": "string", "description": "每周可投入时间及其分布。", "examples": ["每周 10 小时"]},
-    "goals": {
-      "type": "array",
-      "minItems": 1,
-      "items": {"type": "string"},
-      "description": "至少一项、由用户确认的学习目标。",
-      "examples": [["完成第一门课的完整闭环"]]
+    "reference_curriculum": {
+      "enum": ["yes", "no", "pending_generation"],
+      "default": "pending_generation",
+      "description": "是否引入参考培养方案；未回答为有待生成。"
     },
-    "tutoring_preference": {"type": "string", "description": "辅导偏好。", "examples": ["先地图、后逐支"]},
-    "long_explanation_mode": {
-      "enum": ["map-first", "continuous", "user-defined"],
-      "description": "多块长篇讲解的组织方式。",
-      "examples": ["map-first"]
-    },
-    "branch_confirmation": {"type": "string", "description": "怎样确认后再继续。", "examples": ["每支讲完确认"]},
-    "cycle_structure": {"type": "string", "description": "循环形状。", "examples": ["3-1-3"]},
-    "small_adjustment": {"type": "string", "description": "小调整频率与范围。", "examples": ["每循环两次"]},
-    "big_adjustment": {"type": "string", "description": "大调整窗口频率。", "examples": ["每三个循环一次"]},
-    "aged_review_mode": {
-      "enum": ["off", "suggest", "auto"],
-      "description": "陈旧项复习的触发方式。",
-      "examples": ["suggest"]
-    },
-    "existing_basis": {"type": "string", "description": "既有基础；没有就写「无」。", "examples": ["无"]},
-    "current_difficulty": {"type": "string", "description": "当前困难；未提供就写「未提供」。", "examples": ["未提供"]},
-    "teaching_notes": {"type": "string", "description": "教学注意事项；未提供就写「未提供」。", "examples": ["未提供"]},
-    "exercise_hint_gate": {
-      "enum": ["enabled", "disabled"],
-      "description": "练习提示闸门，必须由学生选择。",
-      "examples": ["enabled"]
-    },
-    "learning_timezone": {"type": "string", "description": "IANA 时区名。", "examples": ["America/New_York"]},
-    "learning_day_cutoff": {"type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$", "description": "学习日切分时刻。", "examples": ["04:00"]},
-    "lesson_actual_review": {"enum": ["on", "off"], "description": "课堂实况复盘开关。", "examples": ["on"]},
-    "lesson_student_feedback": {"enum": ["on", "off"], "description": "学生反馈采集开关。", "examples": ["on"]},
-    "lesson_knowledge_absorption": {"enum": ["on", "off"], "description": "知识吸收记录开关。", "examples": ["on"]},
-    "exercise_problem_review": {"enum": ["on", "off"], "description": "习题复盘开关。", "examples": ["on"]},
-    "exercise_knowledge_mastery": {"enum": ["on", "off"], "description": "习题掌握度记录开关。", "examples": ["on"]},
-    "updated": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "实际确认日期，格式 YYYY-MM-DD。", "examples": ["2026-01-01"]},
-    "agent_pool_limit": {"type": "integer", "minimum": 1, "maximum": 6, "default": 6, "description": "可选；含 Main 的身份池容量。"},
-    "agent_max_active": {"type": "integer", "minimum": 1, "maximum": 3, "default": 3, "description": "可选；含 Main 的同时运行上限，不得超过 agent_pool_limit。"},
-    "agent_parallel_startup": {"enum": ["enabled", "disabled"], "default": "enabled", "description": "可选；是否并行启动编队。"},
-    "agent_startup_readiness": {"type": "string", "default": "learning_ready_first", "description": "可选。"},
-    "agent_background_reporting": {"type": "string", "default": "blockers_only", "description": "可选。"}
+    "learning_interests": {"type": "string", "default": "有待生成", "description": "学习兴趣，自由文本。"},
+    "self_introduction": {"type": "string", "default": "未提供", "description": "可选自我介绍。"},
+    "tutoring_preference": {"type": "string", "default": "先给整体地图，再逐支展开；每步结束后确认再继续", "description": "高级可选覆盖；首启不主动询问。"},
+    "long_explanation_mode": {"enum": ["map-first", "continuous", "user-defined"], "default": "map-first", "description": "高级可选覆盖。"},
+    "branch_confirmation": {"type": "string", "default": "每支讲完确认", "description": "高级可选覆盖。"},
+    "cycle_structure": {"type": "string", "default": "按课程与活动生成", "description": "高级可选覆盖。"},
+    "small_adjustment": {"type": "string", "default": "每循环至多调整一处运行参数", "description": "高级可选覆盖。"},
+    "big_adjustment": {"type": "string", "default": "每三个循环一次调整窗口", "description": "高级可选覆盖。"},
+    "aged_review_mode": {"enum": ["off", "suggest", "auto"], "default": "suggest", "description": "高级可选覆盖。"},
+    "exercise_hint_gate": {"enum": ["enabled", "disabled"], "default": "enabled", "description": "练习提示闸门默认启用，可稍后修改。"},
+    "learning_timezone": {"type": "string", "default": "UTC", "description": "高级可选覆盖；IANA 时区名。"},
+    "learning_day_cutoff": {"type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$", "default": "04:00", "description": "高级可选覆盖。"},
+    "lesson_actual_review": {"enum": ["on", "off"], "default": "on"},
+    "lesson_student_feedback": {"enum": ["on", "off"], "default": "on"},
+    "lesson_knowledge_absorption": {"enum": ["on", "off"], "default": "on"},
+    "exercise_problem_review": {"enum": ["on", "off"], "default": "on"},
+    "exercise_knowledge_mastery": {"enum": ["on", "off"], "default": "on"},
+    "updated": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "高级可选覆盖；省略时使用宿主当前日期。"},
+    "agent_pool_limit": {"type": "integer", "minimum": 1, "maximum": 6, "default": 6},
+    "agent_max_active": {"type": "integer", "minimum": 1, "maximum": 3, "default": 3},
+    "agent_parallel_startup": {"enum": ["enabled", "disabled"], "default": "enabled"},
+    "agent_startup_readiness": {"type": "string", "default": "learning_ready_first"},
+    "agent_background_reporting": {"type": "string", "default": "blockers_only"}
   },
-  "required": [
-    "nickname", "school", "stage", "direction", "weekly_time", "goals",
-    "tutoring_preference", "long_explanation_mode", "branch_confirmation",
-    "cycle_structure", "small_adjustment", "big_adjustment", "aged_review_mode",
-    "existing_basis", "current_difficulty", "teaching_notes", "exercise_hint_gate",
-    "learning_timezone", "learning_day_cutoff", "lesson_actual_review",
-    "lesson_student_feedback", "lesson_knowledge_absorption", "exercise_problem_review",
-    "exercise_knowledge_mastery", "updated"
-  ]
+  "required": [],
+  "x-not-in-this-schema": {
+    "teaching_language": "由安装阶段无默认语言选择决定；中文版初始 zh-CN，英文版初始 en-US。init 只保留版本模板中的该值。"
+  }
 }

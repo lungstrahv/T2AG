@@ -28,32 +28,53 @@ python -B main/70_tools/t2ag_init.py activate-group --group-id G01 --date YYYY-M
 碑行仍是模板占位（`碑描述`）时它会拒绝执行——那不是刁难，是防「状态先出现、
 判断没发生」（P-0077 同族）。
 
-`answers.json` 保存第 3 步逐项确认的结果。工具缺任一必答项即拒绝执行，不代填默认值；
+`answers.json` 只保存第 3 步中用户愿意提供的资料；五项均可省略，工具按公开 schema 补默认值；
 也不创建 `.venv`、不装依赖、不下教材、不生成 Engagement、不做 git 写入。
 模型的职责是提问、把答案写成 `answers.json`、调用工具、复核输出，而不是发明 schema。
+
+## 新手界面边界
+
+首次启动必须区分两层：
+
+- **学生层**：想学什么、希望达到什么结果、已有基础、每周大约能投入多少时间，以及现在
+  想直接开始学习还是先做一道题看看水平；
+- **实现层**：`course_type`、`course_driver`、`entry`、`group_id`、`container_mode`、
+  `cycle_structure`、教师模板 ID 等落盘字段。
+
+实现层字段默认不向首次使用者展示，也不逐项要求确认。特别禁止：
+
+- 把“入口”“首个课程组”“`G01`”“目标驱动”“`progress / schedule`”“`3-1-3`”等术语
+  放进默认设置清单；
+- 询问“是否接受上一条列出的全部默认设置”或同义的整包确认；
+- 仅仅因为命令需要参数，就把参数名变成学生必须理解的问题。
+
+需要学生作真实选择时，先问可感知的后果。例如问“现在从第一小节开始，还是先做一道题
+看看目前水平？”，不得问“入口选 Lesson 还是 Exercise？”；问“通常哪几天学习、每次大约
+多久、要不要固定留一天休息？”，不得让新用户选择节奏码。只有学生主动追问技术细节或
+明确要自定义高级设置时，才展示实现层术语并当场解释。
+
+最终确认只回读学生说过的事实和马上会发生的动作，例如“建立《小说写作基础》，现在从
+第一小节开始，每周约 4 小时”。然后问“这些是否准确，现在开始创建吗？”。内部 ID、枚举、
+默认节奏与教师映射不进入该确认。
 
 ## 步骤
 
 1. 按 `main/t2ag.md`「3.0 启动欢迎信息」展示当前发行版的 `welcome_msg`、
    active `art_file` 字符画与版本号。
 2. 运行 doctor，确认 Skeleton 结构有效且没有真实实例。
-3. 询问并确认学校、年级、方向、目标、可投入时间、已有基础和辅导偏好；告知启动协作
-   默认是一个主 Agent 加两个只读辅助 Agent；Agent 池容量默认 6，同时运行上限默认 3，
-   两者都包含 Main。默认使用 `agent_pool_limit: 6`、`agent_max_active: 3` 与
-   `agent_parallel_startup: enabled`；学生可将池容量设为 1–6、并发设为 1–3（并发不得超过
-   池容量），或关闭并行。默认 `agent_startup_readiness: learning_ready_first`、
-   `agent_background_reporting: blockers_only`；学生也可选择等待 recovery-settled 后开课或
-   播报全部后台结果。未要求覆盖时不追加阻断问题。辅导偏好还包括
-   多块长篇讲解是否沿用默认的“先地图、后逐支”，以及学生希望怎样确认后再继续。同时让
-   学生选择 `exercise_hint_gate: enabled | disabled`，不得由模型代选。
-   同时确认讲解语言 `teaching_language`（单值，如 `zh-CN`）；`t2ag_init.py` answers
-   schema 未含此项前不入 `answers.json`，由模型在第 4 步完成后直写 profile
-   frontmatter（LV-2，2026-08-18）。
-   **字段形状照抄 `main/70_tools/answers.example.json`**（合法 JSON，可直接读），
-   **字段说明、枚举与示例见 `main/70_tools/answers.schema.json`**（JSON 无注释，
-   所以说明与示例分两个文件）。示例带 `example_only: true`，工具会拒绝直接消费它——
-   逐项与用户确认后另存并删掉该键。
-   当前困难与特殊要求是可选信息；未提供时明确写“未提供”，不得保留“待填写”。
+3. 一次性展示下面五项可选资料，不得拆成一长串阻断问答，也不得追加学校、年级、专业、
+   每周时间、学习目标、已有基础、困难、辅导偏好、Agent 数量或提示闸门问题：
+   - 称呼（自由文本）；
+   - 学习水平（参考选项：`中学在读 / 大学在读 / 学士`）；
+   - 是否引入参考培养方案（参考选项：`是 / 否`）；
+   - 学习兴趣（自由文本）；
+   - 自我介绍（自由文本）。
+   五项都可跳过；空回复不得继续追问。默认值依次为 `同学`、`中学在读`、`有待生成`、
+   `有待生成`、`未提供`。内部值与字段形状见 `main/70_tools/answers.schema.json`；
+   `answers.example.json` 只展示五项真实形状，带 `example_only: true`，工具必须拒绝直接消费。
+   启动协作、结课记录、长篇组织、提示闸门、时区和 cutoff 全部使用 schema 默认值，用户日后
+   可在 profile 中修改。讲解语言不在本步询问：安装阶段的无默认语言选择已经决定 Edition，
+   中文版模板为 `zh-CN`，英文版模板为 `en-US`，`init` 只保留该值。
 4. 运行 `t2ag_init.py init`（对应本步与第 8 步）。它将 profile 从模板改为
    `initialization_status: initialized`，并写入
    `agent_collaboration_preferences.v1`、`agent_pool_limit`、`agent_max_active`、`agent_parallel_startup`、
@@ -61,11 +82,16 @@ python -B main/70_tools/t2ag_init.py activate-group --group-id G01 --date YYYY-M
    `activity_close_preferences.v1`、五项全局结课偏好、学习时区/cutoff、
    `activity_close_preferences_initialized_at`。首次结课提示 marker 初始化为
    `pending` / `none`；真正展示一次后才原子改为 `shown` / 带时区时间。
-5. 与用户确认首门课程及真实入口（先进入 Lesson 还是 Exercise）；用
+5. 与学生确认首门课程的主题、想达到的结果，以及马上要做的第一件事。只用“从第一小节
+   开始学习”或“先做一道题看看水平”等自然语言；模型在内部映射为 Course 类型、driver 与
+   `lesson | exercise`，不得把“类型”“入口”枚举交给新用户选择。用
    `t2ag_init.py new-course` 按 `new_course_init.md` 创建 Course 和首个学习活动。
-6. 与用户确认第一个 group 的成员、预算和日历；用 `t2ag_init.py new-group` 建立
-   plan/calendar/review，并用 `bindings/_README.md` 持久化空 binding 域。
-   多成员 active 组必须由用户指定 `--current-course`。
+6. 第一组在内部使用下一个合法 Group ID；首次只有一门课时，成员就是刚创建的课程，不再
+   询问“首个课程组”或要求确认 `G01`。仅询问尚未从对话得知的实际容量与日历事实：通常
+   哪几天学习、每次多久、是否固定休息。模型把回答映射成预算、日历、容器与循环字段；
+   `3-1-3` 等节奏码默认不展示。用 `t2ag_init.py new-group` 建立 plan/calendar/review，并用
+   `bindings/_README.md` 持久化空 binding 域。只有学生明确同时建立多门课程时，才用自然
+   语言确认先学哪一门，并在内部传给 `--current-course`。
 7. 在 `20_teacher/overlay.md` 唯一的“课程—教师映射”表中建课程到教师模板的
    显式行；模板单元使用精确 `` `main/20_teacher/Tddd.md` `` 路径。
 8. 完成发行身份切换，但不启动云同步：

@@ -1,4 +1,4 @@
-# T2AG 0.2.3 Constitution
+# T2AG 0.2.4 Constitution
 
 > T2AG is a personal teaching system that uses files as long-term memory and advances learning through auditable state.
 > This file is the startup entry point and the highest local rule; implementation detail sinks into the domain model and the playbooks.
@@ -155,9 +155,10 @@ Version updates, a `version_campaign`, and major governance-surface changes must
 
 ## 7. Version  [max 14]
 
-- Runtime version: `0.2.3`
+- Runtime version: `0.2.4`
 - The three version-status fields (`implementation_status` / `candidate_review` / `release_qualification`) have a single source of truth: `60_journal/t2ag_version_ledger.md`; this section points, it does not carry (CR-1=A 2026-08-23, P-0086)
-- 0.2.3 authoritative entry points: `docs/adr/0002-host-controlled-textbook-teaching-egress.md`, `docs/adr/0003-prefetcher-self-certified-scan-admission.md`, `docs/protocol/host-teaching-egress-api.md`
+- Current 0.2.4 development status and three status fields: `60_journal/t2ag_version_ledger.md`
+- 0.2.3 release-baseline authoritative entry points: `docs/adr/0002-host-controlled-textbook-teaching-egress.md`, `docs/adr/0003-prefetcher-self-certified-scan-admission.md`, `docs/protocol/host-teaching-egress-api.md`
 - Historical version authority anchors and the SHA ledger are canonical in `60_journal/t2ag_version_ledger.md`
 - A version update must synchronize this file, memory, the changelog, the README, and the Skeleton and Lite identity entry points.
 - **Evolution Register**: `main/60_journal/t2ag_evolution_register.md` (the old `t2ag_evolution.md` is a redirect); ADR entry point and metadata: `docs/adr/README.md`; related validation: `runtime.decision_records` / `decision_record_contract.py`.

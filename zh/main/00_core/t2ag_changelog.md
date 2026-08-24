@@ -5,6 +5,21 @@
 
 ---
 
+## [2026-08-24] 0.2.4 开发基线：中文 Edition 安装与五项可选首启
+
+- 当前运行版本切换为 `0.2.4`；版本台账登记
+  `implementation_status=partial`、`candidate_review=not_run`、
+  `release_qualification=not_claimed`。本条不构成候选、FIN 或发行资格。
+- 首次启动资料缩减为五项可选；中文 Edition 固定 `zh-CN`，不再要求用户另选默认教学语言。
+- 发行源只把所选 Edition 复制到同级 `t2ag/`；初始化成功后再单独询问是否删除发行源。
+- 本阶段只建立本地开发基线；不 push、不 tag、不创建 GitHub Release。
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66) ← 同上一条目命令
+
 ## [2026-08-24] P-0090 candidate binding 收集边界整改（不升版）
 
 - `release.candidate_binding` 改用专用 manifest 收集器：只接受

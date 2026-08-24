@@ -12,55 +12,41 @@ activity_close_preference_schema: activity_close_preferences.v1
 activity_close_preferences_initialized_at: <set-on-initialization>
 activity_close_first_prompt_status: pending
 activity_close_first_prompt_at: none
-learning_timezone: <confirm-IANA-timezone>
-teaching_language: <confirm-single-value-eg-en-US>
-learning_day_cutoff: <confirm-HH:MM>
-lesson_actual_review: <on|off>
-lesson_student_feedback: <on|off>
-lesson_knowledge_absorption: <on|off>
-exercise_problem_review: <on|off>
-exercise_knowledge_mastery: <on|off>
+learning_timezone: UTC
+teaching_language: en-US
+learning_level: secondary_school
+reference_curriculum: pending_generation
+learning_day_cutoff: 04:00
+lesson_actual_review: on
+lesson_student_feedback: on
+lesson_knowledge_absorption: on
+exercise_problem_review: on
+exercise_knowledge_mastery: on
 updated: —
 ---
 # Student profile (empty template)
 
-> Confirm every item with the user at first run. Never pre-fill a real name,
-> school, course or student number, and never infer personality.
+> All five profile items are optional. Never infer a real name, school, course,
+> student number, or personality. Unanswered items use the public defaults below.
 
 ## Basic information
 
-- Name or nickname: <required>
-- School or institution: <required>
-- Year or stage: <required>
-- Field of study: <required>
-- Time available per week: <required>
+- Preferred name: Learner
+- Learning level: Secondary-school student
+- Introduce a reference curriculum: To be generated
 
-## Learning goals
+## Learning interests
 
-- <required>
+- To be generated
 
-## Tutoring and presentation preferences
+## Self-introduction
 
-- General tutoring preference: <required>
-- Long multi-block explanations: <map-first | continuous | user-defined>
-- How to confirm between branches: <confirm>
-
-## Execution parameters
-
-- Cycle structure: <confirm>
-- Minor-adjustment frequency: <confirm>
-- Major-adjustment window: <confirm>
-- Aged review-set mode: <off | suggest | auto>
-
-## Individual baseline
-
-- Existing foundation: <required>
-- Current difficulties: <required>
-- Standing teaching considerations: <confirm-or-none>
+Not provided.
 
 ## Initialization discipline
 
-1. Anything the user has not confirmed stays a placeholder.
+1. All five questions are optional. An empty reply keeps the documented defaults;
+   do not ask follow-up questions to fill blanks.
 2. This repository *is* one student instance; do not create a student-number wrapper layer.
 3. Courses, groups, Engagements and dependency downloads must never be generated unilaterally.
 4. Only after initialization completes may `initialization_status` become `initialized`.

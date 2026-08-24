@@ -33,14 +33,15 @@ placeholder rows, counts the real ones and writes `keystone_total_frozen`
 (`course_group_rules.md` §4.3). A flag that manufactured `active` would produce
 the state without the judgment, which is the defect family P-0077 records.
 
-`answers.json` records the item-by-item confirmations from step 3. **Copy the field
-shapes from `main/70_tools/answers.example.json`** (valid JSON, readable as-is) and
+`answers.json` records only the optional responses the user gives in step 3.
+An empty object is valid and uses the public defaults. **Copy the field shapes
+from `main/70_tools/answers.example.json`** (valid JSON, readable as-is) and
 read the field descriptions, enums and defaults in
 **`main/70_tools/answers.schema.json`** (JSON has no comments, so the example and
 its documentation are two files). The example carries `example_only: true` and the
 tool refuses to consume it directly — confirm each item with the user, save your
-own copy, and delete that key. The tool
-refuses to run if any required answer is missing; it never fills in a default.
+own copy, and delete that key. The five public profile questions are all optional;
+the schema documents every default used when the user skips one or all of them.
 It also never creates `.venv`, installs dependencies, downloads textbooks,
 generates Engagements, or performs git writes. The model's job is to ask, write
 the answers into `answers.json`, call the tool and review the output — not to
@@ -51,34 +52,30 @@ invent a schema.
 1. Per `main/t2ag.md` "3.0 startup welcome message", display the current
    release's `welcome_msg`, the active `art_file` ASCII art and the version.
 2. Run doctor; confirm the Skeleton structure is valid and holds no real instance.
-3. Ask for and confirm school, year, field, goals, available time, existing
-   foundation and tutoring preferences. Explain that startup collaboration
-   defaults to one main agent plus two read-only helper agents; the agent pool
-   capacity defaults to 6 and the concurrent ceiling to 3, both including Main.
-   Defaults are `agent_pool_limit: 6`, `agent_max_active: 3` and
-   `agent_parallel_startup: enabled`. A student may set pool capacity to 1–6 and
-   concurrency to 1–3 (concurrency must not exceed pool capacity), or disable
-   parallelism. Defaults also include
-   `agent_startup_readiness: learning_ready_first` and
-   `agent_background_reporting: blockers_only`; a student may instead wait for
-   recovery-settled before starting the lesson, or have all background results
-   reported. Do not add blocking questions when no override was requested.
-   Tutoring preferences also cover whether long multi-block explanations keep the
-   default "map first, then branch by branch", and
-   how the student wants to confirm before continuing. Have the student choose
-   `exercise_hint_gate: enabled | disabled`; the model must not choose on their
-   behalf.
-   Also confirm the teaching language `teaching_language` (a single value, e.g.
-   `en-US`). Until the `t2ag_init.py` answers schema includes this field, it does
-   not go into `answers.json`; the model writes it directly into the profile
-   frontmatter after step 4 completes (LV-2, 2026-08-18).
-   Current difficulties and special requirements are optional. When not provided,
-   write "not provided" explicitly; never leave "to be filled in".
+3. Offer exactly this compact five-item profile block; every item is optional:
+   - Preferred name;
+   - Learning level: `Secondary-school student` / `University student` / `Bachelor`;
+   - Introduce a reference curriculum: `Yes` / `No`;
+   - Learning interests;
+   - Self-introduction.
+   The user may answer any subset or skip the entire block. Do not follow up to
+   fill blanks. Do not ask separately for school, year, major, weekly time,
+   goals, existing foundation, difficulties, tutoring style, agent settings,
+   hint-gate settings, timezone, or close preferences. When unanswered, use:
+   preferred name `Learner`; learning level `Secondary-school student`;
+   reference curriculum `To be generated`; learning interests `To be generated`;
+   self-introduction `Not provided`. Advanced preferences use the documented
+   system defaults and remain editable later.
+   Do not ask for teaching language here. The edition was selected before first
+   run; the English edition writes `teaching_language: en-US`, while the Chinese
+   edition writes `zh-CN`.
 4. Run `t2ag_init.py init` (covering this step and step 8). It changes the
    profile from template to `initialization_status: initialized` and writes
    `agent_collaboration_preferences.v1`, `agent_pool_limit`, `agent_max_active`,
    `agent_parallel_startup`, `agent_startup_readiness`,
-   `agent_background_reporting`, `activity_close_preferences.v1`, the five global
+   `agent_background_reporting`, the selected edition's teaching language,
+   learning level, reference-curriculum preference,
+   `activity_close_preferences.v1`, the five global
    close preferences, the learning timezone/cutoff, and
    `activity_close_preferences_initialized_at`. The first-close prompt marker is
    initialized to `pending` / `none`; only after it has actually been shown once
@@ -113,3 +110,11 @@ invent a schema.
 
 Never auto-create `.venv`, install dependencies, download textbooks, generate
 real Engagements, or choose a course on the user's behalf.
+
+## Beginner-facing interaction boundary
+
+During first run, speak in the selected edition's language and keep the visible
+interaction to the five optional profile items plus the user's actual course or
+group choices. Internal enum codes, agent-pool limits, close-policy fields, and
+verification commands belong in files or execution logs; do not turn them into
+an onboarding questionnaire unless the user asks to customize them.
