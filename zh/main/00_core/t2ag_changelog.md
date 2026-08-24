@@ -5,6 +5,29 @@
 
 ---
 
+## [2026-08-24] P-0090 candidate binding 收集边界整改（不升版）
+
+- `release.candidate_binding` 改用专用 manifest 收集器：只接受
+  `artifacts/releases/t2ag/<version>/invited/`，在 JSON 读取前按 resolved absolute path 去重；
+  `tmp/`、`retired/` 与其它目录不进入 serving 集合。
+- `release_candidate_binding_findings()` 的 `superseded_by` 业务语义保持不变；
+  `PACKAGE_SEARCH_ROOTS` 与 package-surface 广扫语义保持不变。
+- 持久回归经过生产收集函数与真实临时目录，覆盖重叠搜索根、tmp/retired 隔离、invited
+  superseded 排除、不可读 manifest 的 WARN，以及 zh/en 各一份现役时零 finding；三版同步。
+- **验证**：`contracts.release` Main/zh **21/21**（plan
+  `08d4fe85d4648c5d32373a4c6cc775d39deeed9149698236b0f38bae939d18a6`），EN
+  **15/15**（plan `12346f965b67109211f7388d4ce5c1845616cad136588923afc8027d563199a9`）；
+  Main 定向 `release.candidate_binding` plan
+  `8f934af3cc0f0bcf0895d8f57317b76205fa73ec81cf2d6f6341454e491b85a7`，package surface
+  **17/17**、**0 FAIL / 0 WARN**；runtime Main **0 FAIL / 7 WARN**（与既有基线同构），
+  zh/EN 均 **0 FAIL / 0 WARN**。
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66) ← 同上一条目命令
+
 ## [2026-08-24] 当前公开发行只携带双开源许可（不升版）
 
 - 从当前 Skeleton 发行树移除历史 `INVITED_USE_GRANT.md` 及 README/许可边界中的现役入口；

@@ -88,6 +88,9 @@ means the budget mechanism never takes effect on this instance.
   output for new work. The Skeleton holds only the general contracts and empty templates, and carries no MATH1607H,
   student, or other instance data. See the changelog entry
   `[2026-08-05] EV-0012 教材页资产与 Lesson Preparation 技术收口`.
+- P-0090 release-gate remediation: candidate binding uses a dedicated invited-manifest
+  collector with resolved-absolute-path de-duplication; package-surface scanning is
+  unchanged. See `[2026-08-24] P-0090 candidate-binding collection boundary remediation`.
 
 <!-- The two T2AG_GENERATED blocks above are emitted verbatim by 70_tools/t2ag_state_refresh.py.
      Do not hand-edit them: `t2ag_state_refresh.py --check` compares them against what the tool

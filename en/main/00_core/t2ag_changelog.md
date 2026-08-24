@@ -5,6 +5,32 @@
 
 ---
 
+## [2026-08-24] P-0090 candidate-binding collection boundary remediation (no version bump)
+
+- `release.candidate_binding` now uses a dedicated manifest collector. It admits
+  only `artifacts/releases/t2ag/<version>/invited/` and de-duplicates resolved
+  absolute paths before reading JSON; `tmp/`, `retired/`, and other directories
+  do not enter the serving set.
+- The `superseded_by` semantics in `release_candidate_binding_findings()` remain
+  unchanged. `PACKAGE_SEARCH_ROOTS` and package-surface scanning remain unchanged.
+- The persistent regression exercises the production collector and a real
+  temporary directory tree: overlapping roots, tmp/retired isolation, invited
+  superseded history, unreadable-manifest WARN, and one serving zh/en manifest
+  yielding zero findings. All three editions carry the equivalent change.
+- **Validation**: `contracts.release` Main/zh **21/21** (plan
+  `08d4fe85d4648c5d32373a4c6cc775d39deeed9149698236b0f38bae939d18a6`) and EN
+  **15/15** (plan `12346f965b67109211f7388d4ce5c1845616cad136588923afc8027d563199a9`);
+  directed Main `release.candidate_binding` plan
+  `8f934af3cc0f0bcf0895d8f57317b76205fa73ec81cf2d6f6341454e491b85a7`, package surface
+  **17/17**, **0 FAIL / 0 WARN**; runtime Main **0 FAIL / 7 WARN** (same known
+  baseline), zh/EN **0 FAIL / 0 WARN**.
+
+#### Anchored assertions (required)
+
+- runtime plan sha256 = 1c62ce53564266964dd3fec8ae87fe031f53467de35ca58d964a2d40a0ca5755 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← same command
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66) ← same command
+
 ## [2026-08-24] Current public distribution carries only the two open-source licences (no version bump)
 
 - Remove the historical `INVITED_USE_GRANT.md` and its current-distribution

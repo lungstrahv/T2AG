@@ -17,13 +17,17 @@ the same source snapshot; one tag always covers both.
 
 | 版本 / Edition | 入口 / Entry | 生成来源 / Generated from |
 |---|---|---|
-| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | Skeleton source version 0.2.3, commit `c70d642` |
-| English (translated edition) | [`en/README.md`](en/README.md) | Skeleton EN source version 0.2.3, commit `42c6f98` |
+| 中文（正本 / source of truth） | [`zh/README.md`](zh/README.md) | Skeleton source version 0.2.3, commit `2d321ad` |
+| English (translated edition) | [`en/README.md`](en/README.md) | Skeleton EN source version 0.2.3, commit `12a7d3c` |
 
-> **版本状态 / Version status**：表中的 `0.2.3` 只标识生成来源与运行版本，不构成发行资格
-> 声明。当前台账为 `candidate_review: not_run`、`release_qualification: not_claimed`；最近完成
-> 发行资格审查的版本仍是 `0.2.2`。Here `0.2.3` identifies the source and runtime
-> version, not a qualified release. The latest release-qualified version remains `0.2.2`.
+> **版本状态 / Version status**：`0.2.3` 已完成候选复审与 finalization delta 独立复审，
+> 是当前最近完成发行资格审查的版本。资格结论的权威来源是 Main 台账与独立复审报告；
+> `zh/`、`en/` 内随构建生成的台账快照保留构建时状态，不是最终资格真相源。
+> T2AG `0.2.3` has passed candidate review and independent finalization-delta review
+> and is the latest release-qualified version. The authoritative qualification
+> record is the Main ledger plus the independent review reports; the ledger
+> snapshots shipped inside `zh/` and `en/` retain their build-time state and are
+> not the final qualification authority.
 
 ## 下载时会得到什么 / What the download contains
 

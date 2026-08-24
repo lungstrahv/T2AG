@@ -83,3 +83,6 @@
   Map/Snapshot/pointer/Context 契约已落地；playbook 不再把 `working_pages` 当作新建权威输出。
   Skeleton 只含通用契约与空模板，不携带 MATH1607H、学生或其他实例数据。见 changelog
   `[2026-08-05] EV-0012 教材页资产与 Lesson Preparation 技术收口`。
+- P-0090 通用发行门整改：candidate binding 使用专用 invited manifest 收集器并按 resolved
+  absolute path 去重；package-surface 广扫保持不变。见 changelog
+  `[2026-08-24] P-0090 candidate binding 收集边界整改`。

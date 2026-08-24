@@ -2981,6 +2981,50 @@ def test_release_candidate_binding_freezes_both_ends(root: Path) -> None:
     zh = manifest("t2ag-skeleton-0.2.3-c602f6f.zip", "c602f6f")
     en = manifest("t2ag-skeleton-en-0.2.3-a539db7.zip", "a539db7")
 
+    # Collector regression (P-0090): exercise the production collector against
+    # a real directory tree. Overlapping roots discover invited files twice, but
+    # resolved-path de-duplication admits each once; tmp and retired copies stay
+    # outside the serving set, and superseded invited history is collected then
+    # excluded by the unchanged pure-function rule.
+    workspace = root / "candidate-binding-workspace"
+    release_root = workspace / "artifacts/releases/t2ag"
+    invited = release_root / "0.2.3/invited"
+    retired = release_root / "0.2.3/retired"
+    tmp_copy = workspace / "tmp/en-pack-out"
+    stale = manifest(
+        "t2ag-skeleton-0.2.3-f27a431.zip", "f27a431",
+        superseded_by="t2ag-skeleton-0.2.3-c602f6f.zip",
+    )
+    for path, claim in (
+        (invited / "t2ag-skeleton-0.2.3-c602f6f.manifest.json", zh),
+        (invited / "t2ag-skeleton-en-0.2.3-a539db7.manifest.json", en),
+        (invited / "t2ag-skeleton-0.2.3-f27a431.manifest.json", stale),
+        (retired / "t2ag-skeleton-en-0.2.3-deadbee.manifest.json",
+         manifest("t2ag-skeleton-en-0.2.3-deadbee.zip", "deadbee")),
+        (tmp_copy / "t2ag-skeleton-en-0.2.3-badf00d.manifest.json",
+         manifest("t2ag-skeleton-en-0.2.3-badf00d.zip", "badf00d")),
+    ):
+        write(path, json.dumps(claim, ensure_ascii=False))
+    collected = doctor.collect_release_candidate_manifests(
+        workspace, search_roots=[workspace, release_root]
+    )
+    commits = [str(claim.get("source_commit_short", "")) for claim in collected]
+    if sorted(commits) != ["a539db7", "c602f6f", "f27a431"]:
+        raise AssertionError(
+            "collector must de-duplicate overlapping roots and admit only exact "
+            f"invited manifests, got {commits}"
+        )
+    if doctor.release_candidate_binding_findings(frozen_line, collected):
+        raise AssertionError(
+            "one serving zh/en pair plus superseded invited history must be clean"
+        )
+    broken = invited / "t2ag-skeleton-0.2.3-broken.manifest.json"
+    write(broken, "{not json")
+    with mock.patch.object(doctor, "report") as report_mock:
+        doctor.collect_release_candidate_manifests(workspace)
+    if not report_mock.called or report_mock.call_args.args[0] != "WARN":
+        raise AssertionError("an unreadable invited manifest must remain fail-closed WARN")
+
     # (1) nothing frozen -> silent even with manifests present.
     if doctor.release_candidate_binding_findings("- 0.2.2 …\n", [zh, en]):
         raise AssertionError("no release_candidate line must mean no findings")

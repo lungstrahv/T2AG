@@ -7986,6 +7986,58 @@ SKELETON_RELEASE_NAME = "t2ag-skeleton"
 PACKAGE_SEARCH_ROOTS = (".", "artifacts/releases")
 
 
+RELEASE_CANDIDATE_MANIFEST_PATTERN = (
+    f"{SKELETON_RELEASE_NAME}*.manifest.json"
+)
+
+
+def collect_release_candidate_manifests(
+    workspace: Path, *, search_roots: list[Path] | tuple[Path, ...] | None = None
+) -> list[dict[str, object]]:
+    """Read each manifest on the invited release surface exactly once.
+
+    Candidate binding has a narrower serving surface than package hygiene. Even
+    when callers supply overlapping roots for a regression probe, a manifest is
+    admitted only when its resolved path is exactly under
+    ``artifacts/releases/t2ag/<version>/invited/``. Resolved-path de-duplication
+    happens before JSON parsing, so the same serving identity cannot be counted
+    twice (P-0090).
+    """
+    release_root = (workspace / "artifacts/releases/t2ag").resolve()
+    roots = list(search_roots) if search_roots is not None else [release_root]
+    candidates: set[Path] = set()
+    for search_root in roots:
+        try:
+            base = search_root.resolve()
+        except OSError:
+            continue
+        if not base.is_dir():
+            continue
+        for candidate in base.rglob(RELEASE_CANDIDATE_MANIFEST_PATTERN):
+            try:
+                resolved = candidate.resolve()
+                relative = resolved.relative_to(release_root)
+            except (OSError, ValueError):
+                continue
+            if len(relative.parts) != 3 or relative.parts[1] != "invited":
+                continue
+            candidates.add(resolved)
+
+    manifests: list[dict[str, object]] = []
+    for candidate in sorted(candidates):
+        try:
+            claim = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            report(
+                "WARN",
+                f"发行 manifest 不可解析，冻结绑定无法核对：{candidate.name} {error}",
+            )
+            continue
+        if isinstance(claim, dict):
+            manifests.append(claim)
+    return manifests
+
+
 def built_skeleton_packages(root: Path) -> list[Path]:
     """Every built Skeleton archive in the workspace. Pure.
 
@@ -8126,25 +8178,8 @@ def check_release_candidate_binding() -> None:
     ledger = ROOT / VERSION_LEDGER_REL
     if not ledger.is_file():
         return  # 台账缺失已由 check_version_bump_precondition 报，不重复
-    manifests: list[dict[str, object]] = []
     workspace = ROOT.parent
-    for relative in PACKAGE_SEARCH_ROOTS:
-        base = workspace / relative if relative != "." else workspace
-        if not base.is_dir():
-            continue
-        for candidate in sorted(base.rglob(f"{SKELETON_RELEASE_NAME}*.manifest.json")):
-            if "retired" in candidate.parts:
-                continue  # 退役目录里的 manifest 不再是现役身份
-            try:
-                claim = json.loads(candidate.read_text(encoding="utf-8"))
-            except (OSError, ValueError) as error:
-                report(
-                    "WARN",
-                    f"发行 manifest 不可解析，冻结绑定无法核对：{candidate.name} {error}",
-                )
-                continue
-            if isinstance(claim, dict):
-                manifests.append(claim)
+    manifests = collect_release_candidate_manifests(workspace)
     for code, severity, message in release_candidate_binding_findings(
         read(ledger), manifests
     ):
