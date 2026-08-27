@@ -41,16 +41,38 @@ Main 的身份池容量，后者是含 Main 的同时运行上限，首次启动
    排除 `.git/` 与运行缓存。这样既适用于独立 Skeleton checkout，也适用于公开双语仓的
    `zh/` 目录：
 
+   **Windows（PowerShell）**：
+
    ```powershell
    $target = Join-Path $env:USERPROFILE "Documents\my-t2ag"
    robocopy . $target /E /XD .git __pycache__ .venv .cache .recovery .staging .uploads
    Set-Location $target
    ```
 
+   **macOS ／ Linux（bash）**：只用 `tar`，不依赖 `rsync`。
+
+   ```bash
+   set -eu
+   target="$HOME/Documents/my-t2ag"
+   test ! -e "$target" || { echo "目标已存在：$target" >&2; exit 1; }
+   mkdir -p "$target"
+   tar -cf - \
+     --exclude='.git' --exclude='__pycache__' --exclude='.venv' \
+     --exclude='.cache' --exclude='.recovery' --exclude='.staging' --exclude='.uploads' \
+     . | (cd "$target" && tar -xf -)
+   cd "$target"
+   for required in AGENTS.md README.md main/t2ag.md; do
+     test -e "$required" || { echo "副本缺 $required" >&2; exit 1; }
+   done
+   test ! -e .git || { echo "个人实例不得含 .git" >&2; exit 1; }
+   ```
+
 2. 在目标目录按 `startup_orchestration.md` 并行运行三条只读启动支路
    （Main welcome ／ Runtime Sentinel ／ Context Prefetcher）。单 Agent 环境才降级为
    下列顺序执行——**注意五条命令属于上述三条支路，不是五条支路**，且
    **critical 必须先跑**（canonical 健康路径是 critical-first，Markdown 全量在其后）：
+
+   **Windows（PowerShell）**：
 
    ```powershell
    python -B main/70_tools/t2ag_context.py --format critical
@@ -60,11 +82,31 @@ Main 的身份池容量，后者是含 Main 的同时运行上限，首次启动
    python -B main/70_tools/t2ag_context.py --include-l1 --format markdown
    ```
 
+   **macOS ／ Linux（bash）**：macOS 自 12.3 起不再提供 `python`，只有 `python3`。
+
+   ```bash
+   python3 -B main/70_tools/t2ag_context.py --format critical
+   python3 -B main/70_tools/t2ag_doctor.py --profile runtime
+   python3 -B main/70_tools/t2ag_state_refresh.py --check
+   python3 -B main/70_tools/t2ag_context.py --format markdown
+   python3 -B main/70_tools/t2ag_context.py --include-l1 --format markdown
+   ```
+
 3. 空模板的上下文命令必须返回 `first_run_required`；随后读取 `main/t2ag.md` 和
    `main/50_playbook/first_run.md`。
 4. 与用户确认 profile、首门课程和首个 group 后再显式写入。
 
-**预期输出**：全新副本上 `doctor --profile runtime` 应为 **`0 FAIL, 0 WARN`**。
+**预期输出**（**两态，取决于你拿到的是发行包还是开发树**）：
+
+- **正式发行包**：`doctor --profile runtime` 的发行资格线为 **`0 FAIL, 0 WARN`**。
+- **开发态 Skeleton（直接 clone 本仓）**：**可能**出现 **`0 FAIL, 1 WARN`**，该 WARN 为
+  `VER-BUMP-002 …前驱 <上一版本> candidate_review=not_run`。**这是正常的，不是坏了**：
+  独立复审是包生成之后才发生的事实，Skeleton 内该字段是**构建时快照**，
+  **不得预写为 `passed`**——否则构成「写通过 → 重打包 → 新包未受审」的循环
+  （见 `main/60_journal/t2ag_version_ledger.md` 头部的三分层写入规则）。
+  前驱版本复审完成并回填后该 WARN 即消失；**下一个开发窗口会再次出现**，属正常节律。
+  该版本的最终资格以 **Main 台账与独立评审证据**为准。
+
 若出现 `EA-0003 …可建文件但不能 unlink`，说明该目录所在的挂载不支持删除
 （常见于容器对宿主目录的挂载）——此时**不要在该环境执行任何 git 写操作**，
 换到宿主机执行；其余功能不受影响。见 `main/50_playbook/environment_assumptions.md`。

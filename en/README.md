@@ -95,10 +95,30 @@ live in `main/50_playbook/startup_orchestration.md`.
    This works both in a standalone Skeleton checkout and in the public bilingual
    repository's `en/` directory:
 
+   **Windows (PowerShell)**:
+
    ```powershell
    $target = Join-Path $env:USERPROFILE "Documents\my-t2ag"
    robocopy . $target /E /XD .git __pycache__ .venv .cache .recovery .staging .uploads
    Set-Location $target
+   ```
+
+   **macOS / Linux (bash)**: uses `tar` only; no `rsync` dependency.
+
+   ```bash
+   set -eu
+   target="$HOME/Documents/my-t2ag"
+   test ! -e "$target" || { echo "target already exists: $target" >&2; exit 1; }
+   mkdir -p "$target"
+   tar -cf - \
+     --exclude='.git' --exclude='__pycache__' --exclude='.venv' \
+     --exclude='.cache' --exclude='.recovery' --exclude='.staging' --exclude='.uploads' \
+     . | (cd "$target" && tar -xf -)
+   cd "$target"
+   for required in AGENTS.md README.md main/t2ag.md; do
+     test -e "$required" || { echo "copy is missing $required" >&2; exit 1; }
+   done
+   test ! -e .git || { echo "a personal instance must not contain .git" >&2; exit 1; }
    ```
 
 2. In the target directory, run the three read-only startup branches in parallel
@@ -109,12 +129,24 @@ live in `main/50_playbook/startup_orchestration.md`.
    must run first** (the canonical healthy path is critical-first; the full
    Markdown packet comes after it):
 
+   **Windows (PowerShell)**:
+
    ```powershell
    python -B main/70_tools/t2ag_context.py --format critical
    python -B main/70_tools/t2ag_doctor.py --profile runtime
    python -B main/70_tools/t2ag_state_refresh.py --check
    python -B main/70_tools/t2ag_context.py --format markdown
    python -B main/70_tools/t2ag_context.py --include-l1 --format markdown
+   ```
+
+   **macOS / Linux (bash)**: macOS has shipped no `python` since 12.3 — only `python3`.
+
+   ```bash
+   python3 -B main/70_tools/t2ag_context.py --format critical
+   python3 -B main/70_tools/t2ag_doctor.py --profile runtime
+   python3 -B main/70_tools/t2ag_state_refresh.py --check
+   python3 -B main/70_tools/t2ag_context.py --format markdown
+   python3 -B main/70_tools/t2ag_context.py --include-l1 --format markdown
    ```
 
 3. On an empty template the context command must return `first_run_required`.
@@ -130,8 +162,25 @@ page-by-page proofreading are the heaviest chain in the system and a poor fit
 for a first run. Open a `textbook`-driven course later, once the system runs
 smoothly and you genuinely need to work through a book page by page.
 
-**Expected output**: on a fresh copy, `doctor --profile runtime` should report
-**`0 FAIL, 0 WARN`**. If you see `EA-0003 ... can create files but cannot unlink`,
+**Expected output** (**two states — depends on whether you have a release package
+or a development tree**):
+
+- **Official release package**: the release-qualification line for
+  `doctor --profile runtime` is **`0 FAIL, 0 WARN`**.
+- **Development-state Skeleton (a direct clone of this repository)**: you **may** see
+  **`0 FAIL, 1 WARN`**, where the WARN is
+  `VER-BUMP-002 ... candidate_review=not_run` for the predecessor version.
+  **This is normal, not a breakage**: independent review is a fact established *after*
+  the package is generated, so the Skeleton carries a **build-time snapshot**. That
+  field **must not be pre-written as `passed`** — doing so would create a
+  "write passed -> repackage -> the new package was never reviewed" loop (see the
+  three-layer write rule at the top of `main/60_journal/t2ag_version_ledger.md`).
+  Once the predecessor's review completes and is backfilled the WARN goes away;
+  **it reappears in the next development window**, which is the normal rhythm.
+  Final qualification for that version is authoritative in the **Main ledger and
+  its independent-review evidence**.
+
+If you see `EA-0003 ... can create files but cannot unlink`,
 the mount holding that directory does not support deletion (common when a
 container mounts a host directory). In that case **do not run any git write
 operation in that environment**; switch to the host machine. Nothing else is
