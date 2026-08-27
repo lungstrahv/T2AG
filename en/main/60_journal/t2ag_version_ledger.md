@@ -51,7 +51,7 @@
 - 0.2.3 `implementation_status`：`complete`（the host interceptor was explicitly
   re-adjudicated out of scope on 2026-08-23 and returned to EV-0013 as an open
   evolution item; criterion: batch_workorder_spec.md §1.4.1 situation #3）
-- 0.2.3 `candidate_review`：`passed`；in-repo `release_qualification`：`not_claimed`
+- 0.2.3 `candidate_review`：`passed`；in-repo `release_qualification`：`finalization_delta_passed`
 - Most recent release-qualified version: `0.2.3` (authority lives in the Main ledger
   plus independent review evidence; the preceding row was backfilled from the
   independent review completed on 2026-08-24 — **backfilling is not pre-writing**:

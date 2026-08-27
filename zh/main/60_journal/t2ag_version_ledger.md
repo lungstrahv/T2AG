@@ -48,7 +48,7 @@
   `<workspace>/docs/handoffs/T2AG_023_SCOPE_CUT_AND_CLOSEOUT_2026-08-23.md`
 - 0.2.3 `implementation_status`：`complete`（宿主 interceptor 已于 2026-08-23
   显式改判出范围，归位为 EV-0013 开放演化项；判据 batch_workorder_spec.md §1.4.1 情形 #3）
-- 0.2.3 `candidate_review`：`passed`；仓内 `release_qualification`：`not_claimed`
+- 0.2.3 `candidate_review`：`passed`；仓内 `release_qualification`：`finalization_delta_passed`
 - 最近 release 资格版本：`0.2.3`（资格权威在 Main 台账与独立评审证据；上行已按
   2026-08-24 完成的独立复审回填——**回填非预写**：复审先于回填，故不构成
   「写通过→重打→新包未受审」的循环）
