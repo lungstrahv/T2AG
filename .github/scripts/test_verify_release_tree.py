@@ -38,7 +38,8 @@ class ReleaseTreeTests(unittest.TestCase):
         self.assertTrue(any("en has files absent from zh" in row for row in findings))
 
     def test_zh_lead_is_allowed(self) -> None:
-        # EN rescoped out of the 0.2.4 closeout (workorder 14.126); zh may lead.
+        # Cross-edition byte parity is not a satisfiable contract (J3, workorder
+        # 14.95); zh may lead while the EN sync is in flight (14.130).
         paths = valid_surface()
         paths.add("zh/main/70_tools/only_in_zh.py")
         self.assertEqual(verifier.validate_paths(paths), [])

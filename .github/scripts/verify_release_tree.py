@@ -186,8 +186,8 @@ def validate_paths(paths: set[str]) -> list[str]:
             f"en_only={en_only[:20]}"
         )
     if zh_only:
-        # zh 正本可先行：EN 已改判出 0.2.4 收口射程（T2AC closeout workorder
-        # 14.126），且跨发行逐文件 parity 已裁为不可满足契约（J3, 14.95）。
+        # zh 正本可先行：跨发行逐文件 parity 已裁为不可满足契约（J3, T2AC
+        # closeout workorder 14.95）；EN 同步在途期间 zh 领先属常态（14.130）。
         # zh 领先的文件只记 NOTE，不构成 FAIL。
         print(f"NOTE: zh leads en by {len(zh_only)} files (allowed): {zh_only[:20]}")
     return findings
