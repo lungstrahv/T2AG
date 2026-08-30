@@ -136,7 +136,7 @@ overwritten in reverse by the Skeleton's default art.
 - `main/80_interface/` — the skin directory
 - `main/80_interface/skin.yaml` — the global configuration
 - `main/80_interface/README.md` — notes on the skin directory
-- `main/t2ag.md` — "3.0 the startup welcome message" owns the display timing and the authority chain for every startup
+- `50_playbook/startup_orchestration.md` — §0 owns the display timing and the authority chain for every startup
 - `main/70_tools/t2ag_doctor.py` — the skin validation checks
 - `main/50_playbook/first_run.md` — step 1 displays the welcome message
 - `main/bin/t2ag` — the optional terminal projection; it reads the metadata dynamically and does not own a second copy of the text

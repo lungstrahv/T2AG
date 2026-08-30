@@ -21,6 +21,9 @@ import activity_ledger as ledger_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 NO_LESSON = {"", "none", "—"}
+COURSE_TYPES = {"mastery", "project", "praxis"}
+MASTERY_LEARNING_MODES = {"textbook", "goal", "project"}
+LEGACY_COURSE_DRIVERS = MASTERY_LEARNING_MODES | {"praxis"}
 # LV-5 (2026-08-20): the overlay ships in translated editions, so the mapping table's
 # heading, columns and default-row marker each have one canonical identity plus the
 # spellings other editions use. Recognising only zh-CN would make a correctly-built
@@ -86,6 +89,72 @@ class ProgressSnapshot:
     path: Path
     content: str
     meta: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class CourseProgression:
+    """Resolved type-owned progression; legacy drivers are read-only."""
+
+    course_type: str
+    learning_mode: str | None
+    compatibility_source: str
+
+    @property
+    def effective_key(self) -> str:
+        return self.learning_mode or self.course_type
+
+    @property
+    def is_textbook_led(self) -> bool:
+        return self.course_type == "mastery" and self.learning_mode == "textbook"
+
+
+def resolve_course_progression(
+    course_meta: Mapping[str, str],
+    progress_meta: Mapping[str, str] | None = None,
+) -> CourseProgression:
+    progress_meta = progress_meta or {}
+    errors: list[str] = []
+    course_type = str(course_meta.get("course_type") or "")
+    if course_type not in COURSE_TYPES:
+        errors.append(f"illegal course_type: {course_type or 'missing'}")
+    course_mode = str(course_meta.get("learning_mode") or "")
+    progress_mode = str(progress_meta.get("learning_mode") or "")
+    legacy_course = str(course_meta.get("default_driver") or "")
+    legacy_progress = str(progress_meta.get("course_driver") or "")
+    for label, value in (("default_driver", legacy_course), ("course_driver", legacy_progress)):
+        if value and value not in LEGACY_COURSE_DRIVERS:
+            errors.append(f"illegal legacy {label}: {value}")
+    mode: str | None = None
+    source = "canonical"
+    if course_type == "mastery":
+        declared = [value for value in (course_mode, progress_mode) if value]
+        if declared and len(set(declared)) != 1:
+            errors.append("Mastery learning_mode differs between course and progress")
+        if declared:
+            mode = declared[0]
+        else:
+            legacy = [value for value in (legacy_course, legacy_progress) if value]
+            if legacy and len(set(legacy)) != 1:
+                errors.append("Mastery legacy drivers differ between course and progress")
+            if legacy:
+                mode = legacy[0]
+                source = "legacy_driver"
+        if mode not in MASTERY_LEARNING_MODES:
+            errors.append(f"Mastery lacks a legal learning_mode: {mode or 'missing'}")
+        for label, value in (("default_driver", legacy_course), ("course_driver", legacy_progress)):
+            if value and mode and value != mode:
+                errors.append(f"{label} conflicts with Mastery learning_mode: {value} != {mode}")
+    elif course_type in {"project", "praxis"}:
+        if course_mode or progress_mode:
+            errors.append(f"{course_type} Course must not declare learning_mode")
+        for label, value in (("default_driver", legacy_course), ("course_driver", legacy_progress)):
+            if value and value != course_type:
+                errors.append(f"legacy {label} for {course_type} Course must equal {course_type}")
+        if legacy_course or legacy_progress:
+            source = "legacy_driver"
+    if errors:
+        raise ActivityContractError(errors)
+    return CourseProgression(course_type, mode, source)
 
 
 def validate_progress_identity(
@@ -353,7 +422,9 @@ def resolve_teacher_mapping(
 @dataclass(frozen=True)
 class ActivityRoute:
     course_id: str
-    course_driver: str
+    course_type: str
+    learning_mode: str | None
+    progression_compatibility_source: str
     activity_type: str
     activity_id: str
     activity_position: str
@@ -364,6 +435,22 @@ class ActivityRoute:
     lesson_context_id: str
     lesson_context_path: str
     source_path: str
+
+    @property
+    def course_driver(self) -> str:
+        return self.learning_mode or self.course_type
+
+    @property
+    def is_textbook_led(self) -> bool:
+        return self.course_type == "mastery" and self.learning_mode == "textbook"
+
+    def progression_payload(self) -> dict[str, object]:
+        return {
+            "course_type": self.course_type,
+            "learning_mode": self.learning_mode,
+            "progression_kind": "mastery_mode" if self.learning_mode else "course_type",
+            "compatibility_source": self.progression_compatibility_source,
+        }
 
     @property
     def lesson_context_label(self) -> str:
@@ -388,7 +475,7 @@ class ActivityRoute:
         return {
             "intent": "recover",
             "course_id": self.course_id,
-            "course_driver": self.course_driver,
+            **self.progression_payload(),
             "current_activity": self.activity_type,
             "current_activity_id": self.activity_id,
             "activity_position": self.activity_position,
@@ -417,7 +504,7 @@ class ActivityRoute:
         return {
             "intent": "close",
             "course_id": self.course_id,
-            "course_driver": self.course_driver,
+            **self.progression_payload(),
             "current_activity": self.activity_type,
             "current_activity_id": self.activity_id,
             "activity_position": self.activity_position,
@@ -451,12 +538,15 @@ def resolve_activity(
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", course_id):
         raise ActivityContractError([f"course_id is invalid: {course_id!r}"])
     course_root = root / "main/40_course" / course_id
+    course_path = course_root / "course.md"
     progress = course_root / "progress.md"
     errors: list[str] = []
     is_file = exists or (lambda path: path.is_file())
 
     if not is_file(progress):
         raise ActivityContractError([f"progress.md does not exist: {course_id}"])
+    if not is_file(course_path):
+        raise ActivityContractError([f"course.md does not exist: {course_id}"])
     if snapshot is None:
         progress_content = reader(progress)
         snapshot = ProgressSnapshot(
@@ -483,7 +573,12 @@ def resolve_activity(
 
     activity_type = meta.get("current_activity", "")
     activity_id = meta.get("current_activity_id", "")
-    course_driver = meta.get("course_driver", "")
+    course_meta = frontmatter_text(reader(course_path))
+    try:
+        progression = resolve_course_progression(course_meta, meta)
+    except ActivityContractError as exc:
+        errors.extend(exc.errors)
+        progression = CourseProgression("", None, "invalid")
     resume_path = meta.get("resume_path", "")
     # current_lesson is retired in 0.2.2; if present it is compatibility-only.
     current_lesson = meta.get("current_lesson", "")
@@ -491,9 +586,6 @@ def resolve_activity(
     source_path = ""
     carrier = root / "__invalid_activity__"
     carrier_fields: tuple[str, str, str] | None = None
-    if course_driver not in {"textbook", "goal", "project", "praxis"}:
-        errors.append(f"course_driver is illegal: {course_driver or 'missing'}")
-
     if activity_type == "lesson":
         if not re.fullmatch(r"lesson\d+", activity_id):
             errors.append(f"current_activity_id is illegal: lesson -> {activity_id or 'missing'}")
@@ -550,7 +642,7 @@ def resolve_activity(
                     "the current Exercise lacks problems.md: "
                     f"main/40_course/{course_id}/exercises/{activity_id}/problems.md"
                 )
-            elif course_driver == "textbook":
+            elif progression.is_textbook_led:
                 source_path = problems_meta.get("source_path", "")
                 try:
                     resolve_course_book_path(root, course_id, source_path)
@@ -631,7 +723,9 @@ def resolve_activity(
 
     return ActivityRoute(
         course_id=course_id,
-        course_driver=course_driver,
+        course_type=progression.course_type,
+        learning_mode=progression.learning_mode,
+        progression_compatibility_source=progression.compatibility_source,
         activity_type=activity_type,
         activity_id=activity_id,
         activity_position=meta.get("activity_position", ""),

@@ -37,7 +37,7 @@
 6. Every concept, worked example, derivation, summary, page turn and cross-node action uses the incompressible three-gate protocol: first **confirm understanding**; after a derivation or summary ask about **feelings/questions**; finally obtain a **one-shot authorization to continue**. A correct answer is evidence of understanding only — it does not permit entering the next teaching block. Never jump ahead while a question is unclosed or continuation was not explicitly granted.
 7. History is append-only; established facts are not rewritten. Rules, current state and GENERATED blocks enjoy no historical exemption.
 8. External governance systems keep their authority boundary. Trading-OS owns trading discipline and trading facts; T2AG stores only learning, process evidence and review annotations, and never copies or relaxes external terms.
-9. The meta-playbook layer is the project's foundation: the project regenerates around meta; the skeleton must contain all meta; the three releases are byte-identical at the source.
+9. The meta-playbook layer is the project's foundation: the project regenerates around meta; a shared rule allows exactly one canonical source, and a release projection must be verifiable and must never become the source of truth in reverse. The operating owner is `50_playbook/playbook_management.md` §5.
 10. Grading definitions and detail rules are in `50_playbook/playbook_management.md` §4; the machine backstop is the doctor grading instrument.
 
 ## 2. Directories and objects  [max 34]
@@ -68,18 +68,16 @@ Stable objects:
 
 ## 3. Startup flow  [max 26]
 
-On every entry to this project: immediately display the welcome message per the current skin (flow canonical: `50_playbook/startup_orchestration.md` §0), and in parallel start the read-only recovery branches (Runtime Sentinel + Context Prefetcher; formation, commands, handoff fields and timing canonical: same file §1–§3). Never wait for all recovery checks to finish serially before giving the student their first feedback.
+The startup protocol does not run in full implicitly just because "the repository was entered". The caller must first declare, separately, the entry axis `entry.teach|entry.maintain|entry.audit|entry.release` and `session_lane`; a missing token fails closed, and in particular must not default to `entry.teach`. The entry contract, the two-axis boundary and the I/O are canonical in `50_playbook/startup_orchestration.md` §11–§14.
 
-Two observable states (criteria canonical: `startup_orchestration.md` §4.1/§4.2):
+The prefix shared by all four entries contains only: reading this constitution, displaying the welcome message per the current skin (same file §0), and the existing `runtime.authorization` kernel. The flow then branches by entry: only `entry.teach` starts course recovery and the textbook Scope scan; `entry.maintain` runs the runtime doctor + state check; `entry.audit` gathers read-only evidence; `entry.release` carries no release authorization of its own.
 
-- `learning-ready`: critical has produced an unchanged source, a route-unique exact stopping point and the content this round requires, with no teaching blocker. A textbook must additionally complete this session's Scope scan — A1–A5 justified by host-observable delivery (A6/ADR-0003); a Snapshot, `content_consumed` or a historical receipt must never pose as this round.
-- `recovery-settled`: doctor `0 FAIL`, no state drift, full source verification complete. Any progress write, checkpoint confirmation, terminal/RT3 action, foreground switch, or claim that "state is closed" must wait for this state.
+The two observable states of `entry.teach` (criteria canonical: same file §4.1/§4.2):
 
-Timing targets: critical ≤10s, first content ≤15s, full background ≤45–60s; a late blocker pauses further advance.
+- `learning-ready`: critical has produced an exact stopping point with no teaching blocker; textbook Scope A1–A5 must be justified by this round's host-observable delivery, and a Snapshot, `content_consumed` or a historical receipt must never pose as this round.
+- `recovery-settled`: doctor `0 FAIL`, no state drift, full source verification complete. For every entry, progress writes, checkpoints, terminal/RT3 actions, foreground switches and closure claims must wait for the `recovery-settled` that applies to it.
 
-- First run: uninitialized criteria and the initialization flow are canonical in `50_playbook/first_run.md` (templates must come from `40_course/_templates/course/`; never pre-fill a real student number; never auto-create `.venv`).
-- Routine takeover: immediate excerpt, L0/L1/L2 layering, course selection and Main consumption discipline are canonical in `50_playbook/context_packet.md`.
-- Runtime doctor FAIL: repair local teaching state first and open no new content; a release-side FAIL blocks only the candidate and the release. While the cloud bridge is `paused` the cloud projection is read-only. If the context tool cannot run, do manual layered excerpting per `50_playbook/lesson_recover.md`; do not fall back to undifferentiated full reads.
+Teach timing targets, first-run initialization, routine takeover, FAIL/cloud degradation and manual recovery are all governed by their sunk owners: `startup_orchestration.md`, `first_run.md`, `context_packet.md`, `doctor_contracts.md`, `lesson_recover.md`; do not rebuild a second copy of the flow in the constitution.
 
 ## 4. Teaching and state advance  [max 76]
 
@@ -93,6 +91,32 @@ Timing targets: critical ≤10s, first content ≤15s, full background ≤45–6
 - The first recovery of a textbook Lesson in each new conversation must complete an in-session Scope scan (A1–A6, ADR-0003). The preparation snapshot proves historical `prepared`; the session scan proves consumption this round; neither may pose as the other. Report `pdf_page_index` and the in-book `printed_page_label` as separate fields. Canonical: same file §3.1.
 - The ASCII classroom tree at teaching start and page turn, and the in-page coverage checklist obligation, are canonical in the same file under "a session scan is not classroom coverage". Definitions, theorems, proof steps, worked examples, formulas, numbered remarks and textbook summaries are presented block by block, and must never be silently skipped because a scan happened, a summary was given, or the student answered correctly. In-page context outside this Lesson may only be marked `outside_active_lesson_boundary`.
 - At most one new teaching block per round. After finishing an explanation, derivation or summary, the teacher must stop and ask "how does this step feel / any questions" and "shall we continue". A "continue" received this round authorizes only the next teaching block and expires once used.
+
+#### Block transition protocol
+
+After the confirmation gate closes and before the next block appears, pass through these three gates in order;
+none may be skipped:
+
+1. **Closure statement** — explicitly announce that the current block's confirmation gate has closed and
+   state the evidence (what the student answered correctly).
+2. **Feeling / question gate** — ask how this step feels or whether the student has questions, and wait.
+   “Continue” or “no questions” counts as passing this gate.
+3. **Next-block authorization gate** — name exactly one next block (for example “Example 1.2.1”), ask whether
+   to enter it, and wait for an explicit “continue”, “yes”, “enter”, or equivalent authorization.
+
+Prohibited:
+
+- **Skipping the feeling gate**: moving directly from a correct confirmation answer into the next block.
+- **Bundling authorization**: “continue” never authorizes a whole lesson, page, or several blocks; it authorizes
+  the next block only and expires when used.
+
+Allowed:
+
+- **Short structural preview**: transition text may name an upcoming sequence such as “Example 1.2.1 →
+  Example 1.2.2 → three elements” as navigation. Only one block may be expanded this round; the others remain
+  names only, without their body, problem, or derivation.
+
+This protocol is the concrete execution of the three-gate protocol in §1.6 and has the same priority.
 - Before using any body text on a new page, first report the previous page's coverage checklist, ensuring every block is `covered`, `explicitly_deferred` or `outside_active_lesson_boundary`; then explicitly announce "page turn: PDF N / in-book M", display the new page's classroom tree, and obtain continuation authorization separately. Never teach the new page first and report the page turn afterwards.
 - Definitions are presented in full. An exercise is first given as the problem statement only, preserving the student's independent attempt. The reasoning structure of a proof starts from the student's actual route and forms gradually in discussion; never pre-write a standard tree on their behalf. Only after they are stuck do you advance the hint ladder level by level.
 - Long multi-block explanations first give a short table of contents or tree map stating goals, object types, dependencies and the current branch, then expand one branch at a time and wait for confirmation. An unauthorized overview of a new Exercise must not leak methods, sub-goals or answers.
@@ -100,6 +124,7 @@ Timing targets: critical ≤10s, first content ≤15s, full background ≤45–6
 - Write to `progress.md` immediately on entering a checkpoint; use `pending` while unconfirmed, and change it only after confirmation.
 - The canonical states of the mistake bank and the question bank are `open / answered / closed`.
 - Context cost decides only when to read. It never decides what to teach, what evidence to keep, or whether to wait for student confirmation.
+<!-- rule: CTX-PACKET-001 -->
 - The soft budget is checked against fully serialized Markdown. The source-inventory omission ratio is not a measurement of the old prompt, and must never be stated as an end-to-end token reduction.
 - A group goal is not a group-closing condition. Closing a group requires the decidable thresholds in the calendar, review evidence, and explicit user confirmation.
 
@@ -128,6 +153,7 @@ Detail canonical: `50_playbook/validation_flow.md` (including §4 V-level detail
 - List the test composition first, then execute with that same selection and plan SHA (`70_tools/t2ag_test.py`); never generate a one-off Python suite on the fly and delete it after running.
 - Structural and release hard rules (migration runs `--check` first; the registry is the single canonical with tombstones; Main/Skeleton are masters; Lite is regenerated from Main only; no commit without authorization; the checkpoint protocol; `clean ≠ reviewed ≠ released`; the release precondition checklist) are canonical in `50_playbook/batch_workorder_spec.md` §3, `50_playbook/git_workflow.md` and `50_playbook/validation_flow.md` §4.
 
+<!-- rule: AUTH-NONAMP-001 -->
 ### 6.2 Authorization is non-amplifying and budget stop-loss closes the loop
 
 Verification level and authorization level are two independent dimensions. V0–V3 decide only how much evidence is required; they never change who may approve an action.

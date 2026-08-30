@@ -10,6 +10,11 @@
 
 > Every milestone of a project-track course must be bound to a verification mode (A/B/B-K, registered before the group is formed or before the M starts; a major-adjustment window may change an M that has not started), and any mode must satisfy the three mechanisms: an external source of truth, an independence measurement, and a trace left by failure.
 
+This protocol is triggered only by `course_type: project`. A Project Course advances through the
+next open Goal/Milestone in its existing Project Plan; `course.md` owns the plan definition, while
+`progress.md` / `activity_ledger.md` own node state and the foreground. Mastery +
+`learning_mode: project` does not use this protocol.
+
 ### Environment inertia and the clean-room verification boundary
 
 - Startup, doctor, an ordinary course, and an ordinary milestone acceptance only inspect the existing

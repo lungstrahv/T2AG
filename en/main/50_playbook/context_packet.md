@@ -7,6 +7,7 @@
 
 ## 1. Goal and boundaries
 
+<!-- rule: CTX-PACKET-002 -->
 Daily teaching uses **immediate excerpt + triggered expansion**:
 
 1. `t2ag_context.py` generates a read-only context packet from the current authoritative files every time;
@@ -284,6 +285,7 @@ create a second truth source.
 - `main/50_playbook/course_group_rules.md`: keystone anchors and the schedule fallback.
 - `main/50_playbook/source_page_assets.md`: canonical page anchors for `crosstext`.
 
+<!-- rule: CTX-PACKET-004 -->
 ## Main consumption discipline and course selection (canonical; sunk from constitution §3.2 on 2026-08-08 / EV-0020)
 
 The standard two-command sequence (critical first, markdown as the verification backstop):
@@ -295,6 +297,7 @@ python -B main/70_tools/t2ag_context.py --course <ID> --format markdown
 
 - When the course ID is omitted, only memory's current-course pointer may be used; never scan directories to guess. An explicit switch is permitted only within the active Group; for a course outside it, switch groups first.
 - After Main receives critical, its context call count is 0: it must not run the Markdown L0, search the ledger, decode a pending, assemble a close confirmation, or re-read the full L0. Only when critical has hit its 10-second timeout and that branch has terminated may Main degrade to running `--format critical` once.
+<!-- rule: CTX-PACKET-003 -->
 - The same snapshot is never dispatched twice; if the background snapshot differs, the Prefetcher discards the candidate and re-runs once; **an unchanged L0 is not re-read within the same conversation**.
 - Critical recovers only the route, the stopping point, the next action, the necessary source SHAs and the first round's action payload; the packet is a verbatim read-only projection, not a source of truth, and must never be written to disk and edited. The authoritative pending prompt must come verbatim from the current slice of `progress.md` with its source named, and added material must never replace the authoritative stopping point or bypass the hint gate.
 - Use `--include-l1` when advancing the current step needs additional direct evidence; enter a full L2 read only on an explicit trigger such as a state conflict, retest/question recovery, scheduling/review, session close, a historical follow-up, or a project audit.

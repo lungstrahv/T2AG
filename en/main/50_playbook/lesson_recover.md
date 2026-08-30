@@ -95,6 +95,7 @@ confirmation status at the same time. The current activity or cloud evidence may
 evidence pending promotion, but must never silently overwrite the source of truth; write it back
 per `progress_tracking.md` after the student confirms.
 
+<!-- rule: CTX-PACKET-007 -->
 ### Step 2: consume the current slice of progress.md
 
 L0 excerpts only the complete frontmatter and the "current progress" section of the corresponding
@@ -108,6 +109,7 @@ from this file, and capacity status is derived from the active G file.
 - **Study hours invested**: the accumulated total
 - **Next step plan**: what is to be taught next
 
+<!-- rule: CTX-PACKET-008 -->
 Only when the current slice cannot explain a conflict, the user asks about history, a formal
 retest is due, or a mastery judgement is to be changed, does **L2 reads the corresponding teaching record** and the "mastered knowledge points" entries; daily recovery does not load whole stretches
 of history by default.
@@ -118,6 +120,7 @@ L0 excerpts only "open" and "needs review" from the current course `question_ban
 recovering a class, prioritize questions blocking current progress; an answered entry enters L2
 only when the current knowledge point or the student's follow-up hits it, never as a bulk load.
 
+<!-- rule: ACT-ROUTE-001 -->
 ### Step 3: restore the main carrier per current_activity
 
 First read `current_activity`, `current_activity_id` and `resume_path` verbatim from
@@ -136,6 +139,7 @@ Do not continue if the command exits non-zero. `primary_read` is the single curr
 carrier; `working_pages: null` means the default recovery chain must skip the textbook cache. No
 Lesson/Exercise example below may override that routing result.
 
+<!-- rule: ACT-ROUTE-002 -->
 #### `lesson` branch
 
 Only when `current_activity: lesson`:
@@ -147,6 +151,7 @@ Only when `current_activity: lesson`:
 5. L1 reads, per the current stopping point, the necessary teaching records, Q&A, wrong attempts and completion node/checkpoint that L0 does not already contain;
 6. when the current Lesson has `lesson_thoughts.md`, read the relevant ideas as needed.
 
+<!-- rule: ACT-ROUTE-003 -->
 #### `exercise` branch
 
 Only when `current_activity: exercise`:
@@ -161,6 +166,8 @@ Only when `current_activity: exercise`:
    before every reply; on deny, nothing may be sent. A conceptual question uses `concept_answer`,
    answering only that concept and never applying it back to the current problem automatically.
 
+<!-- rule: ACT-ROUTE-004 -->
+<!-- rule: ACT-ROUTE-008 -->
 **An Exercise first start must not read or construct a Lesson path**; it does not write
 `current_lesson`, and it points `resume_path` straight at
 `exercises/exerciseNN/exercise.md`. A historical Lesson's `working_pages/` may be entirely absent
@@ -192,8 +199,9 @@ L0 excerpts section by section from the student profile, focusing on:
 
 ### Step 5: the textbook source window (Snapshot-only)
 
+<!-- rule: ACT-ROUTE-005 -->
 In the default recovery chain, **the textbook source window applies only to `lesson` +
-`course_driver: textbook`**. Skip this step when the current activity is an Exercise; goal /
+`course_type: mastery` + `learning_mode: textbook`** (or the equivalent legacy driver during migration). Skip this step when the current activity is an Exercise; goal /
 project / praxis Lessons skip the textbook window.
 
 **Current path (EV-0012)**:
@@ -213,6 +221,7 @@ never read a historical `content_consumed=true`, a receipt, a file hash, frontma
 helper agent's "no further reading needed" as itself having satisfied A1 this round. The
 completion statement is issued by the host only (A6).
 
+<!-- rule: CTX-PACKET-009 -->
 **The legacy path is retired**: the former
 `lessons/<current_activity_id>/working_pages/` path was retired in 0.2.2 batch S3. If the new
 preparation path does not exist, the context tool must fail and **never return `ready` without
@@ -220,6 +229,7 @@ the textbook**. Complete it per `ocr_correct_flow.md` + `source_page_assets.md` 
 
 **Read-only discipline during recovery**:
 
+<!-- rule: ACT-ROUTE-010 -->
 - The recovery chain treats `book/.cache/`, `preparation/` and `source_assets/` as strictly read-only. On an over-quota, suspected-stale or inconsistent pointer, report and stop — **never clean up automatically**, evict, rename or rebuild those directories, and never evict a P0 page of the current Scope. Cleanup is a separate maintenance action requiring the user's authorization with full knowledge of what is being deleted.
 - If recovery reveals that a write-back is needed (a missing page, a Snapshot pointer change, a source-of-truth repair), that is a separate action: perform it only after obtaining **exact RT3** authorization, and that authorization covers only the objects named in the current round. Recovery itself carries no write authorization, and "so the class can continue" is never a reason to skip it.
 - A Lesson not yet entered (no `learning_enter` in the ledger) legitimately has no Snapshot; report "pages not prepared yet" and never fabricate an empty Snapshot or a fake receipt to pass a check.
@@ -263,16 +273,43 @@ The number of spot-check questions is set by **how much content the previous cla
 
 ### Step 7: confirm with the student — "last time we reached XXX, continue?"
 
+This step consumes the canonical four-state `turn_intent` vocabulary in
+`progress_governance.md` §9; it maps recovery behavior to that vocabulary rather than defining a
+second taxonomy. `explicit_continue` and `ambiguous_resume` split at item 3,
+`conflict_resolution` is handled by item 5, and `new_scope` returns to the normal authorization
+gate for the requested new scope.
+
 Combine the above and confirm the recovery point with the student:
 
 1. **Summarize the previous progress**: the Lesson branch names the chapter, textbook page and exact position; the Exercise branch names the Unit, the current problem/batch and the exact stopping point. Never invent a chapter or Lesson.
 2. **Confirm the student's state**: if personality_baseline or course_reflections show recent emotional fluctuation, greet appropriately.
-3. **Ask whether to continue**: only when the user has not already asked to continue this round, ask "continue from here, or would you like to review what came before?"; when the user has already said continue, do not ask again.
+3. **Route by `turn_intent`**: only when the user has not already asked to continue this round, ask
+   "continue from here, or would you like to review what came before?"; when the user has already
+   said continue, do not ask again.
 4. **Authoritative action and creative addition coexist**: a pending checkpoint must be reused verbatim and marked as the "exact stopping point" of the current slice of `progress.md`; clearly-labelled summary questions, warm-ups, analogies or model-generated exploratory questions may be added, but must never replace the authoritative stopping point, pose as progress evidence, or bypass the Exercise hint gate.
-5. **Stop on conflict**: when the route, progress, Activity, current page SourcePageAsset or Scope manifest disagree, report the conflict first and show the student no candidate teaching action.
-6. **Restore the classroom tree**: a textbook Lesson displays the character tree before the first piece of content, listing the current PDF/in-book page, the active lesson boundary, the textbook blocks on this page and each block's status. A completed scan is not completed teaching coverage.
+5. **Stop on conflict (`turn_intent=conflict_resolution`)**: when the route, progress, Activity,
+   current page SourcePageAsset or Scope manifest disagree, report the conflict first and show the
+   student no candidate teaching action. Explain in natural language how each choice changes the
+   result; expand internal IDs, schema, and status codes only when needed.
+6. **Restore the classroom tree**: before the first content in a textbook Lesson, show a location
+   summary rather than expanding the full tree by default. Read the profile's
+   `lesson_tree_display_mode`: a missing value or `progressive` uses this default; `full` expands
+   the same complete coverage tree immediately. An explicit request this round overrides either
+   mode, and the profile is changed only when the student asks to save that preference. Derive the
+   cursor deterministically from the complete ordered checklist as
+   `N blocks on this page / current block K / N-K remaining`. Then traverse in order until every
+   block reaches `covered`, `explicitly_deferred`, or `outside_active_lesson_boundary`; omit no
+   block silently. A completed scan is not completed teaching coverage.
 7. **Restore the three-gate protocol**: a "continue" from an old conversation is never reused across a recovery point; a correct answer closes the understanding gate only. After a derivation or summary you must again ask how the student feels and what they doubt, and obtain a one-shot continuation authorization for the next teaching block.
-8. **Restore the Lesson opening**: if the current Lesson has no opening shown and confirmed in this session, first summarize this lesson's content, then display the ASCII knowledge tree. Where no ready-made tree exists, compose one creatively from the Lesson study scope and the LessonMap; after displaying it, ask how the route feels and whether to enter the first block, and never record the overview as content already taught.
+8. **Restore the Lesson opening**: if the current Lesson has no opening shown and confirmed in this
+   session, first summarize this lesson's content. The ASCII knowledge tree consumes the same
+   `lesson_tree_display_mode`: `progressive` gives a compact summary of goal, trunk, branch index,
+   dependencies, this round's scope and current branch; `full` expands the same complete tree.
+   Both modes then traverse in teaching order, and an explicit request for the full tree takes
+   effect immediately. The summary is a deterministic rearrangement of that one complete tree,
+   never a second truth source. Where no ready-made tree exists, compose one creatively from the
+   Lesson scope and LessonMap; after displaying it, ask how the route feels and whether to enter
+   the first block, and never record the overview as content already taught.
 
 **Confirmation example**:
 
@@ -328,8 +365,8 @@ across courses is written into `profile.md`.
 ## 4. Page-window management during recovery
 
 **This section runs only when the read-only activity route returns `current_activity: lesson` and
-the course driver is textbook. An Exercise (including one with a historical Lesson) and every
-other driver skip the whole section, do not parse an old `textbook_page`, and do not construct a
+the course is Mastery + textbook-led. An Exercise (including one with a historical Lesson) and every
+other progression protocol skips the whole section, does not parse an old `textbook_page`, and does not construct a
 Lesson path from it.**
 
 After context is restored, textbook source text is managed through the preparation Snapshot +
@@ -357,6 +394,7 @@ incomplete.
 
 | Situation | Operation | Result |
 |---|---|---|
+<!-- rule: ACT-ROUTE-009 -->
 | starting a normal book | prepare a contiguous Scope of **5–8** pages (default 5) | new Snapshot + current pointer |
 | widening / page turn | new Scope version -> a **new** Snapshot; the old Snapshot is kept read-only | the old PREP is unchanged |
 | short book `N<5` | Scope = all available pages, fixed | `short_document: true` |

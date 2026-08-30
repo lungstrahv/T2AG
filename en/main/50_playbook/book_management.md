@@ -62,16 +62,19 @@ book/
 - **Criterion**: the original download bundle (zip), and temporary artifacts that have served their purpose
 - **Rule**: a file in archives may be deleted at any time without affecting teaching; it is kept only for provenance
 
-## 3. Course driver and source usage
+## 3. Course Type, Mastery Learning Mode, and source use
 
-Every course declares `course_driver` in `progress.md`; it states what decides the next class, not an administrative classification of the course.
+Course Type owns the completion judge and the top-level progression protocol. Only a Mastery Course declares the same `learning_mode` in course and progress; Project and Praxis do not carry a driver.
 
-| course_driver | Basis for advancing | Source rule |
+| Course Type / Learning Mode | Basis for advancing | Source rule |
 |---|---|---|
-| `textbook` | textbook chapters and page numbers | `progress.md` names the primary textbook; a lesson records only the exact page and does not re-register an ER |
-| `goal` | an explicit capability goal | each lesson names one main trustworthy source; a cross-course source may cite an ER |
-| `project` | a runnable artifact and its milestones | the repository, the tests, the data and the official documentation are the main evidence; textbooks are consulted as needed |
-| `praxis` | real action, feedback and long-term cultivation | books, data, official material and behavioural records form a bundle of evidence; no single textbook is required to lead |
+| Mastery / `textbook` | textbook chapters and page numbers | `progress.md` names the primary textbook; lessons record exact pages |
+| Mastery / `goal` | an explicit capability goal | each lesson names one main trustworthy source |
+| Mastery / `project` | runnable artifacts serving mastery | the completion judge remains the Mastery confirmation gate |
+| Project | the next open Goal/Milestone in the Project Plan | milestones bind reproducible external verification |
+| Praxis | real action → feedback → reflection → next action | behavioral records and sources form an evidence bundle |
+
+No second ProjectPlan file is created: `course.md` owns the plan definition, Completion nodes in `progress.md` own node state, and progress/activity ledger owns the single frontend. Legacy drivers are read-only compatibility fields.
 
 `course_type: praxis` is a practice-cultivation course. It is not a general-education course, and it is not `course_type: project` (whose judge is reproducible, whereas praxis is judged by open-world consequences — the axis definitions are in `00_core/domain_model.md` §2.0). It must keep the following declaration in its course description:
 

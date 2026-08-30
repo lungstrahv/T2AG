@@ -79,6 +79,11 @@ class SourceSnapshotTests(unittest.TestCase):
             progress_path = course_root / "progress.md"
             carrier_path = course_root / "exercises/U0001/exercise.md"
             problems_path = course_root / "exercises/U0001/problems.md"
+            write_utf8(
+                course_root / "course.md",
+                "---\ntype: course\ncourse_id: TEST100\ncourse_type: mastery\n"
+                "learning_mode: goal\n---\n",
+            )
             progress = (
                 "---\n"
                 "type: course_progress\n"
@@ -179,7 +184,9 @@ class TextbookWindowTests(unittest.TestCase):
     def route() -> SimpleNamespace:
         return SimpleNamespace(
             activity_type="lesson",
-            course_driver="textbook",
+            course_type="mastery",
+            learning_mode="textbook",
+            is_textbook_led=True,
             activity_id="lesson01",
             resume_path=(
                 "main/40_course/TEST100/lessons/lesson01/lesson01.md"
@@ -375,6 +382,11 @@ class ConditionalRoutingTests(unittest.TestCase):
     def test_between_activities_route_has_no_fake_carrier(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            write_utf8(
+                root / "main/40_course/TEST100/course.md",
+                "---\ntype: course\ncourse_id: TEST100\ncourse_type: mastery\n"
+                "learning_mode: goal\n---\n",
+            )
             write_utf8(
                 root / "main/40_course/TEST100/progress.md",
                 "---\ntype: course_progress\ncourse_id: TEST100\n"
@@ -1240,11 +1252,11 @@ def b_layer_exclusions(body: str) -> str:
     pass if a clause were *moved out* of the exclusion list into the admissible
     one.  Matching inside this block means relocation fails the test too.
     """
-    start = doctor.marker_offset(body, "B 层不算数")
+    start = doctor.rule_position(body, "SCAN-ADMISSION-001")
     if start < 0:
         raise AssertionError(
             "source_page_assets.md no longer has the Layer-B exclusion block "
-            f"(accepted spellings: {doctor.marker_spellings('B 层不算数')})"
+            f"(accepted spellings: {doctor.marker_spellings(doctor.rule_marker('SCAN-ADMISSION-001'))})"
         )
     end = body.find("####", start)
     return normalise_spec_text(body[start : end if end != -1 else len(body)])
@@ -1312,7 +1324,7 @@ class ScanEvidenceSpecTests(unittest.TestCase):
     def test_admission_criterion_is_stated(self) -> None:
         body = self.PLAYBOOK.read_text(encoding="utf-8")
         marker_assertions.assert_states_rule(
-            self, body, "宿主能观察到内容本体进入本轮模型上下文这一事件本身",
+            self, body, "SCAN-ADMISSION-002",
             name="source_page_assets.md",
         )
 
@@ -1320,15 +1332,15 @@ class ScanEvidenceSpecTests(unittest.TestCase):
         """EV-0019: completion = in-session observable delivery, not host signing."""
         body = self.PLAYBOOK.read_text(encoding="utf-8")
         marker_assertions.assert_states_rule(
-            self, body, "A1–A5 经**宿主可观察投递**在本会话内证成", name="source_page_assets.md"
+            self, body, "SCAN-ADMISSION-003", name="source_page_assets.md"
         )
         # Pending must survive until certification -- the boot invariant.
         marker_assertions.assert_states_rule(
-            self, body, "等 pending 状态**不得清除**", name="source_page_assets.md"
+            self, body, "SCAN-ADMISSION-005", name="source_page_assets.md"
         )
         # The user-preserved anti-impersonation clause must survive verbatim.
         marker_assertions.assert_states_rule(
-            self, body, "（§3.1.3 A 层「不得冒充」条款原样有效）", name="source_page_assets.md"
+            self, body, "SCAN-ADMISSION-006", name="source_page_assets.md"
         )
 
     def test_host_signing_monopoly_is_retired(self) -> None:
@@ -1340,24 +1352,24 @@ class ScanEvidenceSpecTests(unittest.TestCase):
     def test_subprocess_digest_is_excluded(self) -> None:
         block = b_layer_exclusions(self.PLAYBOOK.read_text(encoding="utf-8"))
         marker_assertions.assert_states_rule(
-            self, block, "**子进程摘要**", name="the Layer-B exclusion block"
+            self, block, "SCAN-ADMISSION-008", name="the Layer-B exclusion block"
         )
         # The negation is the rule; without it the term alone proves nothing.
         marker_assertions.assert_states_rule(
-            self, block, "证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体",
+            self, block, "SCAN-ADMISSION-009",
             name="the Layer-B exclusion block",
         )
 
     def test_frontmatter_trap_is_named(self) -> None:
         body = self.PLAYBOOK.read_text(encoding="utf-8")
         marker_assertions.assert_states_rule(
-            self, body, "因此「只读 frontmatter」能满足全部前置而**正文一字未投递**",
+            self, body, "SCAN-ADMISSION-004",
             name="source_page_assets.md",
         )
         # Naming the trap is not enough; the countermeasure must survive too.
         marker_assertions.assert_states_rule(
             self, body,
-            "故 A1 要求**完整正文段**投递，宿主观察事件须能区分「正文投递」与「仅 frontmatter 投递」",
+            "SCAN-ADMISSION-007",
             name="source_page_assets.md",
         )
 
@@ -1375,21 +1387,23 @@ class ScanEvidenceSpecTests(unittest.TestCase):
 
         inverted = body
         for spelling in doctor.marker_spellings(
-            "证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体"
+            doctor.rule_marker("SCAN-ADMISSION-009")
         ):
             inverted = inverted.replace(spelling, "the subprocess digest is admissible after all")
         self.assertNotEqual(inverted, body, "mutation had no effect: the subprocess-digest anchor drifted")
         marker_assertions.assert_does_not_state_rule(
             self, b_layer_exclusions(inverted),
-            "证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体",
+            "SCAN-ADMISSION-009",
             name="the mutated Layer-B block",
         )
 
         relocated = body
-        for spelling in doctor.marker_spellings("B 层不算数"):
+        for spelling in doctor.marker_spellings(doctor.rule_marker("SCAN-ADMISSION-001")):
             relocated = relocated.replace(spelling, "the exclusion list moved away")
-        with self.assertRaises(AssertionError):
-            b_layer_exclusions(relocated)
+        self.assertEqual(
+            doctor.rule_status(relocated, "SCAN-ADMISSION-001"),
+            "anchor_without_body",
+        )
 
         # Mutate a short contiguous fragment the rule depends on.  A whole-marker
         # replace cannot work here: the registered spelling spans a wrapped,
@@ -1399,7 +1413,7 @@ class ScanEvidenceSpecTests(unittest.TestCase):
         dropped = dropped.replace("not one word of", "every word of")
         self.assertNotEqual(dropped, body, "mutation had no effect: the frontmatter-trap anchor drifted")
         marker_assertions.assert_does_not_state_rule(
-            self, dropped, "因此「只读 frontmatter」能满足全部前置而**正文一字未投递**",
+            self, dropped, "SCAN-ADMISSION-004",
             name="the mutated playbook",
         )
 

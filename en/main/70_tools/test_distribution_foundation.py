@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 import re
 from pathlib import Path
+from unittest import mock
 
 
 TOOLS = Path(__file__).resolve().parent
@@ -145,10 +147,10 @@ class DistributionFoundationTests(unittest.TestCase):
         # literal here would bypass MARKER_VARIANTS exactly as the gates once did, and
         # a translated edition would fail on a document that states the rule (L3).
         marker_assertions.assert_states_rule(
-            self, startup, "先建依赖树，再分配 Agent", name="startup_orchestration.md"
+            self, startup, "CTX-PACKET-005", name="startup_orchestration.md"
         )
         marker_assertions.assert_states_rule(
-            self, startup, "不得只展示 ID/SHA 让学生盲签", name="startup_orchestration.md"
+            self, startup, "CTX-PACKET-006", name="startup_orchestration.md"
         )
         # Literals that are identifiers, not prose, stay exact.
         for marker in (
@@ -158,7 +160,67 @@ class DistributionFoundationTests(unittest.TestCase):
             "recovery-settled",
         ):
             self.assertIn(marker, startup)
-        self.assertIn("One-minute startup and agent preferences", (REPO / "README.md").read_text(encoding="utf-8"))
+        self.assertIn(
+            "Startup formation and construction-helper budget are different things",
+            (REPO / "README.md").read_text(encoding="utf-8"),
+        )
+
+    def test_startup_entry_contract_has_no_implicit_teach_fallback(self) -> None:
+        constitution = (REPO / "main/t2ag.md").read_text(encoding="utf-8")
+        startup = (REPO / "main/50_playbook/startup_orchestration.md").read_text(encoding="utf-8")
+        for token in ("entry.teach", "entry.maintain", "entry.audit", "entry.release"):
+            self.assertIn(token, constitution)
+            self.assertIn(token, startup)
+        self.assertNotIn("On every entry to this project", constitution)
+        self.assertIn("a missing token fails closed", constitution)
+        self.assertIn("the prefix shared by the four entries contains only three items", startup)
+        self.assertIn("only `entry.teach`", startup)
+
+    def test_release_projection_rules_have_one_operational_owner(self) -> None:
+        constitution = (REPO / "main/t2ag.md").read_text(encoding="utf-8")
+        owner = (REPO / "main/50_playbook/playbook_management.md").read_text(encoding="utf-8")
+        flow = (REPO / "main/50_playbook/t2ag_flow.md").read_text(encoding="utf-8")
+        self.assertIn("playbook_management.md` §5", constitution)
+        self.assertIn("Release-projection discipline (the sole operating owner)", owner)
+        self.assertIn("machine-query artifact manifest", owner)
+        self.assertIn("**0.2.5**", owner)
+        self.assertIn("release-projection owner", flow)
+        self.assertNotIn("Main ↔ Skeleton", flow)
+        self.assertNotIn("cmp for byte parity", flow)
+
+    def test_release_projection_mutations_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="t2ag-dec4-lite-") as temporary:
+            root = Path(temporary)
+            source = root / "src" / "rule.md"
+            target = root / "dst" / "rule.md"
+            source.parent.mkdir(parents=True)
+            target.parent.mkdir(parents=True)
+            source.write_text("canonical\n", encoding="utf-8")
+            target.write_text("canonical\n", encoding="utf-8")
+            projected = [("rule.md", source, target)]
+            self.assertEqual(
+                sync_lite.verify_projection(root / "src", root / "dst", projected), 0
+            )
+            target.write_text("mutated\n", encoding="utf-8")
+            self.assertGreater(
+                sync_lite.verify_projection(root / "src", root / "dst", projected), 0
+            )
+
+        with tempfile.TemporaryDirectory(prefix="t2ag-dec4-privacy-") as temporary:
+            skeleton = Path(temporary)
+            leak = skeleton / "main/50_playbook/leak.md"
+            leak.parent.mkdir(parents=True)
+            leak.write_text("C:\\Users\\FixtureMaintainer\\private\n", encoding="utf-8")
+            with (
+                mock.patch.object(doctor, "ROOT", skeleton),
+                mock.patch.object(doctor, "MAIN", skeleton / "main"),
+                mock.patch.object(doctor, "FLAVOR", "skeleton"),
+                mock.patch.object(doctor, "fails", []),
+                mock.patch.object(doctor, "warns", []),
+                mock.patch.object(doctor, "infos", []),
+            ):
+                doctor.check_skeleton_privacy()
+                self.assertTrue(any("leak.md" in finding for finding in doctor.fails))
 
     def test_lite_keeps_foundation_as_read_only_audit_content(self) -> None:
         for marker in (

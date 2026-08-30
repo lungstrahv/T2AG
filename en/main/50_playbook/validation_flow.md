@@ -23,6 +23,7 @@ flowchart TD
     R4 --> R5["run the runtime Doctor once when local state has to close"]
     R5 --> END["record the results and the reusable SHAs"]
 
+<!-- rule: TEST-MGMT-002 -->
     P --> P1["produce the release Doctor / release_only test plan first"]
     P1 --> P2{"is there an explicit release reason?"}
     P2 -->|"no"| STOP["keep the plan only, execute nothing; no level skipping"]
@@ -36,6 +37,7 @@ flowchart TD
 Doctor's own atomic structure is as follows; `release` inherits all of `runtime` and is not a third
 duplicate implementation:
 
+<!-- rule: TEST-MGMT-001 -->
 ```text
 Doctor
 ├─ runtime (default, startup-safe)

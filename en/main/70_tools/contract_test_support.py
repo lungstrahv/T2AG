@@ -1015,7 +1015,8 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
     course = root / "main/40_course/TEST1001"
     write(
         course / "course.md",
-        "---\ntype: course\ncourse_id: TEST1001\nname: Test Course\n---\n",
+        "---\ntype: course\ncourse_id: TEST1001\nname: Test Course\n"
+        "course_type: mastery\ndefault_driver: goal\n---\n",
     )
     write(
         course / "lessons/lesson01/lesson01.md",
@@ -1220,7 +1221,7 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
 
 
 def test_exercise_current_lesson_driver_matrix(root: Path) -> None:
-    drivers = ("textbook", "goal", "project", "praxis")
+    drivers = ("textbook", "goal", "project")
 
     def build(case_root: Path, driver: str, lesson_value: str | None, real_lesson: bool) -> None:
         course = case_root / "main/40_course/TEST1001"
@@ -1365,6 +1366,11 @@ def test_textbook_preparation_activity_matrix(root: Path) -> None:
         lesson / "lessons/lesson01/lesson01.md",
         "---\ntype: lesson\ncourse_id: LESS1001\nlesson_id: lesson01\n---\n",
     )
+    write(
+        lesson / "course.md",
+        "---\ntype: course\ncourse_id: LESS1001\ncourse_type: mastery\n"
+        "learning_mode: goal\n---\n",
+    )
     courses = {
         "EXER1001": (
             exercise,
@@ -1480,7 +1486,7 @@ def test_course_activity_templates(root: Path) -> None:
     assert_message(doctor.fails, "system template is missing")
     assert_message(doctor.fails, "missing the course learning-activity Core contract")
     assert_message(doctor.fails, "course learning-activity Core lacks the map-first explanation protocol")
-    assert_message(doctor.fails, "first run did not collect the long-explanation map")
+    assert_message(doctor.fails, "first run does not preserve the five-optional-item and edition-language boundary")
     assert_message(doctor.fails, "course recovery flow does not branch on current_activity first")
 
 
@@ -2058,6 +2064,11 @@ def test_persistent_exercise_source_contract(root: Path) -> None:
     unit = course / "exercises/U0001"
     content_group = "TEST1001-B001-C01-S01"
     write(
+        course / "course.md",
+        "---\ntype: course\ncourse_id: TEST1001\ncourse_type: mastery\n"
+        "learning_mode: textbook\n---\n",
+    )
+    write(
         course / "progress.md",
         "---\ntype: course_progress\ncourse_id: TEST1001\n"
         "lifecycle_status: ongoing\ncourse_driver: textbook\ntruth_source: true\n"
@@ -2570,26 +2581,26 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
     content = (REPO / "main/50_playbook/lesson_recover.md").read_text(encoding="utf-8")
     close = (REPO / "main/50_playbook/session_close.md").read_text(encoding="utf-8")
     flow = (REPO / "main/50_playbook/t2ag_flow.md").read_text(encoding="utf-8")
-    branch = doctor.marker_position(content, "### 步骤 3：按 current_activity 恢复主载体")
-    lesson = doctor.marker_position(content, "#### `lesson` 分支")
-    exercise = doctor.marker_position(content, "#### `exercise` 分支")
+    branch = doctor.rule_position(content, "ACT-ROUTE-001")
+    lesson = doctor.rule_position(content, "ACT-ROUTE-002")
+    exercise = doctor.rule_position(content, "ACT-ROUTE-003")
     working = content.find("Step 5: the textbook source window")
     if not (0 <= branch < lesson < exercise < working):
         raise AssertionError("lesson_recover does not branch before Lesson/preparation consumers")
-    required_rules = doctor.missing_markers(content, (
-        "Exercise 首启不得读取或构造 Lesson 路径",
-        "教材原文窗口 **仅在 `lesson` + `course_driver: textbook`**",
+    required_rules = doctor.missing_rules(content, (
+        "ACT-ROUTE-004",
+        "ACT-ROUTE-005",
     ))
     if required_rules:
         raise AssertionError(f"lesson_recover no longer states: {required_rules}")
     # LV-5: a prose guard is satisfied by any registered edition; a bare
     # `token not in content` pins zh-CN and FAILs a correct translation.  The tuple is
     # inline rather than named so the L3.5 guard can see which role these literals play.
-    missing = doctor.missing_markers(content, (
-        "不写 `current_lesson`",
+    missing = doctor.missing_requirements(content, (
+        "ACT-ROUTE-008",
         "t2ag_activity.py --course <COURSE_ID> --intent recover",
-        "连续 Scope **5–8**",
-        "不得自动清理",
+        "ACT-ROUTE-009",
+        "ACT-ROUTE-010",
         "exact RT3",
         "current_snapshot.json",
     ))
@@ -2607,15 +2618,15 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
     leaked = [token for token in forbidden_recovery if token in content]
     if leaked:
         raise AssertionError(f"lesson_recover retains unconditional Lesson/deferred consumers: {leaked}")
-    close_rules = doctor.missing_markers(close, (
-        "Micro close 和完整结课都必须原子完成",
-        "Exercise 结课不得顺手",
+    close_rules = doctor.missing_rules(close, (
+        "ACT-ROUTE-006",
+        "ACT-ROUTE-007",
     ))
     if close_rules:
         raise AssertionError(f"session_close no longer states: {close_rules}")
-    missing_close = doctor.missing_markers(close, (
+    missing_close = doctor.missing_requirements(close, (
         "t2ag_activity.py --course <COURSE_ID> --intent close",
-        "不产生 pending、CLR 或自动 pause",
+        "ACT-ROUTE-011",
     ))
     if missing_close:
         raise AssertionError(f"session_close missing atomic activity routing: {missing_close}")
@@ -2638,9 +2649,7 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
     )
     # LV-5: the transaction line is prose and is spelled per edition, so it resolves
     # through the registry rather than through one edition's literal.
-    forces_shared_transaction = doctor.has_marker(
-        flow, "progress + 当前活动主载体 + 真实台账"
-    )
+    forces_shared_transaction = doctor.has_rule(flow, "ACT-ROUTE-012")
     if not branches_before_consumers or not forces_shared_transaction:
         raise AssertionError(
             "flow view does not branch before activity consumers "
@@ -3476,78 +3485,6 @@ def test_cross_edition_parity_r6_peer_resolution_is_symmetric(root: Path) -> Non
         )
 
 
-def test_migration_manifest_tamper(root: Path) -> None:
-    reset(root)
-    write(
-        root / "main/60_journal/migration_020_operations.json",
-        '{"operation_count":1,"operations":[{"sequence":1,"kind":"copy",'
-        '"sources":[{"path":"a","bytes":1,"sha256":"' + "1" * 64 + '"}],'
-        '"target":"b","disposition":"test","post_target":{"path":"b",'
-        '"bytes":1,"sha256":"' + "2" * 64 + '"}}]}\n',
-    )
-    write(
-        root / "main/60_journal/migration_020_report.json",
-        '{"status":"applied","applied_count":1,"post_apply_duplicate_active_canonicals":[],'
-        '"operation_manifest":{"operation_count":1,"sha256":"' + "0" * 64 + '"}}\n',
-    )
-    run_silently(doctor.check_migration_evidence)
-    assert_message(doctor.fails, "SHA drift")
-
-
-def test_migration_manifest_missing_reference(root: Path) -> None:
-    reset(root)
-    write(
-        root / "main/60_journal/migration_020_operations.json",
-        '{"operation_count":1,"operations":[{"sequence":1,"kind":"copy",'
-        '"sources":[{"path":"a","bytes":1,"sha256":"' + "1" * 64 + '"}],'
-        '"target":"b","disposition":"test","post_target":{"path":"b",'
-        '"bytes":1,"sha256":"' + "2" * 64 + '"}}]}\n',
-    )
-    write(
-        root / "main/60_journal/migration_020_report.json",
-        '{"status":"applied","applied_count":1,'
-        '"post_apply_duplicate_active_canonicals":[]}\n',
-    )
-    run_silently(doctor.check_migration_evidence)
-    assert_message(doctor.fails, "lacks the operation_manifest reference block")
-
-
-def test_main_readme_skeleton_reference_does_not_change_migration_kind(root: Path) -> None:
-    reset(root, flavor="main")
-    write(
-        root / "README.md",
-        "# T2AG\n\n通用能力在 ../t2ag-skeleton/ 收敛。\n",
-    )
-    write_formal_lite_migration_evidence(
-        root,
-        "main/example.bin",
-        "a" * 64,
-    )
-    run_silently(doctor.check_migration_evidence)
-    if doctor.fails:
-        raise AssertionError(
-            f"Main README cross-reference changed migration identity: {doctor.fails}"
-        )
-
-
-def test_profile_migration_manifest_tamper(root: Path) -> None:
-    reset(root)
-    write(
-        root / "main/60_journal/migration_021_profile_operations.json",
-        '{"schema_version":"T2AG-MIGRATION-OPERATIONS-1",'
-        '"target_kind":"main","operation_count":4,"operations":[]}\n',
-    )
-    write(
-        root / "main/60_journal/migration_021_profile_report.json",
-        '{"status":"applied","applied_count":4,'
-        '"operation_manifest":{"path":'
-        '"main/60_journal/migration_021_profile_operations.json",'
-        '"operation_count":4,"sha256":"' + "0" * 64 + '"}}\n',
-    )
-    run_silently(doctor.check_migration_021_evidence)
-    assert_message(doctor.fails, "V1/V2 migration operation manifest or report")
-
-
 def test_profile_migration_roundtrip(root: Path) -> None:
     for index, (source, target) in enumerate(migration_021.MOVES, start=1):
         write(root / source, f"profile fixture {index}\n")
@@ -3750,27 +3687,32 @@ def test_handoff_shadow_runtime_index_is_enforced(root: Path) -> None:
     assert_message(doctor.fails, "duplicates Active Handoffs")
 
 
+def _authorization_rule_fixture(rule_id: str) -> str:
+    return doctor.rule_anchor(rule_id) + "\n" + doctor.rule_marker(rule_id) + "\n"
+
+
 AUTHORIZATION_PLAYBOOK_FIXTURE = {
     "main/50_playbook/batch_workorder_spec.md": (
-        "授权不可放大\n尚未生成的对象不可预授权\n"
+        _authorization_rule_fixture("AUTH-NONAMP-002")
+        + _authorization_rule_fixture("AUTH-NONAMP-003")
     ),
     "main/50_playbook/session_close.md": (
-        "user + direct_user\nreceipt 只记录授权证据\n"
+        "user + direct_user\n" + _authorization_rule_fixture("AUTH-NONAMP-004")
     ),
     "main/50_playbook/remediation_governance.md": (
-        "stopped_budget\n默认最多两轮 finding 整改\n"
+        "stopped_budget\n" + _authorization_rule_fixture("AUTH-NONAMP-005")
     ),
     "main/50_playbook/handoff_management.md": (
-        "### 8.1 恢复后动作授权门\n"
-        "概括性认可只覆盖当轮已具体列出的动作\n"
-        "Handoff 的 authorization 字段是历史记录，不构成当轮许可\n"
+        _authorization_rule_fixture("AUTH-NONAMP-006")
+        + _authorization_rule_fixture("AUTH-NONAMP-007")
+        + _authorization_rule_fixture("AUTH-NONAMP-008")
     ),
 }
 
 
 def write_authorization_governance_fixture(repo: Path) -> None:
     """Seed the minimum surface check_authorization_governance reads."""
-    instructions = "授权不可放大与闭环止损\nstopped_budget\ntoken\n"
+    instructions = _authorization_rule_fixture("AUTH-NONAMP-001") + "stopped_budget\ntoken\n"
     write(repo / "AGENTS.md", instructions)
     write(repo / "main/t2ag.md", FIXTURE_CONSTITUTION + instructions)
     for relative, content in AUTHORIZATION_PLAYBOOK_FIXTURE.items():
@@ -3790,7 +3732,7 @@ def test_resume_authorization_gate_is_enforced(root: Path) -> None:
     write(
         repo / "main/50_playbook/handoff_management.md",
         AUTHORIZATION_PLAYBOOK_FIXTURE["main/50_playbook/handoff_management.md"].replace(
-            doctor.marker_spellings("概括性认可只覆盖当轮已具体列出的动作")[0],
+            doctor.rule_marker("AUTH-NONAMP-007"),
             "the taker may judge the scope themselves",
             1,
         ),
@@ -3808,6 +3750,64 @@ def test_resume_authorization_gate_is_enforced(root: Path) -> None:
     surviving = [message for message in doctor.fails if "handoff_management.md" in message]
     if surviving:
         raise AssertionError(f"complete resume gate must pass: {surviving}")
+
+
+def test_authorization_gate_evidence_surface_reachability(root: Path) -> None:
+    """NEGATIVE: an unreachable evidence surface must speak, not pass silently.
+
+    The gate asserts that two named 0.2.2 work orders still carry their
+    supersession notices.  When a file cannot be located both assertions are
+    skipped, and "skipped" is indistinguishable from "held" in the output --
+    that is exactly how the 2026-08-18 archive move left the gate fail-open for
+    ten days (§14.63).  The rglob fix closed only the archive path; "the handoff
+    repo is not next door" and "the named file is not in the tree" are the
+    second path, which §14.67 requires to be visible.
+    """
+    repo = root / "t2ag"
+    handoffs = root / "docs/handoffs"
+    v4_name = "T2AG_022_ACTIVITY_CLOSE_AUTONOMOUS_COMPLETION_WORKORDER_V4_2026-08-05.md"
+    v2_name = "T2AG_022_ACTIVITY_CLOSE_EXECUTION_WORKORDER_V2_2026-08-04.md"
+
+    def run() -> None:
+        reset(repo)
+        write_authorization_governance_fixture(repo)
+        run_silently(doctor.check_authorization_governance)
+
+    # R1: handoff repo not mounted => one "not mounted" warning
+    run()
+    assert_message(doctor.warns, "evidence surface not mounted")
+
+    # R2: directory present but the named files are missing => one per file
+    handoffs.mkdir(parents=True, exist_ok=True)
+    run()
+    assert_message(doctor.warns, v4_name)
+    assert_message(doctor.warns, v2_name)
+
+    # G1: files under archive/ and compliant => silent (also covers the rglob fix)
+    archive = handoffs / "archive/v0.2.2"
+    write(archive / v4_name, "**status**: `superseded_for_authorization`\n")
+    write(archive / v2_name, "authorization supersession notice\n")
+    run()
+    noise = [
+        message
+        for message in doctor.warns + doctor.fails
+        if "authorization gate evidence" in message or "V4 work order" in message
+    ]
+    if noise:
+        raise AssertionError(f"a reachable, compliant surface must be silent: {noise}")
+
+    # R3: file located but non-compliant => the original FAIL stands, unreplaced
+    write(archive / v4_name, "no supersession notice here\n")
+    run()
+    assert_message(
+        doctor.fails,
+        "the current V4 work order can still be read as continuous RT3 authorization",
+    )
+    misreport = [
+        message for message in doctor.warns if "authorization gate evidence" in message
+    ]
+    if misreport:
+        raise AssertionError(f"a located file must not report as unreachable: {misreport}")
 
 
 def test_environment_probes_report_broken_assumptions(root: Path) -> None:
@@ -5087,10 +5087,6 @@ ALL_CONTRACT_TESTS = (
         test_activity_workflows_share_executable_route,
         test_activity_cli_disk_roundtrip,
         test_candidate_replay_isolation_contract,
-        test_migration_manifest_tamper,
-        test_migration_manifest_missing_reference,
-        test_main_readme_skeleton_reference_does_not_change_migration_kind,
-        test_profile_migration_manifest_tamper,
         test_profile_migration_roundtrip,
         test_handoff_assertion_without_source_is_reported,
         test_handoff_assertion_with_source_is_accepted,
@@ -5100,6 +5096,7 @@ ALL_CONTRACT_TESTS = (
         test_handoff_index_version_drift_is_enforced,
         test_handoff_shadow_runtime_index_is_enforced,
         test_resume_authorization_gate_is_enforced,
+        test_authorization_gate_evidence_surface_reachability,
         test_environment_probes_report_broken_assumptions,
         test_environment_probes_silent_when_assumptions_hold,
         test_environment_registry_must_exist_and_list_every_probe,

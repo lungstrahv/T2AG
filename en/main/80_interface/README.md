@@ -43,7 +43,7 @@ PyYAML needed).
 
 ## Startup logic
 
-`main/t2ag.md` "3.0 the startup welcome message" requires this to run once at first initialization and
+`50_playbook/startup_orchestration.md` §0 requires this to run once at first initialization and
 once at every ordinary takeover:
 
 1. Read `main/80_interface/skin.yaml` → get the `active` value

@@ -167,6 +167,7 @@ If the command exits non-zero, stop the close and repair `progress.md`. The
 
 ## 2. The mandatory transaction shared by Micro and full close
 
+<!-- rule: ACT-ROUTE-006 -->
 **Both a Micro close and a full close must complete atomically** over the write set each declares;
 only an Activity close the user explicitly starts enters `ongoing -> pending_close`. An ordinary
 course switch, crossing midnight, a session save, a chat interruption and a Micro save never
@@ -190,6 +191,7 @@ Activity lifecycle into progress or the activity main file:
 
 - Lesson: append this session's teaching, Q&A, confirmations and wrong attempts. The "Lesson last stopping point snapshot" is local evidence, does not use `T2AG_GENERATED`, and does not override progress.
 - Exercise: update the current problem, the exact stopping point and the evidence pointers in `exercise.md`; create an Attempt per `exercise_evidence.md` only when there is a real submission, and a Review only when there is real grading. A new Attempt also stores the `hint_gate` snapshot at creation, the highest `assistance_level`, and the real authorization/contamination record. A conceptual Q&A that stays scope-only does not raise the help level; when key structure was leaked without authorization, it must not count as independent mastery.
+<!-- rule: ACT-ROUTE-007 -->
 - Both activity kinds write only their own body. Cross-activity relations are written only in `activity_map.md`; **an Exercise close must never be done casually** to a historical Lesson.
 
 ### Step 3: close the ledgers this round really produced
@@ -226,6 +228,7 @@ expire immediately and the revised full text must be shown again.
 - Revision: append `pending_close -> pending_close`; the old pending is not overwritten;
 - Refusal: append `pending_close -> ongoing`; no CLR is generated;
 - Terminal: `--plan-decision` must bind the pending ID, the body SHA, the result, `user + direct_user` and the current round's authorization source; only after apply is a CLR generated carrying the `valid_direct_user` program state;
+<!-- rule: AUTH-NONAMP-004 -->
 - **a receipt records only authorization evidence** and can never create authorization; a plan may be installed only by a receipt matching the payload/file SHA and the exact direct-user text.
 
 ### Step 5: verify what landed on disk
@@ -243,6 +246,7 @@ projection in the `progress.md` frontmatter, so if this session added or closed 
 skipping `--write` guarantees this step reports `[FAIL] generated cache drift` — and this step's
 criterion is precisely "state has no drift".
 
+<!-- rule: CTX-PACKET-010 -->
 Then re-read progress, the `activity_write_target`, the `mandatory_write_targets` in the command
 output, and the `conditional_write_targets` that actually changed this round. Only when every
 write reads back, state has no drift, and the runtime doctor is `0 FAIL` may this close be
@@ -250,6 +254,7 @@ declared closed. **Read back only these actual targets**, never reloading all hi
 of verification. When the current activity is an Exercise, also confirm that no historical Lesson
 was modified by this transaction.
 
+<!-- rule: CTX-PACKET-011 -->
 The write-back means **the previous L0 context packet expires immediately** for this session; if
 the same class continues after the close, regenerate one per `context_packet.md` rather than
 editing or reusing the old packet.
@@ -263,6 +268,7 @@ editing or reusing the old packet.
 
 ## 3. Micro close
 
+<!-- rule: ACT-ROUTE-011 -->
 Micro close applies to a five-minute warm-up, a short retest, a manual "save progress", or the
 student stopping midway. It atomically saves only the real process evidence, the foreground
 stopping point and next_action; it produces no pending, no CLR and no automatic pause, and it may

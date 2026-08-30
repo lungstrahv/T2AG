@@ -21,6 +21,7 @@ requirement — never merely the fact that the model has tried several times.
 
 ## 2. Bounded remediation and campaign stop-loss
 
+<!-- rule: AUTH-NONAMP-005 -->
 Before a formal campaign begins, freeze the acceptance specification and its version, the
 definition of done, the maximum number of remediation rounds, the number of full re-reviews,
 and the count of test commands, the time and the token budget. The default is

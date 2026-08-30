@@ -34,7 +34,8 @@ placeholder rows, counts the real ones and writes `keystone_total_frozen`
 the state without the judgment, which is the defect family P-0077 records.
 
 `answers.json` records only the optional responses the user gives in step 3.
-An empty object is valid and uses the public defaults. **Copy the field shapes
+An empty object is valid: unstated learner facts remain `not_provided`, while documented runtime
+parameters use their neutral operating defaults. **Copy the field shapes
 from `main/70_tools/answers.example.json`** (valid JSON, readable as-is) and
 read the field descriptions, enums and defaults in
 **`main/70_tools/answers.schema.json`** (JSON has no comments, so the example and
@@ -47,29 +48,38 @@ generates Engagements, or performs git writes. The model's job is to ask, write
 the answers into `answers.json`, call the tool and review the output — not to
 invent a schema.
 
+## Learner-visible states and pauses
+
+First run has four learner-visible states only: learn about you, show you the plan, decide together,
+and ready to begin. There are exactly two Meaningful Pauses:
+
+- **Pause A | Add conditions**: one natural conversation covers both the optional profile and planning
+  conditions. Everything may be skipped and an empty answer is not chased. An unstated fact is shown as
+  “not provided” or as an explicit plan assumption; a machine default never poses as the learner's statement.
+- **Pause B | Review the plan**: present the complete reference learning plan, then explain Course Type
+  and, for Mastery only, the three Learning Modes. Wait for confirmation or revision.
+
+After Pause B, `new-course → new-group → activate-group → refresh → doctor` is an **uninterrupted internal
+write sequence**. Command success, the planned/active transition, and Doctor warnings create no third user
+confirmation. Completion gives the first step directly; do not ask “start now?” or whether to delete the
+release source.
+
 ## Steps
 
-1. Per `main/t2ag.md` "3.0 startup welcome message", display the current
+1. Per `50_playbook/startup_orchestration.md` §0, display the current
    release's `welcome_msg`, the active `art_file` ASCII art and the version.
 2. Run doctor; confirm the Skeleton structure is valid and holds no real instance.
-3. Offer exactly this compact five-item profile block; every item is optional:
-   - Preferred name;
-   - Learning level: `Secondary-school student` / `University student` / `Bachelor`;
-   - Introduce a reference curriculum: `Yes` / `No`;
-   - Learning interests;
-   - Self-introduction.
-   The user may answer any subset or skip the entire block. Do not follow up to
-   fill blanks. Do not ask separately for school, year, major, weekly time,
-   goals, existing foundation, difficulties, tutoring style, agent settings,
-   hint-gate settings, timezone, or close preferences. When unanswered, use:
-   preferred name `Learner`; learning level `Secondary-school student`;
-   reference curriculum `To be generated`; learning interests `To be generated`;
-   self-introduction `Not provided`. Advanced preferences use the documented
-   system defaults and remain editable later.
-   Do not ask for teaching language here. The edition was selected before first
-   run; the English edition writes `teaching_language: en-US`, while the Chinese
-   edition writes `zh-CN`.
-4. Run `t2ag_init.py init` (covering this step and step 8). It changes the
+3. **Pause A**: in one natural conversation invite the optional profile and planning conditions.
+   Offer exactly this compact five-item profile block; every item is optional:
+   preferred name, learning level, reference curriculum preference, interests, self-introduction,
+   learning goal, desired result, existing foundation/materials, available time, tools, constraints,
+   and feedback preferences. Every item may be skipped; do not chase an empty or partial answer and
+   do not return later to fill blanks. What the learner stated is `provided`; anything else is
+   `not_provided` or an explicit plan assumption. Learning level has no default learner fact.
+   `Learner` is only a neutral form-of-address fallback, and runtime preferences remain editable
+   machine parameters. Do not ask for teaching language here. Teaching language was fixed by
+   Edition selection.
+4. Run `t2ag_init.py init` (also supporting the release-identity step). It changes the
    profile from template to `initialization_status: initialized` and writes
    `agent_collaboration_preferences.v1`, `agent_pool_limit`, `agent_max_active`,
    `agent_parallel_startup`, `agent_startup_readiness`,
@@ -80,17 +90,26 @@ invent a schema.
    `activity_close_preferences_initialized_at`. The first-close prompt marker is
    initialized to `pending` / `none`; only after it has actually been shown once
    does it atomically become `shown` / a timezone-bearing timestamp.
-5. Confirm the first course and its real entry point with the user (Lesson first
-   or Exercise first). Use `t2ag_init.py new-course` to create the Course and the
-   first learning activity per `new_course_init.md`.
-6. Confirm the first group's members, budget and calendar with the user. Use
-   `t2ag_init.py new-group` to create plan/calendar/review, and persist the empty
-   binding domain with `bindings/_README.md`. A multi-member active group
-   requires the user to specify `--current-course`.
-7. In the single "course — teacher mapping" table in `20_teacher/overlay.md`, add
+5. Say that a readable reference learning plan will be drafted before any Course exists. Reflect the
+   conditions received in Pause A and label everything else as not provided or an explicit assumption.
+   Do not open a second questionnaire; accept spontaneous corrections and continue drafting.
+6. Present the **complete reference learning plan** in the conversation: goal, current conditions,
+   suggested route, schedule, materials/tools, stage outputs, feedback, and assumptions. Then explain
+   Course Type; for Mastery only explain `textbook | goal | project` Learning Mode and the recommendation.
+   **Pause B** asks for confirmation or revision of that plan, type, and applicable mode. Before explicit
+   confirmation, run no `new-course`, `new-group`, or course-state write.
+7. After confirmation, map the learner's natural-language first action internally to Course Type,
+   optional Learning Mode, and `lesson | exercise`; create the Course and first activity with
+   `t2ag_init.py new-course`. Do not expose implementation enums as a new choice.
+8. Use the next legal Group ID internally. Map the confirmed plan's time, rest, and route into the
+   group fields; do not ask about `G01`, cadence codes, or already-confirmed facts. Run `new-group` to
+   create a planned group, write the confirmed capacity and real milestone evidence, then run
+   `activate-group` as internal notarization. Never ask for “activation approval”; only missing
+   route-changing information returns to Pause B.
+9. In the single "course — teacher mapping" table in `20_teacher/overlay.md`, add
    an explicit row from course to teacher template. Template cells use the exact
    `` `main/20_teacher/Tddd.md` `` path.
-8. Complete the release identity switch, but do not start cloud sync:
+10. Complete the release identity switch, but do not start cloud sync:
    - change the active skin's `art_file` to the personal-instance ASCII art the
      user confirmed; when none is chosen use `03_inori_2.txt` and stop retaining
      the Skeleton-only `01_welcome.txt`;
@@ -101,20 +120,20 @@ invent a schema.
      `T2AG_SESSION_CLOSE / T2AG_CLOUD_CHANGE_DIRECTIVE / T2AG_CLOUD_HANDOFF`;
    - `cloud_bridge_status` stays `paused`; this step authorizes no cloud
      write-back whatsoever.
-9. Update the starting point and next action in the course `progress.md`.
-10. Run state refresh `--write` so that memory's current group, course,
+11. Update the starting point and next action in the course `progress.md`. Run state refresh `--write`
+   so that memory's current group, course,
    LearningActivity, teacher and `learning_path.md` are generated in sync;
-   confirm these pointers are no longer `—`.
-11. Run state refresh `--check` and doctor. First run is complete only when both
-   pass.
+   confirm these pointers are no longer `—`, then run state refresh `--check` and doctor. First run is
+   complete only when both pass. Present only the course, applicable learning mode, preparation result,
+   and first action; hide internal IDs, test counts, and maintenance hints, and begin the first action
+   without a third pause.
 
 Never auto-create `.venv`, install dependencies, download textbooks, generate
 real Engagements, or choose a course on the user's behalf.
 
 ## Beginner-facing interaction boundary
 
-During first run, speak in the selected edition's language and keep the visible
-interaction to the five optional profile items plus the user's actual course or
-group choices. Internal enum codes, agent-pool limits, close-policy fields, and
-verification commands belong in files or execution logs; do not turn them into
-an onboarding questionnaire unless the user asks to customize them.
+During first run, speak in the selected edition's language and keep the visible interaction to Pause A,
+the complete plan, and Pause B. Internal enum codes, agent-pool limits, close-policy fields, and
+verification commands belong in files or Operator logs; do not turn them into an onboarding
+questionnaire unless the learner asks to customize them.

@@ -3,7 +3,7 @@
 # 位置：main/bin/t2ag
 # 作用：进入 t2ag 目录，展示欢迎语、欢迎图与版本号
 # 注意：t2ag 的核心启动方式是在 AI 对话中发送「t2ag」或「读取 t2ag.md」
-# 展示时机见 t2ag.md「3.0 启动欢迎信息」；展示内容以 active skin metadata 为准
+# 展示时机见 50_playbook/startup_orchestration.md §零；展示内容以 active skin metadata 为准
 
 set -e
 

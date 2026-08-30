@@ -81,6 +81,9 @@ each by its own standard; the two must never be converted into each other.
 > Every milestone of a project-track course must be bound to a verification mode (A/B/B-K, registered before the group is formed or before the M starts; a major-adjustment window may change an M that has not started), and any mode must satisfy the three mechanisms: an external source of truth, an independence measurement, and a trace left by failure.
 > The operational detail is in `50_playbook/project_verification.md`.
 
+Here “project-track course” means `course_type: project`. A Mastery Course using
+`learning_mode: project` remains Mastery and does not trigger the Project Course acceptance protocol.
+
 ## 4. The boundary between rigid and fluid (group operating rules)
 
 > **The execution-parameterization principle**: the protocol layer specifies only the mechanisms that must exist; it does not fix parameter values. The cycle structure, the review position, the minor-adjustment frequency, the major-adjustment frequency and the like are generated in the group-forming ritual or in the student's execution parameters; until they are discussed, the protocol defaults below apply.
@@ -123,6 +126,13 @@ The three container parameters in `calendar.md` — `cycle_length_learning_days`
 confirmation, and they are not something a creation command can answer in one shot.
 So the template leaves the literal `TBD`, and `t2ag_init.py new-group` **gives them no CLI parameter and
 certainly no default**.
+
+At first run, the "reference study plan" the student has already read and confirmed can carry this
+negotiation: as long as the plan text explicitly shows the capacity, the time shape and the real
+milestones, the model maps those confirmed contents into calendar/plan, and `activate-group` then
+notarizes the result. Do not mistake "planned → active" for a second user decision and ask the student
+to reply "agree to activate"; only when the plan fails to cover the substantive parameters does the flow
+return to plan revision — instead of throwing internal fields at the student ad hoc.
 
 The contrast with `--source-language` is the same criterion seen from both sides:
 

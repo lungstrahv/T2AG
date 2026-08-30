@@ -141,6 +141,7 @@ the "non-textbook OR ..." gate in `startup_orchestration.md`):
 | **A3** | the source identity of what was consumed is traceable **link by link** to the canonical `SourceDocument` in the manifest, with a SHA binding on every link, and the canonical file's actual SHA matching the manifest bit for bit |
 | **A4** | the page set actually consumed **equals** the snapshot Scope exactly; with mixed evidence forms, judge by the **union** of the page sets each form covers. **An omission is FAIL; a duplicate is only a WARN (a cost notice), not a failure** |
 | **A5** | the current page agrees, with no source conflict |
+<!-- rule: SCAN-ADMISSION-003 -->
 | **A6** | the completion criterion (ADR-0003): A1–A5 proven within this session through **host-observable delivery** is session scan complete; a self-reported `opened` / complete **with no delivery** does **not** constitute completion. Issuance by a host orchestrator is reserved as a future state, and the issuing right is reclaimed once it lands |
 
 That result is valid only within the current session and is never written as a second source of truth.
@@ -207,10 +208,13 @@ any more):
 - looking only at the current page, or sampling
 - reusing a historical Snapshot, a historical load receipt, or another session's scan result as though it were this round's
 
+<!-- rule: SCAN-ADMISSION-001 -->
 **Layer B does not count (unqualified evidence form — even with every page number present, it is not proof of consumption)**
 
 - looking only at **unverified** machine OCR or a summary
 - verifying only a SHA / a path's existence, without delivering the content body
+<!-- rule: SCAN-ADMISSION-008 -->
+<!-- rule: SCAN-ADMISSION-009 -->
 - a **subprocess summary** (such as the hash of `fitz.get_text()` or a script's stdout) — that proves the script read the file, and **not** that this round's model context received the content body
 - **unverified machine OCR** and a **verified `SourcePageAsset`** must be kept apart: the latter carries `verification_status: verified` + `verified_text_sha256` + `source_document_sha256`, is a **product** of verification, and may take part in the proof when A1 (complete body delivery) is satisfied; the former still does not count
 
@@ -248,6 +252,8 @@ will not materialize" — **all of them are now out of date**:
 1. **A document or page that has not yet had the field written is always fail-closed to a rendered form** — `prepare` does not yet call the criterion automatically, so a new page, a new Scope or another textbook must run `layout-scan` first (§3.2.5).
 2. **A cost reduction is not a teaching unlock**, see A6 below.
 
+<!-- rule: SCAN-ADMISSION-005 -->
+<!-- rule: SCAN-ADMISSION-006 -->
 **A6 (ADR-0003, re-adjudicated 2026-08-08)**: the formal criterion for session scan complete is
 A1–A5 proven within this session through **host-observable delivery**. Until that is proven,
 pending states such as `pending_visual_scan` **must not be cleared**; a self-reported `opened` /
@@ -265,6 +271,7 @@ unlocks per this criterion and is no longer permanently blocked on "a host compo
 
 #### 3.2.1 The admission criterion
 
+<!-- rule: SCAN-ADMISSION-002 -->
 > **An evidence form may be recognized if and only if the host can observe the event of the content
 > body entering this round's model context.**
 > Any summary, hash or self-description an agent reports back **is not** an observation, however
@@ -315,6 +322,8 @@ forbidden** — that would zero out the cost improvement.
 A4 under mixed forms is decided by the A4 row in §3.1 (union; an omission FAILs, a duplicate only
 WARNs); it is not repeated here.
 
+<!-- rule: SCAN-ADMISSION-004 -->
+<!-- rule: SCAN-ADMISSION-007 -->
 > **The frontmatter trap**: **all four** preconditions above can be read from `page_NN.md`'s
 > frontmatter. So "reading frontmatter only" can satisfy every precondition while **not one word of
 > the body has been delivered** — this is not a theoretical hole but a shortcut readily available

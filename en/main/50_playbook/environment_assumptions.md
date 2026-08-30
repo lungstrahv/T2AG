@@ -186,7 +186,7 @@ reverse is not allowed: doctor must not probe an assumption that is not register
   (`cross_repo_reference.md` §4: on a broken link, fix resolution first and do not touch reference identity).
   Also do not rewrite the hint path into whatever the current environment happens to resolve — `peer_root_hints`
   is an environment hint, not a reference identity.
-- **First recorded**: 2026-08-08. At this session's startup the peer system was already in the declared list with
+- **First recorded**: 2026-08-08. At this session's startup `Trading-OS` was already in the declared list with
   its mapping written out, but did not exist under `/sessions/*/mnt/`, so `runtime.external_references` reported
   2 FAIL. The FAILs vanished the moment the mount was explicitly requested, and the recomputed sha256 of the peer's
   discipline file matched its sidecar binding bit for bit — **the binding was healthy throughout; what was red was

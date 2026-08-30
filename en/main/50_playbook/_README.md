@@ -9,16 +9,9 @@ Flows are indexed by name; naming is in `naming_conventions.md`.
 - `process_governance.md`: process governance (meta-playbook). The admission / revision / retirement of
   process objects (gates + flows + the directed graph) and the graph-maintenance discipline; this batch
   is a skeleton, and expanding the three process sections to full text is stage two.
-- `gate_index.md`: the gate index (playbook, managed_by: process_governance). One table of every gate in
-  T2AG — the directed graph + what each gate governs +
-  a pointer to the body's owner, **pointers only, no copied body text**. Four lanes: A teaching gates,
-  B construction gates, C machine gates,
-  D cross-boundary gates, plus the cross-cutting evidence discipline. It carries two honest notes: the
-  evidence discipline is currently registered in one course only, AIF1001r
-  (whether to promote it globally is undecided); and even after ⑥ is layered with the three-tier
-  calibration, a spatial gap of "should have read it and did not" is still uncovered.
-  Its own declaration is `enforcement: prose_accepted` — **it is an index, not a constraint, and has no
-  machine backstop**.
+- Main-only canonical `main/00_core/gate_index.md`: the gate-index data has moved out of
+  `50_playbook` and is not shipped in Skeleton; process lifecycle remains governed by this directory's
+  `process_governance.md`.
 - `rule_admission_gate.md`: the rule admission gate (R-GATE). A new rule entering `00_core`/`50_playbook`
   passes this gate first: the Q0 rejection line (a character clause with no failure visibility is not
   admitted), the four values of `enforcement:` and the
@@ -46,6 +39,9 @@ Flows are indexed by name; naming is in `naming_conventions.md`.
 - `environment_assumptions.md`: the host environment assumption register (`EA-XXXX`). Environment
   preconditions that hold in the code but were never written into a rule, each with a probe method and
   the correct response when the probe fails; implemented by doctor's `runtime.environment`.
+- `progress_governance.md`: progress-presentation governance (meta-playbook, EV-0034), the canonical
+  boundary for Learner Surface / Operator Surface, Meaningful Pauses, and journey ownership. This is
+  the concept-equivalent English projection of the Main meta-playbook.
 - `changelog_management.md`: the changelog verification layer (drift traces / non-rot). The anchoring and
   corroborating layers are written separately;
   the form list is reused from `handoff_management.md` §5.6.2. **It does not prove completeness.** Before

@@ -4,23 +4,15 @@
 
 ## Section budgets and sinking
 
-This file is read at every startup. **The budget is a line count**, written as `[max N]` after each section
-heading; doctor's `runtime.memory_budget` **reads that marker from this file** rather than hard-coding it — so
-changing a budget is a one-line edit here, with no code change and no batch. What the gate guards is the
-**mechanism**, not the number.
-
-When the budget is exceeded, **sink the oldest entries** and leave one **tombstone** line in place naming where they went:
-
-```markdown
-- D-001 ~ D-011 sunk → `t2ag_changelog.md` [2026-07-26] ~ [2026-07-27] (sunk YYYY-MM-DD)
-```
-
-**Sinking is not deleting**: the entry body was always in the changelog / problemlog, and memory keeps only a pointer.
-**Deleting a line must state where it went.**
+The **mechanism prose for this section has moved out**: how a budget is written (the `[max N]` after each
+section heading), why the gate reads that marker instead of hard-coding the number, the severity of each of the
+two carriers, how to sink and leave a tombstone when a section goes over, and why a marker must not be deleted
+just because its section is empty — the canonical original is `50_playbook/line_budget.md` (core-playbook).
+This section keeps a pointer only and does not restate it: two wordings of the mechanism are two things that
+drift apart independently, and nothing mechanical can find it when they do.
 
 The three sections below are empty template scaffolding: **the heading and the `[max N]` are reserved, and the
-content grows naturally after first run.** Do not delete a marker just because its section is empty — deleting it
-means the budget mechanism never takes effect on this instance.
+content grows naturally after first run.**
 
 ## Last session summary
 

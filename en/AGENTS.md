@@ -5,9 +5,16 @@ immutable principles, the structure of each domain, and every canonical pointer
 live there. This file only orients you inside the repository; it does not restate
 rules. Where it conflicts with the constitution, the constitution wins.
 
-- **Startup**: welcome message and the two read-only recovery branches run in
-  parallel. Formation, commands, handoff fields and the two-phase join are
-  canonical in `main/50_playbook/startup_orchestration.md` (§0–§5).
+- **Entry declaration**: before invoking the startup protocol, declare
+  `entry.teach|entry.maintain|entry.audit|entry.release` and `session_lane`
+  separately; a missing token must not default to `entry.teach`. Teaching,
+  maintenance, read-only audit and release tasks use the entry of the same name;
+  the entry contract is canonical in
+  `main/50_playbook/startup_orchestration.md` (§11–§14).
+- **Startup**: the four entries share only the constitution, the welcome message
+  and the authorization kernel; only `entry.teach` starts course recovery and the
+  textbook Scope. Formation, commands, handoff fields and the two-phase join are
+  canonical in the same file, §0–§5.
 - **Takeover**: immediate excerpt, L0/L1/L2 layering, course selection and Main
   consumption discipline are canonical in
   `main/50_playbook/context_packet.md`.
@@ -19,6 +26,7 @@ rules. Where it conflicts with the constitution, the constitution wins.
   turns, openings and the hint gate are in constitution §1.6/§4 and the gate
   ledger mechanism (EV-0018). At most one new teaching block per round; a
   "continue" expires once used.
+<!-- rule: AUTH-NONAMP-001 -->
 - **Verification and authorization**: V0–V3 and test composition follow the
   canonical references in constitution §6.1.
   **Authorization is non-amplifying and budget stop-loss closes the loop** —

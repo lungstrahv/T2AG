@@ -75,11 +75,22 @@ This playbook **restates these as normative clauses** (keep; the preamble text i
 
 ---
 
+## 3a. When a release fact is written (same origin as the version ledger's three layers)
+
+If a fact only becomes true **after the package is built**, while the carrier that records it lives **inside the package**, then writing it stales the package — the three-layer write ownership in `60_journal/t2ag_version_ledger.md` has already resolved that loop twice (`candidate_review` at layer 2, `release_candidate` at layer 3, whose own text names the loop "write pass → repack → new package unreviewed").  A changelog entry is **a third instance of the same shape**, and this section disposes of it by the same solution.
+
+- The change entry that describes this batch is a **pre-build fact**: it is frozen **before** the candidate is built and ships with the package (as layer 1, "the source-intrinsic status").
+- The remote facts produced by publishing (the commit, tag and asset name/size/hash of a push/tag/Release) are **post-build facts**: they are written into a release receipt or into `60_journal/t2ag_version_ledger.md`, and **must not be written back into the already frozen product tree** (as layer 3, "not a packaged carrier; its own commit").
+
+⚠ The observable consequence of breaking this (measured 2026-08-27): when the changelog's anchoring block is not refreshed after a change, doctor leaves one "state drift with no record" WARN hanging in each of the three repositories, and on the skeleton side that breaks the self-declared cold-start guard "an empty template and a new trial user's doctor must stay at 0 WARN".
+
+---
+
 ## 4. rule_migration (this batch's execution table)
 
 Creating this file makes it the canonical owner of the changelog **verification layer**; the existing conventions are spread across the order-writer's and the executor's sides and are **all kept**, not sunk into a single file.
 
-| rule_id | Old location / original anchor | Action | New owner / equivalent gate | Consumers | Verification |
+| rule_id | rule_id | Action | New owner / equivalent gate | Consumers | Verification |
 |---|---|---|---|---|---|
 | changelog preamble "expand on demand / update the memory summary when appending an entry" | `grep -n "追加条目时同步更新" main/00_core/t2ag_changelog.md` | **keep** (the preamble keeps its text; historical lines untouched) + restated in §3.2 of this file | `changelog_management.md` | every maintenance session | `grep -n "memory .recent change summary. pointer" main/50_playbook/changelog_management.md` |
 | `batch_workorder_spec.md` §2.5 "the registration section: the changelog draft" | `grep -n "changelog draft" main/50_playbook/batch_workorder_spec.md` | **keep** (the order-writer's obligation stays where it is) + a back-pointer (step 3b) | `batch_workorder_spec.md` | the order writer | both greps hit |

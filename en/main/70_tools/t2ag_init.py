@@ -48,6 +48,9 @@ DEFAULT_PERSONAL_ART = "03_inori_2.txt"
 COURSE_ID_RE = re.compile(r"^[A-Z][A-Z0-9]{2,}[0-9]{3,}[A-Za-z]?$")
 GROUP_ID_RE = re.compile(r"^G\d{2}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+COURSE_TYPES = ("mastery", "project", "praxis")
+MASTERY_LEARNING_MODES = ("textbook", "goal", "project")
+LEGACY_COURSE_DRIVERS = MASTERY_LEARNING_MODES + ("praxis",)
 PLACEHOLDER_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 FENCE_RE = re.compile(r"(?ms)^```.*?^```\s*?$")
 
@@ -194,6 +197,13 @@ def replace_field(text: str, field: str, value: str) -> str:
     if not pattern.search(text):
         raise fail(f"the field does not exist; refusing to write blind: {field}")
     return pattern.sub(f"{field}: {value}", text, count=1)
+
+
+def remove_field(text: str, field: str) -> str:
+    pattern = re.compile(rf"^{re.escape(field)}:\s*.*\n?", re.MULTILINE)
+    if not pattern.search(text):
+        raise fail(f"the field does not exist; refusing to delete blind: {field}")
+    return pattern.sub("", text, count=1)
 
 
 def require_root(root: Path) -> Path:
@@ -542,11 +552,26 @@ def cmd_new_course(args: argparse.Namespace) -> int:
         raise fail(f"the course directory already exists; refusing to overwrite: {course}")
     if not DATE_RE.match(args.date):
         raise fail("--date must be YYYY-MM-DD")
+    if args.course_type not in COURSE_TYPES:
+        raise fail(f"illegal --course-type: {args.course_type!r}; allowed: {list(COURSE_TYPES)}")
+    learning_mode = args.learning_mode
+    if args.driver:
+        if args.course_type != "mastery" or args.driver == "praxis":
+            raise fail("Project/Praxis do not accept --driver; Mastery has no praxis mode")
+        if learning_mode and learning_mode != args.driver:
+            raise fail("--learning-mode conflicts with legacy --driver")
+        learning_mode = args.driver
+    if args.course_type == "mastery":
+        if learning_mode not in MASTERY_LEARNING_MODES:
+            raise fail("Mastery requires --learning-mode textbook|goal|project")
+    elif learning_mode:
+        raise fail("Project/Praxis must not declare a learning mode; progression is type-owned")
+    is_textbook_led = args.course_type == "mastery" and learning_mode == "textbook"
     if args.entry != "none" and args.lifecycle != "ongoing":
         raise fail("a planned course must not create its first learning activity (new_course_init.md §3)")
     if args.entry == "none" and args.lifecycle == "ongoing":
         raise fail("an ongoing course must have a real entry point: --entry lesson or exercise")
-    if args.entry == "exercise" and args.driver == "textbook" and not args.source_document:
+    if args.entry == "exercise" and is_textbook_led and not args.source_document:
         raise fail(
             "a textbook-driven Exercise first start needs a persistent proofread problem source first: "
             "supply --source-document / --source-locator / --problem-text"
@@ -563,7 +588,6 @@ def cmd_new_course(args: argparse.Namespace) -> int:
     base = {
         "COURSE_ID": course_id,
         "COURSE_NAME": args.name,
-        "COURSE_DRIVER": args.driver,
         "CONTENT_GROUP_ID": content_group,
         "SOURCE_LANGUAGE": args.source_language,
         "SOURCE_SCOPE": args.source_scope,
@@ -577,7 +601,10 @@ def cmd_new_course(args: argparse.Namespace) -> int:
     course_meta = render(read_text(templates / "course.md.template"), base, label="course.md")
     course_meta = replace_field(course_meta, "school_course_code", args.school_code or course_id)
     course_meta = replace_field(course_meta, "course_type", args.course_type)
-    course_meta = replace_field(course_meta, "default_driver", args.driver)
+    if args.course_type == "mastery":
+        course_meta = replace_field(course_meta, "learning_mode", str(learning_mode))
+    else:
+        course_meta = remove_field(course_meta, "learning_mode")
     write_text(course / "course.md", course_meta)
     note(course / "course.md")
 
@@ -592,12 +619,17 @@ def cmd_new_course(args: argparse.Namespace) -> int:
     # place to declare where their evidence comes from.
     materialize(templates, "book/README.md.template", course / "book/README.md", base)
     note(course / "book/README.md")
-    if args.driver != "textbook":
+    if not is_textbook_led:
+        progression_label = (
+            f"Mastery `{learning_mode}` learning mode" if args.course_type == "mastery"
+            else "the Project Plan and next open Project Goal/Milestone" if args.course_type == "project"
+            else "the Praxis real-action, feedback, and reflection loop"
+        )
         write_text(
             course / "book/README.md",
             read_text(course / "book/README.md").replace(
                 "## Primary textbook\n\n| File | Material | Purpose |\n|---|---|---|\n",
-                f"## Primary textbook\n\nNo primary textbook: this course is driven by `{args.driver}`, "
+                f"## Primary textbook\n\nNo primary textbook: this course advances through {progression_label}; "
                 "and its evidence sources are listed in the reference table below or in the Course definition.\n",
                 1,
             ),
@@ -613,6 +645,10 @@ def cmd_new_course(args: argparse.Namespace) -> int:
             {**base, "NEXT_ACTION": args.next_action},
             label="progress.md",
         )
+        if args.course_type == "mastery":
+            planned = replace_field(planned, "learning_mode", str(learning_mode))
+        else:
+            planned = remove_field(planned, "learning_mode")
         write_text(course / "progress.md", planned)
         note(course / "progress.md")
         write_text(course / "activity_ledger.md", ledger_contract.empty_ledger(course_id))
@@ -632,7 +668,10 @@ def cmd_new_course(args: argparse.Namespace) -> int:
         progress = render(
             read_text(templates / "progress.md.template"), progress_map, label="progress.md"
         )
-        progress = replace_field(progress, "course_driver", args.driver)
+        if args.course_type == "mastery":
+            progress = replace_field(progress, "learning_mode", str(learning_mode))
+        else:
+            progress = remove_field(progress, "learning_mode")
         progress = replace_field(progress, "current_activity", activity_type)
         progress = replace_field(progress, "current_activity_id", activity_id)
         progress = replace_field(
@@ -667,7 +706,7 @@ def cmd_new_course(args: argparse.Namespace) -> int:
             body = drop_gate_ledger_section(body)
             write_text(lesson_dir / "lesson01.md", body)
             note(lesson_dir / "lesson01.md")
-            if args.driver == "textbook":
+            if is_textbook_led:
                 # LessonMap ships empty; page rows arrive with the first real
                 # preparation run. No preparation Snapshot is written here on
                 # purpose: a Snapshot asserts prepared pages, load receipts and
@@ -1080,9 +1119,8 @@ def build_parser() -> argparse.ArgumentParser:
     # obeying the discipline, just against the wrong language. Asking once at
     # course creation is cheaper than a mislabelled course nobody notices.
     course.add_argument("--source-language", required=True, help="the language of the source material, e.g. en, zh-CN")
-    course.add_argument(
-        "--driver", default="textbook", choices=("textbook", "goal", "project", "praxis")
-    )
+    course.add_argument("--learning-mode", choices=MASTERY_LEARNING_MODES)
+    course.add_argument("--driver", choices=LEGACY_COURSE_DRIVERS, help=argparse.SUPPRESS)
     course.add_argument("--lifecycle", default="ongoing", choices=("ongoing", "planned"))
     course.add_argument("--entry", default="lesson", choices=("lesson", "exercise", "none"))
     course.add_argument("--teacher", default="T001", help="main/20_teacher/Tddd.md")

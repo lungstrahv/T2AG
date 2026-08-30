@@ -11,7 +11,7 @@
 
 The process objects this file governs:
 
-- gates (those carried in `gate_index.md`)
+- gates (carried by the Main-only canonical `main/00_core/gate_index.md`; not shipped in Skeleton)
 - flows (the nine flow forms of `t2ag_flow.md`: `first_run`, `panorama`, `teaching_loop`,
   `authority_chain`, `cycles`, `skin`, `git`, `batch`, `exercise_loop`)
 - the directed graph (the relation graph of gates and flows)
@@ -43,7 +43,7 @@ the visibility of an invalidated pointer.
 
 ## 6. The governance list
 
-- `50_playbook/gate_index.md` (data; its header `managed_by` points at this file)
+- Main-only canonical `main/00_core/gate_index.md` (instance data; not shipped in Skeleton)
 - the nine flow forms of `50_playbook/t2ag_flow.md` (the file itself remains core; its body is untouched)
 
 ## 7. The enforcement declaration and Q0

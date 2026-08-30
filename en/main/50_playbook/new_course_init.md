@@ -31,10 +31,13 @@ recollection.
 
 ```powershell
 python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <name> `
-  --driver textbook --lifecycle ongoing --entry lesson|exercise --teacher Tddd `
+  --course-type mastery --learning-mode textbook --lifecycle ongoing --entry lesson|exercise --teacher Tddd `
   --source-language <en|zh-CN|...> `
   --source-scope <scope> --position <stop> --date YYYY-MM-DD
 ```
+
+`--learning-mode` is required only for Mastery. Project/Praxis omit it; legacy `--driver`
+must not continue writing a driver for Project/Praxis.
 
 `--source-language` is required and has no default: it is the language of the course's
 own materials, and the T001 §9 terminology discipline reads it to decide which terms
@@ -56,7 +59,7 @@ not an instruction for the model to transcribe files by hand.
 2. Create `course.md`:
    - `type: course`
    - `course_id`
-   - `school_course_code`, `name`, `course_type`, `default_driver`, `prerequisites`,
+   - `school_course_code`, `name`, `course_type`, Mastery-only `learning_mode`, `prerequisites`,
      `status: active`. The status here means only that the course definition is usable; the student
      lifecycle is written in progress alone.
    - The textbooks, the teaching principles, and the course milestones; do not write a milestone's
@@ -66,7 +69,7 @@ not an instruction for the model to transcribe files by hand.
    - `type: course_progress`
    - `course_id`
    - `lifecycle_status: planned | ongoing` (the full lifecycle vocabulary also includes paused/completed/dropped; see `progress_tracking.md` — a new course starts only from planned/ongoing)
-   - `course_driver: textbook | goal | project | praxis`
+   - Mastery: `learning_mode: textbook | goal | project`; Project/Praxis write no mode/driver
    - `truth_scope: course_lifecycle,course_frontend,activity_position`
    - A planned course writes only `updated`,
      `progress_nodes_status: lazy_on_activation`, and the next action; it must never pre-fill

@@ -220,6 +220,7 @@ A candidate tree is not a daily teaching step. Candidate tree evidence may be ge
 when the user has explicitly entered release review, Main and Skeleton are in a quiet window,
 and consecutive samples of the working tree show no change.
 
+<!-- rule: CAND-REPLAY-003 -->
 ### 9.1 The 0.2.0 frozen acceptance boundary
 
 The user froze this boundary on 2026-07-27. What is frozen is the 0.2.0 acceptance scope, not a
@@ -244,6 +245,7 @@ existing three-release gates, as blocking for this generation:
    and SHA, the schema, the target kind, the operation count/sequence, and every
    source/target/disposition/outcome/post-target field must be verified.
 
+<!-- rule: CAND-REPLAY-004 -->
 The following enter the later hardening backlog and no longer block 0.2.0: extra metadata proof
 for mode/File ID, Lite directory placeholders, the nanosecond concurrency window that cannot be
 eliminated after the final check, cross-platform threats such as non-Windows/NTFS or SHA-256
@@ -295,10 +297,12 @@ The tool must FAIL before any Git invocation when:
 - `.git` is a gitfile/link, or there is a `commondir`, `gitdir`, `worktrees`, alternates,
   `config.worktree`, an external `core.worktree`, include/includeIf, a promisor/partial clone, a
   worktree filter, an enabled fsmonitor, an effective sparse checkout / sparse index, or a Git lock;
+<!-- rule: CAND-REPLAY-001 -->
 - the source root, the temporary root, either copy, or any of their ancestors or descendants
   contains a symlink, junction, or mount/reparse point;
 - any regular file has a link count other than 1, a File ID repeats within one tree, or a File ID
   is reused between the source, A and B trees;
+<!-- rule: CAND-REPLAY-002 -->
 - a path collides under case or Unicode normalization, or the **per-file relative path, size and
   SHA-256** byte list of the source and of A/B are not exactly equal;
 - during the copy or the replay, any file content, mode or mtime in the source repository

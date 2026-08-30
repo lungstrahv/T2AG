@@ -1,0 +1,71 @@
+{
+  "schema": "t2ag.learner_journey_scenarios.v1",
+  "scenarios": [
+    {
+      "scenario_id": "install",
+      "initial_state": "not_installed",
+      "user_turns": ["开始安装"],
+      "required_surface_order": ["结果", "影响", "下一步"],
+      "max_meaningful_pauses": 0,
+      "forbidden_operator_terms": ["SHA-256", "schema", "receipt", "pending_event_id"],
+      "expected_writes": ["workspace"],
+      "zero_partial_write": true,
+      "structured_operator_result": {"result_type": "scenario_outcome", "outcome_code": "install_ready", "events": ["install_started", "install_completed"], "state_after": "installed", "pause_owner": "none", "writes": ["workspace"], "blockers": []}
+    },
+    {
+      "scenario_id": "first_run_project",
+      "initial_state": "uninitialized",
+      "user_turns": ["我要开始一个小说写作项目", "目标与基础如下"],
+      "required_surface_order": ["结果", "影响", "下一步"],
+      "max_meaningful_pauses": 1,
+      "forbidden_operator_terms": ["SHA-256", "schema", "receipt", "internal token"],
+      "expected_writes": ["profile", "project_route"],
+      "zero_partial_write": true,
+      "structured_operator_result": {"result_type": "scenario_outcome", "outcome_code": "project_ready", "events": ["facts_requested", "facts_confirmed", "route_ready"], "state_after": "ready_for_project", "pause_owner": "journey_owner", "writes": ["profile", "project_route"], "blockers": []}
+    },
+    {
+      "scenario_id": "explicit_continue",
+      "initial_state": "resume_ready",
+      "user_turns": ["继续"],
+      "required_surface_order": ["结果", "影响", "下一步"],
+      "max_meaningful_pauses": 0,
+      "forbidden_operator_terms": ["SHA-256", "schema", "receipt", "route_id"],
+      "expected_writes": [],
+      "zero_partial_write": true,
+      "structured_operator_result": {"result_type": "scenario_outcome", "outcome_code": "continue_ready", "events": ["intent_consumed", "next_action_ready"], "state_after": "next_block", "pause_owner": "none", "writes": [], "blockers": []}
+    },
+    {
+      "scenario_id": "conflict_recovery",
+      "initial_state": "route_conflict",
+      "user_turns": ["继续上次内容"],
+      "required_surface_order": ["结果", "影响", "下一步"],
+      "max_meaningful_pauses": 1,
+      "forbidden_operator_terms": ["SHA-256", "schema", "receipt", "route_id"],
+      "expected_writes": [],
+      "zero_partial_write": true,
+      "structured_operator_result": {"result_type": "scenario_outcome", "outcome_code": "route_conflict", "events": ["conflict_detected", "resolution_requested"], "state_after": "awaiting_resolution", "pause_owner": "journey_owner", "writes": [], "blockers": ["route_conflict"]}
+    },
+    {
+      "scenario_id": "activity_close",
+      "initial_state": "ongoing",
+      "user_turns": ["结课"],
+      "required_surface_order": ["结果", "影响", "下一步"],
+      "max_meaningful_pauses": 1,
+      "forbidden_operator_terms": ["SHA-256", "schema", "receipt", "pending_event_id", "body_sha256"],
+      "expected_writes": ["activity_ledger", "progress"],
+      "zero_partial_write": true,
+      "structured_operator_result": {"result_type": "scenario_outcome", "outcome_code": "activity_close_ready", "events": ["retrospective_presented", "terminal_choice_requested"], "state_after": "pending_close", "pause_owner": "journey_owner", "writes": ["activity_ledger", "progress"], "blockers": []}
+    },
+    {
+      "scenario_id": "group_activation",
+      "initial_state": "planned",
+      "user_turns": ["激活这个组"],
+      "required_surface_order": ["结果", "影响", "下一步"],
+      "max_meaningful_pauses": 1,
+      "forbidden_operator_terms": ["SHA-256", "schema", "receipt", "check_id"],
+      "expected_writes": [],
+      "zero_partial_write": true,
+      "structured_operator_result": {"result_type": "scenario_outcome", "outcome_code": "group_preflight_blocked", "events": ["preflight_started", "preflight_rejected"], "state_after": "planned", "pause_owner": "journey_owner", "writes": [], "blockers": ["keystone_ledger_mismatch"]}
+    }
+  ]
+}

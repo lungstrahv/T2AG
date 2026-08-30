@@ -44,14 +44,15 @@ your disk.
 
 | 版本 / Edition | 入口 / Entry | 生成来源 / Generated from |
 |---|---|---|
-| 中文（正本） | [`zh/README.md`](zh/README.md) | Skeleton 0.2.4 development, commit `60b8412` |
-| English | [`en/README.md`](en/README.md) | Skeleton EN 0.2.4 development, commit `0f151eb`（EN 同步在途，旧投影保留、待同步后重投 / EN sync in flight; prior projection retained pending reprojection — T2AC closeout workorder §14.130） |
+| 中文（正本） | [`zh/README.md`](zh/README.md) | Skeleton 0.2.4 development, commit `8740da3` |
+| English | [`en/README.md`](en/README.md) | Skeleton EN 0.2.4 development, commit `20281ab` |
 
-> **版本状态 / Version status**：当前树是 `0.2.4` 开发态：
-> `implementation_status = partial`、`candidate_review = not_run`、
-> `release_qualification = not_claimed`。`0.2.3` 仍是最近完成候选复审与
+> **版本状态 / Version status**：当前树是 `0.2.4`：三源
+> `implementation_status = complete`（G2 三源重做，T2AC 收口 §14.131；机制轴挂净室重构 §14.130）、
+> `candidate_review = not_run`、`release_qualification = not_claimed`。`0.2.3` 仍是最近完成候选复审与
 > finalization-delta 独立复审的发行版本。
-> This tree is the `0.2.4` development baseline: `implementation_status = partial`,
+> This tree is `0.2.4`: `implementation_status = complete` across the three sources (G2 redo,
+> closeout 14.131; mechanism axis rescoped to the clean-room rebuild, 14.130),
 > `candidate_review = not_run`, and `release_qualification = not_claimed`.
 > T2AG `0.2.3` remains the latest release-qualified version.
 

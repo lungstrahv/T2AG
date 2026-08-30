@@ -27,6 +27,7 @@ TESTS = (
     contracts.test_handoff_index_version_drift_is_enforced,
     contracts.test_handoff_shadow_runtime_index_is_enforced,
     contracts.test_resume_authorization_gate_is_enforced,
+    contracts.test_authorization_gate_evidence_surface_reachability,
     contracts.test_environment_probes_report_broken_assumptions,
     contracts.test_environment_probes_silent_when_assumptions_hold,
     contracts.test_environment_registry_must_exist_and_list_every_probe,

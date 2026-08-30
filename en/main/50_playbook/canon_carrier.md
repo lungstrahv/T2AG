@@ -6,7 +6,7 @@
 > The adjudication and design original: workspace `docs/handoffs/T2AG_CANON_CARRIER_EGRESS_WORKORDER_DRAFT_2026-08-19.md`
 > v2 (all six questions adjudicated). This file is the runtime contract and does not restate the design argument.
 >
-> **Applicability**: courses with `default_driver: textbook`. The machine criterion is the driver field, not a list of course names.
+> **Applicability**: `course_type: mastery` with `learning_mode: textbook`; legacy drivers remain readable during migration. The machine criterion is not a course roster.
 > **This mechanism is not the ADR-0002 host send boundary**: `canon_append.py` is an in-repo appender; it cannot stop the chat channel,
 > and it cannot detect a self-consistent double write (a forger writing both files into a legal chain). It turns **a naive bypass from traceless into traceable**, and no more;
 > it must never be advertised as a structural hard gate.
@@ -33,7 +33,7 @@ Two files in each textbook course's lesson directory, both append-only:
 
 `main/70_tools/canon_append.py` is the only legal write path to C and L. It validates:
 
-1. the course exists and is `default_driver: textbook`;
+1. the course exists and is Mastery + textbook-led;
 2. the lesson directory exists;
 3. the `block_id` has not appeared on **either side, C or L**, in that lesson (present in C = rejected as `duplicate_block`;
    present in L but not in C = rejected as `crash_residue`, pointing at `--complete`);

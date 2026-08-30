@@ -328,27 +328,6 @@
         "runtime.structure"
       ]
     },
-    "release.migration_020": {
-      "phase": "release",
-      "handler": "check_migration_evidence",
-      "depends_on": [
-        "runtime.structure"
-      ]
-    },
-    "release.migration_021": {
-      "phase": "release",
-      "handler": "check_migration_021_evidence",
-      "depends_on": [
-        "runtime.structure"
-      ]
-    },
-    "release.activity_migration_021": {
-      "phase": "release",
-      "handler": "check_activity_migration_021_evidence",
-      "depends_on": [
-        "runtime.structure"
-      ]
-    },
     "release.reading_bridge": {
       "phase": "release",
       "handler": "check_reading_bridge_contract",
@@ -361,7 +340,8 @@
       "handler": "check_core_playbooks",
       "depends_on": [
         "runtime.structure"
-      ]
+      ],
+      "rule_binding": "50_playbook/playbook_management.md#5.2.2 core/meta release integrity"
     },
     "release.candidate_replay": {
       "phase": "release",
@@ -403,7 +383,8 @@
       "handler": "check_constitution_parity",
       "depends_on": [
         "runtime.structure"
-      ]
+      ],
+      "rule_binding": "50_playbook/playbook_management.md#5.2.1 Constitution and 00_core section homology"
     },
     "release.cross_edition_parity": {
       "phase": "release",
@@ -525,9 +506,6 @@
         "release.handoff",
         "release.cloud",
         "release.derived_tools",
-        "release.migration_020",
-        "release.migration_021",
-        "release.activity_migration_021",
         "release.reading_bridge",
         "release.core_playbooks",
         "release.playbook_taxonomy_parity",

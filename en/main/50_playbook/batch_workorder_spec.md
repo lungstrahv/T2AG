@@ -160,6 +160,7 @@ The new number is fixed at the moment a `version_campaign` envelope freezes `tar
 must never be written into `t2ag.md` §7 in passing by some batch. A routine batch that finds it
 has "bumped the version along the way" was in fact an unauthorized campaign.
 
+<!-- rule: AUTH-NONAMP-002 -->
 ### 1.5 Authorization is non-amplifying
 
 Verification level and authorization level are independent; V0–V3 define only the cost of
@@ -169,6 +170,7 @@ never cover RT3. A real migration, a terminal lifecycle action, a strict student
 a cross-boundary write all require the user to confirm directly in the current round, after the
 exact object, the body, the ID, the SHA and the result have all been generated and displayed.
 
+<!-- rule: AUTH-NONAMP-003 -->
 A handoff, a receipt chain, a deterministic policy, a model recommendation, and an implementer's
 or reviewer's technical conclusion can only preserve evidence; none of them may generate, renew
 or countersign the user's authorization, and **an object not yet generated cannot be
@@ -204,7 +206,7 @@ RT3.
 10. `clean != reviewed != released`. An evidence checkpoint proves only evidence; a recovery checkpoint provides only a restore point; a release snapshot must bind a passed full candidate re-review and a finalization delta independent re-review, and can never be inferred from a clean working tree or an ordinary commit.
 11. **Rule semantic migration**: for the constitution, AGENTS, core/meta playbooks and hard-boundary governance documents, **diff-patch** is the default.
     When semantic migration is triggered, register line by line:
-    `rule_id | old location/text anchor | action (keep/sink/retire) | new owner/equivalence gate | consumer | verification`.
+    `rule_id | rule_id | action (keep/sink/retire) | new owner/equivalence gate | consumer | verification`.
     A `sink` must simultaneously prove the canonical owner, the necessary entry pointer, the consumer and the verification closure; a `retire` requires a valid adjudication. File length, keywords, a historical inventory or a model suggestion trigger a review only and constitute neither a rule, an authorization nor a finding; a finding forms only when a named rule is missing with no valid new landing point or retirement basis. The construction report must carry the rule_migration execution result, or a `not_applicable` reason. The full contract is in `main/t2ag.md` §6.3.
 
 ## 4. Construction report template (the executor's obligation; no field may be omitted)

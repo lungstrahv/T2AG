@@ -27,6 +27,8 @@
 > not that the review passed. A binding row must carry zh/en exactly once each
 > (enforced by CAND-BIND-004..006; corrupted, missing or duplicated ends all
 > FAIL).
+> The same-shaped disposal for changelog entries is in
+> `50_playbook/changelog_management.md#When a release fact is written`.
 
 - 0.2.0 baseline structural authority：`60_journal/T2AG_0.2.0_STRUCTURE_PLAN.md`；migrator：`70_tools/migrate_020.py`
 - 0.2.1 incremental construction authority：`T2AG-STUDENT-PROFILE-READING-BRIDGE-20260730`
@@ -57,7 +59,11 @@
   independent review completed on 2026-08-24 — **backfilling is not pre-writing**:
   the review preceded it, so it does not create the
   "write passed -> repackage -> the new package was never reviewed" loop)
-- 0.2.4 `implementation_status`: `partial`
+- 0.2.4 `implementation_status`: `complete` (same reading across all three sources; the
+  authoritative value lives in the Main ledger and this row is the projection-side sync.
+  The content axis is caught up in this edition; the mechanism axis — the doctor
+  modularization projection — is explicitly rescoped to the clean-room rebuild per
+  spec 1.4.1 case #3, authority: T2AC closeout workorder 14.130)
 - 0.2.4 `candidate_review`: `not_run`; in-repo `release_qualification`: `not_claimed`
 - 0.2.4 is currently a development baseline only; no candidate has been frozen and no
   independent review or release qualification has been obtained

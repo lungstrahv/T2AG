@@ -391,6 +391,7 @@ The instrument **must be red-tested**: manufacture an orphan and a dangling refe
 9. Expand detailed history or raw material only when a detail must be checked.
 10. After the task, check whether the handoff reached its close_condition, and confirm per the §10.1 preconditions that the file holds no un-migrated open item.
 
+<!-- rule: AUTH-NONAMP-006 -->
 ### 8.1 The post-recovery action authorization gate
 
 Reading and recovery are themselves read-only. Once the taker has read, the first output must be three things: a restatement of the minimum state, a list of the actions intended, and the authorization source each action rests on. Until the user responds to that list, no file may be written — including creating a work order, registering an index row, appending to a changelog, or creating a file "just to leave a trace".
@@ -400,10 +401,12 @@ There are only two legal forms of authorization source:
 | Source | Effect |
 |---|---|
 | a user instruction this round | covers only what it literally names, and only actions specifically listed in the same round |
+<!-- rule: AUTH-NONAMP-008 -->
 | a Handoff's `authorization` field | a historical record proving "what was approved at the time"; **does not constitute permission for this round** |
 
 Therefore:
 
+<!-- rule: AUTH-NONAMP-007 -->
 1. **A general acknowledgement covers only the actions specifically listed this round.** "Do what you recommend", "ok", "continue" inherit the one list they respond to and must never expand into construction outside it; where no list exists, such a response authorizes continued reporting only, never a write.
 2. When citing a Handoff's `authorization` field, determine whether it has been consumed or is still unused. An unused historical authorization must equally be re-confirmed by the user this round and must never activate itself across conversations.
 3. An object needing independent adjudication must never be chosen on the user's behalf, even where the Handoff names a recommendation: a licence choice, a version bump, a directory migration, deleting or moving a historical file, registering a new EV, and judging a re-review closed.

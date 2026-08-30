@@ -11,13 +11,23 @@ Empty-template identity marker: `t2ag-skeleton`. You may freely rename the copie
 directory; after first run, `initialization_status` in the profile identifies the
 personal instance.
 
-0.2.4 Skeleton is a development baseline. First run now asks for five optional
-orientation items, this edition fixes the source language to `en-US`, and the
-installer copies the selected edition to a sibling `t2ag/` before separately asking,
-after successful initialization, whether to remove the release source. Its status is
+0.2.4 Skeleton is a development baseline. First run now uses one skippable conditions
+conversation and one complete-plan review; this edition fixes the source language to `en-US`.
+The installer copies the selected edition to a sibling `t2ag/`; the release source is retained by
+default and creates no deletion question after initialization. Its status is
 `partial / not_run / not_claimed`; it contains no real course activity, AR, books,
 sidecars, candidate contributions, or consumption receipts. The most recent
 release-qualified baseline remains 0.2.3.
+
+---
+
+## Start here as a learner
+
+Tell the agent what you want to learn, what you hope to be able to do, and whatever conditions you are
+comfortable sharing; everything else may be skipped. The agent presents a complete, editable reference
+learning plan before creating a course, waits for your confirmation, then gives the first step directly.
+You do not need to understand internal IDs, test counts, doctor output, or maintenance commands. The
+canonical first-run experience is in `main/50_playbook/first_run.md`.
 
 ---
 
@@ -61,7 +71,7 @@ language in diagnostics. Those are the most useful things you can report back.
 
 ---
 
-## One-minute startup and agent preferences
+## Operator: startup formation and diagnostics
 
 Three agents are available by default: a main agent handles the welcome, user
 interaction, joining, and is the sole writer; a Runtime Sentinel does read-only
@@ -151,8 +161,8 @@ live in `main/50_playbook/startup_orchestration.md`.
 
 3. On an empty template the context command must return `first_run_required`.
    Then read `main/t2ag.md` and `main/50_playbook/first_run.md`.
-4. Confirm the profile, the first course and the first group with the user before
-   writing anything explicitly.
+4. Present the complete reference learning plan and obtain one plan confirmation before
+   explicitly writing the Course and Group.
 
 **Choosing your first course (important)**: you do not have to start from a
 textbook. When creating the first course, tell the agent to use a `goal` or

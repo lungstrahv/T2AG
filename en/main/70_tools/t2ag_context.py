@@ -1341,7 +1341,7 @@ def textbook_lesson_window(
 ) -> tuple[Path, str] | None:
     if (
         route.activity_type != "lesson"
-        or route.course_driver != "textbook"
+        or not route.is_textbook_led
     ):
         return None
     course_id, lesson_id = _textbook_lesson_ids(route)
@@ -1405,7 +1405,7 @@ def first_step_empty_reason(route: object) -> str:
         return "当前处于活动间隙；没有前台 Activity 的首步追加证据。"
     if route.activity_type == "exercise":
         return "当前题面已在 L0；当前题没有既有 Attempt/Review 需要追加。"
-    if route.course_driver == "textbook":
+    if route.is_textbook_led:
         return "当前教材窗口已在 L0；当前停点没有另行声明的直接证据。"
     return "当前 Lesson 恢复胶囊已在 L0；当前停点未声明标准化的首步追加证据。"
 
@@ -1500,7 +1500,7 @@ def lesson_critical_payload(
             "也不得绕过 Exercise 提示闸门。"
         ),
     }
-    if route.course_driver == "textbook":
+    if route.is_textbook_led:
         current_page = progress_snapshot.meta.get("textbook_page", "").strip()
         if not current_page.isdigit():
             raise ContextPacketError("textbook Lesson 缺合法 textbook_page")
@@ -2162,7 +2162,7 @@ def build_packet(
                 excerpt,
             )
             baseline_activity_paths.append(working_path)
-            if route.course_driver == "textbook":
+            if route.is_textbook_led:
                 course_id, lesson_id = _textbook_lesson_ids(route)
                 prep_dir = _preparation_dir(cache, course_id, lesson_id)
                 if _new_source_path_presence(prep_dir):
@@ -2356,7 +2356,9 @@ def build_packet(
         "context_mode": context_mode,
         "group_id": group_id,
         "route": {
-            "course_driver": route.course_driver,
+            "course_type": route.course_type,
+            "learning_mode": route.learning_mode,
+            "progression_kind": "mastery_mode" if route.learning_mode else "course_type",
             "current_activity": route.activity_type,
             "current_activity_id": route.activity_id,
             "activity_position": route.activity_position,

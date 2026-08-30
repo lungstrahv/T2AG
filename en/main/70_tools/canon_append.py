@@ -5,7 +5,7 @@ Contract: main/50_playbook/canon_carrier.md.  Design record (six adjudicated
 questions): workspace docs/handoffs/T2AG_CANON_CARRIER_EGRESS_WORKORDER_DRAFT_2026-08-19.md v2.
 
 What this tool verifies (on-disk identity only — the "narrow E"):
-  * the course exists and has ``default_driver: textbook``;
+  * the course is ``mastery`` with ``learning_mode: textbook`` (legacy driver readable);
   * the lesson directory exists;
   * ``block_id`` is unique within the lesson's teaching_log.md;
   * every ``--page-ref`` names a source page asset whose frontmatter parses;
@@ -38,6 +38,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+from t2ag_activity import ActivityContractError, resolve_course_progression
 
 ROOT = Path(__file__).resolve().parents[2]
 MAIN = ROOT / "main"
@@ -130,10 +132,15 @@ def main() -> int:
     if not course_md.is_file():
         return _fail("no_course", f"课程不存在：{args.course}")
     meta = _frontmatter(course_md.read_text(encoding="utf-8", errors="replace"))
-    if meta.get("default_driver") != "textbook":
+    try:
+        progression = resolve_course_progression(meta)
+    except ActivityContractError as exc:
+        return _fail("invalid_progression", "; ".join(exc.errors))
+    if not progression.is_textbook_led:
         return _fail("not_textbook",
-                     f"{args.course} default_driver={meta.get('default_driver')!r}"
-                     "（正典载体只适用 textbook driver 课程，D4）")
+                     f"{args.course} course_type={progression.course_type!r} "
+                     f"learning_mode={progression.learning_mode!r}"
+                     "（正典载体只适用 Mastery + textbook-led）")
 
     lesson_dir = course_dir / "lessons" / args.lesson
     if not lesson_dir.is_dir():

@@ -36,10 +36,11 @@ whole course plan and never owns the LearningActivity lifecycle. The Course
 lifecycle/foreground/stopping point and the Activity lifecycle are owned by `progress.md` and
 `activity_ledger.md` respectively, and a conflict must never be resolved by "last writer wins".
 
-### 2.0 Two orthogonal axes: `course_type` and `default_driver`
+### 2.0 Course Type owns progression; Learning Mode belongs only to Mastery
 
 - **`course_type` = completion semantics**: what evidence can close this course to completed (the **stopping condition**).
-- **`default_driver` = the basis for advancing**: what decides what the next lesson teaches (the **ordering function**). They answer different questions, are **orthogonal and independently valued**; the four values and the source rules are owned by `book_management.md` §3.
+- **`course_type` also selects the progression protocol**: Mastery enters a selectable Learning Mode; Project enters its Project Plan; Praxis enters the real-action, feedback, and reflection loop.
+- **`learning_mode` belongs only to `course_type: mastery`**, with `textbook | goal | project`. Project and Praxis declare no mode. Legacy `default_driver/course_driver` fields remain readable only during migration and are no longer writable truth.
 
 The three values of `course_type` differ in **who judges**:
 
@@ -54,6 +55,8 @@ artifacts, where the artifact is evidence of understanding. `project` requires t
 judged by an **external judge that does not listen to explanations** (running in reality / an OJ
 grader / a Kaggle private leaderboard). `praxis` sits outside the system like `project`; the
 difference is that its judge is **not reproducible**, so it must carry a disclaimer.
+
+`Mastery + learning_mode: project` is still a Mastery Course. A Project Goal/Milestone is a Project Plan node, not `learning_mode: goal`.
 
 ### 2.1 ContentGroup / Lesson / Exercise
 

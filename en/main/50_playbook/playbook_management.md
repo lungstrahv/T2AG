@@ -64,15 +64,16 @@ illegal.
 journal, memory, problem log, changelog, gate and rule admission, process. This is an open enumeration,
 not a closed one.
 
-**The regeneration criterion** (verifying corollary): remove it from the skeleton and the skeleton cannot
-regenerate. The project regenerates around meta; the skeleton must contain every meta file, and the three
-releases are byte-homologous.
+**The regeneration criterion** (verifying corollary): remove it from a release projection with no
+canonical owner and it cannot regenerate. The project regenerates around meta; shared meta must have a
+single Main source of truth and verifiable downstream projections, and the concrete mechanism is owned
+solely by §5.
 
 When the two criteria disagree, the conflict must be adjudicated and registered; it must never be carried
 forward silently.
 
-The protection semantics of meta: the skeleton must contain it + all three repositories byte-identical +
-a major change defaults to a diff-patch + a semantic relocation requires a `rule_migration`.
+The protection semantics of meta: release projections close per §5 + a major change defaults to a
+diff-patch + a semantic relocation requires a `rule_migration`.
 
 ### 4.2 core-playbook
 
@@ -108,23 +109,72 @@ enforcement: check=runtime.playbook_taxonomy
 enforcement: check=release.playbook_taxonomy_parity
 ```
 
-## 5. Release synchronization discipline
+## 5. Release-projection discipline (the sole operating owner)
 
-- Every file marked `core-playbook` must exist in main, skeleton, and lite, with identical body text.
-- Every file marked `meta-playbook` must exist in the skeleton, and be byte-identical across
-  main / skeleton / lite.
-- A core-playbook must never contain a real student name, an absolute path, current course progress, a fixed commit, or a private remote address; instance parameters are read from runtime files.
-- When a core-playbook is added or substantially changed, synchronize the three versions in the same batch, then run doctor against each.
-- When the three repositories share one workspace, doctor compares the core-playbook file set and their SHA-256 values; a missing file or a forked body is a FAIL. When released independently, only the locally required files are checked.
-- The skeleton is the sole template source for general templates and flows; main absorbs the general rules and keeps the instance data.
-- Lite is a review snapshot for an online model, generated from main; it may omit textbook binaries, the environment, caches, and generated assets,
-  but must never omit the rules, instance state, or core-playbook / meta-playbook files a review needs.
-- **Consistency dry run**: `python -B main/70_tools/sync_lite.py` (read-only by default).
-- **The regeneration mechanism (option A)**: `python -B main/70_tools/sync_lite.py --write`
-  (optionally `--root <T2AC>`). It clears everything and rebuilds; **the main workspace must be clean**
-  (the tool refuses a dirty tree by default; during construction `--force` may be appended only under an explicit adjudication).
-  After regeneration, hash-verify every projected file. Hand-editing lite as a long-term maintenance surface is forbidden.
-- Lite must never become a rule source in reverse; a change from the online model may only come back as a review suggestion, to be adjudicated by skeleton/main.
+This section is the sole operating owner of Main → zh Skeleton / Lite. The constitution keeps only the
+hard boundary — a single source of truth and verifiable projections — and the flow chart only draws the
+call relations; no other carrier may duplicate the commands, the order, or any "mirror repository" rule.
+
+### 5.1 The current 0.2.4 boundary
+
+- **Main is the only canonical source.** The zh Skeleton is a projection of the general mechanism, not a
+  reverse template source; Lite is Main's one-way redacted review projection and must not become a rule
+  source in reverse either.
+- **The zh mechanism projection** has no whole-repository generator. Cross-release H5 must be named per
+  batch, take explicit paths from a committed Main, and synchronize only low-privacy shared mechanism
+  and the registered constitution sections; after landing, byte/SHA-verify the named paths. Real
+  instances, host logs and legal release identity divergences must not be copied.
+- **The Lite projection** is produced only by `main/70_tools/sync_lite.py`: the default command is
+  check-only; `--write` accepts only a clean Main and does a full regenerate, redaction and hash
+  re-verification. Hand-editing Lite long-term is forbidden.
+- **The EN edition is in the 0.2.4 scope (T2AC closeout workorder 14.130)**; its content
+  synchronization runs as its own named release batches — per-batch H5, ordered after zh — and the
+  mechanism axis it carries is deferred to the clean-room rebuild by the same ruling.
+- The class-level machine-query artifact manifest is explicitly a **0.2.5** item; 0.2.4 creates no
+  second registry, and a design document must not pose as machine truth already in force. The current
+  mechanism closes with this section, `sync_lite.py` and the existing doctor gates.
+
+### 5.2 Projection gates and order
+
+#### 5.2.1 Constitution and 00_core section homology
+
+`main/t2ag.md` and the three `00_core` models are compared by `## ` section SHA; the Skeleton
+constitution's §6 de-instantiation is a registered divergence, and `AGENTS.md` takes a file-level
+exemption for its different audience. owner=`t2ag_doctor.py` `check_constitution_parity`.
+enforcement: check=release.constitution_parity
+
+#### 5.2.2 core/meta release integrity
+
+The named projection set and the bodies that should be homologous for core/meta playbooks must be
+complete; a low-privacy shared file must not carry a student name, a host absolute path, current course
+progress, a fixed commit or a private remote. enforcement: check=release.core_playbooks
+
+#### 5.2.3 Order
+
+1. A Main change first passes directed tests, the runtime doctor and the state check, then commits its
+   named source paths.
+2. Within the same named H5, close the zh mechanism paths; the constitution and `00_core` are compared
+   by registered section, core/meta playbooks by file; `AGENTS.md`, release identity and redacted
+   output accept only registered divergences.
+3. After Main is clean, first run the `python -B main/70_tools/sync_lite.py` dry run; when an update is
+   needed, run `python -B main/70_tools/sync_lite.py --write` (optionally `--root <T2AC>`).
+4. `runtime.skeleton_privacy` and the Lite full projection hash are independent gates; if either fails,
+   projection closure must not be claimed.
+5. When a core/meta playbook is added or substantially changed, complete the projections above and the
+   doctor applicable to each release; an online suggestion can only return to Main for adjudication —
+   never edit Lite directly, and never backfeed Main from zh.
+
+### 5.3 DEC-4 A8 rule_migration
+
+| rule_id | Old location/action | New owner/equivalent gate | Consumer | Verification |
+|---|---|---|---|---|
+| DEC4-PROJ-01 | Constitution §1.9 "three releases byte-homologous" → keep the hard boundary, sink the operating detail | This section §5.1; the constitution keeps a pointer only | All release batches | The constitution contains the `playbook_management.md` §5 pointer |
+| DEC4-PROJ-02 | The mirror/cmp manual path in `t2ag_flow.md` → sink | This section §5.1–§5.2 | The Git/release flow chart | The flow chart names the "release-projection owner" and has no "Main ↔ Skeleton" |
+| DEC4-PROJ-03 | The scattered synchronization rules of this file's former §5 → rewrite | This section §5.1–§5.2; `sync_lite.py`; `runtime.skeleton_privacy` | Main/zh/Lite | A9 mutation + named H5 probe |
+
+Unregistered-deletion review: no hard gate was retired — single source of truth, privacy, constitution
+section homology, core/meta integrity and Main-clean all stand; only the duplicated manual mirror
+wording was retired, and the machine manifest's new capability is explicitly moved to 0.2.5.
 
 ---
 
@@ -165,7 +215,7 @@ T2AG follows these governance principles:
 For §4 this batch is a semantic expansion (the three tiers are seated; no clause was deleted). The table is
 isomorphic to §6 of the work order, and its row count is frozen.
 
-| rule_id | Old location / original anchor | Action | New owner / equivalent gate | Consumers | Verification |
+| rule_id | rule_id | Action | New owner / equivalent gate | Consumers | Verification |
 |---|---|---|---|---|---|
 | PB-TAX-001 | §4 opening sentence "protect a high-value flow with core-playbook semantics" | keep (rewritten as a three-tier overview) | §4 of this file | maintenance session / doctor tier instrument | `grep -n "only three legal marker values" 50_playbook/playbook_management.md` |
 | PB-TAX-002 | §4 condition "the user explicitly asked for it to be kept long-term" | keep | §4.2 of this file | the adjudication to promote to core | `grep -n "explicitly asked for it to be kept long-term" 50_playbook/playbook_management.md` |

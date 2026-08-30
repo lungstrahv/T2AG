@@ -94,6 +94,7 @@ The pre-reply check is given by the read-only `70_tools/t2ag_hint_gate.py` as al
 hard block, a response intermediary outside the model must consume the deny return code; Doctor and the Markdown contract can only verify,
 audit and prevent regression — they cannot honestly claim to intercept every future model output.
 
+<!-- rule: TEACH-MAP-001 -->
 ### 2.2 Map-first protocol for long multi-block explanations
 
 When one explanation is expected to contain three or more concept blocks, or when a symbol will move across several object
@@ -101,8 +102,10 @@ levels (numbers, functions, sets, sets of functions), give the navigation first 
 
 1. Use a short table of contents or a tree diagram to state the goal, the main branches, the dependencies, and the one branch being expanded this round.
 2. Annotate a key symbol's object type at its first appearance; when one symbol family is used across levels, give a short type table.
+<!-- rule: TEACH-MAP-002 -->
 3. Go deep into one branch at a time; after finishing that branch, wait for the student to confirm, restate or ask, then enter the next.
 4. An overview carries navigation only; it must never compress all the detail into another form and dump it at once.
+<!-- rule: TEACH-MAP-003 -->
 5. In conceptual teaching, or once the student has authorized a full explanation, the overview may show the proof or implementation route; the
    unauthorized stage of a new Exercise is still bound by zero hints at problem opening and by the hint gate, and must never leak the method,
    a sub-goal, a key transformation, or the answer through a table of contents, a thought tree, or a type table. When no useful overview can be made without leaking, omit the overview.

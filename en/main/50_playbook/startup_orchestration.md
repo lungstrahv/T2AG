@@ -42,6 +42,7 @@ Default roles:
 | Runtime Sentinel | verify the local teaching runtime state | read-only: the runtime doctor and state refresh `--check` |
 | Context Prefetcher | generate and consume the current course context, preparing a first-round candidate that is not yet sent | read-only context; no write-back, and never entering L2 on its own |
 
+<!-- rule: CTX-PACKET-005 -->
 ## 2. Build the dependency tree first, then assign agents
 
 Before dispatching, the Main Conductor draws the minimal dependency tree and estimates the critical
@@ -138,6 +139,7 @@ course reflections, non-current mistakes or the cost account before the route. T
 - for a textbook, also return `scope_scan`: the snapshot, the PDF SHA, every `pdf_page_index`, the consumption evidence per page (under the current path including `opened=true` / the in-book page number / the heading), the current page, and any page-number or content conflict found; **a single page missing relative to Scope means not complete** (an A4 omission FAILs; a duplicate only WARNs). **Note**: a textual declaration of `opened=true` / complete **with no delivery** does not constitute proof; proof = host-observable delivery of each page's content body (A6/ADR-0003). A host Scan Orchestrator receipt is reserved as a future state, reclaiming the issuing right once it lands.
 - for a textbook, also return `page_teaching_contract`: the current PDF/in-book page, the character classroom tree requirement, the in-page coverage register, and the four gates — understanding confirmation, feeling feedback, one-shot continuation authorization and the page-turn announcement. A "continue studying" at this round's entry must never be read as standing authorization for the whole lesson.
 
+<!-- rule: CTX-PACKET-006 -->
 A candidate must stay withheld until Main adjudicates. Once the host lands, textbook teaching body
 text passes only through `lesson_emit`; in a textbook-gated session the ordinary freeform assistant
 egress is closed, or is a fixed host template only (see
@@ -314,3 +316,138 @@ Operating mnemonic:
 parallel read-only branches x a first delivery small enough x zero duplication by Main x release the slot when done
 != piling on more agents
 ```
+
+## 11. The entry-axis contract (entry.*)
+
+The constitution `main/t2ag.md` §3 keeps only a pointer; the entry-axis contract body lives only in this
+file. This axis is **not** the `session_lane` canonical (0a-4 / closeout §14.66 / §14.81): the four names
+share wording, but the axes evolve independently. This file does not own `session_lane`.
+
+The prefix token is fixed as **`entry.`** (AS-8; ruled where rulable). The four entries:
+
+| Entry | I/O | Forbidden |
+|---|---|---|
+| `entry.teach` | course recovery + Scope | must not bypass the kernel |
+| `entry.maintain` | does not trigger course recovery | must not bypass the kernel |
+| `entry.audit` | read-only evidence; no recovery | must not bypass the kernel |
+| `entry.release` | acquires no release authorization | must not bypass the kernel |
+
+the prefix shared by the four entries contains only three items: reading `main/t2ag.md`, displaying the
+welcome message per §0, and passing the existing `runtime.authorization` kernel (closeout §14.80; **no**
+new check ID). After the branch point, only `entry.teach` runs course recovery, the Context Prefetcher
+and the textbook Scope scan, and produces `learning-ready`; each entry obtains the `recovery-settled`
+that applies to it before any write action. This axis dispatches no code and builds no new dispatcher.
+
+## 12. rule_migration (DEC-3 A3 · constitution §3 sub-constraints)
+
+Denominator = sub-constraints ≥18 (closeout §14.77 AS-5; where rulable: S3-10 split into 4, S3-13 into 2,
+S3-09 into 4 timing/halt clauses). The table has 20 rows (S3-01..08 + S3-09a..d + S3-10a..d + S3-11 +
+S3-12 + S3-13a..b). No retire. S3-03 / S3-12 undetermined-then-ruled sink. No new check ID. The A3
+freeze batch did not edit `main/t2ag.md`; the closeout repair compresses §3 into entry pointers and the
+immutable gates without changing this table's keep/sink rulings.
+
+> Edition note (registered divergence): the literal grep evidence in the verification column binds
+> against the zh canonical record (skeleton commit `040cdcf`); this edition records the same rulings at
+> section level for its own files.
+
+| rule_id | Old location/anchor | Action | New owner/equivalent gate | Consumer | Verification |
+|---|---|---|---|---|---|
+| S3-01 | constitution §3 "display the welcome message on every entry" | sink | `startup_orchestration.md` §0 | `main/bin/t2ag`; `80_interface/README.md`; `skin_playbook.md`; `first_run.md` (E1: zero doctor consumption) | §0 heading |
+| S3-02 | constitution §3 "start the read-only recovery branches in parallel (Runtime Sentinel + Context Prefetcher)" | sink | `startup_orchestration.md` §1 / §3 | `AGENTS.md` startup entry (E1) | §1 command block |
+| S3-03 | constitution §3 "never wait for all recovery checks before first feedback" | sink | `startup_orchestration.md` §3 / §4.1 (E1: equivalent body already present) | Main Conductor join (E1 T-08) | §3 body |
+| S3-04 | constitution §3 "two observable states (criteria canonical §4.1/§4.2)" | keep | the constitution keeps the pointer; gates = §4.1 / §4.2 | startup sessions | constitution §3 pointer |
+| S3-05 | constitution §3 `learning-ready` definition (exact stopping point; textbook Scope A1–A5/A6) | sink | `startup_orchestration.md` §4.1 | ADR-0003; `source_page_assets.md` §3.1 (E1) | §4.1 heading |
+| S3-06 | constitution §3 "Snapshot / `content_consumed` / a historical receipt must never pose as this round" | sink | `startup_orchestration.md` §4.1 | `AGENTS.md` textbook scan gate (E1) | `content_consumed` in §4.1 |
+| S3-07 | constitution §3 `recovery-settled` definition (doctor 0 FAIL, no drift, sources verified) | sink | `startup_orchestration.md` §4.2 | `t2ag_doctor.py --profile runtime`; `t2ag_state_refresh.py --check` (E1) | §4.2 criteria |
+| S3-08 | constitution §3 "any progress write / checkpoint / terminal-RT3 / foreground switch / closure claim must wait for that state" | keep | constitutional canonical (closeout §14.80); machine leftover = existing `runtime.authorization` (§6.2); no new check | write paths; the A1 kernel (E1) | `runtime.authorization` in `validation_workflow.json` |
+| S3-09a | constitution §3 "critical ≤10s" | sink | `startup_orchestration.md` §1 / §5 | startup orchestration (E1) | §5 timing row |
+| S3-09b | constitution §3 "first content ≤15s" | sink | `startup_orchestration.md` §1 / §5 | startup orchestration (E1) | §5 timing row |
+| S3-09c | constitution §3 "full background ≤45–60s" | sink | `startup_orchestration.md` §5 (machine cap = the written 45s, **not** the constitution's 45–60) | startup orchestration (E1) | §5 timing row |
+| S3-09d | constitution §3 "a late blocker pauses further advance" | sink | `startup_orchestration.md` §5 | Main Conductor (E1) | §5 body |
+| S3-10a | constitution §3 "uninitialized criteria and the initialization flow are canonical in first_run.md" | sink | `50_playbook/first_run.md` (criteria / steps sections) | `t2ag_init.py` (E1) | first_run criteria heading |
+| S3-10b | constitution §3 "templates must come from 40_course/_templates/course/" | sink | `40_course/_templates/course/` (rulable split; the E1 composite owner was `first_run.md`) | `t2ag_init.py` / `first_run.md` (E1) | template README |
+| S3-10c | constitution §3 "never pre-fill a real student number" | sink | `50_playbook/first_run.md` | `t2ag_init.py` (E1) | first_run body |
+| S3-10d | constitution §3 "never auto-create .venv" | sink | `50_playbook/first_run.md` | `t2ag_init.py` (E1) | `venv` in first_run |
+| S3-11 | constitution §3 routine-takeover canonical `context_packet.md` | keep | `50_playbook/context_packet.md`; enforcement = existing `runtime.context_packet` (rule_binding → the session_lane rule-loading section) | `runtime.context_packet` (E1: the only doctor-enforced takeover clause) | `runtime.context_packet` |
+| S3-12 | constitution §3 "on runtime doctor FAIL repair local teaching state first; a release-side FAIL blocks only candidate and release" | sink | `50_playbook/doctor_contracts.md` (FAIL semantics canonical; rulable: undetermined → sink; no new doctor check) | runtime / release startup paths (E1) | doctor_contracts FAIL section |
+| S3-13a | constitution §3 "while the cloud bridge is paused the cloud projection is read-only" | keep | `doctor_contracts.md` cloud-pause section; enforcement = existing `runtime.cloud_pause` | `runtime.cloud_pause` (E1) | `runtime.cloud_pause` |
+| S3-13b | constitution §3 "when the context tool cannot run, do manual layered excerpting per lesson_recover.md; never fall back to undifferentiated full reads" | sink | `50_playbook/lesson_recover.md` | the degradation path (E1 T-13); `startup_orchestration.md` §5 | lesson_recover manual-excerpt steps |
+
+**The four sinking-closure items** (shared by the whole table):
+
+1. **New canonical owner**: sink rows above; keep rows stay canonical in the constitution or an existing
+   playbook / existing check.
+2. **Necessary entry pointers**: constitution §3 now keeps only the explicit entry declaration, the
+   shared prefix, the state hard gates and the sunk-owner pointers.
+3. **Consumers**: per the table. The doctor-enforced surface is still only S3-11
+   (`runtime.context_packet`) and S3-13a (`runtime.cloud_pause`). The S3-08 machine leftover = the
+   existing `runtime.authorization`.
+4. **Verification evidence**: the table's verification column; all existing anchors or existing check
+   IDs, no new ID.
+
+**Unregistered-deletion review**: no retire. Items E1 initially judged sink/keep are all followed;
+S3-03 / S3-12 sink where rulable, not retired.
+
+## 13. Entry cutover (DEC-3 A6)
+
+The contract body is §11; the constitution §3 sub-constraint migration table is §12 (20 rows, not
+duplicated in this batch). This cutover changes only the startup calling surface: it dispatches no code,
+builds no dispatcher, adds no check ID.
+
+### 13.1 The two-axis declaration (the caller must fill both)
+
+Whoever invokes "startup" must declare, **at the same time and separately**:
+
+1. The **entry axis** token: `entry.teach` | `entry.maintain` | `entry.audit` | `entry.release` (§11).
+2. **`session_lane`** (not owned by this file; 0a-4 / closeout §14.66 / §14.81). The two axes are
+   independent; one word must not serve both.
+
+`--profile runtime` / `--profile release` are **not** entries. That is the doctor profile axis (AS-7:
+`--profile release` = 59 checks; orthogonal to the entry axis). A profile word must never be read as
+`entry.*`.
+
+### 13.2 Four-entry I/O (cutover)
+
+| Entry | Allowed | Forbidden |
+|---|---|---|
+| `entry.teach` | **only this entry** may start course recovery + the textbook Scope scan (`first_run.md` / `t2ag_init.py`) | must not bypass the kernel |
+| `entry.maintain` | runtime doctor + `state --check`; does **not** start course recovery | must not bypass the kernel |
+| `entry.audit` | read-only evidence; does **not** start course recovery | must not bypass the kernel |
+| `entry.release` | grants **no** release authorization | must not treat this entry as publish permission; doctor `--profile release` is another axis |
+
+Write actions at every entry wait for `recovery-settled` (§4.2). kernel = the existing
+`runtime.authorization` (§11 / closeout §14.80; no new check ID).
+
+### 13.3 Protocol retirement
+
+The implicit "run the full startup on every entry" **is retired by this protocol**. The caller must give
+the entry-axis token explicitly; a missing token must not default to the full `entry.teach` recovery.
+
+### 13.4 The 3.0 leftover anchors the original A6 batch did not edit
+
+The original A6 batch did not edit the following anchors, which then still pointed at the constitution's
+"3.0 startup welcome message"; A8 has since repointed all of them to this file's §0:
+
+- `main/50_playbook/first_run.md`
+- `main/50_playbook/skin_playbook.md`
+- `main/80_interface/README.md`
+- `main/bin/t2ag`
+
+The original A6 write face was `startup_orchestration.md` only. The closeout repair separately repoints
+`t2ag.md` and the active `AGENTS.md` call sites; it still does not touch doctor, the `--profile` call
+sites, or zh/EN/Lite.
+
+## 14. The polarity matrix (DEC-3 A7)
+
+The contract / cutover / rule_migration bodies are §11–§13; this table does not restate them, it only
+records polarity.
+
+| Polarity | Proposition |
+|---|---|
+| + | `entry.teach` starts course recovery + Scope |
+| − | `entry.maintain` / `entry.audit` do not start course recovery |
+| − | `entry.release` grants no release authorization |
+| − | `--profile` is not an entry (the doctor profile axis, orthogonal to the entry axis) |
+| − | a missing entry token must not default to the full teach recovery |
+| − | write actions always wait for `recovery-settled` |
+| − | kernel = the existing `runtime.authorization` (no new check ID) |

@@ -53,9 +53,9 @@
 - 最近 release 资格版本：`0.2.3`（资格权威在 Main 台账与独立评审证据；上行已按
   2026-08-24 完成的独立复审回填——**回填非预写**：复审先于回填，故不构成
   「写通过→重打→新包未受审」的循环）
-- 0.2.4 `implementation_status`：`complete`（依 §1.4.1 情形 #3：EN 已显式改判出 0.2.4 范围，
-  改判权威件 `<workspace>/docs/handoffs/T2AG_024_CLOSEOUT_CAMPAIGN_WORKORDER_2026-08-24.md`
-  §14.126；权威值归 Main 台账，本行为投影侧同步）
+- 0.2.4 `implementation_status`：`complete`（三源同口径；权威值归 Main 台账，本行为投影侧同步。
+  机制轴挂净室重构＝§1.4.1 情形 #3 显式改判，权威件
+  `<workspace>/docs/handoffs/T2AG_024_CLOSEOUT_CAMPAIGN_WORKORDER_2026-08-24.md` §14.130）
 - 0.2.4 `candidate_review`：`not_run`；仓内 `release_qualification`：`not_claimed`
 - 0.2.4 当前仅为开发基线；未冻结候选、未取得独立复审或发行资格
 
