@@ -150,7 +150,7 @@ enforcement: prose_accepted（理由：逐文件美术版权无机检落点，�
 - `main/80_interface/` —— 皮肤目录
 - `main/80_interface/skin.yaml` —— 全局配置
 - `main/80_interface/README.md` —— 皮肤目录说明
-- `main/t2ag.md` —— 「3.0 启动欢迎信息」拥有每次启动的展示时机与权威链
+- `50_playbook/startup_orchestration.md` —— §零拥有每次启动的展示时机与权威链
 - `main/70_tools/t2ag_doctor.py` —— 皮肤校验检查
 - `main/50_playbook/first_run.md` —— 步骤 1 展示欢迎信息
 - `main/bin/t2ag` —— 可选终端投影；动态读取 metadata，不拥有另一份文案

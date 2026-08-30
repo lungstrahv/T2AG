@@ -2,6 +2,10 @@
 
 **保护级别**：core-playbook
 
+> **呈现治理 owner**：结课对话中学生该看什么、何时停顿、内部 tuple/SHA 是否可见，
+> 以 `progress_governance.md` 为裁决正本（EV-0034，PG-D0=A）；本文件继续拥有结课
+> 流程正文与完整性绑定规则。
+
 `progress.md` 拥有 Course 生命周期、唯一前台与精确停点；`activity_ledger.md` 拥有
 Lesson/Exercise 生命周期、pending/CLR、alias 与统计。结课必须由显式前台路由并通过
 `activity_close.py` 的 immutable plan + transactional apply；退役的 `current_lesson`
@@ -165,6 +169,7 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent close
 
 ## 二、Micro 与完整结课共享的强制事务
 
+<!-- rule: ACT-ROUTE-006 -->
 Micro close 和完整结课都必须原子完成各自声明的写入集合；只有用户明确启动
 Activity close 才进入 `ongoing -> pending_close`。普通切课、跨天、
 session 保存、聊天中断和 Micro 保存都不自动 pending/terminal/pause。正式结课必须把
@@ -194,6 +199,7 @@ progress 或活动主文件写 Activity lifecycle：
   `exercise_evidence.md` 创建 Attempt，有真实批改才创建 Review；新 Attempt 同时保存
   创建时的 `hint_gate` 快照、最高 `assistance_level` 和真实授权/污染记录。概念问答若
   遵守 scope-only 不升级帮助等级；未经授权泄露关键结构时不得计作独立掌握。
+<!-- rule: ACT-ROUTE-007 -->
 - 两类活动都只写自己的正文。跨活动关系只写 `activity_map.md`；Exercise 结课不得顺手
   改历史 Lesson。
 
@@ -211,21 +217,22 @@ progress 或活动主文件写 Activity lifecycle：
 使用 `activity_close_body.v2`，绑定范围、证据归集、完整教学复盘树、面向学生的适用项汇总、
 知识五态、blocker、偏好快照、event ID 与 body SHA。旧 v1 pending 可读，但发生修订时必须
 升级成 v2；不得继续生成三个平级的 `actual_review / student_feedback / knowledge_absorption`。
-terminal decision 必须先展示 exact `pending_event_id`、`body_sha256` 和 `result`，但这些是
-系统的完整性绑定，不是学生抄写作业。完整复盘和 tuple 已在当前对话展示、唯一 pending
-无漂移时，`completed` 可由学生回复“结课/确认结课/愿意结课”直接确认；未完成态必须回复
-“以未完成状态结课”。旧对话、持续委托、receipt、policy、模型推荐以及未绑定的
-“可以/继续/嗯”均无效。
+terminal decision 先展示完整学生版复盘、结果含义与不超过三项的可选动作；不得默认展示
+`pending_event_id`、`body_sha256`、presentation SHA、schema 或 authorization receipt。
+系统在 Operator Surface 内绑定 exact tuple、result 与当前展示版本；唯一 pending 无漂移时，
+完成态可由学生回复“结课/确认结课/愿意结课”直接确认，未完成态必须回复“以未完成状态结课”。
+旧对话、持续委托、receipt、policy、模型推荐以及未绑定的“可以/继续/嗯”均无效。
 
 请求终态确认之前，必须用 pending body 的 `learner_visible_retrospective` 生成完整学生版
-正文并直接发送到当前对话，同时计算 presentation SHA。学生表达简短结课意图后，工具负责
-把意图绑定到已展示 tuple 与 terminal result；若复盘在展示后发生任何修订，旧 presentation
-SHA 与旧意图立即失效，必须重新展示修订后的完整正文。
+正文并直接发送到当前对话；presentation SHA 只在内部计算和绑定。学生表达简短结课意图后，
+工具负责把意图绑定到内部 tuple 与 terminal result；若复盘在展示后发生任何修订，旧
+presentation SHA 与旧意图立即失效，必须重新展示修订后的完整正文。
 
 - 修订：追加 `pending_close -> pending_close`，旧 pending 不覆盖；
 - 拒绝：追加 `pending_close -> ongoing`，不生成 CLR；
 - terminal：`--plan-decision` 必须绑定 pending ID、body SHA、result、`user + direct_user` 与当前轮
   授权来源，apply 后才生成带 `valid_direct_user` 程序状态的 CLR；
+<!-- rule: AUTH-NONAMP-004 -->
 - authorization receipt 只记录授权证据，不能创造授权；任何 plan 只能由匹配 payload/file SHA
   和 exact direct-user 正文的 receipt 安装。
 
@@ -243,12 +250,14 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
 跳过 `--write` 会使本步骤必然报 `[FAIL] generated cache drift`，而本步骤的判据正是
 「state 无 drift」。
 
+<!-- rule: CTX-PACKET-010 -->
 随后重新读取 progress、`activity_write_target`、命令输出中的
 `mandatory_write_targets`，以及本次实际变化的 `conditional_write_targets`。只有全部
 写入可回读、state 无 drift、runtime Doctor 为 `0 FAIL`，
 才能宣称本次结课已闭合。只回读这些实际目标，不因验证重载全部历史。当前活动为
 Exercise 时，还要确认历史 Lesson 未被本事务修改。
 
+<!-- rule: CTX-PACKET-011 -->
 写回使本会话原 L0 上下文包立即失效；若结课后继续同一课堂，按
 `context_packet.md` 重新生成一次，不编辑或沿用旧包。
 
@@ -263,6 +272,7 @@ Exercise 时，还要确认历史 Lesson 未被本事务修改。
 
 ## 三、Micro close
 
+<!-- rule: ACT-ROUTE-011 -->
 适用于五分钟热身、短复测、手动“保存进度”或学生中途停止。它只原子保存真实过程证据、
 前台停点与 next_action，不产生 pending、CLR 或自动 pause；可跳过本次没有新证据触发的
 课程反思、组合层总结等可选综合。

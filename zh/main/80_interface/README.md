@@ -41,7 +41,7 @@ main/80_interface/
 
 ## 启动逻辑
 
-`main/t2ag.md`「3.0 启动欢迎信息」要求首次初始化和日常接管都执行一次：
+`50_playbook/startup_orchestration.md` §零要求首次初始化和日常接管都执行一次：
 
 1. 读 `main/80_interface/skin.yaml` → 获取 `active` 值
 2. 查注册表 → 获取 active 皮肤文件夹名

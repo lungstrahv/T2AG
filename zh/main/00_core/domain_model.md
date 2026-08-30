@@ -40,10 +40,11 @@ Course 是课程定义和当前实例进度的唯一聚合根：
 LearningActivity 生命周期。Course 生命周期/前台/停点与 Activity 生命周期分别由
 `progress.md`、`activity_ledger.md` 拥有，不得用“最后写入者”覆盖冲突。
 
-### 2.0 两根正交轴：`course_type` 与 `default_driver`
+### 2.0 Course Type 拥有推进语义；Learning Mode 只属于 Mastery
 
 - **`course_type` = 完成语义**：什么证据能把这门课关到 completed（**停止条件**）。
-- **`default_driver` = 推进依据**：什么决定下一课教什么（**排序函数**）。两者回答不同问题，**正交、可独立取值**；四值定义与来源规则由 `book_management.md` §三 拥有。
+- **`course_type` 同时选择推进协议**：Mastery 进入可选 Learning Mode；Project 进入 Project Plan；Praxis 进入真实行动—反馈—复盘回路。
+- **`learning_mode` 只属于 `course_type: mastery`**，允许 `textbook | goal | project`；Project/Praxis 不声明 mode。旧 `default_driver/course_driver` 只兼容读取，不再是新写真相源。
 
 `course_type` 三值的区别在**裁判是谁**：
 
@@ -54,6 +55,8 @@ LearningActivity 生命周期。Course 生命周期/前台/停点与 Activity �
 | `praxis` | 系统外，开放世界后果 | 否 | 真实行动入口 + 行为证据束 | `book_management.md` §三 |
 
 **「有产物」不是 `project` 的判据**——mastery 课也可有产物，产物是理解的证据；`project` 要求产物被**不听解释的外部裁判**判定（现实运行 / OJ 评测机 / Kaggle 私榜）。`praxis` 与 `project` 同在系统外，区别是其裁判**不可复现**，故须携带免责声明。
+
+`Mastery + learning_mode: project` 仍是 Mastery Course；Project Plan 中的 Project Goal/Milestone 是计划节点，不是 `learning_mode: goal`。
 
 ### 2.1 ContentGroup / Lesson / Exercise
 

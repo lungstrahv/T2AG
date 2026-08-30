@@ -54,7 +54,7 @@
 - <断言> ← <复算命令>
 ```
 
-> 锚定块字段集合（学生 2026-08-07 已批）：**A+B+C**（runtime plan sha256、runtime checks、doctor_checks 键集合 sha）；**排除 D/E**。完整复算命令见 U2 报告。U3 落地前本结构为规范性约定，doctor 尚未自动对照。
+> 锚定块字段集合（学生 2026-08-07 已批）：**A+B+C**（runtime plan sha256、runtime checks、doctor_checks 键集合 sha）；**排除 D/E**。完整复算命令见 U2 报告。U3 已落地（见 §六）：本结构由 `runtime.changelog` → `check_changelog_contract` 对**最新条目**自动对照。
 
 ### 3.1 判定语义（分写）
 
@@ -73,11 +73,133 @@
 
 ---
 
+## 三之二、读写机制（写四条、读一条）
+
+> **本节治的是增长率与读法，不治存量。** 历史条目一行不改（`batch_workorder_spec.md` 硬规则 4）；
+> 本节只约束**新条目怎么写**与**旧条目怎么查**。编号取「三之二」而非顺延，是为不改动
+> 既有 §四–§七 编号（外部已按号引用 §三、§3.1、§3.2）。
+
+### 3b.1 四条机制
+
+| 条 | 内容 | 机器可判 |
+|---|---|---|
+| **写-粒度** | **一个 campaign 一条**；不逐 action 落痕，同一 campaign 的多个 action 合并进同一条 | 是（§3b.3 判据二） |
+| **写-正文** | 正文只含 `change` / `reason` / `validation_entry` 三字段；详细读数（逐项测试输出、耗时、findings 明细、子集规模）一律进 receipt | 是（§3b.3 判据一） |
+| **写-方式** | **newest-first 插入、既有条目只增不改**（新条目插在文件头部，不是追加到末尾）；格式由 §3b.2 模板保证，**不为对齐格式而整读全文** | 否（行为约束，靠模板可判性间接约束） |
+| **读-查历史** | 查历史用定向 `grep`（按 `campaign_id`、日期或条目标题定位），**不加载全文件** | 否（同上） |
+
+**同型先例（引其形制，不另造措辞）**：「不全量读取」在本仓已有三处同族条款。本节**显式指向**下列三处，
+不发明第二套措辞、不另立第二张判据表：
+
+| 出处（文件＋节号） | 原文 |
+|---|---|
+| `handoff_management.md` §5.4「第四层：详细历史与原始材料入口」 | 「本层提供链接和展开条件，**不要求每次接管全量读取**。」 |
+| `handoff_management.md` §八「读取与恢复流程」第 1 条 | 「识别当前任务，**不先全量读取 handoff root**。」 |
+| `lesson_recover.md` §二「完整步骤」（工具成功/失败两分支的说明段） | 「……**不得把降级理解成全量读取**。」 |
+
+三处的共同形制是：**上层承担定位与展开条件，下层原文按需展开**。本节「读-查历史」是同一形制在
+changelog 载体上的落点——`t2ag_memory.md`「最近变更摘要」与 §3b.2 模板的三字段正文承担定位，
+详细读数留在 receipt 里按需展开。
+
+### 3b.2 三字段模板（normative example，不现场发明）
+
+模板不由写位现场设计。`t2ag_changelog.md` 中 **`## [2026-08-25] DEC-0a-1 · Doctor changed-file
+selector（不升版）`** 那条即现成的 reference implementation；新条目照抄其结构，
+**值可替换，字段名与层级不得改**：
+
+```markdown
+## [YYYY-MM-DD] <campaign_id> · <一句话标题>（不升版｜或版本串）
+
+- **change**：<改了什么，客观动作，不含评价>
+- **reason**：<为何改，指向被解决的问题>
+- **validation_entry**：<测试计划 SHA ＋ 定向测试读数 ＋ receipt 路径>
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = <值>
+- runtime checks = <值>
+- doctor_checks atom set sha256 = <值> (n=<数>)
+```
+
+**三字段之外的一切详细读数进 receipt，不进 changelog。** 锚定块沿用 §三 既有 A+B+C，本节不改；
+佐证断言仍按 §三 选填，语义仍归 §3.1。
+
+### 3b.3 机器落点（`check_changelog_contract` 扩三判据）
+
+三判据**只对最新条目生效**：历史条目豁免——硬规则 4「changelog 历史行不改」优先于模板齐整，
+不得为了让旧条目合模板而改写它们。
+
+| 判据 | 内容 | 级别 |
+|---|---|---|
+| 一·模板合规 | 最新条目正文含 `change` / `reason` / `validation_entry` 三字段 | WARN |
+| 二·单条粒度 | 与最新条目**同日期**的条目中，其 `campaign_id` 只出现一条 `## [日期]` 条目 | WARN |
+| 三·receipt 可定位 | `validation_entry` 的 receipt 指针写成 `<carrier>:<相对路径>`（`carrier ∈ {repo, workspace}`），且能在该载体根下解析到实际文件 | WARN |
+
+**为何三条全是 WARN 不是 FAIL**：机制落地首轮，既有条目与新模板不齐属预期；用 FAIL 会把 runtime
+变红并阻断后续批次。级别是否升 FAIL 属 verdict 机制的裁量面，本节不预判。
+
+**判据二的扫描面是「同日期」不是「全库」**：一个 campaign 跨批次续写属正常形态（`EV-0034`
+2026-08-24 当日即分三条），全库口径会把后来的续写条目连坐判违规，而救济手段——改早先的条目——
+撞硬规则 4，无解。同日口径既判死「同一批里逐 action 落痕」（正是写-粒度要禁的形态），
+又放行跨日续写。
+
+**判据三用显式载体前缀，不用路径约定**：receipt 指针必须自报由哪个根解析它。
+
+| 写法 | 解析根 | 语义 |
+|---|---|---|
+| `repo:<相对路径>` | `ROOT`（＝产品仓 `t2ag/`） | 产品仓内证据 |
+| `workspace:<相对路径>` | `ROOT.parent`（＝工作区 evidence root） | 工作区证据（施工报告、receipt 常在此侧） |
+
+**判定表（显式前缀 fail-closed）**：
+
+| 载体 | 条件 | 判定 |
+|---|---|---|
+| `repo:` | 落在 `ROOT` 内且文件存在 | 通过 |
+| `repo:` | 落在 `ROOT` 内但文件缺失 | **WARN** |
+| `repo:` | 逃逸 `ROOT` | **WARN** |
+| `workspace:` | evidence root **已挂载**且文件存在 | 通过 |
+| `workspace:` | evidence root **已挂载**但文件缺失 | **WARN** |
+| `workspace:` | evidence root **已挂载**但逃逸该根 | **WARN** |
+| `workspace:` | evidence root **未挂载** | **不判**（唯一的跨仓豁免） |
+| 裸路径（有路径、无载体前缀） | — | **WARN**，提示补 `repo:`／`workspace:` |
+| `validation_entry` 完全无路径 | — | **不判**（无可判对象） |
+
+**挂载判定用 canonical marker，不用目录存在性**：evidence root 视为已挂载 ⟺
+`ROOT.parent/docs/handoffs/README.md`（handoff 索引正本，见 `handoff_management.md`）存在。
+只判目录存在会把任意同名空目录误认成 evidence root，对着空根判 WARN 造假信号。
+外发的 Skeleton／Lite／EN 解包后既无该目录也无该 marker，`workspace:` 指针全部走「不判」，零跨仓假信号。
+
+**为何显式前缀不再 fail-open**：旧实现按 `docs/handoffs/` 前缀豁免，且「存在」分支排在前缀分支之前，
+于是同一前缀下**存在→通过、缺失→不判**——真实 receipt 与拼错路径**同样不受判**，
+判据三在它唯一该管的形态上恰好空转。载体既然由写位显式声明，就必须为该声明负责：能解析的一律判死。
+逃逸各自根按写错处理（WARN），不按「对象在别处」放行。
+
+---
+
+## 三之三、发布事实的写入时点（与版本台账三分层同源）
+
+某事实若只在**包生成之后**才为真，而承载它的载体又**在包内**，写入即使包过期——
+`60_journal/t2ag_version_ledger.md` 的三分层写入归属已两次解过该循环
+（`candidate_review` 层②、`release_candidate` 层③，原文自陈「写通过→重打→新包未受审」）。
+changelog 条目是**同一形状的第三例**，本节按同一解法处置。
+
+- 描述本批改动的 change entry ── 属**构建前事实**，在候选构建**之前**冻结并随包发行
+  （同三分层①「源内在状态」）。
+- 发布产生的远端事实（push/tag/Release 的 commit、tag、asset name/size/hash）
+  ── 属**构建后事实**，写 release receipt 或 `60_journal/t2ag_version_ledger.md`，
+  **不得回改已冻结的产品树**（同三分层③「不打包载体，单独提交」）。
+
+⚠ 违反的可观测后果（2026-08-27 实测）：改动后不刷新 changelog 锚定块，
+doctor 三仓各悬一条「状态漂移无记录」WARN，其中骨架侧会打破自陈的
+「空模板与新试用者的 doctor 必须保持 0 WARN」冷启动护栏。
+
+---
+
 ## 四、rule_migration（本批执行表）
 
 新建本文件成为 changelog **验证层** canonical owner；既有约定分布在出单方与执行方两侧，**全部 keep**，不 sink 到单一文件。
 
-| rule_id | 旧位置/原文锚点 | 动作 | 新 owner/等价门 | 消费方 | 验证 |
+| rule_id | rule_id | 动作 | 新 owner/等价门 | 消费方 | 验证 |
 |---|---|---|---|---|---|
 | changelog 前言「按需展开 / 追加条目时同步更新 memory 摘要」 | `grep -n "追加条目时同步更新" main/00_core/t2ag_changelog.md` | **keep**（前言留原文，不动历史行）+ 在本文件 §3.2 复述 | `changelog_management.md` | 全体维护会话 | `grep -n "memory 摘要" main/50_playbook/changelog_management.md` |
 | `batch_workorder_spec.md` §二.5「登记节：changelog 草稿」 | `grep -n "changelog 草稿" main/50_playbook/batch_workorder_spec.md` | **keep**（出单方义务留在原处）+ 反向指针（步骤 3b） | `batch_workorder_spec.md` | 出单方 | 双向 grep 命中 |

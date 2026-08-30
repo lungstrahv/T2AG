@@ -76,7 +76,9 @@ checkpoint 是细粒度恢复点，用来回答“具体讲到哪一句、哪个
 completion node 是粗粒度、永久稳定的正式进度单元，通常跨若干 checkpoint 或若干页。
 
 - 教材课通常对应教材目录中的一个小节、完整定理链或其他自然内容边界。
-- `course_type: project` 的课对应项目计划中的稳定步骤或里程碑（轴定义见 `00_core/domain_model.md` §2.0）。
+- `course_type: project` 的课对应 Project Plan 中的稳定 Project Goal/Milestone；计划定义由
+  `course.md` 持有，节点状态沿用本文件的 Completion nodes，不新建第二计划真相源
+  （类型推进定义见 `00_core/domain_model.md` §2.0）。
 - 实践课对应时间表中的行动/复盘单元。
 - ID 一经生成不得重排或复用；标题、页码或说明可修订。
 - 状态使用 `queued / in_progress / completed / superseded`。
@@ -181,7 +183,7 @@ completion node 的既有完成证据满足后，自动把该节点标为 comple
 - 教材课：内容讲完，且没有悬空确认或未回答问题；不额外强制生成习题。额外习题默认
   不自动生成，只在学生请求或明确 opt-in 后创建；课堂理解确认不算额外习题。
 - 教材原有例题/习题：继续执行习题闭环，但习题闭环不是每个完成节点的附加考试。
-- `course_type: project` 的课：以计划中已有的代码运行、文件产出或功能结果关闭——该结果须由**外部真相源**判定（`project_verification.md` §〇 三机制），不是教师自行确认。绑 `course_type` 而非 `default_driver`。
+- `course_type: project` 的课：以 Project Plan 中已有的代码运行、文件产出或功能结果关闭——该结果须由**外部真相源**判定（`project_verification.md` §〇 三机制），不是教师自行确认。只绑 `course_type`；Mastery 的 `learning_mode: project` 不进入本关闭协议。
 - 实践课：以计划中已有的行动记录或复盘结果关闭。
 - 错题复测、章节卷与陈年卷保持独立，不与每个 completion node 捆绑。
 
@@ -232,7 +234,7 @@ progress.md / active group 文件
 
 按 `main/t2ag.md` §6.3.1 登记本文件承接的规则迁移。
 
-| rule_id | 旧位置/原文锚点 | 动作 | 新 owner/等价门 | 消费方 | 验证 |
+| rule_id | rule_id | 动作 | 新 owner/等价门 | 消费方 | 验证 |
 |---|---|---|---|---|---|
 | 04:00 学习日边界 | `grep -n "04:00 学习日边界" main/00_core/t2ag_memory.md` → 决策段第 14 条（2026-07-31 暂定），**无 playbook 载体** | **sink** | 本文件 §三·五 | 结课流程（`session_close.md` §四指针）、进度写入方、月度取证方（按作用域切割走自然日期） | `grep -rln "04:00" main/50_playbook/` 命中本文件；memory #14 的 `⚠` 墓碑可摘除并下沉 |
 

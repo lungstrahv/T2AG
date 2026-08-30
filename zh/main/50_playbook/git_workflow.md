@@ -183,6 +183,7 @@ git commit -m "恢复 <文件> 到 <提交> 的已确认版本"
 候选 tree 不是日常教学步骤。只有用户明确进入发布复审、Main 与 Skeleton 已进入安静窗口，
 且工作树连续采样没有变化时，才允许生成候选 tree 证据。
 
+<!-- rule: CAND-REPLAY-003 -->
 ### 9.1 0.2.0 冻结验收边界
 
 本边界由用户于 2026-07-27 冻结；冻结的是 0.2.0 验收范围，不是 Git 快照，也不暂停
@@ -202,6 +203,7 @@ git commit -m "恢复 <文件> 到 <提交> 的已确认版本"
    target kind、operation count/sequence，以及每项 source/target/disposition/outcome/
    post-target 完整字段。
 
+<!-- rule: CAND-REPLAY-004 -->
 以下只进入后续加固 backlog，不再阻断 0.2.0：mode/File ID 的额外元数据证明、Lite
 目录占位、最终检查结束后不可消除的纳秒级并发窗、非 Windows/NTFS 或 SHA-256 Git 等
 跨平台威胁、特殊挂载，以及清单外新提出的理论攻击面。已有防御实现可以保留；复审者不能
@@ -243,8 +245,10 @@ python -B main/70_tools/t2ag_candidate_replay.py --preflight
 - `.git` 是 gitfile/链接，或存在 `commondir`、`gitdir`、`worktrees`、alternates、
   `config.worktree`、外部 `core.worktree`、include/includeIf、promisor/partial clone、
   worktree filter、已启用的 fsmonitor、有效 sparse checkout/sparse index、Git lock；
+<!-- rule: CAND-REPLAY-001 -->
 - 源根、临时根、两个副本或其祖先/后代含 symlink、junction、mount/reparse point；
 - 任一普通文件链接数不是 1、File ID 在同树重复，或源/A/B 三树之间复用 File ID；
+<!-- rule: CAND-REPLAY-002 -->
 - 路径发生大小写/Unicode 规范化碰撞，或源与 A/B 的逐文件相对路径、大小、SHA-256
   字节清单不完全相等；
 - 复制期间或重放期间源仓任一文件内容、mode、mtime，包含 HEAD、refs、index 和对象库
@@ -340,7 +344,8 @@ SHA 绑定证据。还原后确认全仓无 CRLF 残留——扫描要用可靠�
 - `activity_close.line_ending_drift()` — SHA 失配时判别是否仅行尾差异，并在错误信息里
   直接写明 `LINE ENDING DRIFT`，指向本节而不是让人重跑矩阵。挂载点：plan 绑定、授权
   收据、post-close 哈希、plan 内容哈希四处。
-- L2 已落地为 `release.line_endings`（2026-08-07 注册，release profile 在跑）；
+- L2 已并入 `runtime.line_endings`：runtime 做有界扫描，release profile 继承同一 ID 并扩展为
+  全量 tracked 扫描（2026-08-07 注册，2026-08-25 合并）；
   L1 仍缓（2026-08-19 裁，不排期），方案原件见
   `docs/handoffs/T2AG_HOST_BYTE_DRIFT_PREVENTION_PLAN_2026-08-06.md`（P-0088 勘误在其 status 行）。
 

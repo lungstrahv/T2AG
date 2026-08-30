@@ -2,7 +2,7 @@
 type: course_progress
 course_id: COURSE_ID
 lifecycle_status: ongoing
-course_driver: textbook
+learning_mode: textbook
 truth_scope: course_lifecycle,course_frontend,activity_position
 current_activity: lesson
 current_activity_id: lesson01

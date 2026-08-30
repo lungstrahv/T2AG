@@ -5,6 +5,162 @@
 
 ---
 
+## [2026-08-28] LB-PARITY · core-playbook canonical 按字节同源接收 parity 三改（不升版）
+
+- **change**：本仓写面**恰一处**：core-playbook `50_playbook/line_budget.md` **自 `t2ag`
+  逐字节复制**（`cp`）接收三处改动，⛔ **不是照着改动重敲**。三处内容：**①** §三 的去向句
+  改为按发行分述——「下沉的判据」表与 memory 自己的编号约定（`D-NNN` / `P-NNNN`）两段，
+  在 Main（`t2ag`）与 Lite（`t2ag-lite`）的 `00_core/t2ag_memory.md` §节预算与下沉 内，
+  而 **本仓与英文骨架的 memory 无此两段**，其该节只承载指回本文件的机制指针；
+  **②** §六 `rule_migration` 的 LB-004 行由「仅 Main」更正为「Main 与 Lite」（Lite 的
+  memory 实测同样持有那两段，原登记是事实错）；**③** §四 门命名表补 Lite 一行
+  （`runtime.memory_budget` ＋ `runtime.constitution_budget`）。⛔ **本仓其余文件一字未动**：
+  `00_core/t2ag_memory.md` 与 `70_tools/t2ag_doctor.py` 的削指针在批一/批二已落，本批不重做；
+  `70_tools/validation_workflow.json` 未动，全批零 check ID 增删，不新增 `enforcement:`
+  前向边，不碰 `context_packet.md` / `doctor_contracts.md` 的陈年差异。本条按
+  `50_playbook/playbook_management.md` §4.2「core 与 meta 都不应被自动归档、合并或大幅改写；
+  如需修改，必须在 `t2ag_changelog.md` 中说明原因」而**必写**。
+- **reason**：**对本仓而言，这三改把一句一直为假的话改成真的**。`line_budget.md` §三 原文
+  逐字断言那两段「仍归 `00_core/t2ag_memory.md`」——该断言在 Main 与 Lite 为真，在**本仓
+  为假**（本仓 memory 只有指针，没有那两段），同一句在四份字节同源副本里两真两假。
+  X 位 2026-08-27 已查出并登记（SUPP 工单 §七 第 1 条），判词是「会使写面 +1 ⇒ 列为待裁，
+  ⛔ 不擅自纳入」，本批经用户裁定后才动。代价特别高的原因是：该文件自己写着「机制正文只此
+  一份，别处只留指针」，读者据此**不会再去别处核对**，一条断指针在这里比在普通文档里更难
+  被发现。**接收方式必须是 `cp` 而非重敲**：`check_core_playbooks` 先比 core-playbook 文件
+  集合、再比 sha256，reference 正是本仓；重敲会在标点或换行上产生一个无人看得见的差异，
+  当场把本仓变成 sha 分支的分母。
+  **根因与起因不是同一件事，⛔ 不得混记。** 起因是 `check_core_playbooks` 报
+  `core-playbook 文件集合分叉：t2ag-lite`；**但根因不是批二**。`t2ag-lite` 无 `.git`，
+  它不是对等仓，而是 Main 的 `70_tools/sync_lite.py` 生成的整树再生快照，自 DEC-0a-2 起
+  从未重生成，至今仍带着 Main 早已合并掉的两个分裂门。批二新增了第 24 个 core-playbook，
+  Lite 因陈旧没跟上，于是**触发**了集合分支。硬证据：集合分支一闭，sha 分支**立即露出
+  13 个** core-playbook 漂移（`canon_carrier`／`context_packet`／`doctor_contracts`／
+  `git_workflow`／`handoff_management`／`lesson_recover`／`new_course_init`／
+  `progress_tracking`／`session_close`／`source_page_assets`／`startup_orchestration`／
+  `t2ag_flow`／`validation_flow`）——**本批一个都没碰**，它们是陈旧快照的存量，不是本批
+  产物。⇒ Lite 的根治是 `sync_lite.py --write` 整树重生成，**阻塞于 Main 工作树须 clean**
+  （该脚本连 check-only 模式也拒绝脏树，理由是不把「不存在于任何 commit 的中间态」投影到
+  无 git 的 lite），而 Main 当前脏处多数属并行课程会话。故用户 2026-08-28 裁定「保留
+  `line_budget.md`，⛔ 不做 Lite 的两个门 docstring，根治转 `sync_lite`」。
+- **validation_entry**：本仓 `PYTHONUTF8=1 python main/70_tools/t2ag_doctor.py --profile runtime`
+  **原地实跑**：**0 FAIL / 0 WARN**（空模板应有的复位态），`checks=46`，计划 sha256 与上一条
+  条目**逐位相同**——本批只改 `.md` 文本、不动 `validation_workflow.json`，锚定三值因此如实
+  不变，上方三行系本轮实测复核后照录。静态复算 `check_core_playbooks` 逻辑（按
+  `parse_playbook_protection_levels` 逐仓建 manifest）：`t2ag`／`t2ag-skeleton`／`t2ag-lite`
+  的 core-playbook 文件集合**各 24 且相同**，`core-playbook 文件集合分叉` 不再对 Lite 产生；
+  `line_budget.md` 在该三仓 **sha256 相同**（各 148 行），本仓作为 reference 的 sha 漂移
+  **为 0**。⛔ Main 的 runtime 读数本轮**不可用作本批读数**——其并行会话正在生成课程与阅读
+  活动，读数持续漂移（`D-1459-1`）。写面清单、根因定责与两处裁定见
+  `workspace:docs/handoffs/T2AG_LINE_BUDGET_PARITY_CLOSURE_WORKORDER_2026-08-28.md` §八。
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198
+- runtime checks = 46
+- doctor_checks atom set sha256 = c83bdd8299d117021496d6a6a5f58e27733edc82454ad7921134b7098928be6c (n=63)
+
+## [2026-08-27] BRANCH-A · 节预算机制迁出 memory，落 core-playbook canonical（不升版）
+
+- **change**：新建 core-playbook `50_playbook/line_budget.md` 作节预算机制的 canonical 正本
+  （与 Main 字节同源）。本仓**两个**节预算门 `check_memory_budget` 与
+  `check_constitution_budget` 的 docstring、`memory_section_budgets()` docstring 的
+  `[max N]` 归属论证段与 v0.1.2 沿革段、`00_core/t2ag_memory.md` §节预算与下沉 机制段、
+  `contract_test_support.py` 严厉度负例的理由段，一并削成指向新文件的指针；
+  `check_memory_budget` 的超限 remedy 文案改指新家（`check_constitution_budget` 仍走
+  `t2ag.md` §6.3 `rule_migration`，未改）。⛔ 节范围定义（一节从哪行起、到哪行止）
+  **不下沉**——那是解析器契约，owner 仍是 docstring。⛔ 本仓
+  `validation_workflow.json` 一字未动：63 条 `doctor_checks` **全无 `rule_binding` 字段**
+  （该字段整体尚未随发行下沉），故同 campaign 的记录区禁令条款与
+  `runtime.problemlog_closure` 改指均为 **Main 独有写面**，本仓无对应落点。本仓节预算门
+  仍是两个函数（DEC-0a-2 的合并尚未下沉到本发行），该命名差异与反向边欠账均登记在
+  新文件 §四。全批零 check ID 增删。
+- **reason**：机制正文若两处并存，两处措辞必各自漂移，而漂开时没有任何机器手段能发现——
+  本批之前这件事**已经发生**：`memory_section_budgets()` 的 v0.1.2 沿革段在两仓各自漂开
+  （本仓写 `check_constitution_budget()`，Main 写 `check_line_budget`），无任何门在报。
+  迁址的动因来自同 campaign 的 Main 侧新条款：`rule_binding` 不得指向记录区，而
+  `runtime.line_budget` 的依据正住在 `00_core/t2ag_memory.md` ⇒ 依据必须迁出记录区 ⇒
+  必须先给机制建一个 playbook 的家。本仓虽无 `rule_binding` 字段、不受该条款直接约束，
+  仍同批削成指针：**canonical 只此一份是机制本身的要求，不是某一仓某个字段的要求**；
+  旧正文留在本仓，等于当场给新 canonical 配上第二份措辞，也就是那条已发生的漂移的下一次复发。
+- **validation_entry**：六条 `rule_migration` 登记、LB-006 的下沉闭包四项与逐条可复算的
+  grep 入口（含「两仓 docstring 逐字相同」与「两仓本文件 sha256 相同」两项）见
+  `repo:main/50_playbook/line_budget.md` §六；两仓门命名差异与反向边欠账见同文件 §四。
+  支路甲全线终判表与逐条读数见
+  `workspace:docs/handoffs/T2AG_BRANCH_A_RULE_BINDING_REPORT_2026-08-27.md`。
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198
+- runtime checks = 46
+- doctor_checks atom set sha256 = c83bdd8299d117021496d6a6a5f58e27733edc82454ad7921134b7098928be6c (n=63)
+
+## [2026-08-27] RETIRE-微批 · 0.2.0/0.2.1 迁移检验退役微批（不升版）
+
+- **change**：三仓同批退役 0.2.0/0.2.1 迁移检验面。`t2ag_doctor.py` 删 3 个 dead handler
+  （`check_migration_evidence`／`check_migration_021_evidence`／
+  `check_activity_migration_021_evidence`）并清其三跳引用；`validation_workflow.json` 删
+  `release.migration_020`／`release.migration_021`／`release.activity_migration_021`
+  三条 check ID 及 release profile 对应成员，本仓 `doctor_checks` 键集 66 → 63
+  （Main 62 → 59）；`contract_test_support.py` 删四只 handler 测试及其 `ALL_CONTRACT_TESTS`
+  四行登记；`test_legacy_migrations.py` 的 `TESTS` 由 5 条减至 1 条。
+  **承接两笔，零新增 check ID**：极薄回归护栏落进既有 `runtime.structure` 的
+  `check_structure`，新增与 `LEGACY_DOMAINS`（原十项逐字未动）并列的文件级退役名单
+  `LEGACY_STUDENT_FLAT_FILES`，断言 0.2.1 迁移前的四个平铺学生档不得重回
+  `main/10_student/`；随 handler 一并失去载体的四条骨架断言（0.2.0 证据／0.2.1 profile
+  证据／ActivityRecord 真实迁移证据／AR-0001 真实实例）原样迁入 `check_skeleton_privacy`，
+  语义与报文逐字保持。Main 侧另把 `test_distribution_foundation.py` 两处 `doctor_checks`
+  基数断言由 62 改为 59（本仓同名文件的两测批前即为 ERROR，与本批零因果，故不动）。
+  ⛔ 保留面逐条在位：`validated_migration_evidence` 及其经 `lite_manifest_sha_for_path`
+  的 Lite 省略二进制 SHA 证明链、`test_profile_migration_roundtrip`、
+  `MigrationTransactionTests` 与另六个保留测试类、`test_legacy_migrations.py` 文件本身与
+  `migrations.legacy` 三处登记、`PRODUCTION_MIGRATION_APPLY_ENABLED` 与三条 RT3 授权漂移
+  断言、四件已锁 migrate 件。
+- **reason**：三个 handler 已无活消费者——退役按**活消费者闭包**判断，不按文件名、位置或
+  版本号判断——留着只是让 release profile 常年背三条永不产出新信息的检验。但它们内部驮着
+  两类**仍有活对象**的断言：骨架隐私四条（Main 侧现存 9 份迁移证据档与 1 个 AR-0001 实例，
+  两个骨架均为 0，断言正在通过）与「迁移产物不得回流 active 树」的结构护栏；删之无人承接，
+  故**先承接再删**。护栏用结构存在性断言而非内容 token 扫描：token 扫描会当场打红三个
+  明令保留件。测试基数字面量同批改齐，是因为「改变可被断言的计数」必须同时收口它的全部
+  断言点，否则退役批自己会把绿测打红。
+- **validation_entry**：runtime 计划 sha256 与 `checks` 前后**逐位相同**（三条被删检验均为
+  release phase——此结论为**实测**，非按 phase 推定）；release 计划 sha256 如期改变。
+  三仓 `python -B main/70_tools/t2ag_doctor.py --profile runtime` 均 **0 FAIL**，
+  本仓（空模板）复位到 **0 FAIL / 0 WARN**；runtime/release 六跑 FAIL 数前后完全相等
+  （release 侧 Main 72/72、zh 22/22、EN 53/53）。护栏正例 0 FAIL、负例（四个平铺学生档
+  植入）各 1 条 FAIL 共 4 条；四条骨架断言以伪证据档与伪 AR-0001 **各验真红**。
+  定向测试三仓全绿；Main `test_distribution_foundation` 由 rc=1 转 **rc=0**（27 tests）。
+  逐条读数、十六个写面 blob 冻结表、patch SHA 与 debt 区见
+  `workspace:docs/handoffs/T2AG_RETIRE_MICRO_CONSTRUCTION_REPORT_2026-08-27.md`。
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198
+- runtime checks = 46
+- doctor_checks atom set sha256 = c83bdd8299d117021496d6a6a5f58e27733edc82454ad7921134b7098928be6c (n=63)
+
+## [2026-08-24] EV-0035 · 0.2.4 L2 规则锚迁移 v2
+
+- 以消费驱动口径冻结 8 个规则族、55 个 `rule_id`，在 17 个 canonical owner 文件中铺设
+  68 个相邻 HTML 注释锚；Main、中文 Skeleton 与英文 Skeleton 同批落地。
+- Doctor 新增 `RULE_ANCHORS` / `RULE_MARKERS` 双射、严格 `has_rule` 与规则定位 API；
+  `MARKER_VARIANTS` 保留为显式回退通道。锚仍在但登记正文消失时发
+  `RULE-ANCHOR-001` WARN。
+- 规则消费者和契约断言改用 rule_id；运行时输出 marker 保留 marker 角色 API。四份
+  playbook 的 `rule_migration` 位置列改用 `rule_id`；三态变异测试已加入，两个 L2 具名
+  skip 已激活为 pass。
+- **验证**：55 rules / 68 placements / 双射成立 / 0 anchor-without-body；marker robustness
+  **12/12**；distribution foundation **11/11**；context **61/61**（仅未初始化条件 skip）；
+  runtime Doctor **0 FAIL / 1 WARN**；release 原子套件 **6/6** 文件通过，release contracts
+  **21/21**。
+- 本批未再生 Lite/Unified、未建立 Git checkpoint、未 push/tag/release；现役 zh 包、Unified
+  投影与现有 tag 已陈旧，等待另批裁定重打时点。
+
+#### 锚定断言（必填）
+
+- runtime plan sha256 = e95a45914c08b8948400b7c073dfe3abcd30fb54c85329f0b577c2832ad98198 ← `python -B main/70_tools/t2ag_doctor.py --profile runtime | Select-Object -First 1`
+- runtime checks = 46 ← 同上
+- doctor_checks atom set sha256 = 50300baa9e7956f76f545ca658a0553500b9a7a7763caa4ff5887c41ebe675d1 (n=66) ← 同上一条目命令
+
 ## [2026-08-24] 0.2.4 开发基线：中文 Edition 安装与五项可选首启
 
 - 当前运行版本切换为 `0.2.4`；版本台账登记

@@ -62,18 +62,24 @@ book/
 - **判据**：原始下载包（zip）、已完成使命的临时产物
 - **规则**：archives 里的文件可随时删除不影响教学；保留只为溯源
 
-## 三、课程驱动与来源使用
+## 三、课程类型、Mastery Learning Mode 与来源使用
 
-每门课在 `progress.md` 声明 `course_driver`；它表示什么决定下一课，而不是课程行政分类。
+Course Type 拥有完成裁判和一级推进协议。只有 Mastery Course 在 `course.md` 与
+`progress.md` 声明同值 `learning_mode`；Project/Praxis 不在类型之下再挂 driver。
 
-| course_driver | 推进依据 | 来源规则 |
+| Course Type / Learning Mode | 推进依据 | 来源规则 |
 |---|---|---|
-| `textbook` | 教材章节和页码 | `progress.md` 指定主教材；lesson 只记精确页码，不重复登记 ER |
-| `goal` | 明确能力目标 | 每个 lesson 指定一个主要可信来源；跨课程来源可引用 ER |
-| `project` | 可运行产物和里程碑 | 仓库、测试、数据和官方文档是主要证据，教材按需查询 |
-| `praxis` | 真实行动、反馈和长期修炼 | 书籍、数据、官方资料和行为记录组成证据束，不要求单一教材主导 |
+| Mastery / `textbook` | 教材章节和页码 | `progress.md` 指定主教材；lesson 只记精确页码，不重复登记 ER |
+| Mastery / `goal` | 明确能力目标 | 每个 lesson 指定一个主要可信来源；跨课程来源可引用 ER |
+| Mastery / `project` | 为掌握服务的可运行产物 | 仓库、测试、数据和官方文档是练习证据；完成裁判仍是 Mastery 确认门 |
+| Project | Project Plan 中下一开放 Goal/Milestone | 里程碑绑定可复现外部验证；教材只作局部来源 |
+| Praxis | 真实行动 → 现实反馈 → 复盘 → 下一行动 | 书籍、数据、官方资料和行为记录组成证据束，不要求单一教材主导 |
 
-`course_type: praxis` 是实践修炼型课程，不是通识课，也不是 `course_type: project`（后者的裁判可复现，praxis 的裁判是开放世界后果——轴定义见 `00_core/domain_model.md` §2.0）。它必须在课程说明中保留以下声明：
+Project Plan 不新造第二文件：计划定义由 `course.md` 持有，稳定 Goal/Milestone 节点与状态由
+`progress.md` 的 Completion nodes 持有，唯一前台与活动生命周期仍由 progress/activity ledger
+持有。旧 `default_driver/course_driver` 只允许兼容读取；新建或修改不得继续写给 Project/Praxis。
+
+`course_type: praxis` 是实践修炼型课程，不是通识课，也不是 `course_type: project`（后者的裁判可复现，praxis 的裁判是开放世界后果——轴定义见 `00_core/domain_model.md` §2.0）。Praxis 不带 learning mode；它必须在课程说明中保留以下声明：
 
 > 本课程面向开放世界中的不确定性。仅通过 T2AG 学习，其效果仍有待提升；T2AG 可以提供结构、资料、记录、反馈与复盘，但不能替代真实行动、风险承担、时间投入和生命经验。本课程的完善需要学生自己生命力的参与。
 

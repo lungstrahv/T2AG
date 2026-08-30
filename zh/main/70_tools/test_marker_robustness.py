@@ -150,6 +150,8 @@ PRESERVING = (
 ROLE_RULE_IDENTITY = {
     "assert_states_rule",
     "assert_does_not_state_rule",
+    "assert_states_marker",
+    "assert_does_not_state_marker",
     "has_marker",
     "missing_markers",
     "marker_position",
@@ -158,8 +160,21 @@ ROLE_RULE_IDENTITY = {
     "field_line_re",
     "heading_re",
     "marker_alternation",
+    "has_rule",
+    "missing_rules",
+    "rule_position",
+    "rule_status",
+    "rule_marker",
+    "rule_anchor",
+    "has_requirement",
+    "missing_requirements",
+    "requirement_position",
+    "heading_rows",
+    "section_text",
+    "cell_index",
+    "row_value",
 }
-ROLE_TEST_DATA = {"carrier_for"}
+ROLE_TEST_DATA = {"carrier_for", "_authorization_rule_fixture"}
 TEST_FILES = sorted(TOOLS.glob("test_*.py")) + [TOOLS / "contract_test_support.py"]
 
 
@@ -176,10 +191,12 @@ def _is_registry_meta_assertion(call: ast.Call) -> bool:
     return isinstance(target, ast.Attribute) and target.attr in {
         "registry",
         "MARKER_VARIANTS",
+        "RULE_ANCHORS",
+        "RULE_MARKERS",
     }
 
 
-def marker_literal_bypasses(path: Path, registry) -> list[tuple[int, str, str]]:
+def marker_literal_bypasses(path: Path, registry, rule_ids=()) -> list[tuple[int, str, str]]:
     """Every registered-marker literal in `path` that sits outside a named role."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     parents: dict[int, ast.AST] = {}
@@ -191,7 +208,7 @@ def marker_literal_bypasses(path: Path, registry) -> list[tuple[int, str, str]]:
     for node in ast.walk(tree):
         if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
             continue
-        if node.value not in registry:
+        if node.value not in registry and node.value not in rule_ids:
             continue
         # Nearest enclosing Call determines the role.
         cursor: ast.AST | None = parents.get(id(node))
@@ -218,11 +235,36 @@ class MarkerRobustnessTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.registry = doctor.MARKER_VARIANTS
+        self.rule_ids = doctor.RULE_MARKERS
         self.assertTrue(self.registry, "MARKER_VARIANTS must not be empty")
 
     def test_registry_is_non_trivial(self) -> None:
         """Guard the guard: an emptied registry would make every case below vacuous."""
         self.assertGreater(len(self.registry), 50)
+
+    def test_rule_anchor_and_body_pass(self) -> None:
+        rule_id = next(iter(self.rule_ids))
+        body = doctor.rule_anchor(rule_id) + "\n" + doctor.rule_marker(rule_id)
+        self.assertEqual(doctor.rule_status(body, rule_id), "anchored_with_body")
+        self.assertTrue(doctor.has_rule(body, rule_id))
+
+    def test_removing_anchor_fails_while_marker_fallback_remains_available(self) -> None:
+        rule_id = next(iter(self.rule_ids))
+        body = doctor.rule_marker(rule_id)
+        self.assertEqual(doctor.rule_status(body, rule_id), "marker_fallback")
+        self.assertFalse(doctor.has_rule(body, rule_id))
+        self.assertTrue(doctor.has_rule(body, rule_id, allow_marker_fallback=True))
+        self.assertTrue(doctor.has_marker(body, doctor.rule_marker(rule_id)))
+
+    def test_anchor_without_body_is_warn_only(self) -> None:
+        rule_id = next(iter(self.rule_ids))
+        body = doctor.rule_anchor(rule_id) + "\n" + empty_carrier()
+        self.assertEqual(doctor.rule_status(body, rule_id), "anchor_without_body")
+        self.assertFalse(doctor.has_rule(body, rule_id))
+        self.assertEqual(
+            doctor.rule_anchor_body_findings({"fixture.md": body}),
+            [("RULE-ANCHOR-001", "WARN", f"fixture.md keeps {rule_id} but its registered prose body is absent")],
+        )
 
     def test_every_spelling_is_found_verbatim(self) -> None:
         """Baseline: without this, the mutation results below mean nothing."""
@@ -290,17 +332,7 @@ class MarkerRobustnessTests(unittest.TestCase):
                 source,
             )
         )
-        if not used:
-            # zh edition (C11 backport, 2026-08-23): the infrastructure came back
-            # from EN but no zh call site consults a pattern builder yet -- that
-            # call-site migration is the L2/D15 debt, tracked in the pending
-            # ledger.  A named skip, not a silent pass: the case self-activates
-            # on the first field_line_re/heading_re/marker_alternation call.
-            self.skipTest(
-                "no pattern-builder call sites in this edition's doctor; "
-                "call-site migration is the L2/D15 debt (C11 backported the "
-                "infrastructure only)"
-            )
+        self.assertTrue(used, "no pattern-builder call sites found; the scan broke")
         unregistered = sorted(k for k in used if k not in self.registry)
         self.assertEqual(
             unregistered,
@@ -374,22 +406,14 @@ class MarkerRobustnessTests(unittest.TestCase):
             if p.is_file() and p.name != "test_marker_robustness.py"
             and "marker_assertions" in p.read_text(encoding="utf-8")
         ]
-        if not adopters:
-            # zh edition (C11 backport, 2026-08-23): the pre-existing zh test
-            # corpus holds bare marker literals from before the role API existed
-            # (the L2/D15 debt).  Scanning it today would redden ~50 legacy
-            # sites at once, turning known registered debt into standing noise
-            # (P-0077/P-0083).  A named skip, not a silent pass: the case
-            # self-activates when the first test file adopts marker_assertions.
-            self.skipTest(
-                "no test file in this edition has adopted the role API yet; "
-                "the legacy bare-literal corpus is the L2/D15 debt"
-            )
+        self.assertTrue(adopters, "no test file has adopted the role API")
         bypasses: list[str] = []
         for path in TEST_FILES:
             if not path.is_file():
                 continue
-            for line, marker, callee in marker_literal_bypasses(path, self.registry):
+            for line, marker, callee in marker_literal_bypasses(
+                path, self.registry, self.rule_ids
+            ):
                 bypasses.append(f"{path.name}:{line} {marker!r} inside {callee}()")
         self.assertEqual(
             bypasses,

@@ -24,6 +24,8 @@ if str(TOOLS) not in sys.path:
 import activity_ledger as ledger  # noqa: E402
 import activity_transaction as txn  # noqa: E402
 import campaign_receipt as campaign  # noqa: E402
+import learner_journey as journey  # noqa: E402
+import operator_result  # noqa: E402
 import t2ag_state_refresh as state_refresh  # noqa: E402
 
 CAMPAIGN_ID = campaign.CAMPAIGN_ID
@@ -160,65 +162,6 @@ def retrospective_tree_for(activity_type: str) -> dict[str, tuple[str, ...]]:
 REVIEW_STATUSES = frozenset({"applicable", "not_applicable", "missing"})
 BOUND_COMPLETED_INTENTS = frozenset({"结课", "确认结课", "愿意结课"})
 BOUND_INCOMPLETE_INTENTS = frozenset({"以未完成状态结课", "确认以未完成状态结课"})
-RETROSPECTIVE_SECTION_LABELS = {
-    "actual_teaching_process": "实际教学过程",
-    "content_completion": "课程内容完成情况",
-    "knowledge_absorption": "知识吸收",
-    "course_content_feedback": "学生课程内容反馈",
-    "teacher_reflection": "教师教学反思",
-    "learning_transition": "后续学习衔接",
-    # EXERCISE-CLOSE（2026-08-21）：Exercise 变体树专有节
-    "actual_exercise_process": "实际做题过程",
-    "question_coverage": "题目覆盖轧账（对 source_order）",
-    "mastery_ledger": "掌握分账",
-    "byproduct_audit": "副产物审计",
-}
-RETROSPECTIVE_ITEM_LABELS = {
-    "taught_content": "实际讲授",
-    "teaching_sequence": "教学顺序",
-    "expanded_or_skipped": "展开或跳过",
-    "plan_difference": "计划差异",
-    "completed_content": "已完成内容",
-    "unfinished_content": "未完成内容",
-    "out_of_scope_content": "越界内容",
-    "next_lesson_boundary": "下一 Lesson 边界",
-    "initial_understanding": "最初理解",
-    "reasoning_difficulties": "思维困难",
-    "turning_points": "理解转折点",
-    "self_correction": "自我修正",
-    "independent_reconstruction_or_transfer": "独立复述或迁移",
-    "current_mastery": "当前掌握",
-    "remaining_retests": "仍需复测",
-    "valuable_content": "有价值的内容",
-    "difficult_content": "难懂内容",
-    "content_sequence": "内容顺序",
-    "example_effectiveness": "例子效果",
-    "redundancy_or_omission": "冗余或缺失",
-    "requested_course_adjustment": "希望怎样调整课程",
-    "effective_explanations": "有效讲解",
-    "overcompressed_expressions": "过度压缩的表达",
-    "over_assistance": "帮助边界",
-    "next_teaching_improvement": "下次教学改进",
-    "spaced_retests": "间隔复测",
-    "next_lesson_entry": "下一 Lesson 入口",
-    "learner_thought_followup": "学生想法后续消费",
-    # EXERCISE-CLOSE（2026-08-21）：Exercise 变体树专有叶
-    "attempted_questions": "实际做了哪些题",
-    "sequence_vs_source_order": "教学重排与题序对照",
-    "hint_gate_usage": "提示闸门使用",
-    "completed_questions": "闭合题目",
-    "partial_questions": "部分完成题目",
-    "untouched_questions": "未触达题目",
-    "independent_correct": "独立正确",
-    "assisted_correct": "提示后正确",
-    "contaminated_or_not_counted": "污染或不计（越级提示/当堂理解）",
-    "mistake_bank_updates": "错题库更新",
-    "open_question_chains": "未闭讨论链",
-    "retest_hooks": "复测钩子",
-    "thought_routing": "想法路由",
-    "attempt_review_completeness": "Attempt/Review 完备性",
-    "return_to_lesson_entry": "回 Lesson 主线入口",
-}
 TERMINAL_DECISIONS = {
     "confirm_completed": "completed",
     "confirm_closed_incomplete": "closed_incomplete",
@@ -450,49 +393,18 @@ def learner_retrospective_sha256(body: dict[str, Any]) -> str:
 
 
 def render_learner_retrospective(body: dict[str, Any]) -> str:
-    """Render the complete applicable-item summary for direct dialogue display."""
+    """Compatibility wrapper delegated to the canonical journey renderer."""
     payload = learner_retrospective_payload(body)
-    lines = [
-        f"# {payload['activity_id']} 教学复盘",
-        "",
-        "## 结课范围",
-        "",
-        str((payload.get("close_scope") or {}).get("summary") or "未提供范围摘要"),
-    ]
-    visible = payload["learner_visible_retrospective"]
-    # EXERCISE-CLOSE D2：渲染按 body 声明的活动类型选树（旧 v2 lesson 体不受影响）。
     tree = retrospective_tree_for(str(payload.get("activity_type") or "lesson"))
-    for section_name in tree:
-        section = visible.get(section_name)
-        if not isinstance(section, dict):
-            continue
-        lines.extend(["", f"## {RETROSPECTIVE_SECTION_LABELS[section_name]}", ""])
-        for item_name in tree[section_name]:
-            item = (section.get("items") or {}).get(item_name)
-            if not isinstance(item, dict) or item.get("status") != "applicable":
-                continue
-            lines.append(
-                f"- **{RETROSPECTIVE_ITEM_LABELS[item_name]}**：{item['summary']}"
-            )
-    lines.extend(["", "## 掌握层级", ""])
-    for item in payload["knowledge"]:
-        lines.append(f"- `{item.get('state')}`：{item.get('topic')}")
-    assessment = payload["completion_assessment"]
-    lines.extend(
-        [
-            "",
-            "## 完成性判定",
-            "",
-            f"- completion blockers：{assessment.get('completion_blockers') or '无'}",
-            f"- scope change：{assessment.get('scope_change') or '无'}",
-            f"- 判定理由：{assessment.get('reason') or '未提供'}",
-            f"- 推荐结果：`{payload.get('recommendation')}`",
-            "",
-            "---",
-            f"复盘展示 SHA-256：`{learner_retrospective_sha256(body)}`",
-        ]
+    return journey.render_learner_summary(
+        {
+            "result_type": "activity_close_retrospective",
+            "payload": payload,
+            "section_order": list(tree),
+            "item_order": {section: list(items) for section, items in tree.items()},
+        },
+        {"scenario_id": "activity_close", "audience": "learner"},
     )
-    return "\n".join(lines)
 
 
 def build_close_body(
@@ -1155,6 +1067,7 @@ def materialize_pending_plan(
     scope_change: dict[str, Any] | None = None,
     scope_change_confirmed: bool = False,
 ) -> dict[str, Any]:
+    require_current_route_match(root, course_id, activity_type, activity_id)
     ledger_rel = f"main/40_course/{course_id}/activity_ledger.md"
     progress_rel = f"main/40_course/{course_id}/progress.md"
     ledger_text = (root / ledger_rel).read_text(encoding="utf-8")
@@ -1297,6 +1210,7 @@ def materialize_decision_plan(
     presented_retrospective_sha256: str | None = None,
     revision_patch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    require_current_route_match(root, course_id, activity_type, activity_id)
     if decision not in {*TERMINAL_DECISIONS, "refuse", "revise"}:
         raise CloseError(f"unsupported decision: {decision}")
     if decision_actor is None or authorization_mode is None:
@@ -1851,12 +1765,46 @@ def load_json_file(path: Path | None, default: Any) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def main(argv: list[str] | None = None) -> int:
+def require_explicit_plan_tuple(args: argparse.Namespace) -> tuple[str, str, str]:
+    values = {
+        "--course-id": args.course_id,
+        "--activity-type": args.activity_type,
+        "--activity-id": args.activity_id,
+    }
+    missing = [flag for flag, value in values.items() if not value]
+    if missing:
+        raise CloseError(
+            "plan actions require the complete explicit activity tuple: "
+            + ", ".join(missing)
+        )
+    return str(args.course_id), str(args.activity_type), str(args.activity_id)
+
+
+def require_current_route_match(
+    root: Path,
+    course_id: str,
+    activity_type: str,
+    activity_id: str,
+) -> None:
+    try:
+        route = state_refresh.resolve_activity(root, course_id)
+    except state_refresh.ActivityContractError as exc:
+        raise CloseError("explicit course route invalid: " + "; ".join(exc.errors)) from exc
+    requested = (activity_type, activity_id)
+    current = (route.activity_type, route.activity_id)
+    if requested != current:
+        raise CloseError(
+            "explicit activity tuple conflicts with current route: "
+            f"requested={activity_type}:{activity_id} current={route.activity_type}:{route.activity_id}"
+        )
+
+
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=INSTANCE_ROOT)
-    parser.add_argument("--course-id", default="MATH1607H")
-    parser.add_argument("--activity-type", choices=["lesson", "exercise"], default="exercise")
-    parser.add_argument("--activity-id", default="exercise01")
+    parser.add_argument("--course-id")
+    parser.add_argument("--activity-type", choices=["lesson", "exercise"])
+    parser.add_argument("--activity-id")
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--plan-pending", action="store_true")
     action.add_argument("--plan-decision", action="store_true")
@@ -1904,14 +1852,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.parse_confirm is not None:
             result = parse_strict_confirmation(args.parse_confirm)
         elif args.plan_pending:
+            course_id, activity_type, activity_id = require_explicit_plan_tuple(args)
             if not args.plan_out:
                 raise CloseError("--plan-out required")
             result = materialize_pending_plan(
                 root,
                 args.plan_out.resolve(),
-                course_id=args.course_id,
-                activity_type=args.activity_type,
-                activity_id=args.activity_id,
+                course_id=course_id,
+                activity_type=activity_type,
+                activity_id=activity_id,
                 prefs=load_json_file(args.prefs_json, {}),
                 knowledge=load_json_file(args.knowledge_json, []),
                 blockers=args.blocker,
@@ -1922,6 +1871,7 @@ def main(argv: list[str] | None = None) -> int:
                 scope_change_confirmed=args.confirm_scope_change,
             )
         elif args.plan_decision:
+            course_id, activity_type, activity_id = require_explicit_plan_tuple(args)
             if not all(
                 [
                     args.plan_out,
@@ -1938,9 +1888,9 @@ def main(argv: list[str] | None = None) -> int:
             result = materialize_decision_plan(
                 root,
                 args.plan_out.resolve(),
-                course_id=args.course_id,
-                activity_type=args.activity_type,
-                activity_id=args.activity_id,
+                course_id=course_id,
+                activity_type=activity_type,
+                activity_id=activity_id,
                 pending_event_id=args.pending_event_id,
                 body_sha256=args.body_sha256,
                 decision=args.decision,
@@ -1953,14 +1903,15 @@ def main(argv: list[str] | None = None) -> int:
                 revision_patch=load_json_file(args.revision_json, None),
             )
         elif args.plan_reopen:
+            course_id, activity_type, activity_id = require_explicit_plan_tuple(args)
             if not args.plan_out:
                 raise CloseError("--plan-out required")
             result = materialize_reopen_plan(
                 root,
                 args.plan_out.resolve(),
-                course_id=args.course_id,
-                activity_type=args.activity_type,
-                activity_id=args.activity_id,
+                course_id=course_id,
+                activity_type=activity_type,
+                activity_id=activity_id,
             )
         else:
             if not all(
@@ -1986,6 +1937,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(canonical_json({"ok": True, **result}))
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    code = _main(argv)
+    operator_result.emit_exit(
+        tool="activity_close",
+        operation="plan_parse_or_apply",
+        exit_code=code,
+    )
+    return code
 
 
 if __name__ == "__main__":

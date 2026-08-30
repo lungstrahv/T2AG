@@ -9,9 +9,9 @@
     "example_only": {"type": "boolean", "description": "示例拒绝标记；true 时工具不得消费。"},
     "nickname": {"type": "string", "default": "同学", "description": "希望被怎样称呼。"},
     "learning_level": {
-      "enum": ["secondary_school", "university", "bachelor"],
-      "default": "secondary_school",
-      "description": "学习水平：中学在读、大学在读、学士。"
+      "enum": ["not_provided", "secondary_school", "university", "bachelor"],
+      "default": "not_provided",
+      "description": "学习水平：尚未提供（未自述时的缺省态，呈现为「尚未提供」）、中学在读、大学在读、学士。学生事实无默认档位，省略不等于中学在读。"
     },
     "reference_curriculum": {
       "enum": ["yes", "no", "pending_generation"],
@@ -22,6 +22,7 @@
     "self_introduction": {"type": "string", "default": "未提供", "description": "可选自我介绍。"},
     "tutoring_preference": {"type": "string", "default": "先给整体地图，再逐支展开；每步结束后确认再继续", "description": "高级可选覆盖；首启不主动询问。"},
     "long_explanation_mode": {"enum": ["map-first", "continuous", "user-defined"], "default": "map-first", "description": "高级可选覆盖。"},
+    "lesson_tree_display_mode": {"enum": ["progressive", "full"], "default": "progressive", "description": "Lesson 覆盖树与知识路线树的首次展开量；高级可选覆盖，首启不主动询问。"},
     "branch_confirmation": {"type": "string", "default": "每支讲完确认", "description": "高级可选覆盖。"},
     "cycle_structure": {"type": "string", "default": "按课程与活动生成", "description": "高级可选覆盖。"},
     "small_adjustment": {"type": "string", "default": "每循环至多调整一处运行参数", "description": "高级可选覆盖。"},

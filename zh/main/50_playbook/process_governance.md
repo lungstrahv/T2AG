@@ -11,7 +11,7 @@
 
 本文件管理的过程对象：
 
-- 门（`gate_index.md` 所载）
+- 门（Main-only `main/00_core/gate_index.md` 所载）
 - 流程（`t2ag_flow.md` 的九项流程形态：`first_run`、`panorama`、`teaching_loop`、
   `authority_chain`、`cycles`、`skin`、`git`、`batch`、`exercise_loop`）
 - 有向图（门与流程的关系图）
@@ -39,7 +39,7 @@ core-playbook，正文不迁入本文件。
 
 ## 六、管辖清单
 
-- `50_playbook/gate_index.md`（数据；头部 `managed_by` 指向本文件）
+- `main/00_core/gate_index.md`（Main-only 数据；头部 `managed_by` 指向本文件）
 - `50_playbook/t2ag_flow.md` 九流程形态（文件自身仍 core，正文不动）
 
 ## 七、强制声明与 Q0

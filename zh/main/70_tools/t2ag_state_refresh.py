@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+import operator_result
+
 from t2ag_activity import (
     ActivityContractError,
     ProgressSnapshot,
@@ -683,7 +685,7 @@ def planned_progress_projections(
     return projections
 
 
-def main() -> int:
+def _main() -> int:
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
@@ -711,6 +713,16 @@ def main() -> int:
         return 1
     print(f"state refresh: 0 changed, {len(updates)} checked")
     return 0
+
+
+def main() -> int:
+    code = _main()
+    operator_result.emit_exit(
+        tool="state_refresh",
+        operation="refresh_or_check",
+        exit_code=code,
+    )
+    return code
 
 
 if __name__ == "__main__":

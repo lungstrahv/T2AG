@@ -6,8 +6,8 @@ Why this module exists
 A registered marker literal can appear in a test file playing three different
 roles, and the roles look identical in source:
 
-1. **rule identity** -- "this document states rule R" (must resolve through
-   MARKER_VARIANTS, or a translated edition fails a document that states the rule);
+1. **rule identity** -- "this document states rule R" (must resolve through a
+   stable RULE_ANCHORS ID, independent of the prose language);
 2. **test data** -- "here is a carrier containing this spelling" (must NOT resolve
    through the registry; the spelling itself is what is under test);
 3. **meta-assertion** -- "this marker is still registered" (asserts against the
@@ -32,7 +32,7 @@ immediately rather than three months later with nobody left to ask.
 
 Roles and their entry points
 ----------------------------
-    assert_states_rule(case, doc, marker)   # role 1: rule identity (registry-resolved)
+    assert_states_rule(case, doc, rule_id)  # role 1: stable rule identity
     carrier_for(spelling)                   # role 2: test data (verbatim, no registry)
     case.assertIn(marker, case.registry)    # role 3: meta-assertion (against the registry)
 
@@ -72,30 +72,49 @@ def empty_carrier() -> str:
     return FILLER_HEAD + "- 8888 9999." + FILLER_TAIL
 
 
-def assert_states_rule(case, document: str, marker: str, *, name: str = "") -> None:
+def assert_states_rule(case, document: str, rule_id: str, *, name: str = "") -> None:
     """Role 1 -- rule identity.
 
-    Assert that `document` states the rule identified by `marker`, in ANY shipped
-    language edition.  Always resolves through `doctor.has_marker`, so a translated
-    edition satisfying the rule passes, and a document that dropped the rule fails.
+    Assert that `document` carries the stable anchor and registered body for
+    `rule_id`.  The ID is language-independent; body diagnostics still resolve
+    through MARKER_VARIANTS.
 
     Never write `case.assertIn(marker, document)` for this: that pins one edition's
     spelling and turns a correct translation into a false negative.
     """
     where = name or "the document"
     case.assertTrue(
-        doctor.has_marker(document, marker),
+        doctor.has_rule(document, rule_id),
         msg=(
-            f"{where} no longer states {marker!r} in any registered edition "
-            f"(accepted spellings: {doctor.marker_spellings(marker)})"
+            f"{where} no longer carries {rule_id!r}: "
+            f"status={doctor.rule_status(document, rule_id)!r}; "
+            f"accepted spellings={doctor.marker_spellings(doctor.rule_marker(rule_id))}"
         ),
     )
 
 
-def assert_does_not_state_rule(case, document: str, marker: str, *, name: str = "") -> None:
+def assert_does_not_state_rule(case, document: str, rule_id: str, *, name: str = "") -> None:
     """Role 1, negative -- the rule must be absent, in every edition."""
     where = name or "the document"
     case.assertFalse(
+        doctor.has_rule(document, rule_id),
+        msg=f"{where} unexpectedly carries {rule_id!r}",
+    )
+
+
+def assert_states_marker(case, document: str, marker: str, *, name: str = "") -> None:
+    """Compatibility/output identity that intentionally remains outside RULE_ANCHORS."""
+    where = name or "the document"
+    case.assertTrue(
         doctor.has_marker(document, marker),
-        msg=f"{where} unexpectedly states {marker!r}",
+        msg=f"{where} no longer carries marker {marker!r}",
+    )
+
+
+def assert_does_not_state_marker(case, document: str, marker: str, *, name: str = "") -> None:
+    """Negative compatibility/output-marker assertion."""
+    where = name or "the document"
+    case.assertFalse(
+        doctor.has_marker(document, marker),
+        msg=f"{where} unexpectedly carries marker {marker!r}",
     )

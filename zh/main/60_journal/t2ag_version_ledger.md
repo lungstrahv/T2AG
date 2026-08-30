@@ -16,6 +16,7 @@
 > V3 运行时若无绑定行，candidate_binding 走「无行→静默」分支，那次 V3 的绿即
 > 缺覆盖的绿。绑定证明「审的是哪两个候选」，不证明「审查通过」。
 > 绑定行两端必须 zh/en 各恰一次（CAND-BIND-004..006 强制，写坏/缺端/重复皆 FAIL）。
+> changelog 条目的同型处置见 `50_playbook/changelog_management.md#发布事实的写入时点`。
 
 > **锚的解析根（P-0071 修，2026-08-21）**：下列六份权威 handoff 位于**工作区级**
 > `<workspace>/docs/handoffs/archive/v0.2.x/`，**不在仓内** `t2ag/docs/handoffs/`。
@@ -52,7 +53,9 @@
 - 最近 release 资格版本：`0.2.3`（资格权威在 Main 台账与独立评审证据；上行已按
   2026-08-24 完成的独立复审回填——**回填非预写**：复审先于回填，故不构成
   「写通过→重打→新包未受审」的循环）
-- 0.2.4 `implementation_status`：`partial`
+- 0.2.4 `implementation_status`：`complete`（依 §1.4.1 情形 #3：EN 已显式改判出 0.2.4 范围，
+  改判权威件 `<workspace>/docs/handoffs/T2AG_024_CLOSEOUT_CAMPAIGN_WORKORDER_2026-08-24.md`
+  §14.126；权威值归 Main 台账，本行为投影侧同步）
 - 0.2.4 `candidate_review`：`not_run`；仓内 `release_qualification`：`not_claimed`
 - 0.2.4 当前仅为开发基线；未冻结候选、未取得独立复审或发行资格
 

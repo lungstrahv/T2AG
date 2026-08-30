@@ -6,7 +6,8 @@
 > 裁决与设计正本：工作区 `docs/handoffs/T2AG_CANON_CARRIER_EGRESS_WORKORDER_DRAFT_2026-08-19.md`
 > v2（六问全裁）。本文件是运行时契约，不复述设计论证。
 >
-> **适用面**：`default_driver: textbook` 的课程。机器判据是 driver 字段，不是课程名单。
+> **适用面**：`course_type: mastery` 且 `learning_mode: textbook` 的课程；迁移期可兼容读取
+> 旧 `default_driver: textbook`，机器判据不是课程名单。
 > **本机制不是 ADR-0002 的宿主发送边界**：`canon_append.py` 是仓内追加器，聊天通道拦不住，
 > 自洽双写（伪造者把两文件一起写成合法链）也查不出。它把**笨的绕过从无痕变有痕**，仅此而已，
 > 不得宣传为结构性硬门。
@@ -34,7 +35,7 @@
 
 `main/70_tools/canon_append.py` 是 C 与 L 的唯一合法写入路径。它验证：
 
-1. 课程存在且 `default_driver: textbook`；
+1. 课程存在且为 Mastery + textbook-led；
 2. lesson 目录存在；
 3. `block_id` 在该 lesson 的 **C 与 L 双侧**均未出现（C 有＝`duplicate_block` 拒；
    L 有 C 无＝`crash_residue` 拒并指路 `--complete`）；

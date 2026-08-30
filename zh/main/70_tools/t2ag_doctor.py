@@ -27,6 +27,7 @@ from t2ag_activity import (
     frontmatter_text,
     resolve_activity,
     resolve_course_book_path,
+    resolve_course_progression,
     resolve_teacher_mapping,
     validate_progress_identity,
 )
@@ -161,8 +162,7 @@ SUPPORTED_DOCTOR_HANDLERS = {
     "check_constitution_budget",
     "check_changelog_contract",
     "check_flow_and_guide", "check_handoff_contract",
-    "check_cloud_contract", "check_derived_tools", "check_migration_evidence",
-    "check_migration_021_evidence", "check_activity_migration_021_evidence",
+    "check_cloud_contract", "check_derived_tools",
     "check_reading_bridge_contract", "check_core_playbooks",
     "check_playbook_taxonomy", "check_playbook_taxonomy_parity",
     "check_playbook_usage", "check_domain_tier_reconciliation",
@@ -180,6 +180,10 @@ LEGACY_DOMAINS = {
     "25_general", "30_courses", "30_course_definitions", "35_course_runs",
     "40_field_practices", "skin",
 }
+LEGACY_STUDENT_FLAT_FILES = {
+    "profile.md", "learning_path.md",
+    "course_reflections.md", "reasoning_patterns.md",
+}
 LEGACY_REFERENCES = (
     "10_case/", "12_activity_records/", "15_curricula/", "20_groups/",
     "25_general/", "30_courses/", "30_course_definitions/",
@@ -193,6 +197,7 @@ ALLOWED_REGISTRY_STATES = {"active", "tombstone", "archived"}
 ALLOWED_COURSE_LIFECYCLES = {"planned", "ongoing", "paused", "completed", "dropped"}
 ALLOWED_COURSE_TYPES = {"mastery", "project", "praxis"}
 ALLOWED_COURSE_DRIVERS = {"textbook", "goal", "project", "praxis"}
+ALLOWED_MASTERY_LEARNING_MODES = {"textbook", "goal", "project"}
 ALLOWED_BINDING_STATES = {"idle", "active", "paused", "closed"}
 ALLOWED_ATTEMPT_MODES = {"text", "image", "mixed"}
 ALLOWED_ATTEMPT_STATES = {"submitted", "withdrawn"}
@@ -326,8 +331,8 @@ MARKER_VARIANTS: dict[str, tuple[str, ...]] = {
     "#### `exercise` 分支": ("#### `exercise` branch",),
     "Exercise 首启不得读取或构造 Lesson 路径": (
         "an Exercise first start must not read or construct a Lesson path",),
-    "教材原文窗口 **仅在 `lesson` + `course_driver: textbook`**": (
-        "the textbook source window applies **only to `lesson` + `course_driver: textbook`**",),
+    "教材原文窗口 **仅在 `lesson` + `course_type: mastery`": (
+        "the textbook source window applies **only to `lesson` + `course_type: mastery`",),
     "Micro close 和完整结课都必须原子完成": (
         "both a Micro close and a full close must complete atomically",),
     "Exercise 结课不得顺手": ("an Exercise close must never be done casually",),
@@ -341,6 +346,8 @@ MARKER_VARIANTS: dict[str, tuple[str, ...]] = {
     "不得越级": ("no level skipping",),
     "逐文件相对路径、大小、SHA-256": (
         "per-file relative path, size and SHA-256",),
+    "symlink、junction、mount/reparse point": (
+        "symlink, junction, or mount/reparse point",),
     "0.2.0 冻结验收边界": ("0.2.0 frozen acceptance boundary",),
     "清单外新提出的理论攻击面": (
         "a theoretical attack surface newly raised outside the manifest",),
@@ -420,10 +427,12 @@ MARKER_VARIANTS: dict[str, tuple[str, ...]] = {
         "(the §3.1.3 Layer A \"must never pose as\" clause stands unchanged)",
     ),
     "故 A1 要求**完整正文段**投递，宿主观察事件须能区分「正文投递」与「仅 frontmatter 投递」": (
+        "故 A1 要求**完整正文段**投递，宿主观察事件须能区分\n> 「正文投递」与「仅 frontmatter 投递」",
         "Hence A1 requires a **complete body segment** delivery, and the\nhost-observed event must distinguish \"body delivered\" from \"frontmatter only\"",
     ),
     "**子进程摘要**": ("a **subprocess summary**",),
     "证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体": (
+        "证明脚本读过文件，\n  **不**证明本轮模型上下文收到了内容本体",
         "that proves the script read the file, and **not** that this round's model context received the content body",
     ),
     # --- instance-template structural labels (batch E) ---
@@ -537,6 +546,72 @@ MARKER_VARIANTS: dict[str, tuple[str, ...]] = {
 }
 
 
+# L2/D15 (2026-08-24): stable identities for prose rules consumed by gates.
+# MARKER_VARIANTS remains the compatibility channel for untranslated/unmigrated
+# consumers; migrated consumers use the language-independent ID and a nearby
+# ``<!-- rule: ID -->`` anchor.
+RULE_ANCHORS: dict[str, str] = {
+    "统一只读活动路由": "TEACH-ROUTE-001",
+    "当前 Lesson/Exercise 主载体": "TEACH-ROUTE-002",
+    "不把概念桥接回当前题": "TEACH-ROUTE-003",
+    "先给短目录、树形地图": "TEACH-ROUTE-004",
+    "对象类型表": "TEACH-ROUTE-005",
+    "新 Exercise 未授权阶段": "TEACH-ROUTE-006",
+    "完整序列化 Markdown": "CTX-PACKET-001",
+    "即时摘录 + 触发式展开": "CTX-PACKET-002",
+    "同一对话内未变化的 L0 不重复读取": "CTX-PACKET-003",
+    "Main 消费纪律": "CTX-PACKET-004",
+    "先建依赖树，再分配 Agent": "CTX-PACKET-005",
+    "不得只展示 ID/SHA 让学生盲签": "CTX-PACKET-006",
+    "步骤 2：消费 progress.md 当前切片": "CTX-PACKET-007",
+    "L2 读取对应「教学记录」": "CTX-PACKET-008",
+    "不得返回缺教材的 `ready`": "CTX-PACKET-009",
+    "只回读这些实际目标": "CTX-PACKET-010",
+    "原 L0 上下文包立即失效": "CTX-PACKET-011",
+    "授权不可放大与闭环止损": "AUTH-NONAMP-001",
+    "授权不可放大": "AUTH-NONAMP-002",
+    "尚未生成的对象不可预授权": "AUTH-NONAMP-003",
+    "receipt 只记录授权证据": "AUTH-NONAMP-004",
+    "默认最多两轮 finding 整改": "AUTH-NONAMP-005",
+    "恢复后动作授权门": "AUTH-NONAMP-006",
+    "概括性认可只覆盖当轮已具体列出的动作": "AUTH-NONAMP-007",
+    "不构成当轮许可": "AUTH-NONAMP-008",
+    "### 2.2 多块长篇讲解的地图优先协议": "TEACH-MAP-001",
+    "一次只深入一个分支": "TEACH-MAP-002",
+    "无法在不泄露的前提下制作有用总览时，宁可省略总览": "TEACH-MAP-003",
+    "### 步骤 3：按 current_activity 恢复主载体": "ACT-ROUTE-001",
+    "#### `lesson` 分支": "ACT-ROUTE-002",
+    "#### `exercise` 分支": "ACT-ROUTE-003",
+    "Exercise 首启不得读取或构造 Lesson 路径": "ACT-ROUTE-004",
+    "教材原文窗口 **仅在 `lesson` + `course_type: mastery`": "ACT-ROUTE-005",
+    "Micro close 和完整结课都必须原子完成": "ACT-ROUTE-006",
+    "Exercise 结课不得顺手": "ACT-ROUTE-007",
+    "不写 `current_lesson`": "ACT-ROUTE-008",
+    "连续 Scope **5–8**": "ACT-ROUTE-009",
+    "不得自动清理": "ACT-ROUTE-010",
+    "不产生 pending、CLR 或自动 pause": "ACT-ROUTE-011",
+    "progress + 当前活动主载体 + 真实台账": "ACT-ROUTE-012",
+    "runtime（默认、启动安全）": "TEST-MGMT-001",
+    "不得越级": "TEST-MGMT-002",
+    "symlink、junction、mount/reparse point": "CAND-REPLAY-001",
+    "逐文件相对路径、大小、SHA-256": "CAND-REPLAY-002",
+    "0.2.0 冻结验收边界": "CAND-REPLAY-003",
+    "清单外新提出的理论攻击面": "CAND-REPLAY-004",
+    "B 层不算数": "SCAN-ADMISSION-001",
+    "宿主能观察到内容本体进入本轮模型上下文这一事件本身": "SCAN-ADMISSION-002",
+    "A1–A5 经**宿主可观察投递**在本会话内证成": "SCAN-ADMISSION-003",
+    "因此「只读 frontmatter」能满足全部前置而**正文一字未投递**": "SCAN-ADMISSION-004",
+    "等 pending 状态**不得清除**": "SCAN-ADMISSION-005",
+    "（§3.1.3 A 层「不得冒充」条款原样有效）": "SCAN-ADMISSION-006",
+    "故 A1 要求**完整正文段**投递，宿主观察事件须能区分「正文投递」与「仅 frontmatter 投递」": "SCAN-ADMISSION-007",
+    "**子进程摘要**": "SCAN-ADMISSION-008",
+    "证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体": "SCAN-ADMISSION-009",
+}
+
+RULE_MARKERS: dict[str, str] = {rule_id: marker for marker, rule_id in RULE_ANCHORS.items()}
+if len(RULE_MARKERS) != len(RULE_ANCHORS):
+    raise RuntimeError("RULE_ANCHORS rule IDs must be unique")
+
 def _normalize_surface(text: str) -> str:
     """Surface-normalized view of `text`, for marker matching.
 
@@ -579,6 +654,89 @@ def has_marker(content: str, marker: str) -> bool:
     # the false-negative it removes is a gate failing on a document that satisfies it.
     flat = _normalize_surface(content).casefold()
     return any(_normalize_surface(c).casefold() in flat for c in candidates)
+
+
+def rule_marker(rule_id: str) -> str:
+    """Return the canonical prose marker owned by ``rule_id``."""
+    try:
+        return RULE_MARKERS[rule_id]
+    except KeyError as exc:
+        raise KeyError(f"unknown rule id: {rule_id}") from exc
+
+
+def rule_anchor(rule_id: str) -> str:
+    """Return the language-independent HTML comment anchor for ``rule_id``."""
+    rule_marker(rule_id)
+    return f"<!-- rule: {rule_id} -->"
+
+
+def rule_status(content: str, rule_id: str) -> str:
+    """Classify a rule carrier without confusing its stable ID with its prose."""
+    anchored = rule_anchor(rule_id) in content
+    body_present = has_marker(content, rule_marker(rule_id))
+    if anchored and body_present:
+        return "anchored_with_body"
+    if anchored:
+        return "anchor_without_body"
+    if body_present:
+        return "marker_fallback"
+    return "missing"
+
+
+def has_rule(content: str, rule_id: str, *, allow_marker_fallback: bool = False) -> bool:
+    """True when a stable rule anchor is present, optionally accepting legacy prose."""
+    status = rule_status(content, rule_id)
+    return status == "anchored_with_body" or (
+        allow_marker_fallback and status == "marker_fallback"
+    )
+
+
+def rule_position(content: str, rule_id: str) -> int:
+    """Exact offset of a stable rule anchor, or -1."""
+    return content.find(rule_anchor(rule_id))
+
+
+def missing_rules(content: str, rule_ids) -> list[str]:
+    """Rule IDs whose stable anchor/body pair is absent, in input order."""
+    return [rule_id for rule_id in rule_ids if not has_rule(content, rule_id)]
+
+
+def has_requirement(content: str, requirement: str) -> bool:
+    """Check a stable rule ID or preserve an ordinary literal requirement."""
+    if requirement in RULE_MARKERS:
+        return has_rule(content, requirement)
+    if requirement in MARKER_VARIANTS:
+        return has_marker(content, requirement)
+    return requirement in content
+
+
+def requirement_position(content: str, requirement: str) -> int:
+    """Position for mixed rule-ID/literal ordering checks."""
+    if requirement in RULE_MARKERS:
+        return rule_position(content, requirement)
+    if requirement in MARKER_VARIANTS:
+        return marker_position(content, requirement)
+    return content.find(requirement)
+
+
+def missing_requirements(content: str, requirements) -> list[str]:
+    """Missing stable rule IDs and ordinary literals, in input order."""
+    return [item for item in requirements if not has_requirement(content, item)]
+
+
+def rule_anchor_body_findings(documents: dict[str, str]) -> list[tuple[str, str, str]]:
+    """WARN when a known anchor survives but its registered prose body does not."""
+    findings: list[tuple[str, str, str]] = []
+    anchor_re = re.compile(r"(?m)^\s*<!-- rule: ([A-Z][A-Z0-9-]+) -->\s*$")
+    for name, content in documents.items():
+        for rule_id in dict.fromkeys(anchor_re.findall(content)):
+            if rule_id in RULE_MARKERS and rule_status(content, rule_id) == "anchor_without_body":
+                findings.append((
+                    "RULE-ANCHOR-001",
+                    "WARN",
+                    f"{name} keeps {rule_id} but its registered prose body is absent",
+                ))
+    return findings
 
 
 def marker_spellings(marker: str) -> tuple[str, ...]:
@@ -832,6 +990,9 @@ def check_structure() -> None:
     for name in LEGACY_DOMAINS:
         if (MAIN / name).exists():
             report("FAIL", f"旧 active 域仍存在：main/{name}")
+    for filename in sorted(LEGACY_STUDENT_FLAT_FILES):
+        if (MAIN / "10_student" / filename).exists():
+            report("FAIL", f"0.2.1 退役的平铺学生档案仍存在：main/10_student/{filename}")
     if not (MAIN / "t2ag.md").is_file():
         report("FAIL", "缺少 main/t2ag.md")
     missing_base = [
@@ -844,7 +1005,7 @@ def check_structure() -> None:
         doctor_content = read(ROOT / "main/70_tools/t2ag_doctor.py")
         missing_markers = [
             marker for marker in BASE_DOCTOR_PROFILE_MARKERS
-            if marker not in doctor_content
+            if not has_requirement(doctor_content, marker)
         ]
         if missing_markers:
             report("FAIL", f"Doctor runtime/release 基础分层缺失：{missing_markers}")
@@ -1253,16 +1414,21 @@ def discover_courses() -> dict[str, tuple[Path, dict[str, str]]]:
         if cmeta.get("type") != "course" or cmeta.get("course_id") != folder.name:
             report("FAIL", f"course frontmatter 不匹配：{rel(course)}")
         required_course_fields = {
-            "school_course_code", "name", "course_type", "default_driver",
-            "prerequisites", "status",
+            "school_course_code", "name", "course_type", "prerequisites", "status",
         }
         missing_course_fields = sorted(required_course_fields - set(cmeta))
         if missing_course_fields:
             report("FAIL", f"course schema 缺字段：{folder.name} -> {missing_course_fields}")
         if cmeta.get("course_type") not in ALLOWED_COURSE_TYPES:
             report("FAIL", f"course_type 非法：{folder.name} -> {cmeta.get('course_type', '缺失')}")
-        if cmeta.get("default_driver") not in ALLOWED_COURSE_DRIVERS:
-            report("FAIL", f"default_driver 非法：{folder.name} -> {cmeta.get('default_driver', '缺失')}")
+        try:
+            progression = resolve_course_progression(cmeta, pmeta)
+        except ActivityContractError as exc:
+            for error in exc.errors:
+                report("FAIL", f"课程推进语义：{folder.name} -> {error}")
+        else:
+            pmeta = dict(pmeta)
+            pmeta["course_driver"] = progression.effective_key
         if cmeta.get("status") != "active":
             report("FAIL", f"Course 定义载体 status 必须为 active：{folder.name}")
         try:
@@ -1281,7 +1447,7 @@ def discover_courses() -> dict[str, tuple[Path, dict[str, str]]]:
         if lifecycle not in ALLOWED_COURSE_LIFECYCLES:
             report("FAIL", f"课程生命周期非法：{folder.name} -> {lifecycle}")
         if pmeta.get("course_driver") not in ALLOWED_COURSE_DRIVERS:
-            report("FAIL", f"course_driver 非法：{folder.name} -> {pmeta.get('course_driver', '缺失')}")
+            report("FAIL", f"课程推进键无法解析：{folder.name}")
         if not pmeta.get("updated") or pmeta.get("updated") == "—":
             report("FAIL", f"progress 缺非空 updated：{folder.name}")
         next_action = pmeta.get("next_action") or re.search(
@@ -1851,7 +2017,7 @@ def check_question_banks(courses: dict[str, tuple[Path, dict[str, str]]]) -> Non
         content = read(bank)
         if "QUESTION_BANK_TEMPLATE_V2" not in content:
             report("FAIL", f"question bank 未升级 V2：{course_id}")
-        for match in re.finditer(r"^-\s*状态[：:]\s*([A-Za-z_]+)\s*$", content, re.MULTILINE):
+        for match in field_line_re("状态", r"([A-Za-z_]+)").finditer(content):
             if match.group(1) not in ALLOWED_QUESTION_STATES:
                 report("FAIL", f"question 状态非法：{course_id} -> {match.group(1)}")
 
@@ -2921,14 +3087,14 @@ def check_teacher_contract(
                 f"教师模板绕过当前活动路由写 Lesson：{rel(template)}",
             )
         required_route_markers = (
-            "统一只读活动路由",
-            "当前 Lesson/Exercise 主载体",
+            "TEACH-ROUTE-001",
+            "TEACH-ROUTE-002",
             "mistake_bank.md",
             "t2ag_hint_gate.py",
-            "不把概念桥接回当前题",
+            "TEACH-ROUTE-003",
         )
         missing = [
-            marker for marker in required_route_markers if marker not in content
+            marker for marker in required_route_markers if not has_requirement(content, marker)
         ]
         if missing:
             report(
@@ -2936,13 +3102,13 @@ def check_teacher_contract(
                 f"教师模板缺统一错误路由契约：{rel(template)} -> {missing}",
             )
         required_presentation_markers = (
-            "先给短目录、树形地图",
-            "对象类型表",
-            "新 Exercise 未授权阶段",
+            "TEACH-ROUTE-004",
+            "TEACH-ROUTE-005",
+            "TEACH-ROUTE-006",
         )
         missing = [
             marker for marker in required_presentation_markers
-            if marker not in content
+            if not has_requirement(content, marker)
         ]
         if missing:
             report(
@@ -3232,14 +3398,17 @@ def check_canonical_teaching_carrier(
 ) -> None:
     """CANON-000..004: teaching canon ↔ emissions ledger ↔ page assets agree.
 
-    Applies to courses whose course.md declares ``default_driver: textbook``
-    (D4: the machine criterion is the driver field, not a course roster).
+    Applies only to Mastery + textbook-led courses; legacy drivers remain readable.
     """
     for course_id, (folder, _meta) in sorted(courses.items()):
         course_md = folder / "course.md"
         if not course_md.is_file():
             continue
-        if frontmatter(course_md).get("default_driver") != "textbook":
+        try:
+            progression = resolve_course_progression(frontmatter(course_md))
+        except ActivityContractError:
+            continue
+        if not progression.is_textbook_led:
             continue
         lessons = folder / "lessons"
         if not lessons.is_dir():
@@ -5010,11 +5179,22 @@ def check_rule_enforcement_integrity() -> None:
             documents[f"00_core/{name}"] = read(path)
         except OSError:
             continue
+    anchor_paths = [ROOT / "AGENTS.md", MAIN / "t2ag.md"]
+    anchor_paths.extend(sorted((MAIN / "20_teacher").glob("T*.md")))
+    for path in anchor_paths:
+        if not path.is_file():
+            continue
+        try:
+            documents[rel(path)] = read(path)
+        except OSError:
+            continue
     if not documents:
         return
     for code, severity, message in rule_enforcement_findings(
         documents, known_checks=doctor_check_ids(), main=MAIN
     ):
+        report(severity, f"{code} {message}")
+    for code, severity, message in rule_anchor_body_findings(documents):
         report(severity, f"{code} {message}")
 
 
@@ -5872,485 +6052,6 @@ def check_derived_tools() -> None:
         )
 
 
-def check_migration_evidence() -> None:
-    if FLAVOR == "lite":
-        return
-    if FLAVOR == "skeleton":
-        # EV-0023：Skeleton 是新实例起点，不携带维护者 0.2.0 迁移档案（同 :3793 先例）。
-        for rel in (
-            "main/60_journal/migration_020_operations.json",
-            "main/60_journal/migration_020_report.json",
-            "main/60_journal/migration_020_review.md",
-            "main/60_journal/retired_020_sources",
-        ):
-            if (ROOT / rel).exists():
-                report("FAIL", f"Skeleton 不得复制 Main 0.2.0 迁移证据：{rel}")
-        return
-    readme_content = read(ROOT / "README.md") if (ROOT / "README.md").is_file() else ""
-    migration_target_kind = (
-        "skeleton"
-        if ROOT.name == "t2ag-skeleton"
-        or re.search(r"^# T2AG .* Skeleton\s*$", readme_content, re.MULTILINE)
-        else "main"
-    )
-    _, _, errors = validated_migration_evidence(migration_target_kind)
-    for error in errors:
-        report("FAIL", error)
-
-
-def check_migration_021_evidence() -> None:
-    if FLAVOR == "lite":
-        return
-    if FLAVOR == "skeleton":
-        # EV-0023：Skeleton 不携带维护者 0.2.1 profile 迁移档案（同 :3793 先例）。
-        for rel in (
-            "main/60_journal/migration_021_profile_operations.json",
-            "main/60_journal/migration_021_profile_report.json",
-            "main/60_journal/migration_021_profile_operations_v2.json",
-            "main/60_journal/migration_021_profile_report_v2.json",
-        ):
-            if (ROOT / rel).exists():
-                report("FAIL", f"Skeleton 不得复制 Main 0.2.1 profile 迁移证据：{rel}")
-        return
-    def strict_json(path: Path) -> object:
-        def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
-            result: dict[str, object] = {}
-            for key, value in items:
-                if key in result:
-                    raise ValueError(f"duplicate key: {key}")
-                result[key] = value
-            return result
-
-        def constant(value: str) -> object:
-            raise ValueError(f"non-finite number: {value}")
-
-        raw = path.read_bytes()
-        if b"\x00" in raw:
-            raise ValueError("NUL")
-        return json.loads(
-            raw.decode("utf-8"),
-            object_pairs_hook=pairs,
-            parse_constant=constant,
-        )
-
-    def exact_keys(value: object, expected: set[str], where: str) -> bool:
-        if not isinstance(value, dict) or set(value) != expected:
-            report("FAIL", f"0.2.1 profile V2 证据字段非法：{where}")
-            return False
-        return True
-
-    v1_manifest_path = MAIN / "60_journal/migration_021_profile_operations.json"
-    v1_report_path = MAIN / "60_journal/migration_021_profile_report.json"
-    manifest_path = MAIN / "60_journal/migration_021_profile_operations_v2.json"
-    report_path = MAIN / "60_journal/migration_021_profile_report_v2.json"
-    required_paths = (v1_manifest_path, v1_report_path, manifest_path, report_path)
-    if any(not path.is_file() for path in required_paths):
-        report("FAIL", "缺少 0.2.1 profile V1/V2 迁移操作清单或报告")
-        return
-    try:
-        v1_manifest = strict_json(v1_manifest_path)
-        v1_report = strict_json(v1_report_path)
-        manifest = strict_json(manifest_path)
-        migration_report = strict_json(report_path)
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-        report("FAIL", f"0.2.1 profile 迁移证据严格 JSON 非法：{exc}")
-        return
-    readme_content = read(ROOT / "README.md") if (ROOT / "README.md").is_file() else ""
-    expected_kind = (
-        "skeleton"
-        if ROOT.name == "t2ag-skeleton"
-        or re.search(r"^# T2AG .* Skeleton\s*$", readme_content, re.MULTILINE)
-        else "main"
-    )
-    baseline_oracle = {
-        "main": (
-            "4e72556f789fcb5943951657ee17247c0dd4eb12",
-            "7270b5fa7954fec12d2e5ff3f76ee388036dff1b",
-        ),
-        "skeleton": (
-            "3f1a42e0edc305f3253843337a9ec7a107cd79a8",
-            "bab94ab06046b55577dc88908069dfbe1e160419",
-        ),
-    }
-    expected_commit, expected_tree = baseline_oracle[expected_kind]
-    if not exact_keys(
-        manifest,
-        {
-            "schema_version", "migration_id", "supersedes", "target_kind",
-            "baseline_commit", "baseline_tree", "transform_version",
-            "operation_count", "operations",
-        },
-        "manifest",
-    ) or not exact_keys(
-        migration_report,
-        {
-            "schema_version", "migration_id", "supersedes", "status",
-            "target_kind", "baseline_commit", "baseline_tree", "transform_version",
-            "operation_manifest", "current_verification", "content_policy",
-        },
-        "report",
-    ):
-        return
-    summary = migration_report["operation_manifest"]
-    verification = migration_report["current_verification"]
-    if not exact_keys(summary, {"path", "operation_count", "sha256"}, "report.operation_manifest"):
-        return
-    if not exact_keys(verification, {"targets_present"}, "report.current_verification"):
-        return
-    common_expected = (
-        "T2AG-021-PROFILE-V2",
-        expected_kind,
-        expected_commit,
-        expected_tree,
-        "t2ag.profile-path-repairs.v2",
-    )
-    if (
-        manifest.get("schema_version") != "T2AG-MIGRATION-OPERATIONS-2"
-        or migration_report.get("schema_version") != "T2AG-MIGRATION-REPORT-2"
-        or (
-            manifest.get("migration_id"), manifest.get("target_kind"),
-            manifest.get("baseline_commit"), manifest.get("baseline_tree"),
-            manifest.get("transform_version"),
-        ) != common_expected
-        or (
-            migration_report.get("migration_id"), migration_report.get("target_kind"),
-            migration_report.get("baseline_commit"), migration_report.get("baseline_tree"),
-            migration_report.get("transform_version"),
-        ) != common_expected
-        or manifest.get("supersedes") != "main/60_journal/migration_021_profile_operations.json"
-        or migration_report.get("supersedes") != "main/60_journal/migration_021_profile_report.json"
-        or migration_report.get("status") != "applied"
-        or verification.get("targets_present") is not True
-    ):
-        report("FAIL", "0.2.1 profile V2 baseline/target/schema 绑定非法")
-    try:
-        resolved_tree = subprocess.run(
-            ["git", "show", "-s", "--format=%T", expected_commit],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except subprocess.CalledProcessError as exc:
-        report("FAIL", f"0.2.1 profile baseline 无法现场解析：{exc}")
-        return
-    if resolved_tree != expected_tree:
-        report("FAIL", "0.2.1 profile baseline tree 与 Git 现场解析不一致")
-    if (
-        summary.get("path") != "main/60_journal/migration_021_profile_operations_v2.json"
-        or summary.get("sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-        or summary.get("operation_count") != 4
-    ):
-        report("FAIL", "0.2.1 profile V2 report 未绑定 canonical manifest")
-    operations = manifest.get("operations")
-    if not isinstance(operations, list) or manifest.get("operation_count") != 4 or len(operations) != 4:
-        report("FAIL", "0.2.1 profile V2 迁移计数非法")
-        return
-    expected_moves = (
-        ("main/10_student/profile.md", "main/10_student/profile/profile.md"),
-        ("main/10_student/learning_path.md", "main/10_student/profile/learning_path.md"),
-        (
-            "main/10_student/course_reflections.md",
-            "main/10_student/profile/course_reflections.md",
-        ),
-        (
-            "main/10_student/reasoning_patterns.md",
-            "main/10_student/profile/reasoning_patterns.md",
-        ),
-    )
-    v1_operations = v1_manifest.get("operations", []) if isinstance(v1_manifest, dict) else []
-    if (
-        not isinstance(v1_manifest, dict)
-        or not isinstance(v1_report, dict)
-        or v1_manifest.get("schema_version") != "T2AG-MIGRATION-OPERATIONS-1"
-        or v1_manifest.get("baseline_commit") != expected_commit
-        or v1_manifest.get("target_kind") != expected_kind
-        or not isinstance(v1_operations, list)
-        or len(v1_operations) != 4
-        or v1_report.get("schema_version") != "T2AG-MIGRATION-REPORT-1"
-        or v1_report.get("baseline_commit") != expected_commit
-        or v1_report.get("target_kind") != expected_kind
-        or v1_report.get("operation_manifest", {}).get("sha256")
-        != hashlib.sha256(v1_manifest_path.read_bytes()).hexdigest()
-    ):
-        report("FAIL", "被 supersede 的 0.2.1 profile V1 证据缺失或已改写")
-
-    def baseline_bytes(path: str) -> bytes:
-        result = subprocess.run(
-            ["git", "show", f"{expected_commit}:{path}"],
-            cwd=ROOT,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode:
-            raise ValueError(path)
-        return result.stdout
-
-    def oracle(source_path: str, content: bytes) -> tuple[bytes, dict[str, int], str]:
-        if expected_kind == "skeleton":
-            return content, {}, f"profile-{Path(source_path).stem}-identity-v2"
-        rules: tuple[tuple[bytes, bytes, int, str], ...]
-        if source_path == "main/10_student/profile.md":
-            rules = (
-                (b"main/10_student/profile.md", b"main/10_student/profile/profile.md", 2, "self_profile"),
-                (b"main/10_student/course_reflections.md", b"main/10_student/profile/course_reflections.md", 1, "course_reflections"),
-                (b"main/10_student/reasoning_patterns.md", b"main/10_student/profile/reasoning_patterns.md", 1, "reasoning_patterns"),
-            )
-        elif source_path == "main/10_student/learning_path.md":
-            rules = ((b"10_student/profile.md", b"10_student/profile/profile.md", 1, "profile_pointer"),)
-        elif source_path == "main/10_student/course_reflections.md":
-            rules = ((b"../40_course/", b"../../40_course/", 3, "relative_course_links"),)
-        else:
-            rules = ()
-        counts: dict[str, int] = {}
-        transformed = content
-        for old, new, expected_count, name in rules:
-            actual_count = transformed.count(old)
-            if actual_count != expected_count:
-                raise ValueError(f"count:{source_path}:{name}")
-            transformed = transformed.replace(old, new)
-            counts[name] = actual_count
-        return transformed, counts, f"profile-{Path(source_path).stem}-path-repairs-v2"
-
-    for sequence, (source_path, target_path) in enumerate(expected_moves, start=1):
-        row = operations[sequence - 1]
-        if not exact_keys(
-            row,
-            {
-                "sequence", "transform_id", "source", "target", "replacement_counts",
-                "content_policy", "outcome", "post_target",
-            },
-            f"operations[{sequence - 1}]",
-        ):
-            continue
-        source = row.get("source")
-        post_target = row.get("post_target")
-        if not exact_keys(source, {"path", "blob", "bytes", "sha256"}, f"operations[{sequence - 1}].source"):
-            continue
-        if not exact_keys(post_target, {"path", "bytes", "sha256"}, f"operations[{sequence - 1}].post_target"):
-            continue
-        try:
-            source_content = baseline_bytes(source_path)
-            expected_post, expected_counts, expected_transform = oracle(source_path, source_content)
-            expected_blob = subprocess.run(
-                ["git", "rev-parse", f"{expected_commit}:{source_path}"],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip()
-        except (ValueError, subprocess.CalledProcessError) as exc:
-            report("FAIL", f"0.2.1 profile independent oracle 失败：{exc}")
-            continue
-        if (
-            row.get("sequence") != sequence
-            or source.get("path") != source_path
-            or source.get("blob") != expected_blob
-            or source.get("bytes") != len(source_content)
-            or source.get("sha256") != hashlib.sha256(source_content).hexdigest()
-            or row.get("target") != target_path
-            or row.get("transform_id") != expected_transform
-            or row.get("replacement_counts") != expected_counts
-            or row.get("outcome") != "applied"
-            or row.get("content_policy") != ("byte_identical" if not expected_counts else "path_repairs_only")
-            or post_target.get("path") != target_path
-            or post_target.get("bytes") != len(expected_post)
-            or post_target.get("sha256") != hashlib.sha256(expected_post).hexdigest()
-        ):
-            report("FAIL", f"0.2.1 profile V2 迁移操作与独立 oracle 不一致：sequence={sequence}")
-            continue
-        if sequence <= len(v1_operations):
-            v1_source = v1_operations[sequence - 1].get("sources", [{}])[0]
-            if (
-                v1_source.get("path") != source_path
-                or v1_source.get("bytes") != len(source_content)
-                or v1_source.get("sha256") != hashlib.sha256(source_content).hexdigest()
-            ):
-                report("FAIL", f"0.2.1 profile V1/V2 source 绑定分叉：sequence={sequence}")
-        target = ROOT / target_path
-        if not target.is_file():
-            report("FAIL", f"0.2.1 profile 迁移目标不存在：{target_path}")
-            continue
-        if (ROOT / source_path).exists():
-            report("FAIL", f"0.2.1 profile 旧路径仍存在：{source_path}")
-        # These four targets are live student records.  Their migration-time
-        # hashes remain report-bound evidence, not permanent content locks.
-
-
-def check_activity_migration_021_evidence() -> None:
-    if FLAVOR == "lite":
-        return
-    manifest_path = MAIN / "60_journal/migration_021_activity_record_operations.json"
-    report_path = MAIN / "60_journal/migration_021_activity_record_report.json"
-    source_path = "main/10_student/activities/AR-0001_InvestingNotes.md"
-    target_path = "main/10_student/activities/reading/AR-0001_InvestingNotes.md"
-    if FLAVOR == "skeleton":
-        if manifest_path.exists() or report_path.exists():
-            report("FAIL", "Skeleton 不得复制 Main ActivityRecord 真实迁移证据")
-        if (ROOT / source_path).exists() or (ROOT / target_path).exists():
-            report("FAIL", "Skeleton 不得包含 AR-0001 真实实例")
-        return
-    if (
-        not manifest_path.exists()
-        and not report_path.exists()
-        and not (ROOT / source_path).exists()
-        and not (ROOT / target_path).exists()
-    ):
-        # A fresh instance initialized from Skeleton has no historical AR-0001
-        # migration.  Real Main remains bound by its registry entry and evidence.
-        return
-    if not manifest_path.is_file() or not report_path.is_file():
-        report("FAIL", "缺少 0.2.1 ActivityRecord 迁移证据")
-        return
-
-    def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
-        result: dict[str, object] = {}
-        for key, value in items:
-            if key in result:
-                raise ValueError(f"duplicate key: {key}")
-            result[key] = value
-        return result
-
-    def constant(value: str) -> object:
-        raise ValueError(f"non-finite number: {value}")
-
-    try:
-        manifest = json.loads(
-            manifest_path.read_text(encoding="utf-8"),
-            object_pairs_hook=pairs,
-            parse_constant=constant,
-        )
-        activity_report = json.loads(
-            report_path.read_text(encoding="utf-8"),
-            object_pairs_hook=pairs,
-            parse_constant=constant,
-        )
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-        report("FAIL", f"0.2.1 ActivityRecord 迁移严格 JSON 非法：{exc}")
-        return
-    manifest_keys = {
-        "schema_version", "migration_id", "target_kind", "baseline_commit",
-        "baseline_tree", "transform_version", "operation_count", "operations",
-    }
-    report_keys = {
-        "schema_version", "migration_id", "status", "target_kind", "baseline_commit",
-        "baseline_tree", "transform_version", "operation_manifest",
-        "current_verification", "content_policy",
-    }
-    if not isinstance(manifest, dict) or set(manifest) != manifest_keys:
-        report("FAIL", "0.2.1 ActivityRecord manifest 字段非法")
-        return
-    if not isinstance(activity_report, dict) or set(activity_report) != report_keys:
-        report("FAIL", "0.2.1 ActivityRecord report 字段非法")
-        return
-    expected_common = (
-        "T2AG-021-ACTIVITY-RECORDS-V1",
-        "main",
-        "4e72556f789fcb5943951657ee17247c0dd4eb12",
-        "7270b5fa7954fec12d2e5ff3f76ee388036dff1b",
-        "t2ag.activity-record-kind.v1",
-    )
-    if (
-        manifest.get("schema_version") != "T2AG-ACTIVITY-MIGRATION-OPERATIONS-1"
-        or activity_report.get("schema_version") != "T2AG-ACTIVITY-MIGRATION-REPORT-1"
-        or (
-            manifest.get("migration_id"), manifest.get("target_kind"),
-            manifest.get("baseline_commit"), manifest.get("baseline_tree"),
-            manifest.get("transform_version"),
-        ) != expected_common
-        or (
-            activity_report.get("migration_id"), activity_report.get("target_kind"),
-            activity_report.get("baseline_commit"), activity_report.get("baseline_tree"),
-            activity_report.get("transform_version"),
-        ) != expected_common
-        or activity_report.get("status") != "applied"
-    ):
-        report("FAIL", "0.2.1 ActivityRecord baseline/target/schema 绑定非法")
-    try:
-        tree = subprocess.run(
-            ["git", "show", "-s", "--format=%T", expected_common[2]],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        source = subprocess.run(
-            ["git", "show", f"{expected_common[2]}:{source_path}"],
-            cwd=ROOT,
-            capture_output=True,
-            check=True,
-        ).stdout
-        blob = subprocess.run(
-            ["git", "rev-parse", f"{expected_common[2]}:{source_path}"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except subprocess.CalledProcessError as exc:
-        report("FAIL", f"0.2.1 ActivityRecord baseline 无法现场解析：{exc}")
-        return
-    marker = b"type: activity_record\n"
-    old_path = source_path.encode("utf-8")
-    if source.count(marker) != 1 or source.count(old_path) != 1:
-        report("FAIL", "0.2.1 ActivityRecord baseline 不满足独立 transform oracle")
-        return
-    expected_post = source.replace(marker, marker + b"activity_kind: reading\n", 1).replace(
-        old_path,
-        target_path.encode("utf-8"),
-        1,
-    )
-    operations = manifest.get("operations")
-    if not isinstance(operations, list) or len(operations) != 1 or manifest.get("operation_count") != 1:
-        report("FAIL", "0.2.1 ActivityRecord 迁移操作数非法")
-        return
-    row = operations[0]
-    expected_row_keys = {
-        "sequence", "transform_id", "source", "target", "replacement_counts",
-        "outcome", "post_target",
-    }
-    if not isinstance(row, dict) or set(row) != expected_row_keys:
-        report("FAIL", "0.2.1 ActivityRecord 操作字段非法")
-        return
-    source_evidence = row.get("source")
-    target_evidence = row.get("post_target")
-    if not isinstance(source_evidence, dict) or set(source_evidence) != {"path", "blob", "bytes", "sha256"}:
-        report("FAIL", "0.2.1 ActivityRecord source 证据字段非法")
-        return
-    if not isinstance(target_evidence, dict) or set(target_evidence) != {"path", "bytes", "sha256"}:
-        report("FAIL", "0.2.1 ActivityRecord target 证据字段非法")
-        return
-    if (
-        tree != expected_common[3]
-        or blob != "79eeee83bc28be3e3f315e4458b8b9e23b0163eb"
-        or len(source) != 951
-        or hashlib.sha256(source).hexdigest() != "86cda835dac82d8ad235e01205e25aef5bcaea4e701b62f7db06f6e4842ec9b0"
-        or len(expected_post) != 982
-        or hashlib.sha256(expected_post).hexdigest() != "75c6b766df611312d84e8fa6f56d1f47237e5fcafaf08e01e045f273c4687ddb"
-        or row.get("sequence") != 1
-        or row.get("transform_id") != "activity-record-reading-kind-v1"
-        or source_evidence != {"path": source_path, "blob": blob, "bytes": len(source), "sha256": hashlib.sha256(source).hexdigest()}
-        or row.get("target") != target_path
-        or row.get("replacement_counts") != {"activity_kind_insert": 1, "self_path": 1}
-        or row.get("outcome") != "applied"
-        or target_evidence != {"path": target_path, "bytes": len(expected_post), "sha256": hashlib.sha256(expected_post).hexdigest()}
-    ):
-        report("FAIL", "0.2.1 ActivityRecord 证据与独立 oracle 不一致")
-    summary = activity_report.get("operation_manifest")
-    verification = activity_report.get("current_verification")
-    if (
-        not isinstance(summary, dict)
-        or set(summary) != {"path", "operation_count", "sha256"}
-        or summary.get("path") != "main/60_journal/migration_021_activity_record_operations.json"
-        or summary.get("operation_count") != 1
-        or summary.get("sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-        or verification != {"source_absent": True, "target_present": True}
-    ):
-        report("FAIL", "0.2.1 ActivityRecord report 未绑定 manifest/live 结构")
-    if (ROOT / source_path).exists() or not (ROOT / target_path).is_file():
-        report("FAIL", "0.2.1 ActivityRecord canonical/legacy 路径状态非法")
-
-
 def check_reading_bridge_contract(*, check_release_parity: bool = True) -> None:
     contract_relative = Path("main/70_tools/contracts/reading_bridge_v1")
     expected = {
@@ -6493,7 +6194,7 @@ def check_context_packet_contract(*, check_release_parity: bool = True) -> None:
         "不是新的真相源",
     )
     tool_content = read(tool)
-    absent = [marker for marker in tool_markers if marker not in tool_content]
+    absent = [marker for marker in tool_markers if not has_requirement(tool_content, marker)]
     if absent:
         report("FAIL", f"学习上下文包工具缺只读/成本合同：{absent}")
 
@@ -6509,7 +6210,7 @@ def check_context_packet_contract(*, check_release_parity: bool = True) -> None:
     )
     absent = [
         marker for marker in activity_markers
-        if marker not in activity_content
+        if not has_requirement(activity_content, marker)
     ]
     if absent:
         report("FAIL", f"活动路由器缺共享快照注入合同：{absent}")
@@ -6528,7 +6229,7 @@ def check_context_packet_contract(*, check_release_parity: bool = True) -> None:
         "test_initialized_requires_hint_gate_choice",
         "serialized_l0_plus_l1_markdown_chars",
     )
-    absent = [marker for marker in test_markers if marker not in test_content]
+    absent = [marker for marker in test_markers if not has_requirement(test_content, marker)]
     if absent:
         report("FAIL", f"学习上下文包负例测试缺失：{absent}")
 
@@ -6536,7 +6237,7 @@ def check_context_packet_contract(*, check_release_parity: bool = True) -> None:
         MAIN / "t2ag.md": (
             # EV-0020 Batch A：接管细则 sink 至 context_packet.md，宪法持指针锚
             "context_packet.md",
-            "完整序列化 Markdown",
+            "CTX-PACKET-001",
             "t2ag_hint_gate.py",
             "learning-ready",
             "recovery-settled",
@@ -6544,33 +6245,33 @@ def check_context_packet_contract(*, check_release_parity: bool = True) -> None:
         ),
         playbook: (
             "t2ag_context.py --course <ID> --format markdown",
-            "即时摘录 + 触发式展开",
-            "同一对话内未变化的 L0 不重复读取",
+            "CTX-PACKET-002",
+            "CTX-PACKET-003",
             "--include-l1",
-            "Main 消费纪律",
+            "CTX-PACKET-004",
         ),
         startup: (
-            "先建依赖树，再分配 Agent",
+            "CTX-PACKET-005",
             "learning-ready",
             "recovery-settled",
-            "不得只展示 ID/SHA 让学生盲签",
+            "CTX-PACKET-006",
             "Task Assist Budget",
         ),
         MAIN / "50_playbook/lesson_recover.md": (
             "t2ag_context.py --course <COURSE_ID> --format markdown",
-            "步骤 2：消费 progress.md 当前切片",
-            "L2 读取对应「教学记录」",
-            "不得返回缺教材的 `ready`",
+            "CTX-PACKET-007",
+            "CTX-PACKET-008",
+            "CTX-PACKET-009",
             "--intent <INTENT>",
         ),
         MAIN / "50_playbook/session_close.md": (
-            "只回读这些实际目标",
-            "原 L0 上下文包立即失效",
+            "CTX-PACKET-010",
+            "CTX-PACKET-011",
         ),
     }
     for path, markers in workflow_markers.items():
         content = read(path) if path.is_file() else ""
-        missing_markers = [marker for marker in markers if marker not in content]
+        missing_markers = [marker for marker in markers if not has_requirement(content, marker)]
         if missing_markers:
             report(
                 "FAIL",
@@ -6751,8 +6452,8 @@ def check_test_management_contract(*, check_release_parity: bool = True) -> None
                 f"unknown={sorted(handlers - SUPPORTED_DOCTOR_HANDLERS)}",
             )
         flow_content = read(ROOT / "main/50_playbook/validation_flow.md")
-        for marker in ("flowchart TD", "runtime（默认、启动安全）", "不得越级", "plan SHA"):
-            if marker not in flow_content:
+        for marker in ("flowchart TD", "TEST-MGMT-001", "TEST-MGMT-002", "plan SHA"):
+            if not has_requirement(flow_content, marker):
                 report("FAIL", f"标准检测流程树缺标记：{marker}")
 
     runner_content = read(ROOT / "main/70_tools/t2ag_test.py")
@@ -6770,7 +6471,7 @@ def check_test_management_contract(*, check_release_parity: bool = True) -> None
         "scenario must be outside ordinary test discovery",
         "three-test-command budget",
     )
-    absent = [marker for marker in runner_markers if marker not in runner_content]
+    absent = [marker for marker in runner_markers if not has_requirement(runner_content, marker)]
     if absent:
         report("FAIL", f"测试选择器缺内存计划/清单约束：{absent}")
     close_content = read(ROOT / "main/70_tools/test_022_close_roundtrip.py")
@@ -6782,7 +6483,7 @@ def check_test_management_contract(*, check_release_parity: bool = True) -> None
         "test_bound_close_intent_uses_shown_tuple_without_copying",
         "test_blockers_suggest_closed_incomplete",
     )
-    absent = [marker for marker in close_markers if marker not in close_content]
+    absent = [marker for marker in close_markers if not has_requirement(close_content, marker)]
     if absent:
         report("FAIL", f"close runtime 独有断言未并入 roundtrip：{absent}")
     migrator_content = read(ROOT / "main/70_tools/migrate_022_activity_close.py")
@@ -6834,21 +6535,21 @@ def check_candidate_replay_contract() -> None:
         "source_after_all_candidate_checks",
     )
     tool_content = read(tool)
-    missing = [marker for marker in markers if marker not in tool_content]
+    missing = [marker for marker in markers if not has_requirement(tool_content, marker)]
     if missing:
         report("FAIL", f"发布候选隔离工具缺强制合同：{missing}")
     workflow_content = read(workflow) if workflow.is_file() else ""
     workflow_markers = (
         "t2ag_candidate_replay.py --preflight",
         "--authorization-token CANDIDATE_REPLAY_AUTHORIZED",
-        "symlink、junction、mount/reparse point",
+        "CAND-REPLAY-001",
         "File ID",
-        "逐文件相对路径、大小、SHA-256",
-        "0.2.0 冻结验收边界",
-        "清单外新提出的理论攻击面",
+        "CAND-REPLAY-002",
+        "CAND-REPLAY-003",
+        "CAND-REPLAY-004",
     )
     missing_workflow = [
-        marker for marker in workflow_markers if marker not in workflow_content
+        marker for marker in workflow_markers if not has_requirement(workflow_content, marker)
     ]
     if missing_workflow:
         report("FAIL", f"发布候选流程未绑定机械隔离工具：{missing_workflow}")
@@ -6920,12 +6621,12 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
         report("FAIL", "缺课程学习活动 Core 契约：main/00_core/learning_activity_model.md")
     core_content = read(core_contract) if core_contract.is_file() else ""
     map_first_markers = (
-        "### 2.2 多块长篇讲解的地图优先协议",
-        "一次只深入一个分支",
-        "无法在不泄露的前提下制作有用总览时，宁可省略总览",
+        "TEACH-MAP-001",
+        "TEACH-MAP-002",
+        "TEACH-MAP-003",
     )
     missing_map_first = [
-        marker for marker in map_first_markers if marker not in core_content
+        marker for marker in map_first_markers if not has_requirement(core_content, marker)
     ]
     if missing_map_first:
         report(
@@ -6940,7 +6641,7 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
         "讲解语言不在本步询问",
     )
     missing_optional_profile = [
-        marker for marker in optional_profile_markers if marker not in first_run_content
+        marker for marker in optional_profile_markers if not has_requirement(first_run_content, marker)
     ]
     if missing_optional_profile:
         report(
@@ -6956,14 +6657,14 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
     recovery = MAIN / "50_playbook/lesson_recover.md"
     recovery_content = read(recovery) if recovery.is_file() else ""
     recovery_markers = (
-        "### 步骤 3：按 current_activity 恢复主载体",
-        "#### `lesson` 分支",
-        "#### `exercise` 分支",
-        "Exercise 首启不得读取或构造 Lesson 路径",
-        "教材原文窗口 **仅在 `lesson` + `course_driver: textbook`**",
+        "ACT-ROUTE-001",
+        "ACT-ROUTE-002",
+        "ACT-ROUTE-003",
+        "ACT-ROUTE-004",
+        "ACT-ROUTE-005",
         "t2ag_activity.py --course <COURSE_ID> --intent recover",
     )
-    marker_positions = [recovery_content.find(marker) for marker in recovery_markers]
+    marker_positions = [requirement_position(recovery_content, marker) for marker in recovery_markers]
     if (
         any(position < 0 for position in marker_positions)
         or not marker_positions[0] < marker_positions[1] < marker_positions[2]
@@ -6973,10 +6674,10 @@ def check_course_activity_templates(*, check_release_parity: bool = True) -> Non
     close_content = read(close) if close.is_file() else ""
     close_markers = (
         "t2ag_activity.py --course <COURSE_ID> --intent close",
-        "Micro close 和完整结课都必须原子完成",
-        "Exercise 结课不得顺手",
+        "ACT-ROUTE-006",
+        "ACT-ROUTE-007",
     )
-    if any(marker not in close_content for marker in close_markers):
+    if any(not has_requirement(close_content, marker) for marker in close_markers):
         report("FAIL", "结课流程未共享统一活动路由与原子写回")
     if not check_release_parity:
         return
@@ -8248,6 +7949,33 @@ def check_skeleton_privacy() -> None:
     """
     if FLAVOR != "skeleton":
         return
+    # RETIRE-微批（2026-08-27）：以下四条断言由 check_migration_evidence／
+    # check_migration_021_evidence／check_activity_migration_021_evidence 原样迁入，
+    # 语义与报文逐字保持，未借迁移改写严厉度或扫描面。
+    for rel in (
+        "main/60_journal/migration_020_operations.json",
+        "main/60_journal/migration_020_report.json",
+        "main/60_journal/migration_020_review.md",
+        "main/60_journal/retired_020_sources",
+    ):
+        if (ROOT / rel).exists():
+            report("FAIL", f"Skeleton 不得复制 Main 0.2.0 迁移证据：{rel}")
+    for rel in (
+        "main/60_journal/migration_021_profile_operations.json",
+        "main/60_journal/migration_021_profile_report.json",
+        "main/60_journal/migration_021_profile_operations_v2.json",
+        "main/60_journal/migration_021_profile_report_v2.json",
+    ):
+        if (ROOT / rel).exists():
+            report("FAIL", f"Skeleton 不得复制 Main 0.2.1 profile 迁移证据：{rel}")
+    activity_manifest_path = MAIN / "60_journal/migration_021_activity_record_operations.json"
+    activity_report_path = MAIN / "60_journal/migration_021_activity_record_report.json"
+    activity_source_path = "main/10_student/activities/AR-0001_InvestingNotes.md"
+    activity_target_path = "main/10_student/activities/reading/AR-0001_InvestingNotes.md"
+    if activity_manifest_path.exists() or activity_report_path.exists():
+        report("FAIL", "Skeleton 不得复制 Main ActivityRecord 真实迁移证据")
+    if (ROOT / activity_source_path).exists() or (ROOT / activity_target_path).exists():
+        report("FAIL", "Skeleton 不得包含 AR-0001 真实实例")
     skip_dirs = {".git", "__pycache__", ".venv", ".cache", ".recovery", ".staging"}
     hits: list[str] = []
     for path in sorted(ROOT.rglob("*")):
@@ -8348,48 +8076,81 @@ def check_authorization_governance(*, include_external_handoffs: bool = True) ->
             report("FAIL", f"授权治理入口缺失：{path}")
             continue
         content = read(path)
-        if "授权不可放大与闭环止损" not in content:
+        carries_auth_rule = (
+            has_marker(content, rule_marker("AUTH-NONAMP-001"))
+            if path == workspace_agents
+            else has_rule(content, "AUTH-NONAMP-001")
+        )
+        if not carries_auth_rule:
             report("FAIL", f"授权治理入口缺不可放大规则：{path}")
         if "stopped_budget" not in content or "token" not in content:
             report("FAIL", f"授权治理入口缺闭环预算止损：{path}")
 
     playbook_markers = {
         MAIN / "50_playbook/batch_workorder_spec.md": (
-            "授权不可放大",
-            "尚未生成的对象不可预授权",
+            "AUTH-NONAMP-002",
+            "AUTH-NONAMP-003",
         ),
         MAIN / "50_playbook/session_close.md": (
             "user + direct_user",
-            "receipt 只记录授权证据",
+            "AUTH-NONAMP-004",
         ),
         MAIN / "50_playbook/remediation_governance.md": (
             "stopped_budget",
-            "默认最多两轮 finding 整改",
+            "AUTH-NONAMP-005",
         ),
         MAIN / "50_playbook/handoff_management.md": (
-            "恢复后动作授权门",
-            "概括性认可只覆盖当轮已具体列出的动作",
-            "不构成当轮许可",
+            "AUTH-NONAMP-006",
+            "AUTH-NONAMP-007",
+            "AUTH-NONAMP-008",
         ),
     }
     for path, markers in playbook_markers.items():
         content = read(path) if path.is_file() else ""
-        if not all(marker in content for marker in markers):
+        if not all(has_requirement(content, marker) for marker in markers):
             report("FAIL", f"授权/止损 playbook 契约缺失：{path}")
 
     if FLAVOR != "main":
         return
     if include_external_handoffs:
         handoffs = ROOT.parent / "docs/handoffs"
-        v4 = handoffs / (
+
+        def _locate(name: str):
+            # 归档不得使本门失明：顶层与 archive/<版本>/ 同等有效（2026-08-28 A 面裁定）。
+            # 排序后顶层先于 archive/，同名时顶层优先。
+            if not handoffs.is_dir():
+                return None
+            for candidate in sorted(handoffs.rglob(name)):
+                if candidate.is_file():
+                    return candidate
+            return None
+
+        v4_name = (
             "T2AG_022_ACTIVITY_CLOSE_AUTONOMOUS_COMPLETION_WORKORDER_V4_2026-08-05.md"
         )
-        v2 = handoffs / (
-            "T2AG_022_ACTIVITY_CLOSE_EXECUTION_WORKORDER_V2_2026-08-04.md"
-        )
-        if v4.is_file() and "**status**: `superseded_for_authorization`" not in read(v4):
+        v2_name = "T2AG_022_ACTIVITY_CLOSE_EXECUTION_WORKORDER_V2_2026-08-04.md"
+        v4 = _locate(v4_name)
+        v2 = _locate(v2_name)
+        # 取证面不可达时本段整体空转，而静默通过与「守住了」在输出上不可区分。
+        # A 面（2026-08-28）只修了「归档使门失明」一路；「文书仓未挂载／具名件取不到」
+        # 是第二路失明，同日丙案裁定改为显式可见。⛔ 只登记不可达，不改判据字符串。
+        if not handoffs.is_dir():
+            report(
+                "WARN",
+                f"授权门取证面未挂载：{handoffs} 不存在，"
+                "两条 0.2.2 具名件断言本轮未执行",
+            )
+        else:
+            for name, located in ((v4_name, v4), (v2_name, v2)):
+                if located is None:
+                    report(
+                        "WARN",
+                        f"授权门取证件缺失：{handoffs} 树内取不到 {name}，"
+                        "该条断言本轮未执行",
+                    )
+        if v4 is not None and "**status**: `superseded_for_authorization`" not in read(v4):
             report("FAIL", "当前 V4 工单仍可被解释为 continuous RT3 授权")
-        if v2.is_file() and "authorization supersession notice" not in read(v2):
+        if v2 is not None and "authorization supersession notice" not in read(v2):
             report("FAIL", "V2 continuation notice 仍把 V4 指向当前授权入口")
 
     ledger_path = MAIN / "40_course/MATH1607H/activity_ledger.md"
@@ -8834,19 +8595,15 @@ MEMORY_BUDGET_MARKER = re.compile(r"^##\s+(?P<title>.+?)\s+\[max\s+(?P<cap>\d+)\
 def memory_section_budgets(text: str) -> list[tuple[str, int, int]]:
     """Return (title, budget, actual_lines) for every `## …  [max N]` section.
 
-    The numbers live in t2ag_memory.md, not here.  If a budget lived in this
-    module, adjusting it would cost a batch + three-release sync + tests; that
-    price is high enough that people stop writing entries instead of raising the
-    budget — which destroys exactly what the budget exists to protect.  This gate
-    owns the *mechanism*; the student owns the numbers.
+    The numbers live in t2ag_memory.md, not here; why that split is fixed is
+    canonical in 50_playbook/line_budget.md §一 and not restated here.
 
     A section spans its own heading line through the line before the next `## `
     heading (or EOF), so the count matches what `sed -n '/^## X/,/^## /p | wc -l`
     would report.
 
-    Precedent: v0.1.2 had inline `[max N]` in t2ag.md plus
-    check_constitution_budget(); both were lost in 4e72556 (0.2.0 snapshot
-    migration) and the surviving prose reference became an unenforceable slogan.
+    Precedent and release history: 50_playbook/line_budget.md §五; why the
+    per-carrier severities must not be levelled: §二 of the same file.
     """
     lines = text.splitlines()
     starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
@@ -8867,9 +8624,11 @@ def memory_section_budgets(text: str) -> list[tuple[str, int, int]]:
 def check_memory_budget() -> None:
     """Runtime: memory section line budgets, read from the file's own markers.
 
-    WARN, not FAIL: memory is a summary index, not the constitution.  An oversized
-    summary is a hygiene problem that must stay visible; it must not block a lesson
-    mid-session.  (v0.1.2 used FAIL for t2ag.md — correct there, wrong here.)
+    Mechanism canonical: 50_playbook/line_budget.md (core-playbook).  The carrier
+    table, the per-carrier severity (memory WARN / t2ag.md FAIL, MUST NOT be
+    levelled), the `[max N]` ownership split and the sink/tombstone rule live
+    there and are deliberately NOT restated here: two wordings drift apart and no
+    machine watches the seam.
     """
     path = MAIN / "00_core/t2ag_memory.md"
     if not path.is_file():
@@ -8883,7 +8642,7 @@ def check_memory_budget() -> None:
             report(
                 "WARN",
                 f"memory 节超预算：「{title}」实测 {actual} 行 > 预算 {cap} 行；"
-                f"按 t2ag_memory.md §节预算与下沉 下沉最旧条目并留墓碑",
+                f"按 50_playbook/line_budget.md 下沉最旧条目并留墓碑",
             )
 
 
@@ -8891,11 +8650,10 @@ def check_memory_budget() -> None:
 def check_constitution_budget() -> None:
     """Runtime: constitution section line budgets (v0.1.2 mechanism, restored by EV-0020).
 
-    FAIL, not WARN: t2ag.md is the startup entry every session reads, so an
-    oversized section taxes every future conversation at boot.  Same division of
-    labour as check_memory_budget: this gate owns the mechanism, the student owns
-    the `[max N]` numbers inline in t2ag.md.  Precedent: v0.1.2 had this exact
-    gate; it died in 4e72556 with no replacement (see EV-0020).
+    Mechanism canonical: 50_playbook/line_budget.md (core-playbook) -- same file
+    as check_memory_budget; this is the t2ag.md carrier of the one mechanism, kept
+    as a separate function only until the DEC-0a-2 merge reaches this release.
+    Severity, ownership split and the sink route live there, not here.
     """
     path = MAIN / "t2ag.md"
     if not path.is_file():
@@ -9276,9 +9034,6 @@ def execute_doctor_checks(
         "check_handoff_contract": check_handoff_contract,
         "check_cloud_contract": check_cloud_contract,
         "check_derived_tools": check_derived_tools,
-        "check_migration_evidence": check_migration_evidence,
-        "check_migration_021_evidence": check_migration_021_evidence,
-        "check_activity_migration_021_evidence": check_activity_migration_021_evidence,
         "check_core_playbooks": check_core_playbooks,
         "check_playbook_taxonomy": check_playbook_taxonomy,
         "check_playbook_usage": check_playbook_usage,

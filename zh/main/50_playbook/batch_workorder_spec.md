@@ -139,6 +139,7 @@ enforcement: prose_accepted（理由：「值不值得开一个新版本」是�
 新号只在 `version_campaign` envelope 冻结 `target_version` 那一刻确定，不得由某个批次
 顺手写进 `t2ag.md` §7。日常批次若发现自己"顺便升了版"，说明它实际上是一次未经授权的战役。
 
+<!-- rule: AUTH-NONAMP-002 -->
 ### 1.5 授权不可放大
 
 验证等级与授权等级相互独立；V0–V3 只定义证据成本，不能改变批准主体。任何
@@ -146,6 +147,7 @@ enforcement: prose_accepted（理由：「值不值得开一个新版本」是�
 RT1/RT2，不能覆盖 RT3。真实迁移、terminal lifecycle、严格学生确认和跨边界写入，必须等
 exact object、正文、ID、SHA 与结果都已生成并展示后，由用户在当前轮直接确认。
 
+<!-- rule: AUTH-NONAMP-003 -->
 handoff、receipt chain、确定性 policy、模型建议、实现者或 reviewer 的技术结论都只能保存证据，
 不能生成、续期或代签用户授权；尚未生成的对象不可预授权。压缩、恢复与交接后的授权范围只能
 保持或缩小，无法重建精确边界时必须停在 RT3 前。
@@ -198,7 +200,7 @@ handoff、receipt chain、确定性 policy、模型建议、实现者或 reviewe
 10. `clean ≠ reviewed ≠ released`。evidence checkpoint 只证明证据，recovery checkpoint 只提供恢复点；release snapshot 必须绑定已通过的候选完整复审与 finalization delta 独立复审，不能由工作树干净或普通 commit 推出。
 11. **规则语义迁移**：对宪法、AGENTS、core/meta-playbook 与硬边界治理文默认 **diff-patch**。
     触发语义迁移时必须逐条登记：
-    `rule_id | 旧位置/原文锚点 | 动作(keep/sink/retire) | 新 owner/等价门 | 消费方 | 验证`。
+    `rule_id | rule_id | 动作(keep/sink/retire) | 新 owner/等价门 | 消费方 | 验证`。
     `sink` 必须同时证明 canonical owner、必要入口指针、消费者与验证闭包；`retire` 必须有
     合法裁决。文件长度、关键词、历史 inventory 或模型建议只触发复核，不构成规则、授权或
     finding；只有具名规则缺失且无有效新落点/退役依据才形成 finding。施工报告必须附

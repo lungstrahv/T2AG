@@ -21,6 +21,7 @@ from typing import Iterable
 
 import activity_close
 import activity_ledger
+import operator_result
 from t2ag_activity import (
     ActivityContractError,
     ProgressSnapshot,
@@ -471,6 +472,26 @@ def section(
         return ""
     item = found[0]
     return content[item.start : item.end].strip()
+
+
+def progress_current_section(content: str) -> tuple[str, str]:
+    """Read the current-progress slice across numbered and generated templates.
+
+    Maintainer Courses historically use ``## 二、当前进度`` while the public
+    generator ships ``## 当前进度``.  They are one semantic section, not two
+    schemas.  Accept either shape, but fail closed if both or neither exist.
+    """
+    candidates = []
+    for title in ("二、当前进度", "当前进度"):
+        selected = section(content, title, level=2, required=False)
+        if selected:
+            candidates.append((title, selected))
+    if len(candidates) != 1:
+        raise ContextPacketError(
+            "expected one current progress heading from "
+            f"['二、当前进度', '当前进度'], found {len(candidates)}"
+        )
+    return candidates[0]
 
 
 def sections_by_prefix(
@@ -1561,7 +1582,7 @@ def textbook_lesson_window(
 ) -> tuple[Path, str] | None:
     if (
         route.activity_type != "lesson"
-        or route.course_driver != "textbook"
+        or not route.is_textbook_led
     ):
         return None
     course_id, lesson_id = _textbook_lesson_ids(route)
@@ -1625,7 +1646,7 @@ def first_step_empty_reason(route: object) -> str:
         return "当前处于活动间隙；没有前台 Activity 的首步追加证据。"
     if route.activity_type == "exercise":
         return "当前题面已在 L0；当前题没有既有 Attempt/Review 需要追加。"
-    if route.course_driver == "textbook":
+    if route.is_textbook_led:
         return "当前教材窗口已在 L0；当前停点没有另行声明的直接证据。"
     return "当前 Lesson 恢复胶囊已在 L0；当前停点未声明标准化的首步追加证据。"
 
@@ -1700,7 +1721,7 @@ def lesson_critical_payload(
     progress_snapshot: ProgressSnapshot,
     route: object,
 ) -> dict[str, object]:
-    current_slice = section(progress_snapshot.content, "二、当前进度", level=2)
+    current_title, current_slice = progress_current_section(progress_snapshot.content)
     exact_stop = markdown_bold_value(current_slice, "精确停顿点")
     next_plan = markdown_bold_value(current_slice, "下一步计划")
     checkpoint_state = progress_snapshot.meta.get("checkpoint_state", "").strip()
@@ -1712,7 +1733,7 @@ def lesson_critical_payload(
         "exact_stop": exact_stop or str(getattr(route, "activity_position", "")),
         "next_plan": next_plan,
         "prompt": exact_stop if checkpoint_state == "pending" else next_plan,
-        "source": f"{cache.relative(progress_snapshot.path)}#二、当前进度",
+        "source": f"{cache.relative(progress_snapshot.path)}#{current_title}",
         "authoritative_prompt_must_remain_exact": True,
         "creative_supplements_allowed": True,
         "creative_supplement_policy": (
@@ -1720,7 +1741,7 @@ def lesson_critical_payload(
             "也不得绕过 Exercise 提示闸门。"
         ),
     }
-    if route.course_driver == "textbook":
+    if route.is_textbook_led:
         current_page = progress_snapshot.meta.get("textbook_page", "").strip()
         if not current_page.isdigit():
             raise ContextPacketError("textbook Lesson 缺合法 textbook_page")
@@ -2247,6 +2268,7 @@ def build_packet(
         ),
     )
 
+    _, current_progress_slice = progress_current_section(progress)
     add_selection(
         selections,
         cache,
@@ -2255,7 +2277,7 @@ def build_packet(
         join_exact(
             (
                 raw_frontmatter(progress),
-                section(progress, "二、当前进度", level=2),
+                current_progress_slice,
             )
         ),
     )
@@ -2398,7 +2420,7 @@ def build_packet(
                 excerpt,
             )
             baseline_activity_paths.append(working_path)
-            if route.course_driver == "textbook":
+            if route.is_textbook_led:
                 course_id, lesson_id = _textbook_lesson_ids(route)
                 prep_dir = _preparation_dir(cache, course_id, lesson_id)
                 if _new_source_path_presence(prep_dir):
@@ -2620,7 +2642,11 @@ def build_packet(
         "context_mode": context_mode,
         "group_id": group_id,
         "route": {
-            "course_driver": route.course_driver,
+            "course_type": route.course_type,
+            "learning_mode": route.learning_mode,
+            "progression_kind": (
+                "mastery_mode" if route.learning_mode else "course_type"
+            ),
             "current_activity": route.activity_type,
             "current_activity_id": route.activity_id,
             "activity_position": route.activity_position,
@@ -2934,7 +2960,7 @@ def finalize_serialized_cost(packet: dict[str, object]) -> None:
     raise ContextPacketError("serialized Markdown cost did not converge")
 
 
-def main() -> int:
+def _main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", newline="\n")
     parser = argparse.ArgumentParser(
@@ -3025,6 +3051,16 @@ def main() -> int:
             end="",
         )
     return 0
+
+
+def main() -> int:
+    code = _main()
+    operator_result.emit_exit(
+        tool="context",
+        operation="build_context_packet",
+        exit_code=code,
+    )
+    return code
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@
 main/40_course/<COURSE_ID>/
   course.md
   progress.md
-  activity_map.md      # 教材课程首次建立 Lesson/Exercise 时创建
+  activity_map.md      # 任一 ongoing 课程首次建立 Lesson/Exercise 时创建
   lessons/
   exercises/
   mistake_bank.md
@@ -30,16 +30,40 @@ main/40_course/<COURSE_ID>/
 
 ```powershell
 python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称> `
-  --driver textbook --lifecycle ongoing --entry lesson|exercise --teacher Tddd `
+  --course-type mastery `
+  --learning-mode textbook --lifecycle ongoing --entry lesson|exercise --teacher Tddd `
   --source-language <en|zh-CN|...> `
+  --verification-status <human_verified|synthetic_verified> `
   --source-scope <范围> --position <停点> --date YYYY-MM-DD
 ```
+
+`--learning-mode` 只用于 Mastery 且必须显式给出。Project/Praxis 省略该参数；兼容
+`--driver` 只允许旧 Mastery 调用映射到同名 mode，不允许 Project/Praxis 继续写 driver。
 
 `--source-language` **必填、无默认**：它是本课程自身材料的语言（现存课程 en 与 zh-CN
 各半），T001 §9 术语纪律读它来决定哪些术语必须保留原词。取错是**静默失败**——教师照常
 执行纪律，只是对着错的语言执行。所以在建课时问一次，比事后发现整门课标错便宜。
 
-教材驱动 + `--entry exercise` 时必须同时给 `--source-document`、`--source-locator`
+这一条不是特例，是通则的一个例子：**会改变学习事实的语义参数一律必填，CLI 默认值不得
+冒充一次确认**。判据不是「有没有默认值就够安全」，恰恰相反——**危险的正是有默认值的
+那些**：无默认值的参数至多让命令失败，有默认值的参数会替学生静默答一次，事后没有任何
+痕迹说明那是机器答的。因此除 `--source-language` 外，另有三个参数必填：
+
+- `--course-type`：默认 `mastery` 会静默选定整条推进协议（CP 语义的核心对象）。
+- `--entry`：默认 `lesson` 会静默创建第一个学习活动。
+- `--verification-status`：默认 `human_verified` 直接断言「有人核验过」——那是关于世界的
+  主张，工具无权代学生做出，默认即伪证。三个里它最强。
+
+反过来，两类参数**不**必填：有互锁不变量机械护住的（`--lifecycle` 与 `--entry` 互锁，
+静默错值必被拦），以及**没有唯一正确答案、须由建组仪式议定**的（三个容器参数，
+`course_group_rules.md` §4.1：给它们设必填参只会逼出一个随手填的假值）。
+`--learning-mode` 也不在必填之列——它已有双向运行时强制（Mastery 缺则拒、非 Mastery 给则拒），
+再加 argparse 必填会废掉 Project/Praxis 建课。呈现规格见 `progress_governance.md` §8.1。
+
+必填不等于把这些 flag 摆到学生面前问：答案在停顿 B 的方案里已经确认过，命令只是把已确认
+内容如实写下来。
+
+Mastery textbook-led + `--entry exercise` 时必须同时给 `--source-document`、`--source-locator`
 与 `--problem-text`，工具才建持久校对题源、登记 artifact 并把 SHA 写进 `problems.md`；
 缺任一项即拒绝生成，不允许用空题源占位。`--lifecycle planned` 必须配 `--entry none`。
 
@@ -51,7 +75,7 @@ python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称>
 2. 创建 `course.md`：
    - `type: course`
    - `course_id`
-   - `school_course_code`、`name`、`course_type`、`default_driver`、`prerequisites`、
+   - `school_course_code`、`name`、`course_type`、Mastery-only `learning_mode`、`prerequisites`、
      `status: active`。这里的 status 只表示课程定义可用；学生 lifecycle 只写 progress。
    - 教材、教学原则、课程里程碑；不写里程碑当前状态。
    - 不写当前学生停点。
@@ -59,7 +83,7 @@ python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称>
    - `type: course_progress`
    - `course_id`
    - `lifecycle_status: planned | ongoing`（全生命周期词表另含 paused/completed/dropped，见 `progress_tracking.md`；新课只从 planned/ongoing 起步）
-   - `course_driver: textbook | goal | project | praxis`
+   - Mastery：`learning_mode: textbook | goal | project`；Project/Praxis 不写 mode/driver
    - `truth_scope: course_lifecycle,course_frontend,activity_position`
    - planned 课程只写 `updated`、
      `progress_nodes_status: lazy_on_activation` 与下一动作；不得预填
@@ -80,8 +104,9 @@ python -B main/70_tools/t2ag_init.py new-course --course-id <ID> --name <名称>
    - 首次从做题进入：建立 `exercises/exercise01/exercise.md`、`problems.md` 与空
      attempts/reviews 说明文件；教材驱动课程还须先在 Course `book/` 内建立持久
      校对题源并登记 artifact，`problems.md` 写入其路径、定位和 SHA。
-   - 教材课建立 `activity_map.md`，按 ContentGroup 登记已有 Lesson/Exercise；不存在的
-     活动写 `—`，不预造真实活动或证据。
+   - 所有推进协议的 ongoing 课程都建立 `activity_map.md`，按 ContentGroup 登记已有
+     Lesson/Exercise；不存在的活动写 `—`，不预造真实活动或证据。ContentGroup 是共同活动
+     关系，不是 textbook 专属结构；ledger genesis 引用了它，map 就必须同时拥有它。
 7. 在 `20_teacher/overlay.md` 唯一的“课程—教师映射”表中增加一行；“教师模板”
    单元必须精确写成 `` `main/20_teacher/Tddd.md` ``，不得另建速览或从风格文字推断。
 8. 若用户明确分配容量，再更新目标 group 的 plan/calendar；否则保持 unallocated。

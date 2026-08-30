@@ -7,6 +7,7 @@
 
 ## 一、目标与边界
 
+<!-- rule: CTX-PACKET-002 -->
 日常教学采用“即时摘录 + 触发式展开”：
 
 1. `t2ag_context.py` 每次从当前权威文件生成只读上下文包；
@@ -301,6 +302,7 @@ enforcement: prose_accepted（理由：须逐字比对渲染产物与三处来�
 - `main/50_playbook/course_group_rules.md`：§4.3 碑序列锚（§七 主锚与 schedule 组降级依据）。
 - `main/50_playbook/source_page_assets.md`：canon carrier 页锚（§七 `crosstext` 位用）。
 
+<!-- rule: CTX-PACKET-004 -->
 ## Main 消费纪律与课程选择（canonical，自宪法 §3.2 下沉 2026-08-08/EV-0020）
 
 标准两段命令（critical 先行，markdown 兜底核对）：
@@ -315,6 +317,7 @@ python -B main/70_tools/t2ag_context.py --course <ID> --format markdown
 - Main 收到 critical 后 context 调用次数为 0：不得运行 Markdown L0、搜索 ledger、解码
   pending、拼装结课确认或重读完整 L0。仅 critical 10 秒超时且分支已终止时，Main 可降级
   运行一次 `--format critical`。
+<!-- rule: CTX-PACKET-003 -->
 - 同一 snapshot 不重复派发；后台 snapshot 不同则由 Prefetcher 丢弃候选并重跑一次；
   同一对话内未变化的 L0 不重复读取。
 - critical 只恢复 route、停点、next action、必要来源 SHA 与首轮 action payload；包是逐字

@@ -6,6 +6,7 @@ import contract_test_support as contracts
 
 
 TESTS = (
+    contracts.test_goal_lesson_first_generation_contract,
     contracts.test_exercise_first_course_resume,
     contracts.test_exercise_current_lesson_driver_matrix,
     contracts.test_planned_activity_fields_rejected,

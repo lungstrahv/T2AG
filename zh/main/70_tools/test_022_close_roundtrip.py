@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import contextlib
+import io
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -141,7 +144,7 @@ class CloseRoundTripTests(unittest.TestCase):
         write(
             course / "progress.md",
             "---\ntype: course_progress\ncourse_id: DEMO\n"
-            "lifecycle_status: ongoing\ncourse_driver: textbook\n"
+            "lifecycle_status: ongoing\ncourse_driver: project\n"
             "truth_scope: course_lifecycle,course_frontend,activity_position\n"
             "current_activity: exercise\ncurrent_activity_id: exercise01\n"
             "resume_path: main/40_course/DEMO/exercises/exercise01/exercise.md\n"
@@ -151,7 +154,17 @@ class CloseRoundTripTests(unittest.TestCase):
             "current_completion_node: N1\ncurrent_checkpoint: C1\n"
             "checkpoint_state: confirmed\n---\n# progress\n",
         )
-        write(course / "exercises/exercise01/exercise.md", "# exercise\n")
+        write(
+            course / "course.md",
+            "---\ntype: course\ncourse_id: DEMO\ncourse_type: project\n"
+            "default_driver: project\n---\n# Demo\n",
+        )
+        write(
+            course / "exercises/exercise01/exercise.md",
+            "---\ntype: exercise\ncourse_id: DEMO\nexercise_id: exercise01\n---\n"
+            "# exercise\n",
+        )
+        write(course / "exercises/exercise01/problems.md", "# problems\n")
         os.environ["T2AG_022_CLOSE_TEST"] = "1"
 
     def tearDown(self) -> None:
@@ -763,16 +776,134 @@ class ClosePureContractTests(unittest.TestCase):
             evidence_refs=["lesson evidence"],
             content_sections=fully_assessed_content(),
         )
-        rendered = close.render_learner_retrospective(body)
+        expected_presentation_sha = close.learner_retrospective_sha256(body)
+        with patch.object(
+            close.journey,
+            "render_learner_summary",
+            wraps=close.journey.render_learner_summary,
+        ) as delegated:
+            rendered = close.render_learner_retrospective(body)
+        delegated.assert_called_once()
+        self.assertEqual(close.learner_retrospective_sha256(body), expected_presentation_sha)
         for marker in (
-            "# lesson01 教学复盘",
+            "# 教学复盘",
             "## 知识吸收",
             "## 学生课程内容反馈",
             "## 完成性判定",
-            close.learner_retrospective_sha256(body),
+            "## 结果含义",
+            "## 你可以选择",
+            "确认按完成状态结束本次活动",
         ):
             self.assertIn(marker, rendered)
         self.assertNotIn("规定范围内没有未完成内容", rendered)
+        for forbidden in (
+            "lesson01",
+            "pending_event_id",
+            "body_sha256",
+            "SHA-256",
+            "activity_close_body.v2",
+            "authorization receipt",
+            "`completed`",
+            "`closed_incomplete`",
+            "推荐结果：",
+            "not_applicable",
+        ):
+            self.assertNotIn(forbidden, rendered)
+        self.assertIsNone(re.search(r"(?i)(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])", rendered))
+
+        incomplete = close.build_close_body(
+            activity_type="lesson",
+            activity_id="lesson01",
+            prefs={key: "on" for key in close.PREF_KEYS},
+            knowledge=[{"topic": "sets", "state": "partial"}],
+            blockers=["open checkpoint"],
+            evidence_refs=["lesson evidence"],
+            content_sections=fully_assessed_content(),
+        )
+        incomplete_rendered = close.render_learner_retrospective(incomplete)
+        self.assertIn("以未完成状态结束", incomplete_rendered)
+        self.assertIn("继续补齐缺口", incomplete_rendered)
+
+    def test_plan_cli_requires_tuple_and_rejects_route_conflict_before_write(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="t2ag-close-cli-") as directory:
+            root = Path(directory) / "t2ag"
+            course = root / "main/40_course/DEMO"
+            event = ledger.render_migration_snapshot_event(
+                event_id="ALE-000001",
+                course_id="DEMO",
+                activity_type="exercise",
+                activity_id="exercise01",
+                observed_state="ongoing",
+                recorded_at="2026-08-25T00:00:00Z",
+                transaction_id="MIG",
+                observed_from_refs=["exercise"],
+                evidence_refs=["migration"],
+            )
+            write(
+                course / "activity_ledger.md",
+                ledger.build_ledger_with_events("DEMO", event),
+            )
+            write(
+                course / "progress.md",
+                "---\ntype: course_progress\ncourse_id: DEMO\nlifecycle_status: ongoing\n"
+                "course_driver: project\ntruth_scope: course_lifecycle,course_frontend,activity_position\n"
+                "current_activity: exercise\ncurrent_activity_id: exercise01\n"
+                "resume_path: main/40_course/DEMO/exercises/exercise01/exercise.md\n"
+                "activity_position: ready\n---\n# progress\n",
+            )
+            write(
+                course / "course.md",
+                "---\ntype: course\ncourse_id: DEMO\ncourse_type: project\n"
+                "default_driver: project\n---\n# Demo\n",
+            )
+            write(
+                course / "exercises/exercise01/exercise.md",
+                "---\ntype: exercise\ncourse_id: DEMO\nexercise_id: exercise01\n---\n# exercise\n",
+            )
+            write(course / "exercises/exercise01/problems.md", "# problems\n")
+
+            for index, argv in enumerate(
+                (
+                    ["--plan-pending"],
+                    ["--plan-decision", "--course-id", "DEMO"],
+                    ["--plan-reopen", "--course-id", "DEMO", "--activity-type", "exercise"],
+                )
+            ):
+                plan_path = Path(directory) / f"missing-tuple-{index}.json"
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = close.main(["--root", str(root), *argv, "--plan-out", str(plan_path)])
+                self.assertEqual(code, 1)
+                self.assertFalse(plan_path.exists())
+
+            conflict_path = Path(directory) / "route-conflict.json"
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = close.main(
+                    [
+                        "--root", str(root),
+                        "--course-id", "DEMO",
+                        "--activity-type", "lesson",
+                        "--activity-id", "lesson01",
+                        "--plan-pending",
+                        "--plan-out", str(conflict_path),
+                    ]
+                )
+            self.assertEqual(code, 1)
+            self.assertFalse(conflict_path.exists())
+
+            valid_path = Path(directory) / "explicit-route.json"
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = close.main(
+                    [
+                        "--root", str(root),
+                        "--course-id", "DEMO",
+                        "--activity-type", "exercise",
+                        "--activity-id", "exercise01",
+                        "--plan-pending",
+                        "--plan-out", str(valid_path),
+                    ]
+                )
+            self.assertEqual(code, 0)
+            self.assertTrue(valid_path.is_file())
 
     def test_vague_confirmation_rejected(self) -> None:
         with self.assertRaises(close.CloseError):

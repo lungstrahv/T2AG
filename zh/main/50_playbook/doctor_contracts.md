@@ -62,8 +62,7 @@ plan-only 聚合门，均属于基础结构 FAIL。
 | 学习活动发行能力 | runtime 本地 + release 跨发行 | 本地 Core/Template 缺失，或 release 时 Main/Skeleton/Lite 内容分叉 |
 | 恢复路径 | 统一活动路由器 + doctor | ongoing Course 缺显式 `current_activity`、`current_activity_id`、canonical `resume_path`、`activity_position`，或目标悬空；Exercise 首启不得依赖预造 Lesson |
 | 学习上下文包 | runtime 本地 + release 跨发行 | 本地工具/合同缺失或行为错误；三发行分叉只在 release profile 阻断 |
-| Evolution Register ↔ ADR 关联 | runtime `decision_records` | EV/ADR ID 重复、悬空双向引用、accepted 指向非 decided EV、portable_key 冲突、supersedes 环、redirect 失效；**不做**“是否值得成为 ADR”的价值裁决。skeleton 侧 register 为实例清零（EV-0023），EV 链接检查豁免、ADR 文件完整性不变 |
-| 正文 ADR/EV 引用存在性 | runtime `decision_record_citations` | 现行规范性正文（宪法、AGENTS、README、`50_playbook/`、`docs/adr/`（含 ADR 正文）、`docs/protocol/`）引用的 ADR-NNNN 必须存在；Main 侧 EV-NNNN 必须存在于 register，skeleton 侧 EV 引用为维护者出处注释豁免（EV-0023）。扫描面不含 changelog/problemlog/journal 等只追加历史档（P-0067）；ADR 正文与 protocol 于 2026-08-09 复审后纳入 |
+| Evolution Register ↔ ADR 关联 ＋ 正文引用存在性 | runtime `decision_records` | **两段依序执行：linkage 先于 citations，不得交错。** 2026-08-26 组四合并，原 `runtime.decision_record_citations` 随登记层依赖边一并删除，次序改由 handler 显式保证。**段一 linkage**：EV/ADR ID 重复、悬空双向引用、accepted 指向非 decided EV、portable_key 冲突、supersedes 环、redirect 失效；**不做**“是否值得成为 ADR”的价值裁决。skeleton 侧 register 为实例清零（EV-0023），EV 链接检查豁免、ADR 文件完整性不变。**段二 citations**：现行规范性正文（宪法、AGENTS、README、`50_playbook/`、`docs/adr/`（含 ADR 正文）、`docs/protocol/`）引用的 ADR-NNNN 必须存在；Main 侧 EV-NNNN 必须存在于 register，skeleton 侧 EV 引用为维护者出处注释豁免（EV-0023）。扫描面不含 changelog/problemlog/journal 等只追加历史档（P-0067）；ADR 正文与 protocol 于 2026-08-09 复审后纳入。**Lite 只跳段二**，段一照跑 |
 | 状态快照组件边界 | `test_progress_identity_is_shared` + `test_state_refresh_activity_roundtrip` | state 或 Doctor 推断缺失活动、把历史 Lesson 标成活跃、为 sentinel 构造路径、组视图假定当前活动必为 Lesson，或一次运行对同一 ongoing progress 二次读取而混合状态版本 |
 | 活动事务落盘往返 | `test_activity_cli_disk_roundtrip` | 从当前发行自身建立无 hardlink 的临时完整工作树，并断言 Doctor 实际检测到本发行 flavor；真实执行 `--write → 重读 → --check → 完整 Doctor → recover route → close route`，按路由结果落盘 progress 与当前主载体后再次执行 state/Doctor；写入零命中、任一步失败或 Exercise 修改历史 Lesson |
 | Lesson 上下文退役 | `test_exercise_current_lesson_driver_matrix` | 四种 driver 下 active progress 不依赖或回填 `current_lesson`；遗留非法/悬空值不得驱动路由，历史 Lesson 只从 ledger/ContentGroup 解析 |
@@ -190,9 +189,9 @@ recovery checkpoint 只证明存在恢复点，不进入 release 资格判断。
    NEGATIVE 用例）。从不触发的检验与不能触发的检验无法区分。存量检验按 problemlog
    回放命中顺序逐步补齐；覆盖率 = 有红测的检验数 / 总检验数。
 3. **回灌契约与两振出局**：problemlog 条目须声明强制落点（`closure` 字段，机检
-   `runtime.problemlog_closure`）；`occurrence_count >= 2` 的问题不得再以散文修复收尾，
-   必须落 `check=`（doctor 检查）或 `tool=`（代码强制）。字段语义 canonical：
-   `00_core/t2ag_problemlog.md` 头部回灌契约。
+   `runtime.problemlog_closure`）；补救在位期间复发到阈值的问题不得再以散文修复收尾，
+   必须落 `check=`（doctor 检查）或 `tool=`（代码强制）。**阈值、计数基准与字段语义
+   canonical：`00_core/t2ag_problemlog.md` 头部「出局规则」，此处不复制。**
 4. **marker 闸门必须跟规则，不得跟表面**（2026-08-20 LV-5；本条 2026-08-23 随 C11
    回移入中文面）。检验用 grep 短语证明「文档 D 陈述规则 R」时，短语是散文的一部分——
    散文会被换行、句首大写、加粗、改空距、翻译。表面动了而规则没动，闸门就会否决一份
@@ -324,3 +323,145 @@ sidecar 落在**课程侧** `40_course/<ID>/external_refs.json`，由**已有的
 
 既有 `check_core_playbooks`（`release.core_playbooks`）本批只换同一解析器，
 注册位不动；其与 parity 检查的分工归并另池。
+
+## 十一、Doctor verdict 与三态折旧（2026-08-26，DEC-0a-2）
+
+本节与 §四「未激活与退役」、§五「Waiver 边界」并列：§四 管**对象**的生命周期，
+§五 管**环境**造成的豁免，本节管**单条 finding 的处置裁定**及其失效条件。
+
+### 十一·一 verdict 两层结构
+
+| 层 | 字段 | 值域 | 地位 |
+|---|---|---|---|
+| 一等 | `act` | `yes` ｜ `no` | 二值。`yes` ＝ 该 finding 须处置；`no` ＝ 本次不处置 |
+| 二等 | `reason` | 见十一·二 五词表 | `act=no` 时**必填**；`act=yes` 时不填 |
+
+两层结构的用意：**「处置与否」和「为什么不处置」是两个问题**，混成一个多值字段会让
+「暂缓」与「不适用」在统计上无法分开，而这两者的下一步动作完全不同。
+
+### 十一·二 `reason` 五词表（闭词表，各带下一步动作）
+
+| `reason` | 含义 | 下一步动作 |
+|---|---|---|
+| `checker_defect` | 检查器判错，findings 本身不成立 | 改检查器；**不改被检对象** |
+| `not_applicable` | 判据对该对象天然不适用 | 记入对象侧说明；检查器加显式豁免面 |
+| `env_waiver` | 外部环境造成、不影响仓内正确性 | **复用 §五 Waiver 边界**的正式 waiver 记录（见下「不得发明的接口」第 1 条） |
+| `known_debt` | 判定成立、暂不偿还 | 记欠账并给 `wake_condition`（可选）；进欠账台账 |
+| `paused` | 处置被上游未决事项挡住 | `wake_condition` **必填**；上游一裁即自动失效 |
+
+### 十一·三 失效规则（按**事件**，不按时间）
+
+一条 verdict 在下列任一事件发生时**立即失效**，须重裁，不设过期日：
+
+```text
+object_fingerprint 变     被裁对象的内容变了 ⇒ 原裁决的事实前提没了
+checker_version   变     判据变了 ⇒ 原裁决针对的不是同一个判定
+wake_condition    触发    paused / known_debt 的唤醒条件到达
+env_waiver        到期    §五 waiver 自身的失效时间到达
+```
+
+按时间过期会产生「到期就重裁一遍」的空转；按事件失效则**只在前提真的变了时**才要求重裁。
+
+### 十一·四 三态折旧阈值（**只成文，不接线**）
+
+| 态 | 判据（15 次窗口内） | 处置 |
+|---|---|---|
+| 稳定 | 命中 ≥ 8 次 | 保留 |
+| 普通 | 命中 3–7 次 | 保留，观察 |
+| 归档候选 | 命中 < 3 次 | **合并或归档，不是删除** |
+
+**漏选惩罚**：因 selector 漏选而未被执行的检查，其未命中**不计入**窗口分母——
+否则「把 check 的 `path_prefixes` 写窄」会成为让它自动进归档候选的捷径，
+即反向选择。
+
+> ⚠ **本阈值当前无数据源**：F′ 合格窗 `eligible_entries` 实测为 **0**，producer 未接线，
+> **判定器不在本批**。读到本节不等于它在跑。
+
+### 十一·五 两条不得发明的接口
+
+1. **`env_waiver` 即 §五 已有的 waiver，复用而非新建。** 本节不在 §五 之外造第二套豁免
+   措辞；`env_waiver` 的证据、风险、责任人、批准人、失效时间一律按 §五 的要求填。
+2. **折旧阈值只成文不接线**（见十一·四 末的警告）。本批不新增顶层 check ID、
+   不为裁决台账配 checker——那会二次改动 `doctor_checks` atom set sha，
+   与本批已在进行的该值更新叠加后无法定值。
+
+### 十一·六 载体
+
+裁决记录落 `main/00_core/t2ag_verdict_ledger.md`（与 `t2ag_problemlog.md` 同级）。
+本节只定义语义；台账的格式判定归后续批。
+
+## 十二、`rule_binding` —— check 指回规则条文的反向边
+
+### 十二·一 字段语义
+
+`enforcement:` 记正向边：一条规则说「我由哪个 check 执行」。本节的
+`rule_binding` 记反向边：`validation_workflow.json` 的一个 `doctor_checks`
+条目说「我在执行的规则，条文写在哪」。
+
+字段挂在 check 条目上，取值是**裸** `相对 main 的路径#锚`：
+
+```text
+"runtime.problemlog_closure": {
+  "handler": "check_problemlog_closure",
+  "rule_binding": "00_core/t2ag_problemlog.md#出局规则"
+}
+```
+
+取值不带 `context=` 前缀——前缀是落点语法的一部分，而这个字段的取值**永远**
+是文档位置，没有第二种取值需要靠前缀区分。锚怎么解析、路径相对谁、`#`
+在哪切——一律见 `rule_admission_gate.md` §二，本节不复述：锚语义有两处措辞
+就有两处会各自漂移，而它们漂开时没有任何机器手段能发现。实现侧同理，锚解析
+只有 `landing_defect` 一处。
+
+### 十二·二 三判据
+
+| # | 判据 | 问的问题 |
+|---|---|---|
+| 一 | 取值成立 | 声明了 `rule_binding` 的条目，它指的位置真的在吗 |
+| 二 | 覆盖 | 哪些条目**该声明而未声明** |
+| 三 | 反向边缺口 | 被规则文件 `enforcement:` 点名的 check，自己认不认这条规则 |
+
+判据二、三各自**聚合成一条** WARN，正文带总数与有限样例。62 个条目逐条报会
+把读数面淹掉，而覆盖是一个总量，不是 62 个互不相干的事件。
+
+判据三与判据二按 `check_id` 去重，**002 优先**。
+
+> ⚠ **判据三在聚合读数面恒不可达**，这是恒等式而不是当刻数据：
+> 字面 orphan ＝ {被点名} ∩ {无 binding} ⊆ {无 binding} ＝ 002 的缺失集，
+> 故 002 优先去重后 003 的独有集**对任意仓库状态**都是 ∅。
+> 因此判据三实现为独立纯函数（`rule_binding_orphans`），去重只施加在聚合层：
+> 判据本身可单独取真、负例可真红；若把去重压进判据，它将永远没有可证伪的测试。
+> 该字段一旦覆盖面上来（002 不再触发），003 才会重新获得读数面。
+
+### 十二·三 严厉度
+
+| 码 | 判据 | 严厉度 | 为什么是这一档 |
+|---|---|---|---|
+| `RULE-BIND-001` | 一 | **FAIL** | 指向不存在的位置的绑定，比不绑定更坏：它买到了信心却没买到条文（P-0067 族） |
+| `RULE-BIND-002` | 二 | WARN | 覆盖是欠账，不是错误；未声明的 check 照常执行，只是问不出它在执行哪条规则 |
+| `RULE-BIND-003` | 三 | WARN | 单向边说明两侧登记不齐，不说明任一侧是错的 |
+
+001 对**锚失效**也判 FAIL，与 `RULE-ENF-003`（`context=` 锚失效判 WARN）刻意
+分档：那里锚是规则**引用**外部条文，措辞改了而规则还在；这里锚是 check 对自身
+依据的**指认**，指认落空则这条 check 在执行什么已无从回答。
+
+### 十二·四 不加内容 hash 的代价（明示不抓）
+
+本字段只记位置，**不记被指位置的内容 hash**。因此第三种失效形态抓不到：
+
+```text
+形态一  锚没了、文件没了          判据一 抓得到
+形态二  压根没声明                判据二 抓得到
+形态三  锚还在、条文被改写         抓不到 —— 绑定照样"成立"，指的却已是另一条规则
+```
+
+形态三要接内容 hash 才抓得到，代价是任何一次措辞修订都要同步改 hash，否则
+读数面被必然发生的噪声填满，几轮之后无人再看。本批**选择放弃形态三**，明示
+记账：读到本节的人不得把「`rule_binding` 成立」理解为「该 check 确在执行那条
+规则」，它只保证「那个位置还在」。
+
+### 十二·五 定价
+
+判据二问的是「该声明而未声明」——这是**闭合有限登记表**才付得起的问法：
+`doctor_checks` 的键集是有限的、机器可枚举的，缺什么一目了然。开放散文里的
+「本该写而没写」仍不可机器判定，归 `rule_admission_gate.md` §六，本节不越界。

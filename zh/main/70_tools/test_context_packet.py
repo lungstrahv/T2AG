@@ -15,6 +15,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import t2ag_context as context
+import marker_assertions
+import t2ag_doctor as doctor
 from t2ag_activity import resolve_activity
 
 
@@ -42,6 +44,20 @@ class HeadingSelectionTests(unittest.TestCase):
     def test_missing_required_section_fails(self) -> None:
         with self.assertRaises(context.ContextPacketError):
             context.section("# Root\n", "Missing", level=2)
+
+    def test_current_progress_accepts_numbered_and_generated_headings(self) -> None:
+        for title in ("二、当前进度", doctor.marker_spellings("当前进度")[0]):
+            selected_title, selected = context.progress_current_section(
+                f"# Progress\n\n## {title}\n\n- **下一步计划**：开始\n"
+            )
+            self.assertEqual(selected_title, title)
+            marker_assertions.assert_states_marker(self, selected, "下一步计划")
+
+    def test_current_progress_rejects_two_competing_headings(self) -> None:
+        with self.assertRaises(context.ContextPacketError):
+            context.progress_current_section(
+                "## 二、当前进度\n\nA\n\n## 当前进度\n\nB\n"
+            )
 
     def test_initialized_requires_hint_gate_choice(self) -> None:
         memory = "## 上次课摘要\n\n- **日期**：2026-08-01\n"
@@ -78,6 +94,11 @@ class SourceSnapshotTests(unittest.TestCase):
             progress_path = course_root / "progress.md"
             carrier_path = course_root / "exercises/U0001/exercise.md"
             problems_path = course_root / "exercises/U0001/problems.md"
+            write_utf8(
+                course_root / "course.md",
+                "---\ntype: course\ncourse_id: TEST100\ncourse_type: mastery\n"
+                "learning_mode: goal\n---\n",
+            )
             progress = (
                 "---\n"
                 "type: course_progress\n"
@@ -178,7 +199,9 @@ class TextbookWindowTests(unittest.TestCase):
     def route() -> SimpleNamespace:
         return SimpleNamespace(
             activity_type="lesson",
-            course_driver="textbook",
+            course_type="mastery",
+            learning_mode="textbook",
+            is_textbook_led=True,
             activity_id="lesson01",
             resume_path=(
                 "main/40_course/TEST100/lessons/lesson01/lesson01.md"
@@ -374,6 +397,11 @@ class ConditionalRoutingTests(unittest.TestCase):
     def test_between_activities_route_has_no_fake_carrier(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            write_utf8(
+                root / "main/40_course/TEST100/course.md",
+                "---\ntype: course\ncourse_id: TEST100\ncourse_type: mastery\n"
+                "learning_mode: goal\n---\n",
+            )
             write_utf8(
                 root / "main/40_course/TEST100/progress.md",
                 "---\ntype: course_progress\ncourse_id: TEST100\n"
@@ -887,10 +915,14 @@ class LiveReleaseTests(unittest.TestCase):
             digest = hashlib.sha256(source.read_bytes()).hexdigest()
             self.assertEqual(item["sha256"], digest)
 
-        self.assertIn("不是新的真相源", l0_markdown)
+        marker_assertions.assert_states_marker(self, l0_markdown, "不是新的真相源")
         self.assertIn("不等于端到端 Token 降幅", l0_markdown)
-        self.assertIn("## L1 · 当前一步直接证据", combined_markdown)
-        self.assertIn("## L2 · 触发式完整读取", l0_markdown)
+        marker_assertions.assert_states_marker(
+            self, combined_markdown, "## L1 · 当前一步直接证据"
+        )
+        marker_assertions.assert_states_marker(
+            self, l0_markdown, "## L2 · 触发式完整读取"
+        )
         self.assertGreaterEqual(len(packet["conditional_reads"]), 6)
 
     def test_explicit_current_course_matches_auto_route(self) -> None:
@@ -955,7 +987,9 @@ class LiveReleaseTests(unittest.TestCase):
             item for item in other["selections"]
             if item["label"] == "全局指针切换校验"
         )
-        self.assertNotIn("上次课摘要", memory_selection["content"])
+        marker_assertions.assert_does_not_state_marker(
+            self, memory_selection["content"], "上次课摘要"
+        )
         self.assertIn(
             "当前 Lesson 恢复胶囊已在 L0",
             context.render_markdown(other, include_l1=True),
@@ -1211,7 +1245,7 @@ def b_layer_exclusions(body: str) -> str:
     pass if a clause were *moved out* of the exclusion list into the admissible
     one.  Matching inside this block means relocation fails the test too.
     """
-    start = body.find("**B 层不算数")
+    start = doctor.rule_position(body, "SCAN-ADMISSION-001")
     if start == -1:
         raise AssertionError("source_page_assets.md 缺少「B 层不算数」小节")
     end = body.find("####", start)
@@ -1279,19 +1313,24 @@ class ScanEvidenceSpecTests(unittest.TestCase):
 
     def test_admission_criterion_is_stated(self) -> None:
         body = self.PLAYBOOK.read_text(encoding="utf-8")
-        self.assertIn("宿主能观察到内容本体进入本轮模型上下文这一事件本身", body)
+        marker_assertions.assert_states_rule(
+            self, body, "SCAN-ADMISSION-002", name="source_page_assets.md"
+        )
 
     def test_adr0003_self_certification_is_stated(self) -> None:
         """EV-0019: completion = in-session observable delivery, not host signing."""
         body = self.PLAYBOOK.read_text(encoding="utf-8")
-        self.assertIn(
-            normalise_spec_text("A1–A5 经**宿主可观察投递**在本会话内证成"),
-            normalise_spec_text(body),
+        marker_assertions.assert_states_rule(
+            self, body, "SCAN-ADMISSION-003", name="source_page_assets.md"
         )
         # Pending must survive until certification -- the boot invariant.
-        self.assertIn("等 pending 状态**不得清除**", body)
+        marker_assertions.assert_states_rule(
+            self, body, "SCAN-ADMISSION-005", name="source_page_assets.md"
+        )
         # The user-preserved anti-impersonation clause must survive verbatim.
-        self.assertIn("（§3.1.3 A 层「不得冒充」条款原样有效）", body)
+        marker_assertions.assert_states_rule(
+            self, body, "SCAN-ADMISSION-006", name="source_page_assets.md"
+        )
 
     def test_host_signing_monopoly_is_retired(self) -> None:
         """The old 'only the host signs' clause must not resurface (ADR-0003)."""
@@ -1301,26 +1340,22 @@ class ScanEvidenceSpecTests(unittest.TestCase):
 
     def test_subprocess_digest_is_excluded(self) -> None:
         block = b_layer_exclusions(self.PLAYBOOK.read_text(encoding="utf-8"))
-        self.assertIn("**子进程摘要**", block)
+        marker_assertions.assert_states_rule(
+            self, block, "SCAN-ADMISSION-008", name="the Layer-B exclusion block"
+        )
         # The negation is the rule; without it the term alone proves nothing.
-        self.assertIn(
-            normalise_spec_text("证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体"),
-            block,
+        marker_assertions.assert_states_rule(
+            self, block, "SCAN-ADMISSION-009", name="the Layer-B exclusion block"
         )
 
     def test_frontmatter_trap_is_named(self) -> None:
-        body = normalise_spec_text(self.PLAYBOOK.read_text(encoding="utf-8"))
-        self.assertIn(
-            normalise_spec_text("因此「只读 frontmatter」能满足全部前置而**正文一字未投递**"),
-            body,
+        body = self.PLAYBOOK.read_text(encoding="utf-8")
+        marker_assertions.assert_states_rule(
+            self, body, "SCAN-ADMISSION-004", name="source_page_assets.md"
         )
         # Naming the trap is not enough; the countermeasure must survive too.
-        self.assertIn(
-            normalise_spec_text(
-                "故 A1 要求**完整正文段**投递，宿主观察事件须能区分"
-                "「正文投递」与「仅 frontmatter 投递」"
-            ),
-            body,
+        marker_assertions.assert_states_rule(
+            self, body, "SCAN-ADMISSION-007", name="source_page_assets.md"
         )
 
     def test_assurance_downgrade_is_not_flattened(self) -> None:
@@ -1335,25 +1370,26 @@ class ScanEvidenceSpecTests(unittest.TestCase):
         """
         body = self.PLAYBOOK.read_text(encoding="utf-8")
 
-        inverted = body.replace(
-            "证明脚本读过文件，\n  **不**证明本轮模型上下文收到了内容本体",
-            "证明脚本读过文件，\n  **即**证明本轮模型上下文收到了内容本体",
-        )
+        inverted = body
+        for spelling in doctor.marker_spellings(doctor.rule_marker("SCAN-ADMISSION-009")):
+            inverted = inverted.replace(spelling, "子进程摘要现在被错误地判为可采纳")
         self.assertNotEqual(inverted, body, "变异未生效：子进程摘要子句锚点已漂移")
-        self.assertNotIn(
-            normalise_spec_text("证明脚本读过文件，**不**证明本轮模型上下文收到了内容本体"),
-            b_layer_exclusions(inverted),
+        marker_assertions.assert_does_not_state_rule(
+            self, b_layer_exclusions(inverted), "SCAN-ADMISSION-009",
+            name="the mutated Layer-B block",
         )
 
         relocated = body.replace("**B 层不算数", "**B 层算数")
-        with self.assertRaises(AssertionError):
-            b_layer_exclusions(relocated)
+        self.assertEqual(
+            doctor.rule_status(relocated, "SCAN-ADMISSION-001"),
+            "anchor_without_body",
+        )
 
         dropped = body.replace("正文一字未投递", "正文已投递")
         self.assertNotEqual(dropped, body, "变异未生效：frontmatter 陷阱锚点已漂移")
-        self.assertNotIn(
-            normalise_spec_text("能满足全部前置而**正文一字未投递**"),
-            normalise_spec_text(dropped),
+        self.assertEqual(
+            doctor.rule_status(dropped, "SCAN-ADMISSION-004"),
+            "anchor_without_body",
         )
 
 

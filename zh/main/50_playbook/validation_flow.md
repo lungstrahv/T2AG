@@ -22,6 +22,7 @@ flowchart TD
     R4 --> R5["需要本地状态闭合时运行一次 runtime Doctor"]
     R5 --> END["记录结果与可复用 SHA"]
 
+<!-- rule: TEST-MGMT-002 -->
     P --> P1["先生成 release Doctor / release_only 测试计划"]
     P1 --> P2{"是否有明确 release reason？"}
     P2 -->|"否"| STOP["只保留计划，不执行；不得越级"]
@@ -34,6 +35,7 @@ flowchart TD
 
 Doctor 自身的原子结构如下；`release` 继承全部 `runtime`，不是第三套重复实现：
 
+<!-- rule: TEST-MGMT-001 -->
 ```text
 Doctor
 ├─ runtime（默认、启动安全）

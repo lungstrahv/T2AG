@@ -5,7 +5,7 @@ school_course_code: COURSE_ID
 name: "COURSE_NAME"
 course_type: mastery
 source_language: SOURCE_LANGUAGE
-default_driver: textbook
+learning_mode: textbook
 prerequisites: []
 status: active
 ---

@@ -38,6 +38,7 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 import activity_ledger as ledger_contract  # noqa: E402
+import operator_result  # noqa: E402
 
 DEFAULT_ROOT = TOOLS.parent.parent
 COURSE_TEMPLATES = "main/40_course/_templates/course"
@@ -47,6 +48,9 @@ DEFAULT_PERSONAL_ART = "03_inori_2.txt"
 COURSE_ID_RE = re.compile(r"^[A-Z][A-Z0-9]{2,}[0-9]{3,}[A-Za-z]?$")
 GROUP_ID_RE = re.compile(r"^G\d{2}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+COURSE_TYPES = ("mastery", "project", "praxis")
+MASTERY_LEARNING_MODES = ("textbook", "goal", "project")
+LEGACY_COURSE_DRIVERS = MASTERY_LEARNING_MODES + ("praxis",)
 PLACEHOLDER_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 FENCE_RE = re.compile(r"(?ms)^```.*?^```\s*?$")
 
@@ -70,10 +74,11 @@ PROFILE_QUESTION_FIELDS = (
 PROFILE_REQUIRED_ANSWERS: tuple[str, ...] = ()
 ONOFF = ("on", "off")
 ANSWER_ENUMS = {
-    "learning_level": ("secondary_school", "university", "bachelor"),
+    "learning_level": ("not_provided", "secondary_school", "university", "bachelor"),
     "reference_curriculum": ("yes", "no", "pending_generation"),
     "exercise_hint_gate": ("enabled", "disabled"),
     "long_explanation_mode": ("map-first", "continuous", "user-defined"),
+    "lesson_tree_display_mode": ("progressive", "full"),
     "aged_review_mode": ("off", "suggest", "auto"),
     "lesson_actual_review": ONOFF,
     "lesson_student_feedback": ONOFF,
@@ -82,6 +87,8 @@ ANSWER_ENUMS = {
     "exercise_knowledge_mastery": ONOFF,
 }
 LEARNING_LEVEL_LABELS = {
+    # PG-F02: 学生事实没有默认档位；未自述即 not_provided，呈现为「尚未提供」。
+    "not_provided": "尚未提供",
     "secondary_school": "中学在读",
     "university": "大学在读",
     "bachelor": "学士",
@@ -100,12 +107,13 @@ AGENT_DEFAULTS = {
 }
 PROFILE_DEFAULTS = {
     "nickname": "同学",
-    "learning_level": "secondary_school",
+    "learning_level": "not_provided",
     "reference_curriculum": "pending_generation",
     "learning_interests": "有待生成",
     "self_introduction": "未提供",
     "tutoring_preference": "先给整体地图，再逐支展开；每步结束后确认再继续",
     "long_explanation_mode": "map-first",
+    "lesson_tree_display_mode": "progressive",
     "branch_confirmation": "每支讲完确认",
     "cycle_structure": "按课程与活动生成",
     "small_adjustment": "每循环至多调整一处运行参数",
@@ -132,6 +140,11 @@ class GenerationError(Exception):
 
 def fail(message: str) -> "GenerationError":
     return GenerationError(message)
+
+
+def print_internal_receipt(summary: str) -> None:
+    """Mark generator output as an operator surface, never student-facing copy."""
+    print(f"[内部操作回执｜不得原样展示给学生] {summary}")
 
 
 def read_text(path: Path) -> str:
@@ -193,6 +206,13 @@ def replace_field(text: str, field: str, value: str) -> str:
     if not pattern.search(text):
         raise fail(f"字段不存在，拒绝盲写：{field}")
     return pattern.sub(f"{field}: {value}", text, count=1)
+
+
+def remove_field(text: str, field: str) -> str:
+    pattern = re.compile(rf"^{re.escape(field)}:\s*.*\n?", re.MULTILINE)
+    if not pattern.search(text):
+        raise fail(f"字段不存在，拒绝盲删：{field}")
+    return pattern.sub("", text, count=1)
 
 
 def require_root(root: Path) -> Path:
@@ -261,6 +281,7 @@ def render_profile(answers: dict[str, object], *, teaching_language: str = "zh-C
             "type: student_profile",
             "initialization_status: initialized",
             f"exercise_hint_gate: {value('exercise_hint_gate')}",
+            f"lesson_tree_display_mode: {value('lesson_tree_display_mode')}",
             "agent_collaboration_schema: agent_collaboration_preferences.v1",
             f"agent_pool_limit: {answers.get('agent_pool_limit', AGENT_DEFAULTS['agent_pool_limit'])}",
             f"agent_max_active: {answers.get('agent_max_active', AGENT_DEFAULTS['agent_max_active'])}",
@@ -395,18 +416,27 @@ def cmd_init(args: argparse.Namespace) -> int:
     )
     notes.append("profile → initialized")
     switch_release_identity(root, args.art_file, notes)
-    print("[OK] first run initialized")
+    print_internal_receipt("首次资料初始化完成；课程尚未创建")
     for note in notes:
         print(f"  - {note}")
     print(
-        "\n下一步（本工具不代跑，也不代替课程与课程组的用户确认）：\n"
-        "  1. python -B main/70_tools/t2ag_init.py new-course ...      # first_run.md §5\n"
-        "  2. python -B main/70_tools/t2ag_init.py new-group ...       # first_run.md §6（只生 planned）\n"
-        "  3. 建组仪式（议容量参数；progress 组另需写真实碑行）\n"
-        "  4. python -B main/70_tools/t2ag_init.py activate-group ...  # 公证激活\n"
-        "  5. python -B main/70_tools/t2ag_state_refresh.py --write\n"
-        "  6. python -B main/70_tools/t2ag_state_refresh.py --check\n"
-        "  7. python -B main/70_tools/t2ag_doctor.py --profile runtime"
+        "\n面向学生的下一步：回显停顿 A 已收到的条件并标出仍是假设的部分，"
+        "然后完整展示参考学习方案。\n"
+        "此时不得宣称课程已经建立，也不得展示下面的内部命令。\n"
+        "全程只有两个学生停顿：停顿 A（补充条件，已在本步之前问完）与停顿 B（审阅方案）。\n"
+        "不得开第二次资料征询；未自述的学生事实保持 not_provided（呈现为「尚未提供」），"
+        "不得用默认档位冒充。\n"
+        "完成呈现直接给出第一件事并就地开始，不问“是否现在开始”，也不问是否删除发行源。\n"
+        "\n内部下一步（先方案、后类型/适用模式、再创建；见 first_run.md §5–§8）：\n"
+        "  1. 回显已收到的条件与公开假设，生成并完整展示参考学习方案\n"
+        "  2. 确认 Course Type；仅 Mastery 解释 textbook / goal / project Learning Mode\n"
+        "  3. python -B main/70_tools/t2ag_init.py new-course ...\n"
+        "  4. python -B main/70_tools/t2ag_init.py new-group ...       # 只生 planned\n"
+        "  5. 把已确认方案映射进 calendar.md / plan.md；不得二次询问同意\n"
+        "  6. python -B main/70_tools/t2ag_init.py activate-group ...  # 公证，不是第二次授权\n"
+        "  7. python -B main/70_tools/t2ag_state_refresh.py --write\n"
+        "  8. python -B main/70_tools/t2ag_state_refresh.py --check\n"
+        "  9. python -B main/70_tools/t2ag_doctor.py --profile runtime"
     )
     return 0
 
@@ -520,11 +550,41 @@ def cmd_new_course(args: argparse.Namespace) -> int:
         raise fail(f"课程目录已存在，拒绝覆盖：{course}")
     if not DATE_RE.match(args.date):
         raise fail("--date 必须是 YYYY-MM-DD")
+    if args.course_type not in COURSE_TYPES:
+        raise fail(
+            f"--course-type 非法：{args.course_type!r}，允许 {list(COURSE_TYPES)}"
+        )
+    learning_mode = args.learning_mode
+    if args.driver:
+        if args.driver not in LEGACY_COURSE_DRIVERS:
+            raise fail(
+                f"--driver 兼容值非法：{args.driver!r}，允许 {list(LEGACY_COURSE_DRIVERS)}"
+            )
+        if args.course_type != "mastery":
+            raise fail(
+                "Project/Praxis 的推进协议由 course_type 内生拥有，不接受 --driver；"
+                "请删除该参数"
+            )
+        if args.driver == "praxis":
+            raise fail("Mastery 不支持 praxis learning mode")
+        if learning_mode and learning_mode != args.driver:
+            raise fail("--learning-mode 与兼容 --driver 不一致")
+        learning_mode = args.driver
+    if args.course_type == "mastery":
+        if learning_mode not in MASTERY_LEARNING_MODES:
+            raise fail(
+                "Mastery 必须显式给 --learning-mode textbook|goal|project"
+            )
+    elif learning_mode:
+        raise fail(
+            "Project/Praxis 不得声明 learning mode；推进协议由 course_type 内生拥有"
+        )
+    is_textbook_led = args.course_type == "mastery" and learning_mode == "textbook"
     if args.entry != "none" and args.lifecycle != "ongoing":
         raise fail("planned 课程不得创建首个学习活动（new_course_init.md §3）")
     if args.entry == "none" and args.lifecycle == "ongoing":
         raise fail("ongoing 课程必须有真实入口：--entry lesson 或 exercise")
-    if args.entry == "exercise" and args.driver == "textbook" and not args.source_document:
+    if args.entry == "exercise" and is_textbook_led and not args.source_document:
         raise fail(
             "教材驱动的 Exercise 首启必须先有持久校对题源："
             "给 --source-document / --source-locator / --problem-text"
@@ -541,7 +601,6 @@ def cmd_new_course(args: argparse.Namespace) -> int:
     base = {
         "COURSE_ID": course_id,
         "COURSE_NAME": args.name,
-        "COURSE_DRIVER": args.driver,
         "CONTENT_GROUP_ID": content_group,
         "SOURCE_SCOPE": args.source_scope,
         "SOURCE_LANGUAGE": args.source_language,
@@ -555,7 +614,10 @@ def cmd_new_course(args: argparse.Namespace) -> int:
     course_meta = render(read_text(templates / "course.md.template"), base, label="course.md")
     course_meta = replace_field(course_meta, "school_course_code", args.school_code or course_id)
     course_meta = replace_field(course_meta, "course_type", args.course_type)
-    course_meta = replace_field(course_meta, "default_driver", args.driver)
+    if args.course_type == "mastery":
+        course_meta = replace_field(course_meta, "learning_mode", str(learning_mode))
+    else:
+        course_meta = remove_field(course_meta, "learning_mode")
     write_text(course / "course.md", course_meta)
     note(course / "course.md")
 
@@ -570,12 +632,19 @@ def cmd_new_course(args: argparse.Namespace) -> int:
     # place to declare where their evidence comes from.
     materialize(templates, "book/README.md.template", course / "book/README.md", base)
     note(course / "book/README.md")
-    if args.driver != "textbook":
+    if not is_textbook_led:
+        progression_label = (
+            f"Mastery `{learning_mode}` learning mode"
+            if args.course_type == "mastery"
+            else "Project Plan 与下一开放 Project Goal/Milestone"
+            if args.course_type == "project"
+            else "Praxis 的真实行动—反馈—复盘回路"
+        )
         write_text(
             course / "book/README.md",
             read_text(course / "book/README.md").replace(
                 "## 主教材\n\n| 文件 | 资料 | 用途 |\n|---|---|---|\n",
-                f"## 主教材\n\n无主教材：本课程由 `{args.driver}` 驱动，"
+                f"## 主教材\n\n无主教材：本课程由{progression_label}推进，"
                 "证据来源写在下方参考表或 Course 定义中。\n",
                 1,
             ),
@@ -591,6 +660,10 @@ def cmd_new_course(args: argparse.Namespace) -> int:
             {**base, "NEXT_ACTION": args.next_action},
             label="progress.md",
         )
+        if args.course_type == "mastery":
+            planned = replace_field(planned, "learning_mode", str(learning_mode))
+        else:
+            planned = remove_field(planned, "learning_mode")
         write_text(course / "progress.md", planned)
         note(course / "progress.md")
         write_text(course / "activity_ledger.md", ledger_contract.empty_ledger(course_id))
@@ -610,7 +683,10 @@ def cmd_new_course(args: argparse.Namespace) -> int:
         progress = render(
             read_text(templates / "progress.md.template"), progress_map, label="progress.md"
         )
-        progress = replace_field(progress, "course_driver", args.driver)
+        if args.course_type == "mastery":
+            progress = replace_field(progress, "learning_mode", str(learning_mode))
+        else:
+            progress = remove_field(progress, "learning_mode")
         progress = replace_field(progress, "current_activity", activity_type)
         progress = replace_field(progress, "current_activity_id", activity_id)
         progress = replace_field(
@@ -645,7 +721,7 @@ def cmd_new_course(args: argparse.Namespace) -> int:
             body = drop_gate_ledger_section(body)
             write_text(lesson_dir / "lesson01.md", body)
             note(lesson_dir / "lesson01.md")
-            if args.driver == "textbook":
+            if is_textbook_led:
                 # LessonMap ships empty; page rows arrive with the first real
                 # preparation run. No preparation Snapshot is written here on
                 # purpose: a Snapshot asserts prepared pages, load receipts and
@@ -752,24 +828,29 @@ def cmd_new_course(args: argparse.Namespace) -> int:
         )
         note(course / "activity_ledger.md")
 
-        if args.driver == "textbook":
-            activity_map = render(
-                read_text(templates / "activity_map.md.template"), base, label="activity_map.md"
+        # ContentGroup is the common Lesson/Exercise relationship for every
+        # driver.  The ledger genesis above references it unconditionally, so
+        # its owning activity_map must be generated unconditionally as well.
+        activity_map = render(
+            read_text(templates / "activity_map.md.template"), base, label="activity_map.md"
+        )
+        if activity_type == "exercise":
+            activity_map = activity_map.replace(
+                f"| {content_group} | {args.source_scope} | lesson01 | — |",
+                f"| {content_group} | {args.source_scope} | — | exercise01 |",
             )
-            if activity_type == "exercise":
-                activity_map = activity_map.replace(
-                    f"| {content_group} | {args.source_scope} | lesson01 | — |",
-                    f"| {content_group} | {args.source_scope} | — | exercise01 |",
-                )
-            write_text(course / "activity_map.md", activity_map)
-            note(course / "activity_map.md")
+        write_text(course / "activity_map.md", activity_map)
+        note(course / "activity_map.md")
 
     ensure_teacher_row(root, course_id, args.name, args.teacher)
-    print(f"[OK] course {course_id} generated ({args.lifecycle}, entry={args.entry})")
+    print_internal_receipt(
+        f"course {course_id} generated ({args.lifecycle}, entry={args.entry})"
+    )
     for path in created:
         print(f"  + {path}")
     print(
-        "\n下一步：\n"
+        "\n学生已经确认方案时，继续内部落盘；不要发送中间成功消息或索取新确认。\n"
+        "内部下一步：\n"
         "  python -B main/70_tools/t2ag_state_refresh.py --write\n"
         "  python -B main/70_tools/t2ag_state_refresh.py --check\n"
         "  python -B main/70_tools/t2ag_doctor.py --profile runtime"
@@ -848,15 +929,17 @@ def cmd_new_group(args: argparse.Namespace) -> int:
     calendar = replace_field(calendar, "container_mode", args.container_mode)
     write_text(group / "calendar.md", calendar, allow_overwrite=True)
 
-    print(
-        f"[OK] group {args.group_id} generated (planned, {args.container_mode}), "
+    print_internal_receipt(
+        f"group {args.group_id} generated (planned, {args.container_mode}), "
         f"members={members}"
     )
     print(
-        "\n下一步：\n"
-        "  1. 建组仪式：与用户议定容量参数（calendar.md 三处 TBD）"
+        "\n这是已确认方案的内部映射阶段；planned 不是新的用户决策，不得询问“同意激活”。\n"
+        "内部下一步：\n"
+        "  1. 建组仪式：把已确认参考学习方案的容量参数写入 calendar.md"
         + (
-            "，并把 plan.md「主干碑序列」的模板行替换为逐碑确认后的真实碑行\n"
+            "，并把 plan.md「主干碑序列」模板行替换为方案中已确认的真实碑行；"
+            "不得重复索取同意\n"
             if args.container_mode == "progress"
             else "\n"
         )
@@ -890,6 +973,246 @@ def plan_section(text: str, title: str) -> str:
     return rest[: nxt.start()] if nxt else rest
 
 
+def read_frontmatter(path: Path) -> dict[str, str]:
+    """Parse a `---` frontmatter block — mirrors doctor's `frontmatter()` exactly.
+
+    Same reason as `plan_section`: activation and reconciliation must read the
+    same bytes the same way, or the preflight would clear a group Doctor then
+    rejects (or the reverse) and the two would argue about a file neither
+    misread.
+    """
+    if not path.is_file():
+        return {}
+    match = re.match(
+        r"^---\s*\n(.*?)\n---\s*(?:\n|$)", path.read_text(encoding="utf-8-sig"), re.DOTALL
+    )
+    if not match:
+        return {}
+    result: dict[str, str] = {}
+    for line in match.group(1).splitlines():
+        if ":" not in line or line.lstrip().startswith("#"):
+            continue
+        key, value = line.split(":", 1)
+        result[key.strip()] = value.strip().strip('"')
+    return result
+
+
+# 建组激活判据正典清单（PG3，2026-08-25 用户裁定）：逐 raise 点一条，零合并。
+# 合并两条判据看着更整齐，代价是一次拒绝只报得出「有问题」而报不出「哪一条」，
+# 于是用户改一处再跑一次，把一次拒绝拆成三轮。为凑数删或并判据＝放宽，不是简化。
+#
+# 前十四条是 `cmd_activate_group` 原有的 `raise fail` 点，逐点保号；后两条是本批
+# 从 Doctor 前移的同源判据——它们原先只在**激活之后**的下一次 Doctor 才点火，
+# 也就是「今天激活成功、明天必 FAIL」，拦截点比发生点晚了一整轮。
+GROUP_ACTIVATION_BLOCKER_CRITERIA = (
+    "date_format",                  # --date 形状（由 cmd_activate_group 求值，见下注）
+    "plan_missing",
+    "status_not_planned",
+    "active_group_exists",
+    "container_mode_illegal",
+    "members_empty",
+    "member_course_missing",
+    "member_lifecycle_ineligible",
+    "current_course_unspecified",
+    "current_course_not_member",
+    "anchor_handwritten",
+    "keystone_section_missing",
+    "keystone_rows_are_template",
+    "keystone_rows_absent",
+    "dwell_budget_missing",          # 同源 t2ag_doctor.check_container_mode（FAIL）
+    "keystone_ledger_mismatch",      # 同源 t2ag_doctor.check_keystone_ledger（FAIL）
+)
+
+# 提示不是阻断：schedule 组缺 `cycle_anchor_learning_day` 在 Doctor 是 WARN，
+# 前移后必须仍是 WARN 语义，否则前移就成了加严。
+GROUP_ACTIVATION_NOTICE_CRITERIA = ("cycle_anchor_missing",)
+
+# 哪些 Doctor 条款可以前移：两段测试都过才收。
+# (a) 只在 active 态点火——`check_container_mode` 的 active 循环里那些；
+# (b) 激活时点可判——不依赖流逝时间或运行史。
+# 因此 `check_groups` 全组循环里的条款（缺 calendar/review/bindings、plan frontmatter
+# 不匹配、container_mode 两处不一致、calendar 未声明 container_mode）**不收**：它们对
+# planned 组照报，(a) 不过；而 STALL-TRIAGE 要 14 天流逝，(b) 不过。
+# 排除 ≠ 放宽：这些条款的强制面原样留在常驻 Doctor，一字未动。
+
+
+def group_activation_preflight(
+    root: Path, group_id: str, current_course: str
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]], dict[str, object]]:
+    """激活前置检查：一次求值、一次报全，判据与 Doctor 同源。
+
+    Three properties, each bought with a specific past failure in mind:
+
+    * **单次求值** — every file this reads comes back in ``resolved``, and the
+      apply step consumes *that*, never the disk again. Reading twice is how a
+      check and the write it guards end up disagreeing about the same file.
+    * **一次报全** — blockers accumulate instead of raising on the first one, so
+      a group with three problems costs one round trip, not three.
+    * **与 Doctor 严格同源** — no criterion is stricter or looser here than in
+      `t2ag_doctor.py`. A preflight that is stricter blocks work Doctor would
+      have accepted; one that is looser just moves the failure one command later.
+
+    `--date` (``date_format``) is the one catalog entry evaluated by the caller:
+    it is an argument-shape check with no disk input, and the frozen signature
+    of this function carries no date. It is merged into the same one-shot
+    report, so the *user-visible* property (all blockers at once) still holds.
+    """
+    blockers: list[tuple[str, str]] = []
+    notices: list[tuple[str, str]] = []
+    group = root / f"main/30_group/{group_id}"
+    plan_path = group / "plan.md"
+    calendar_path = group / "calendar.md"
+    review_path = group / "review.md"
+    resolved: dict[str, object] = {
+        "group": group,
+        "plan_path": plan_path,
+        "calendar_path": calendar_path,
+        "review_path": review_path,
+    }
+    if not plan_path.is_file():
+        # The only early return: every remaining criterion reads plan.md, so
+        # continuing would report "missing" fourteen times over.
+        blockers.append(("plan_missing", f"课程组不存在：{plan_path}"))
+        return blockers, notices, resolved
+
+    plan = read_text(plan_path)
+    resolved["plan"] = plan
+
+    status = re.search(r"^status:\s*(\S+)\s*$", plan, re.MULTILINE)
+    if not status or status.group(1) != "planned":
+        blockers.append((
+            "status_not_planned",
+            f"只有 planned 组可以激活；{group_id} 当前 status="
+            f"{status.group(1) if status else '缺失'}",
+        ))
+    existing = [
+        path.parent.name
+        for path in (root / "main/30_group").glob("G*/plan.md")
+        if re.search(r"^status:\s*active\s*$", read_text(path), re.MULTILINE)
+    ]
+    if existing:
+        blockers.append((
+            "active_group_exists", f"已有 active 课程组，拒绝激活第二个：{existing}"
+        ))
+
+    mode = re.search(r"^container_mode:\s*(\S+)\s*$", plan, re.MULTILINE)
+    container_mode = mode.group(1) if mode else ""
+    if container_mode not in {"progress", "schedule"}:
+        blockers.append((
+            "container_mode_illegal",
+            f"container_mode 非法或缺失：{container_mode or '缺失'}"
+            "（合法值 progress/schedule，没有容器不是模式）",
+        ))
+        container_mode = ""
+    resolved["container_mode"] = container_mode
+
+    members_match = re.search(r"^course_members:\s*\[(.*)\]\s*$", plan, re.MULTILINE)
+    members = [
+        item.strip() for item in (members_match.group(1) if members_match else "").split(",")
+        if item.strip()
+    ]
+    resolved["members"] = members
+    if not members:
+        blockers.append(("members_empty", "课程组无课程成员，无法激活"))
+    for course_id in members:
+        progress = root / f"main/40_course/{course_id}/progress.md"
+        if not progress.is_file():
+            blockers.append(("member_course_missing", f"成员课程不存在：{course_id}"))
+            continue
+        lifecycle = re.search(
+            r"^lifecycle_status:\s*(\S+)\s*$", read_text(progress), re.MULTILINE
+        )
+        if lifecycle and lifecycle.group(1) in {"planned", "completed", "dropped"}:
+            blockers.append((
+                "member_lifecycle_ineligible",
+                f"active 课程组不得包含 {lifecycle.group(1)} 课程：{course_id}"
+                "（planned 课程须经用户确认转 ongoing 后再激活组）",
+            ))
+
+    foreground = current_course or (members[0] if len(members) == 1 else "")
+    if not foreground:
+        blockers.append((
+            "current_course_unspecified",
+            "多成员课程组必须由用户指定当前前台课程：--current-course",
+        ))
+    elif foreground not in members:
+        blockers.append((
+            "current_course_not_member", f"--current-course 不在成员中：{foreground}"
+        ))
+    resolved["current_course"] = foreground
+
+    if container_mode == "progress":
+        if re.search(r"^keystone_total_frozen:", plan, re.MULTILINE):
+            blockers.append((
+                "anchor_handwritten",
+                "planned 组不应已有 keystone_total_frozen（planned 阶段不冻结，"
+                "§4.3）；该锚只能由本命令在激活时写入",
+            ))
+        section = plan_section(plan, "主干碑序列")
+        keystones: list[str] = []
+        if not section:
+            blockers.append((
+                "keystone_section_missing",
+                "plan.md 缺「主干碑序列」节：progress 组的容器就是这张表（§4.3）",
+            ))
+        else:
+            template_rows = TEMPLATE_KEYSTONE_RE.findall(section)
+            if template_rows:
+                blockers.append((
+                    "keystone_rows_are_template",
+                    f"主干碑序列仍是模板占位行 {len(template_rows)} 条（`碑描述`）："
+                    "激活前须在建组仪式上逐碑确认并写成真实碑行"
+                    "（属哪门课、达成判据指向该课 progress.md 哪一行）",
+                ))
+            keystones = KEYSTONE_ROW_RE.findall(section)
+            if not keystones:
+                blockers.append((
+                    "keystone_rows_absent", "主干碑序列节内无 `- Knn` 碑行，无碑可冻，拒绝激活"
+                ))
+        resolved["keystones"] = keystones
+
+        # 判据 15：止损锚。Doctor 判的是**真值**（`if not cal.get(...)`），所以字面
+        # `TBD` 合法而空值/缺字段/缺 calendar.md 不合法。收紧成「必须是整数」不是修
+        # bug 是改判——模板本就发 `TBD`，收紧后每个新组在仪式议定前恒 FAIL。
+        calendar_meta = read_frontmatter(calendar_path)
+        if not calendar_meta.get("keystone_dwell_budget_cycles"):
+            blockers.append((
+                "dwell_budget_missing",
+                f"{group_id} progress 容器缺止损锚 keystone_dwell_budget_cycles："
+                "无预算的按进度模式没有容器（course_group_rules.md §4.1）"
+                "；字面 TBD 是合法占位，空值与缺字段不是",
+            ))
+
+        # 判据 16：碑账对账。公证人只会把锚写成**当前碑数**，而 Doctor 对的是
+        # 「当前碑数 ＋ 台账砍碑行数」。planned 阶段就带砍碑行的组因此今天激活成功、
+        # 下一次 Doctor 必 FAIL——发生点在这里，报错点却在一整轮之后。
+        cut_rows = [
+            row
+            for row in re.findall(
+                r"^\|.*\d{4}-\d{2}-\d{2}.*\|$", plan_section(plan, "碑变更台账"), re.MULTILINE
+            )
+            if "砍" in row
+        ]
+        if cut_rows:
+            blockers.append((
+                "keystone_ledger_mismatch",
+                f"{group_id} planned 阶段已有台账砍碑 {len(cut_rows)} 行，"
+                f"而激活只会把锚冻成当前碑数 {len(keystones)}："
+                f"Doctor 对账要求 碑数＋砍碑行数＝锚定值（{len(keystones)}＋{len(cut_rows)}"
+                f"≠{len(keystones)}），今天激活等于给下一次 Doctor 埋一条 FAIL。"
+                "planned 阶段的碑表是草案，砍碑请直接改草案，台账留给冻结之后",
+            ))
+    elif container_mode == "schedule":
+        if "cycle_anchor_learning_day" not in read_frontmatter(calendar_path):
+            notices.append((
+                "cycle_anchor_missing",
+                f"{group_id} schedule 容器缺 cycle_anchor_learning_day 字段"
+                "（TBD 是合法值，缺字段不是）",
+            ))
+
+    return blockers, notices, resolved
+
+
 def cmd_activate_group(args: argparse.Namespace) -> int:
     """建组仪式收尾：planned → active，公证而非代判。
 
@@ -899,85 +1222,35 @@ def cmd_activate_group(args: argparse.Namespace) -> int:
     active group — then notarizes it: counts the rows, writes
     `keystone_total_frozen`, flips the status. It can verify form, not thought;
     that boundary is the system's own (裁决在人，机器只判走没走门，§4.3).
+
+    Evidence gathering lives in `group_activation_preflight`; what remains here
+    is the apply step, and it writes in reverse dependency order — review.md,
+    calendar.md, then plan.md last, because `status: active` in plan.md is the
+    single thing Doctor reads to decide a group is active. All three texts are
+    built in memory first. **This is not transactional atomicity**: a crash
+    between two writes still leaves a partially updated group. What it buys is
+    narrower and worth naming precisely — a failed activation never leaves
+    behind a group that *claims* to be active.
     """
     root = require_root(Path(args.root))
+    blockers, notices, resolved = group_activation_preflight(
+        root, args.group_id, args.current_course
+    )
     if not DATE_RE.match(args.date):
-        raise fail("--date 必须是 YYYY-MM-DD")
-    group = root / f"main/30_group/{args.group_id}"
-    plan_path = group / "plan.md"
-    if not plan_path.is_file():
-        raise fail(f"课程组不存在：{plan_path}")
-    plan = read_text(plan_path)
-
-    status = re.search(r"^status:\s*(\S+)\s*$", plan, re.MULTILINE)
-    if not status or status.group(1) != "planned":
+        blockers.insert(0, ("date_format", "--date 必须是 YYYY-MM-DD"))
+    if blockers:
         raise fail(
-            f"只有 planned 组可以激活；{args.group_id} 当前 status="
-            f"{status.group(1) if status else '缺失'}"
+            f"激活前置检查未通过，{len(blockers)} 条（一次报全，逐条修完再跑一次）：\n"
+            + "\n".join(f"  - [{code}] {message}" for code, message in blockers)
         )
-    existing = [
-        path.parent.name
-        for path in (root / "main/30_group").glob("G*/plan.md")
-        if re.search(r"^status:\s*active\s*$", read_text(path), re.MULTILINE)
-    ]
-    if existing:
-        raise fail(f"已有 active 课程组，拒绝激活第二个：{existing}")
 
-    mode = re.search(r"^container_mode:\s*(\S+)\s*$", plan, re.MULTILINE)
-    if not mode or mode.group(1) not in {"progress", "schedule"}:
-        raise fail(
-            f"container_mode 非法或缺失：{mode.group(1) if mode else '缺失'}"
-            "（合法值 progress/schedule，没有容器不是模式）"
-        )
-    container_mode = mode.group(1)
-
-    members_match = re.search(r"^course_members:\s*\[(.*)\]\s*$", plan, re.MULTILINE)
-    members = [
-        item.strip() for item in (members_match.group(1) if members_match else "").split(",")
-        if item.strip()
-    ]
-    if not members:
-        raise fail("课程组无课程成员，无法激活")
-    for course_id in members:
-        progress = root / f"main/40_course/{course_id}/progress.md"
-        if not progress.is_file():
-            raise fail(f"成员课程不存在：{course_id}")
-        lifecycle = re.search(
-            r"^lifecycle_status:\s*(\S+)\s*$", read_text(progress), re.MULTILINE
-        )
-        if lifecycle and lifecycle.group(1) in {"planned", "completed", "dropped"}:
-            raise fail(
-                f"active 课程组不得包含 {lifecycle.group(1)} 课程：{course_id}"
-                "（planned 课程须经用户确认转 ongoing 后再激活组）"
-            )
-
-    current_course = args.current_course or (members[0] if len(members) == 1 else "")
-    if not current_course:
-        raise fail("多成员课程组必须由用户指定当前前台课程：--current-course")
-    if current_course not in members:
-        raise fail(f"--current-course 不在成员中：{current_course}")
+    plan_path = resolved["plan_path"]
+    plan = resolved["plan"]
+    container_mode = resolved["container_mode"]
+    current_course = resolved["current_course"]
 
     if container_mode == "progress":
-        if re.search(r"^keystone_total_frozen:", plan, re.MULTILINE):
-            raise fail(
-                "planned 组不应已有 keystone_total_frozen（planned 阶段不冻结，"
-                "§4.3）；该锚只能由本命令在激活时写入"
-            )
-        section = plan_section(plan, "主干碑序列")
-        if not section:
-            raise fail(
-                "plan.md 缺「主干碑序列」节：progress 组的容器就是这张表（§4.3）"
-            )
-        template_rows = TEMPLATE_KEYSTONE_RE.findall(section)
-        if template_rows:
-            raise fail(
-                f"主干碑序列仍是模板占位行 {len(template_rows)} 条（`碑描述`）："
-                "激活前须在建组仪式上逐碑确认并写成真实碑行"
-                "（属哪门课、达成判据指向该课 progress.md 哪一行）"
-            )
-        keystones = KEYSTONE_ROW_RE.findall(section)
-        if not keystones:
-            raise fail("主干碑序列节内无 `- Knn` 碑行，无碑可冻，拒绝激活")
+        keystones = resolved["keystones"]
         plan = re.sub(
             r"^(container_mode:.*)$",
             rf"\1\nkeystone_total_frozen: {len(keystones)}",
@@ -992,28 +1265,38 @@ def cmd_activate_group(args: argparse.Namespace) -> int:
     plan = replace_field(plan, "status", "active")
     plan = replace_field(plan, "current_course", current_course)
     plan = replace_field(plan, "updated", args.date)
-    write_text(plan_path, plan, allow_overwrite=True)
-    calendar_path = group / "calendar.md"
-    if calendar_path.is_file():
-        write_text(
-            calendar_path,
-            replace_field(read_text(calendar_path), "status", "active"),
-            allow_overwrite=True,
-        )
-    review_path = group / "review.md"
-    if review_path.is_file():
-        write_text(
-            review_path,
-            replace_field(read_text(review_path), "status", "open"),
-            allow_overwrite=True,
-        )
 
-    print(
-        f"[OK] group {args.group_id} activated ({container_mode}"
-        f"{anchor_note}), current_course={current_course}"
+    # Build every replacement text before the first byte lands, then write from
+    # the least load-bearing file to the most.
+    calendar_path = resolved["calendar_path"]
+    review_path = resolved["review_path"]
+    calendar_text = (
+        replace_field(read_text(calendar_path), "status", "active")
+        if calendar_path.is_file()
+        else None
+    )
+    review_text = (
+        replace_field(read_text(review_path), "status", "open")
+        if review_path.is_file()
+        else None
+    )
+    if review_text is not None:
+        write_text(review_path, review_text, allow_overwrite=True)
+    if calendar_text is not None:
+        write_text(calendar_path, calendar_text, allow_overwrite=True)
+    write_text(plan_path, plan, allow_overwrite=True)
+
+    # Notices ride the existing receipt rather than getting a print of their own:
+    # they are advisories, not a second kind of output, and a separate unmarked
+    # print would be exactly the generator chatter §8.4 forbids.
+    notice_note = "".join(f"；notice [{code}] {message}" for code, message in notices)
+    print_internal_receipt(
+        f"group {args.group_id} activated ({container_mode}"
+        f"{anchor_note}), current_course={current_course}{notice_note}"
     )
     print(
-        "\n下一步：\n"
+        "\n先完成内部 refresh 与 Doctor；全部通过后，按 first_run.md“完成呈现”回复学生。\n"
+        "内部下一步：\n"
         "  python -B main/70_tools/t2ag_state_refresh.py --write\n"
         "  python -B main/70_tools/t2ag_doctor.py --profile runtime"
     )
@@ -1037,7 +1320,17 @@ def build_parser() -> argparse.ArgumentParser:
     course.add_argument("--course-id", required=True)
     course.add_argument("--name", required=True)
     course.add_argument("--school-code")
-    course.add_argument("--course-type", default="mastery")
+    # Required on purpose (PG3 #1, 2026-08-25): a CLI default must never stand in
+    # for a confirmation. The dangerous parameters are precisely the ones that
+    # *had* defaults — `--course-type mastery` silently picked a progression
+    # protocol, `--entry lesson` silently created the first learning activity,
+    # and `--verification-status human_verified` silently asserted that a human
+    # had checked. The defaults stay written down as documentation of what the
+    # common answer is; `required=True` makes them unreachable, so the answer
+    # now has to be said out loud.
+    course.add_argument(
+        "--course-type", required=True, default="mastery", choices=COURSE_TYPES
+    )
     # Required on purpose, no default: source_language is the language of the
     # course's own materials (existing courses run both en and zh-CN), and the
     # T001 §9 terminology discipline reads it to decide which words must keep
@@ -1046,10 +1339,17 @@ def build_parser() -> argparse.ArgumentParser:
     # course creation is cheaper than a mislabelled course nobody notices.
     course.add_argument("--source-language", required=True, help="教材/原始材料语言，如 en、zh-CN")
     course.add_argument(
-        "--driver", default="textbook", choices=("textbook", "goal", "project", "praxis")
+        "--learning-mode", choices=MASTERY_LEARNING_MODES,
+        help="仅 Mastery：textbook / goal / project；必须显式给出",
+    )
+    course.add_argument(
+        "--driver", choices=LEGACY_COURSE_DRIVERS, help=argparse.SUPPRESS,
     )
     course.add_argument("--lifecycle", default="ongoing", choices=("ongoing", "planned"))
-    course.add_argument("--entry", default="lesson", choices=("lesson", "exercise", "none"))
+    # Required on purpose — see --course-type above (PG3 #1).
+    course.add_argument(
+        "--entry", required=True, default="lesson", choices=("lesson", "exercise", "none")
+    )
     course.add_argument("--teacher", default="T001", help="main/20_teacher/Tddd.md")
     course.add_argument("--content-group")
     course.add_argument("--source-scope", default="待确认范围")
@@ -1061,8 +1361,13 @@ def build_parser() -> argparse.ArgumentParser:
     course.add_argument("--source-locator", default="待登记")
     course.add_argument("--source-page", default="1")
     course.add_argument("--problem-text", default="待录入")
+    # Required on purpose — see --course-type above (PG3 #1). This one is the
+    # strongest case of the three: its default asserted *that someone had
+    # verified*, which is a claim about the world no tool can make on a user's
+    # behalf. A silently defaulted `human_verified` is a forged attestation.
     course.add_argument(
         "--verification-status",
+        required=True,
         default="human_verified",
         choices=("human_verified", "synthetic_verified"),
     )
@@ -1096,7 +1401,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def _main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return int(args.handler(args))
@@ -1106,6 +1411,16 @@ def main(argv: list[str] | None = None) -> int:
     except ledger_contract.LedgerError as exc:
         print(f"[FAIL] ledger 契约拒绝生成结果：{exc}")
         return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    code = _main(argv)
+    operator_result.emit_exit(
+        tool="init",
+        operation="generate_or_activate",
+        exit_code=code,
+    )
+    return code
 
 
 if __name__ == "__main__":

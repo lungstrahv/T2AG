@@ -180,11 +180,16 @@ def validate_paths(paths: set[str]) -> list[str]:
 
     zh_only = sorted(editions["zh"] - editions["en"])
     en_only = sorted(editions["en"] - editions["zh"])
-    if zh_only or en_only:
+    if en_only:
         findings.append(
-            "edition path sets differ: "
-            f"zh_only={zh_only[:20]} en_only={en_only[:20]}"
+            "en has files absent from zh (orphans not allowed): "
+            f"en_only={en_only[:20]}"
         )
+    if zh_only:
+        # zh 正本可先行：EN 已改判出 0.2.4 收口射程（T2AC closeout workorder
+        # 14.126），且跨发行逐文件 parity 已裁为不可满足契约（J3, 14.95）。
+        # zh 领先的文件只记 NOTE，不构成 FAIL。
+        print(f"NOTE: zh leads en by {len(zh_only)} files (allowed): {zh_only[:20]}")
     return findings
 
 

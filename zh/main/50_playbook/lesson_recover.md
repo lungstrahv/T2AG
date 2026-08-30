@@ -23,6 +23,8 @@
 > - 教材缓存：当前活动为 Lesson 时，通过 preparation Snapshot + source_assets 交付（legacy `working_pages/` 已在 0.2.2 批 S3 退役）
 > - 交接管理：`main/50_playbook/handoff_management.md` + 运行时 `<handoff_root>/README.md`
 > - 自检工具：`main/70_tools/t2ag_doctor.py`
+> - **呈现治理 owner**：`main/50_playbook/progress_governance.md`
+>   （EV-0034；本文件继续拥有恢复流程正文）
 
 ---
 
@@ -81,6 +83,7 @@ memory/learning_path，最后继续教学。
 若 `progress.md` 存在进度节点字段，同时核对当前 completion node、checkpoint 和确认状态。当前活动/云端证据可以作为
 待提升证据，但不得静默覆盖真相源；经学生确认后按 `progress_tracking.md` 写回。
 
+<!-- rule: CTX-PACKET-007 -->
 ### 步骤 2：消费 progress.md 当前切片
 
 L0 只摘录对应课程 `progress.md` 的完整 frontmatter 与「当前进度」节。本文件仍是该
@@ -92,6 +95,7 @@ Course 生命周期、唯一前台与精确停点的真相源。Activity 生命�
 - **已投入学习时长（小时）**：累计时长
 - **下一步计划**：接下来要讲的内容
 
+<!-- rule: CTX-PACKET-008 -->
 只有当前切片无法解释冲突、用户追问历史、要做正式复测或要修改掌握判断时，才进入
 L2 读取对应「教学记录」与「已掌握知识点」条目；日常恢复不默认装载整段历史。
 
@@ -100,6 +104,7 @@ L2 读取对应「教学记录」与「已掌握知识点」条目；日常恢�
 L0 只摘录当前课程 `question_bank.md` 的「待解决」与「需要回看」。恢复课堂时优先处理
 阻断当前进度的问题；已解答条目只在当前知识点或学生追问命中时进入 L2，不全量加载。
 
+<!-- rule: ACT-ROUTE-001 -->
 ### 步骤 3：按 current_activity 恢复主载体
 
 先从 `progress.md` 原样读取 `current_activity`、`current_activity_id` 与 `resume_path`。
@@ -115,6 +120,7 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
 命令非零时不得继续。`primary_read` 是唯一当前活动主载体；`working_pages: null` 表示
 默认恢复链必须跳过教材缓存。后文任何 Lesson/Exercise 示例都不得覆盖该路由结果。
 
+<!-- rule: ACT-ROUTE-002 -->
 #### `lesson` 分支
 
 仅当 `current_activity: lesson`：
@@ -130,6 +136,7 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
    completion node/checkpoint；
 6. 当前 Lesson 存在 `lesson_thoughts.md` 时，按需读取相关想法。
 
+<!-- rule: ACT-ROUTE-003 -->
 #### `exercise` 分支
 
 仅当 `current_activity: exercise`：
@@ -148,6 +155,8 @@ python -B main/70_tools/t2ag_activity.py --course <COURSE_ID> --intent recover
    --intent <INTENT>`；deny 时不得发送。概念问题使用 `concept_answer`，只答对应概念，
    不把概念自动应用回当前题。
 
+<!-- rule: ACT-ROUTE-004 -->
+<!-- rule: ACT-ROUTE-008 -->
 Exercise 首启不得读取或构造 Lesson 路径；不写 `current_lesson`，并让
 `resume_path` 直接指向 `exercises/exerciseNN/exercise.md`。历史 Lesson 的
 `working_pages/` 可以全部不存在，不能影响 Exercise 恢复。
@@ -179,7 +188,9 @@ L0 从学生档案做逐段摘录，重点关注：
 
 ### 步骤 5：教材原文窗口（Snapshot-only）
 
-默认恢复链路中，教材原文窗口 **仅在 `lesson` + `course_driver: textbook`** 分支读取。
+<!-- rule: ACT-ROUTE-005 -->
+默认恢复链路中，教材原文窗口 **仅在 `lesson` + `course_type: mastery` +
+`learning_mode: textbook`** 分支读取；迁移期可从同值 legacy driver 兼容解析。
 当前活动为 Exercise 时跳过本步；goal / project / praxis Lesson 跳过教材窗口。
 
 **当前路径（EV-0012）**：
@@ -198,12 +209,14 @@ Prefetcher 还必须按 `source_page_assets.md` §3.1 与 critical 的 `scope_sc
 文件哈希、仅 frontmatter、或辅助 Agent 的“无需额外读取”解释成自己/本轮已经满足 A1。
 完成声明仅宿主签发（A6）。
 
+<!-- rule: CTX-PACKET-009 -->
 **Legacy 路径已退役**：原 `lessons/<current_activity_id>/working_pages/` 路径已在 0.2.2 批 S3 退役。
 若 preparation 新路径不存在，上下文工具必须失败，**不得返回缺教材的 `ready`**。
 按 `ocr_correct_flow.md` + `source_page_assets.md` 补齐后重跑。
 
 **恢复期只读纪律**：
 
+<!-- rule: ACT-ROUTE-010 -->
 - 恢复链路对 `book/.cache/`、`preparation/` 与 `source_assets/` 一律只读。超配额、疑似陈旧
   或指针不一致时报告并停止，**不得自动清理**、驱逐、重命名或重建这些目录；当前 Scope 的
   P0 页更不得驱逐。清理是独立的维护动作，须由用户在明确知道删什么的前提下授权。
@@ -250,25 +263,42 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
 
 ### 步骤 7：向学生确认「上次讲到 XXX，继续?」
 
+本步骤使用 `progress_governance.md` §九的 canonical `turn_intent` 四态；本文件只把既有
+恢复动作映射到该词表，不在这里另立定义。`explicit_continue`／`ambiguous_resume` 由下列
+第 3 条分流，`conflict_resolution` 由第 5 条承接，`new_scope` 回到相应新范围的正常授权门。
+
 综合以上信息，向学生确认恢复点：
 
 1. **简述上次进度**：Lesson 分支说明章节、教材页与具体位置；Exercise 分支说明 Unit、
    当前题目/批次与精确停点，不虚构章节或 Lesson。
 2. **确认学生状态**：若 personality_baseline 或 course_reflections 显示学生近期有情绪波动，适当问候
-3. **询问是否继续**：若用户本轮尚未明确要求继续，才问「从这里继续？还是想复习一下
+3. **询问是否继续（`turn_intent` 分流）**：若用户本轮尚未明确要求继续，才问「从这里继续？还是想复习一下
    前面的内容？」；用户已经说“继续”时不得重复提问。
 4. **权威动作与创造性补充并存**：pending checkpoint 必须逐字复用并标明 `progress.md`
    当前切片的“精确停顿点”；可以另加明确标注的概括题、暖场题、类比或模型生成的探索问题，
    但不得替换权威停点、冒充进度证据或绕过 Exercise 提示闸门。
-5. **冲突即停**：route、progress、Activity、当前页 SourcePageAsset、Scope manifest 任一
-   不一致时先报告冲突，不向学生展示候选教学动作。
-6. **恢复课堂树**：textbook Lesson 在第一条内容前显示字符树，列出当前 PDF/书内页、
-   active lesson boundary、本页教材块及各块状态。扫描完成不等于教学覆盖完成。
+5. **冲突即停（`turn_intent=conflict_resolution`）**：route、progress、Activity、当前页
+   SourcePageAsset、Scope manifest 任一不一致时先报告冲突，不向学生展示候选教学动作；
+   默认先用自然语言说明不同选择会怎样改变结果，内部 ID、schema 与状态码仅按需展开。
+6. **恢复课堂树**：textbook Lesson 在第一条内容前先显示定位摘要，不默认一次摊开完整树。
+   首次展开量读取学生 profile 的 `lesson_tree_display_mode`：缺字段或 `progressive` 采用本条
+   默认；`full` 首次即显示同一份完整覆盖树，但后续仍按原顺序逐块推进。学生本轮明确要求
+   完整或逐步展开时，一次性要求优先；仅在学生明确要求保存为以后默认时才写回 profile。
+   摘要保留当前 PDF/书内页与 active lesson boundary，并从完整覆盖清单确定性派生游标：
+   `本页 N 块 / 当前第 K 块 / 余 N-K 块`；`N` 是 active page 的完整教材块数，`K` 是当前块
+   在原顺序中的序号，余量固定为 `N-K`，不得手写另一份摘要真相。随后按清单顺序逐块展示
+   块名与状态，直至每块取得 `covered`、`explicitly_deferred` 或
+   `outside_active_lesson_boundary` 终态；学生随时要求完整树时立即展开。完整清单一条不删、
+   不得静默省略，扫描完成仍不等于教学覆盖完成。
 7. **恢复三门协议**：旧对话中的一次“继续”不跨恢复点复用；正确作答只闭合理解门。
    推导或总结之后必须再询问学生感受/疑问，并为下一个教学块取得一次性继续授权。
 8. **恢复 Lesson 开场**：若当前 Lesson 尚无本次会话已展示并确认的开场，先概括本课学习
-   内容，再显示 ASCII 知识树。缺少现成树时可依据 Lesson 学习范围和 LessonMap 创造性编排；
-   展示后询问路线感受与是否进入第一块，不能把概览记成已讲完。
+   内容；ASCII 知识树同样消费第 6 条的 `lesson_tree_display_mode`。`progressive` 默认以
+   紧凑摘要显示目标、主干、分支目录、依赖关系、本轮范围与当前分支，`full` 首次显示同一棵
+   完整树；两者后续都按教学顺序逐支展示，直至遍历完成。学生随时要求完整树时
+   立即展开。摘要只能由同一棵完整树确定性重排，不得生成第二真相源。这棵知识路线树只作
+   Lesson 概览，不替代第 6 条的页内覆盖清单。缺少现成树时可依据 Lesson 学习范围和
+   LessonMap 创造性编排；展示后询问路线感受与是否进入第一块，不能把概览记成已讲完。
 
 **确认示例**：
 
@@ -312,8 +342,8 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
 
 ## 四、恢复时的翻页窗口管理
 
-**本节只有在只读活动路由返回 `current_activity: lesson` 且课程 driver 为 textbook 时
-执行。Exercise（包括带历史 Lesson 的 Exercise）和其他 driver 直接跳过整节，不解析旧
+**本节只有在只读活动路由返回 `current_activity: lesson` 且课程为 Mastery + textbook-led 时
+执行。Exercise（包括带历史 Lesson 的 Exercise）和其他推进协议直接跳过整节，不解析旧
 `textbook_page`，也不据此构造 Lesson 路径。**
 
 恢复上下文后，教材原文通过 preparation Snapshot + source_assets 管理：
@@ -338,6 +368,7 @@ python -B main/70_tools/t2ag_doctor.py --profile runtime
 
 | 场景 | 操作 | 结果 |
 |---|---|---|
+<!-- rule: ACT-ROUTE-009 -->
 | 正常书开讲 | prepare 连续 Scope **5–8** 页（默认 5） | 新 Snapshot + current 指针 |
 | 扩窗 / 翻页 | 新 Scope 版本 → **新** Snapshot；旧 Snapshot 只读保留 | 不改旧 PREP |
 | 短书 `N<5` | Scope = 全部可用页固定 | `short_document: true` |

@@ -8,8 +8,9 @@
 空模板识别标记：`t2ag-skeleton`。复制后的目录可以自由改名；完成首次初始化后，
 系统改由 profile 的 `initialization_status` 识别个人实例。
 
-0.2.4 Skeleton 处于开发态：首次启动资料缩减为五项可选，Edition 固定 `zh-CN`，安装器
-把所选 Edition 复制为同级 `t2ag/`，并在初始化成功后另问是否删除发行源。版本状态为
+0.2.4 Skeleton 处于开发态：首次启动以一次可跳过的条件对话和一次完整方案审阅推进，
+Edition 固定 `zh-CN`；安装器把所选 Edition 复制为同级 `t2ag/`，发行源默认保留且不另设
+删除询问。版本状态为
 `partial / not_run / not_claimed`；它不含真实课程活动、AR、书籍、sidecar、候选贡献或
 消费回执。最近 release 资格基线仍为 0.2.3。
 
@@ -19,7 +20,13 @@
 **使用许可**：从公开 GitHub 仓取得的副本中，代码按 Apache-2.0、散文按
 CC BY-SA 4.0 授权；路径边界见 `LICENSING.md`，归属声明见 `NOTICE`。
 
-## 一分钟启动与 Agent 偏好
+## 学生从这里开始
+
+告诉 Agent 你想学什么、希望做到什么，以及你愿意提供的条件；其余可以跳过。Agent 会先
+完整展示一份可修改的参考学习方案，等你确认后才创建课程，并直接给出第一步。学生不需要
+理解内部 ID、测试数量、Doctor 或维护命令；完整首次体验见 `main/50_playbook/first_run.md`。
+
+## Operator：启动编队与诊断
 
 默认可使用三个 Agent：一个主 Agent负责欢迎、用户交互、join 与唯一写回；Runtime
 Sentinel 只读检查 runtime Doctor 和 state；Context Prefetcher 只读消费 L0 并回交最小
@@ -94,7 +101,7 @@ Main 的身份池容量，后者是含 Main 的同时运行上限，首次启动
 
 3. 空模板的上下文命令必须返回 `first_run_required`；随后读取 `main/t2ag.md` 和
    `main/50_playbook/first_run.md`。
-4. 与用户确认 profile、首门课程和首个 group 后再显式写入。
+4. 完整展示参考学习方案并取得一次方案确认后，才显式写入 Course 与 Group。
 
 **预期输出**（**两态，取决于你拿到的是发行包还是开发树**）：
 

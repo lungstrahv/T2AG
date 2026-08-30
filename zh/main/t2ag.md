@@ -46,7 +46,8 @@
 7. 历史只追加，不改写既成事实。规则、当前状态和 GENERATED 块不享受历史豁免。
 8. 外部治理系统保持权威边界。Trading-OS 拥有交易纪律和交易事实；
    T2AG 只保存学习、过程证据和复盘注释，不复制或放宽外部条款。
-9. meta-playbook 层是项目基础：项目围绕 meta 再生；skeleton 必含全部 meta，三发行字节同源。
+9. meta-playbook 层是项目基础：项目围绕 meta 再生；共享规则只允许一个 canonical source，
+   发行投影必须可验证且不得反向成为真相源。操作 owner 见 `50_playbook/playbook_management.md` §五。
 10. 分级定义与细则见 `50_playbook/playbook_management.md` §四；机器兜底见 doctor 分级仪器。
 
 ## 2. 目录与对象  [max 34]
@@ -82,28 +83,25 @@ handoff 生命周期归 `50_playbook/handoff_management.md`。`.venv`、
 
 ## 3. 启动流程  [max 26]
 
-每次进入本项目：立即按当前皮肤展示欢迎信息（流程 canonical：`50_playbook/startup_orchestration.md`
-§零），同时并行启动只读恢复分支（Runtime Sentinel + Context Prefetcher；编队、命令、
-handoff 字段与时序 canonical：同文件 §一–§三）。不得等全部恢复检查串行结束后才给学生
-第一条反馈。
+启动协议不因“进入仓库”而隐式跑全套。调用方必须先分别声明入口轴
+`entry.teach|entry.maintain|entry.audit|entry.release` 与 `session_lane`；缺 token 时 fail closed，尤其不得默认
+`entry.teach`。入口合同、两轴边界与 I/O canonical：`50_playbook/startup_orchestration.md` §十一–§十四。
 
-两个可观察状态（判据 canonical：`startup_orchestration.md` §4.1/§4.2）：
+四入口共用前缀仅含：读取本宪法、按当前皮肤展示欢迎信息（同文件 §零）与既有
+`runtime.authorization` kernel。随后按入口分流：只有 `entry.teach` 启动课程恢复和 textbook
+Scope scan；`entry.maintain` 跑 runtime Doctor + state check；`entry.audit` 只读取证；
+`entry.release` 不自带发布授权。
 
-- `learning-ready`：critical 给出来源未变、route 唯一的精确停点与本轮必要内容，且无教学
-  阻断。textbook 还须完成本会话 Scope 扫描——A1–A5 经宿主可观察投递证成（A6/ADR-0003）；
-  Snapshot、`content_consumed`、历史 receipt 均不得冒充本轮。
-- `recovery-settled`：Doctor `0 FAIL`、state 无漂移、完整来源核对完成。任何进度写入、
-  checkpoint 确认、terminal/RT3、切换前台或「状态已闭合」宣称必须等待该状态。
+`entry.teach` 的两个可观察状态（判据 canonical：同文件 §4.1/§4.2）：
 
-时间目标：critical ≤10 秒、首条内容 ≤15 秒、完整后台 ≤45–60 秒；迟到阻断暂停后续推进。
+- `learning-ready`：critical 给出精确停点且无教学阻断；textbook Scope A1–A5 须经本轮宿主
+  可观察投递证成，Snapshot、`content_consumed`、历史 receipt 不得冒充。
+- `recovery-settled`：Doctor `0 FAIL`、state 无漂移、完整来源核对完成。所有入口的进度写入、
+  checkpoint、terminal/RT3、前台切换或闭合宣称均须等待其适用的 `recovery-settled`。
 
-- 首次启动：未初始化判据与初始化流程 canonical：`50_playbook/first_run.md`（模板须用
-  `40_course/_templates/course/`，不预置真实学生编号，不自动创建 `.venv`）。
-- 日常接管：即时摘录、L0/L1/L2 分层、课程选择与 Main 消费纪律 canonical：
-  `50_playbook/context_packet.md`。
-- runtime doctor FAIL：先修本地教学状态，不开新内容；release 侧 FAIL 只阻断候选与发布。
-  Cloud bridge `paused` 时云端投影只读；上下文工具不可执行时按 `50_playbook/lesson_recover.md`
-  手工分层摘录，不退回无差别全量读取。
+teach 时间目标、首次初始化、日常接管、FAIL/Cloud 降级与手工恢复均以下沉 owner 为准：
+`startup_orchestration.md`、`first_run.md`、`context_packet.md`、`doctor_contracts.md`、
+`lesson_recover.md`；不得在宪法重建第二份流程。
 
 ## 4. 教学与状态推进  [max 76]
 
@@ -174,6 +172,7 @@ handoff 字段与时序 canonical：同文件 §一–§三）。不得等全部
 - mistake bank 与 question bank 的 canonical 状态为
   `open / answered / closed`。
 - 上下文成本只决定何时读取，不决定教什么、保留什么证据或是否等待学生确认。
+<!-- rule: CTX-PACKET-001 -->
 - 软预算按完整序列化 Markdown 检查；来源库存省略比例不是旧 Prompt 实测，也不得
   表述为端到端 Token 降幅。
 - 组目标不是结组条件。结组必须使用 calendar 中的可判定阈值、review 证据和
@@ -213,6 +212,7 @@ V0–V3、预算与防越级门以它为准，绑定 plan SHA）。
   released`、发布前提清单）canonical：`50_playbook/batch_workorder_spec.md` §三、
   `50_playbook/git_workflow.md`、`50_playbook/validation_flow.md` §四。
 
+<!-- rule: AUTH-NONAMP-001 -->
 ### 6.2 授权不可放大与闭环止损
 
 验证级别与授权级别是两个独立维度。V0–V3 只决定需要多少证据，不改变谁有权批准动作。

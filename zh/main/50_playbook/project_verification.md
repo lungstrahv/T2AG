@@ -11,6 +11,11 @@
 > 项目线课程每个里程碑必须绑定验证模式（A/B/B-K,建组或 M 启动前登记,大调整窗口可改
 > 未启动 M）,任何模式必须满足三机制：外部真相源、独立性测量、失败留痕。
 
+本协议只由 `course_type: project` 触发。Project Course 的推进由既有 Project Plan 中
+下一个未闭合 Project Goal/Milestone 内生决定；计划定义仍归 `course.md`，节点状态与前台
+仍归 `progress.md` / `activity_ledger.md`，不新造第二份 ProjectPlan 真相源。
+`course_type: mastery` + `learning_mode: project` 仍按 Mastery 完成证据结算，不适用本协议。
+
 ### 环境惰性与净室验证边界
 
 - 启动、doctor、普通课程和普通里程碑验收只检查现有环境，绝不自动创建、删除、重建、

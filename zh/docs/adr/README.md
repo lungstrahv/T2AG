@@ -72,6 +72,8 @@ local_adoption_evolution: EV-XXXX
 | [0002](./0002-host-controlled-textbook-teaching-egress.md) | host-controlled-textbook-teaching-egress | proposed | EV-0013 |
 | [0003](./0003-prefetcher-self-certified-scan-admission.md) | prefetcher-self-certified-scan-admission | accepted | EV-0019 |
 | [0004](./0004-cloud-protocol-instance-separation.md) | cloud-protocol-instance-separation | accepted | EV-0021 |
+| [0005](./0005-okf-knowledge-bundle-export-boundary.md) | okf-knowledge-bundle-export-boundary | accepted | EV-0024 |
+| [0006](./0006-course-type-owned-progression.md) | course-type-owned-progression | accepted | EV-0033 |
 
 Superseded filename stub: [0002-teaching-admission-capability-gate.md](./0002-teaching-admission-capability-gate.md) (redirect only; not a second decision).
 

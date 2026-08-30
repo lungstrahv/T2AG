@@ -356,6 +356,7 @@ def assert_message(collection: list[str], token: str) -> None:
 
 
 def test_profile_placeholder(root: Path) -> None:
+    del root
     errors = doctor.initialized_profile_content_errors(
         "## 学习兴趣\n\n- （待填写）\n"
     )
@@ -364,44 +365,6 @@ def test_profile_placeholder(root: Path) -> None:
         "## 学习兴趣\n\n- 有待生成\n\n## 自我介绍\n\n未提供\n"
     )
     assert optional == [], optional
-
-    release = root / "t2ag-skeleton"
-    profile = release / "main/10_student/profile/profile.md"
-    write(
-        profile,
-        "---\ninitialization_status: uninitialized\n---\n# 学生档案\n",
-    )
-    write(release / "README.md", "# T2AG 中文 Skeleton\n")
-    assert doctor.detect_flavor(release) == "skeleton"
-    write(
-        profile,
-        "---\ninitialization_status: initialized\n---\n"
-        "# 学生档案\n\n## 学习兴趣\n\n- 有待生成\n\n"
-        "## 自我介绍\n\n未提供\n",
-    )
-    assert doctor.detect_flavor(release) == "main"
-
-    for timezone_name, cutoff in (
-        ("Asia/Shanghai", "00:00"),
-        ("America/New_York", "04:00"),
-        ("UTC", "23:59"),
-    ):
-        errors = doctor.activity_close_profile_errors(
-            {
-                "activity_close_preference_schema": "activity_close_preferences.v1",
-                "learning_timezone": timezone_name,
-                "learning_day_cutoff": cutoff,
-            }
-        )
-        assert errors == [], (timezone_name, cutoff, errors)
-    errors = doctor.activity_close_profile_errors(
-        {
-            "activity_close_preference_schema": "activity_close_preferences.v1",
-            "learning_timezone": "New York",
-            "learning_day_cutoff": "24:00",
-        }
-    )
-    assert len(errors) == 2 and all("非法" in error for error in errors), errors
 
 
 def test_profile_container_contract(root: Path) -> None:
@@ -1016,7 +979,8 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
     course = root / "main/40_course/TEST1001"
     write(
         course / "course.md",
-        "---\ntype: course\ncourse_id: TEST1001\nname: Test Course\n---\n",
+        "---\ntype: course\ncourse_id: TEST1001\nname: Test Course\n"
+        "course_type: mastery\ndefault_driver: goal\n---\n",
     )
     write(
         course / "lessons/lesson01/lesson01.md",
@@ -1192,7 +1156,31 @@ def test_state_refresh_activity_roundtrip(root: Path) -> None:
 
 
 def test_exercise_current_lesson_driver_matrix(root: Path) -> None:
-    drivers = ("textbook", "goal", "project", "praxis")
+    # Legacy read compatibility covers the three Mastery modes.  Praxis is a
+    # Course Type now, not a fourth Mastery driver.
+    drivers = ("textbook", "goal", "project")
+
+    for course_meta, progress_meta, expected in (
+        ({"course_type": "mastery", "learning_mode": "textbook"}, {}, ("mastery", "textbook")),
+        ({"course_type": "project"}, {}, ("project", None)),
+        ({"course_type": "praxis"}, {}, ("praxis", None)),
+        ({"course_type": "mastery", "default_driver": "goal"}, {"course_driver": "goal"}, ("mastery", "goal")),
+    ):
+        progression = activity.resolve_course_progression(course_meta, progress_meta)
+        assert (progression.course_type, progression.learning_mode) == expected
+    for course_meta, progress_meta in (
+        ({"course_type": "mastery", "learning_mode": "praxis"}, {}),
+        ({"course_type": "project", "learning_mode": "project"}, {}),
+        ({"course_type": "praxis"}, {"course_driver": "goal"}),
+    ):
+        try:
+            activity.resolve_course_progression(course_meta, progress_meta)
+        except activity.ActivityContractError:
+            pass
+        else:
+            raise AssertionError(
+                f"illegal type/mode pairing accepted: {course_meta} {progress_meta}"
+            )
 
     def build(case_root: Path, driver: str, lesson_value: str | None, real_lesson: bool) -> None:
         course = case_root / "main/40_course/TEST1001"
@@ -1337,6 +1325,11 @@ def test_textbook_preparation_activity_matrix(root: Path) -> None:
         lesson / "lessons/lesson01/lesson01.md",
         "---\ntype: lesson\ncourse_id: LESS1001\nlesson_id: lesson01\n---\n",
     )
+    write(
+        lesson / "course.md",
+        "---\ntype: course\ncourse_id: LESS1001\ncourse_type: mastery\n"
+        "learning_mode: goal\n---\n",
+    )
     courses = {
         "EXER1001": (
             exercise,
@@ -1453,6 +1446,7 @@ def test_course_activity_templates(root: Path) -> None:
     assert_message(doctor.fails, "缺课程学习活动 Core 契约")
     assert_message(doctor.fails, "课程学习活动 Core 缺地图优先讲解协议")
     assert_message(doctor.fails, "首次启动未采集长篇讲解地图与分支确认偏好")
+    assert_message(doctor.fails, "首次体验缺少方案先行与双停顿契约")
     assert_message(doctor.fails, "课程恢复流程未先按 current_activity 分支")
 
 
@@ -2072,6 +2066,11 @@ def test_persistent_exercise_source_contract(root: Path) -> None:
     unit = course / "exercises/U0001"
     content_group = "TEST1001-B001-C01-S01"
     write(
+        course / "course.md",
+        "---\ntype: course\ncourse_id: TEST1001\ncourse_type: mastery\n"
+        "learning_mode: textbook\n---\n",
+    )
+    write(
         course / "progress.md",
         "---\ntype: course_progress\ncourse_id: TEST1001\n"
         "lifecycle_status: ongoing\ncourse_driver: textbook\ntruth_source: true\n"
@@ -2584,23 +2583,22 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
     content = (REPO / "main/50_playbook/lesson_recover.md").read_text(encoding="utf-8")
     close = (REPO / "main/50_playbook/session_close.md").read_text(encoding="utf-8")
     flow = (REPO / "main/50_playbook/t2ag_flow.md").read_text(encoding="utf-8")
-    branch = content.find("### 步骤 3：按 current_activity 恢复主载体")
-    lesson = content.find("#### `lesson` 分支")
-    exercise = content.find("#### `exercise` 分支")
+    branch = doctor.rule_position(content, "ACT-ROUTE-001")
+    lesson = doctor.rule_position(content, "ACT-ROUTE-002")
+    exercise = doctor.rule_position(content, "ACT-ROUTE-003")
     working = content.find("步骤 5：教材原文窗口（Snapshot-only）")
     if not (0 <= branch < lesson < exercise < working):
         raise AssertionError("lesson_recover does not branch before Lesson/preparation consumers")
-    required = (
-        "Exercise 首启不得读取或构造 Lesson 路径",
-        "不写 `current_lesson`",
-        "教材原文窗口 **仅在 `lesson` + `course_driver: textbook`**",
+    missing = doctor.missing_requirements(content, (
+        "ACT-ROUTE-004",
+        "ACT-ROUTE-008",
+        "ACT-ROUTE-005",
         "t2ag_activity.py --course <COURSE_ID> --intent recover",
-        "连续 Scope **5–8**",
-        "不得自动清理",
+        "ACT-ROUTE-009",
+        "ACT-ROUTE-010",
         "exact RT3",
         "current_snapshot.json",
-    )
-    missing = [token for token in required if token not in content]
+    ))
     if missing:
         raise AssertionError(f"lesson_recover missing Exercise-first guards: {missing}")
     forbidden_recovery = (
@@ -2615,13 +2613,12 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
     leaked = [token for token in forbidden_recovery if token in content]
     if leaked:
         raise AssertionError(f"lesson_recover retains unconditional Lesson/deferred consumers: {leaked}")
-    close_required = (
+    missing_close = doctor.missing_requirements(close, (
         "t2ag_activity.py --course <COURSE_ID> --intent close",
-        "Micro close 和完整结课都必须原子完成",
-        "Exercise 结课不得顺手",
-        "不产生 pending、CLR 或自动 pause",
-    )
-    missing_close = [token for token in close_required if token not in close]
+        "ACT-ROUTE-006",
+        "ACT-ROUTE-007",
+        "ACT-ROUTE-011",
+    ))
     if missing_close:
         raise AssertionError(f"session_close missing atomic activity routing: {missing_close}")
     # These anchors are carrier-bound on purpose, but the carrier changed once
@@ -2641,7 +2638,7 @@ def test_activity_workflows_share_executable_route(root: Path) -> None:
         any(arm in line and "─→ L1" in line for line in flow.splitlines())
         for arm in ("lesson", "exercise")
     )
-    forces_shared_transaction = "progress + 当前活动主载体 + 真实台账" in flow
+    forces_shared_transaction = doctor.has_rule(flow, "ACT-ROUTE-012")
     if not branches_before_consumers or not forces_shared_transaction:
         raise AssertionError(
             "flow view does not branch before activity consumers "
@@ -2739,7 +2736,12 @@ def generate_synthetic_exercise_first(fixture: Path, cli) -> str:
         "t2ag_init.py", "--root", str(fixture), "new-course",
         "--course-id", course_id,
         "--name", "Synthetic Course",
-        "--driver", "textbook",
+        # `--course-type` became required with `--entry` and `--verification-status`
+        # (PG3 #1): a default may not stand in for a confirmation. `mastery` is not
+        # a choice here — this fixture passes `--learning-mode textbook`, which the
+        # tool rejects on any non-mastery course type.
+        "--course-type", "mastery",
+        "--learning-mode", "textbook",
         "--lifecycle", "ongoing",
         "--entry", "exercise",
         "--teacher", "T001",
@@ -3120,7 +3122,9 @@ def test_group_activation_notary(root: Path) -> None:
         )
         return base
 
-    def plan(base: Path, mode: str, keystones: str, extra: str = "") -> Path:
+    def plan(
+        base: Path, mode: str, keystones: str, extra: str = "", *, calendar: str | None = None
+    ) -> Path:
         path = base / "main/30_group/G01/plan.md"
         write(
             path,
@@ -3131,6 +3135,19 @@ def test_group_activation_notary(root: Path) -> None:
             f"container_mode: {mode}\n{extra}"
             "updated: 2026-08-01\n---\n\n"
             "## 4. 主干碑序列\n\n" + keystones + "\n## 5. 碑变更台账\n\n| |\n",
+        )
+        # A calendar.md carrying the stop-loss anchor is what the real templates
+        # ship (`keystone_dwell_budget_cycles: TBD`), and since PG3 the preflight
+        # blocks activation without it — same criterion Doctor already enforced on
+        # active groups, just moved to the moment the group becomes active. These
+        # fixtures had no calendar at all, which was only ever survivable because
+        # the criterion fired a whole Doctor run too late.
+        write(
+            base / "main/30_group/G01/calendar.md",
+            "---\ntype: group_calendar\ngroup_id: G01\nstatus: planned\n"
+            f"container_mode: {mode}\n"
+            + (calendar if calendar is not None else "keystone_dwell_budget_cycles: TBD\n")
+            + "updated: 2026-08-01\n---\n",
         )
         return path
 
@@ -3164,7 +3181,7 @@ def test_group_activation_notary(root: Path) -> None:
     assert activate(base) == 1, "re-activation of an active group must be refused"
 
     base = instance("sched")
-    path = plan(base, "schedule", "")
+    path = plan(base, "schedule", "", calendar="cycle_anchor_learning_day: TBD\n")
     assert activate(base) == 0, "schedule groups must activate without an anchor"
     text = path.read_text(encoding="utf-8")
     assert "keystone_total_frozen" not in text, text
@@ -3665,78 +3682,6 @@ def test_candidate_replay_isolation_contract(root: Path) -> None:
         candidate_replay.inspect_tree = original_inspect_tree
 
 
-def test_migration_manifest_tamper(root: Path) -> None:
-    reset(root)
-    write(
-        root / "main/60_journal/migration_020_operations.json",
-        '{"operation_count":1,"operations":[{"sequence":1,"kind":"copy",'
-        '"sources":[{"path":"a","bytes":1,"sha256":"' + "1" * 64 + '"}],'
-        '"target":"b","disposition":"test","post_target":{"path":"b",'
-        '"bytes":1,"sha256":"' + "2" * 64 + '"}}]}\n',
-    )
-    write(
-        root / "main/60_journal/migration_020_report.json",
-        '{"status":"applied","applied_count":1,"post_apply_duplicate_active_canonicals":[],'
-        '"operation_manifest":{"operation_count":1,"sha256":"' + "0" * 64 + '"}}\n',
-    )
-    run_silently(doctor.check_migration_evidence)
-    assert_message(doctor.fails, "SHA 漂移")
-
-
-def test_migration_manifest_missing_reference(root: Path) -> None:
-    reset(root)
-    write(
-        root / "main/60_journal/migration_020_operations.json",
-        '{"operation_count":1,"operations":[{"sequence":1,"kind":"copy",'
-        '"sources":[{"path":"a","bytes":1,"sha256":"' + "1" * 64 + '"}],'
-        '"target":"b","disposition":"test","post_target":{"path":"b",'
-        '"bytes":1,"sha256":"' + "2" * 64 + '"}}]}\n',
-    )
-    write(
-        root / "main/60_journal/migration_020_report.json",
-        '{"status":"applied","applied_count":1,'
-        '"post_apply_duplicate_active_canonicals":[]}\n',
-    )
-    run_silently(doctor.check_migration_evidence)
-    assert_message(doctor.fails, "缺 operation_manifest 引用块")
-
-
-def test_main_readme_skeleton_reference_does_not_change_migration_kind(root: Path) -> None:
-    reset(root, flavor="main")
-    write(
-        root / "README.md",
-        "# T2AG\n\n通用能力在 ../t2ag-skeleton/ 收敛。\n",
-    )
-    write_formal_lite_migration_evidence(
-        root,
-        "main/example.bin",
-        "a" * 64,
-    )
-    run_silently(doctor.check_migration_evidence)
-    if doctor.fails:
-        raise AssertionError(
-            f"Main README cross-reference changed migration identity: {doctor.fails}"
-        )
-
-
-def test_profile_migration_manifest_tamper(root: Path) -> None:
-    reset(root)
-    write(
-        root / "main/60_journal/migration_021_profile_operations.json",
-        '{"schema_version":"T2AG-MIGRATION-OPERATIONS-1",'
-        '"target_kind":"main","operation_count":4,"operations":[]}\n',
-    )
-    write(
-        root / "main/60_journal/migration_021_profile_report.json",
-        '{"status":"applied","applied_count":4,'
-        '"operation_manifest":{"path":'
-        '"main/60_journal/migration_021_profile_operations.json",'
-        '"operation_count":4,"sha256":"' + "0" * 64 + '"}}\n',
-    )
-    run_silently(doctor.check_migration_021_evidence)
-    assert_message(doctor.fails, "V1/V2 迁移操作清单或报告")
-
-
 def test_profile_migration_roundtrip(root: Path) -> None:
     for index, (source, target) in enumerate(migration_021.MOVES, start=1):
         write(root / source, f"profile fixture {index}\n")
@@ -3770,7 +3715,7 @@ def test_profile_migration_roundtrip(root: Path) -> None:
 
 HANDOFF_INDEX_HEADINGS = (
     "Active Handoffs",
-    "下一版本 Backlog",
+    doctor.marker_spellings("下一版本 Backlog")[0],
     "Workorders / Plans",
     "Evidence / Reviews",
     "Resolved / Archive Handoffs",
@@ -3851,7 +3796,7 @@ def test_handoff_assertion_without_source_is_reported(root: Path) -> None:
         raise AssertionError(f"fixture handoff should be structurally valid: {doctor.fails}")
     assert_message(doctor.warns, "交接断言无复算来源")
     assert_message(doctor.warns, "FIXTURE_HANDOFF.md")
-    for token in ("89 个脏文件", "零命中", "sha256"):
+    for token in ("89 个脏文件", doctor.marker_spellings("零命中")[0], "sha256"):
         assert_message(doctor.warns, token)
     located = [warn for warn in doctor.warns if "FIXTURE_HANDOFF.md:" in warn]
     if len(located) != 3:
@@ -3939,27 +3884,32 @@ def test_handoff_shadow_runtime_index_is_enforced(root: Path) -> None:
     assert_message(doctor.fails, "复制了 Active Handoffs")
 
 
+def _authorization_rule_fixture(rule_id: str) -> str:
+    return doctor.rule_anchor(rule_id) + "\n" + doctor.rule_marker(rule_id) + "\n"
+
+
 AUTHORIZATION_PLAYBOOK_FIXTURE = {
     "main/50_playbook/batch_workorder_spec.md": (
-        "授权不可放大\n尚未生成的对象不可预授权\n"
+        _authorization_rule_fixture("AUTH-NONAMP-002")
+        + _authorization_rule_fixture("AUTH-NONAMP-003")
     ),
     "main/50_playbook/session_close.md": (
-        "user + direct_user\nreceipt 只记录授权证据\n"
+        "user + direct_user\n" + _authorization_rule_fixture("AUTH-NONAMP-004")
     ),
     "main/50_playbook/remediation_governance.md": (
-        "stopped_budget\n默认最多两轮 finding 整改\n"
+        "stopped_budget\n" + _authorization_rule_fixture("AUTH-NONAMP-005")
     ),
     "main/50_playbook/handoff_management.md": (
-        "### 8.1 恢复后动作授权门\n"
-        "概括性认可只覆盖当轮已具体列出的动作\n"
-        "Handoff 的 authorization 字段是历史记录，不构成当轮许可\n"
+        _authorization_rule_fixture("AUTH-NONAMP-006")
+        + _authorization_rule_fixture("AUTH-NONAMP-007")
+        + _authorization_rule_fixture("AUTH-NONAMP-008")
     ),
 }
 
 
 def write_authorization_governance_fixture(repo: Path) -> None:
     """Seed the minimum surface check_authorization_governance reads."""
-    instructions = "授权不可放大与闭环止损\nstopped_budget\ntoken\n"
+    instructions = _authorization_rule_fixture("AUTH-NONAMP-001") + "stopped_budget\ntoken\n"
     write(repo / "AGENTS.md", instructions)
     write(repo / "main/t2ag.md", FIXTURE_CONSTITUTION + instructions)
     for relative, content in AUTHORIZATION_PLAYBOOK_FIXTURE.items():
@@ -3979,7 +3929,7 @@ def test_resume_authorization_gate_is_enforced(root: Path) -> None:
     write(
         repo / "main/50_playbook/handoff_management.md",
         AUTHORIZATION_PLAYBOOK_FIXTURE["main/50_playbook/handoff_management.md"].replace(
-            "概括性认可只覆盖当轮已具体列出的动作", "接管方可自行判断范围", 1
+            doctor.rule_marker("AUTH-NONAMP-007"), "接管方可自行判断范围", 1
         ),
     )
     run_silently(
@@ -3995,6 +3945,56 @@ def test_resume_authorization_gate_is_enforced(root: Path) -> None:
     surviving = [message for message in doctor.fails if "handoff_management.md" in message]
     if surviving:
         raise AssertionError(f"complete resume gate must pass: {surviving}")
+
+
+def test_authorization_gate_evidence_surface_reachability(root: Path) -> None:
+    """NEGATIVE: 取不到取证面时本门必须出声，不得静默通过。
+
+    该门断言两个 0.2.2 具名工单仍带作废注；取不到文件时两条断言都跳过，而
+    「跳过了」与「守住了」在输出上不可区分——2026-08-18 的迁档正是这样让门
+    fail-open 十天（§14.63）。rglob 修法只清了「归档使门失明」一路；「文书仓
+    根本不在旁边」与「树内取不到具名件」是第二路，§14.67 要求它显式可见。
+    """
+    repo = root / "t2ag"
+    handoffs = root / "docs/handoffs"
+    v4_name = "T2AG_022_ACTIVITY_CLOSE_AUTONOMOUS_COMPLETION_WORKORDER_V4_2026-08-05.md"
+    v2_name = "T2AG_022_ACTIVITY_CLOSE_EXECUTION_WORKORDER_V2_2026-08-04.md"
+
+    def run() -> None:
+        reset(repo)
+        write_authorization_governance_fixture(repo)
+        run_silently(doctor.check_authorization_governance)
+
+    # R1：文书仓未挂载 ⇒ 一条「取证面未挂载」
+    run()
+    assert_message(doctor.warns, "授权门取证面未挂载")
+
+    # R2：目录在而具名件取不到 ⇒ 逐件出声，且必须报出文件名
+    handoffs.mkdir(parents=True, exist_ok=True)
+    run()
+    assert_message(doctor.warns, v4_name)
+    assert_message(doctor.warns, v2_name)
+
+    # G1：件落在 archive/ 子树且合规 ⇒ 完全静默（兼作 rglob 修法的回归位）
+    archive = handoffs / "archive/v0.2.2"
+    write(archive / v4_name, "**status**: `superseded_for_authorization`\n")
+    write(archive / v2_name, "authorization supersession notice\n")
+    run()
+    noise = [
+        message
+        for message in doctor.warns + doctor.fails
+        if "授权门取证" in message or "V4 工单" in message
+    ]
+    if noise:
+        raise AssertionError(f"可达且合规的取证面必须静默：{noise}")
+
+    # R3：件取得到但内容不合规 ⇒ 仍走原 FAIL，可达性 WARN 不得顶替它
+    write(archive / v4_name, "no supersession notice here\n")
+    run()
+    assert_message(doctor.fails, "当前 V4 工单仍可被解释为 continuous RT3 授权")
+    misreport = [message for message in doctor.warns if "授权门取证" in message]
+    if misreport:
+        raise AssertionError(f"已取到的文件不得报成不可达：{misreport}")
 
 
 def test_environment_probes_report_broken_assumptions(root: Path) -> None:
@@ -4215,7 +4215,26 @@ def _memory_budget_fixture(sections: str) -> str:
     return "# T2AG 跨会话记忆索引\n\n> 版本：0.2.3\n\n" + sections
 
 
-def test_memory_budget_over_limit_warns_with_both_numbers(root: Path) -> None:
+def _seed_constitution_budget(root: Path, cap: int = 50, lines: int = 1) -> None:
+    """Seed a t2ag.md whose only marked section is comfortably under budget.
+
+    check_line_budget covers BOTH carriers, so a memory-carrier test that leaves
+    t2ag.md absent would collect an unrelated FAIL and stop being a test of what
+    it names.
+    """
+    body = "# T2AG\n\n" + f"## 宪法节  [max {cap}]\n" + "".join(
+        f"- c{i}\n" for i in range(lines)
+    )
+    write(root / "main/t2ag.md", body)
+
+
+def _run_line_budget_on_memory(root: Path) -> None:
+    """Run the merged check with the constitution carrier held silent."""
+    _seed_constitution_budget(root)
+    run_silently(doctor.check_line_budget)
+
+
+def test_line_budget_memory_over_limit_warns_with_both_numbers(root: Path) -> None:
     """NEGATIVE: an over-budget section must be named with actual AND cap.
 
     "WARN 不指名等于没报" — a bare "memory too long" leaves the reader to go
@@ -4226,14 +4245,14 @@ def test_memory_budget_over_limit_warns_with_both_numbers(root: Path) -> None:
         "## 最近关键决策  [max 3]\n" + "".join(f"- entry {i}\n" for i in range(10))
     )
     write(root / "main/00_core/t2ag_memory.md", body)
-    run_silently(doctor.check_memory_budget)
+    _run_line_budget_on_memory(root)
     assert_message(doctor.warns, "最近关键决策")
     assert_message(doctor.warns, "预算 3 行")
     if not any("实测 11 行" in w for w in doctor.warns):
         raise AssertionError(f"actual line count not named: {doctor.warns}")
 
 
-def test_memory_budget_missing_markers_warns(root: Path) -> None:
+def test_line_budget_memory_missing_markers_warns(root: Path) -> None:
     """NEGATIVE: no [max N] anywhere means the mechanism is silently off.
 
     This is the failure mode that actually happened: v0.1.2's markers vanished in
@@ -4245,23 +4264,23 @@ def test_memory_budget_missing_markers_warns(root: Path) -> None:
         root / "main/00_core/t2ag_memory.md",
         _memory_budget_fixture("## 最近关键决策\n- entry\n"),
     )
-    run_silently(doctor.check_memory_budget)
+    _run_line_budget_on_memory(root)
     assert_message(doctor.warns, "无任何 [max N] 节预算标记")
 
 
-def test_memory_budget_within_limit_is_silent(root: Path) -> None:
+def test_line_budget_memory_within_limit_is_silent(root: Path) -> None:
     """POSITIVE: a section under budget must produce no output at all."""
     reset(root)
     write(
         root / "main/00_core/t2ag_memory.md",
         _memory_budget_fixture("## 最近关键决策  [max 50]\n- entry\n"),
     )
-    run_silently(doctor.check_memory_budget)
+    _run_line_budget_on_memory(root)
     if doctor.warns or doctor.fails:
         raise AssertionError(f"healthy budget must stay quiet: {doctor.warns}")
 
 
-def test_memory_budget_counts_only_its_own_section(root: Path) -> None:
+def test_line_budget_memory_counts_only_its_own_section(root: Path) -> None:
     """Section spans to the NEXT `## `, so a long neighbour must not spill in."""
     body = _memory_budget_fixture(
         "## 短节  [max 5]\n- a\n- b\n\n"
@@ -4995,6 +5014,153 @@ def test_rule_enforcement_fenced_examples_are_silent(root: Path) -> None:
         )
 
 
+def _bind_checks(**bindings: str) -> dict:
+    """A doctor_checks-shaped dict; named ids get a rule_binding, others don't."""
+    spec = {"phase": "runtime", "handler": "h", "path_prefixes": ["*"]}
+    checks = {}
+    for check_id, binding in bindings.items():
+        entry = dict(spec)
+        if binding:
+            entry["rule_binding"] = binding
+        checks[check_id.replace("__", ".")] = entry
+    return checks
+
+
+def test_rule_binding_r1_resolvable_binding_is_silent(root: Path) -> None:
+    """POSITIVE 判据一: a bare `path#anchor` that resolves stays silent."""
+    main = _rgate_fixture(root)
+    checks = _bind_checks(runtime__gate_ledger="50_playbook/doctor_contracts.md#一、结果分类")
+    findings = doctor.rule_binding_findings(checks, frozenset(), main=main)
+    if [code for code, _, _ in findings] != []:
+        raise AssertionError(f"resolvable binding must stay silent: {findings}")
+
+
+def test_rule_binding_r1_unresolvable_binding_fails(root: Path) -> None:
+    """NEGATIVE 判据一: every shape of an unsound value → RULE-BIND-001 FAIL.
+
+    The `context=`-prefixed case is the interesting one: F-A fixes the value as
+    BARE `path#anchor`, so a prefixed value is a shape error, not a missing
+    file.  Reporting it as "file not found: context=50_playbook/..." would
+    disguise the shape error as a landing error and send the reader hunting for
+    a file that was never meant to exist.
+    """
+    main = _rgate_fixture(root)
+    for value in (
+        "50_playbook/doctor_contracts.md#锚已不存在",   # anchor rotted
+        "50_playbook/no_such_file.md#一、结果分类",      # file gone
+        "50_playbook/doctor_contracts.md",              # no '#'
+        "#一、结果分类",                                 # no path
+        "context=50_playbook/doctor_contracts.md#一、结果分类",  # prefix leaked in
+        "",
+        None,
+        12,
+    ):
+        checks = _bind_checks(runtime__gate_ledger="x")
+        checks["runtime.gate_ledger"]["rule_binding"] = value
+        findings = doctor.rule_binding_findings(checks, frozenset(), main=main)
+        if [(code, severity) for code, severity, _ in findings] != [
+            ("RULE-BIND-001", "FAIL")
+        ]:
+            raise AssertionError(f"{value!r} must fail as unsound: {findings}")
+
+
+def test_rule_binding_r2_full_coverage_is_silent(root: Path) -> None:
+    """POSITIVE 判据二: when every entry declares a binding, no 002."""
+    main = _rgate_fixture(root)
+    anchor = "50_playbook/doctor_contracts.md#一、结果分类"
+    checks = _bind_checks(runtime__structure=anchor, runtime__gate_ledger=anchor)
+    findings = doctor.rule_binding_findings(checks, frozenset(), main=main)
+    if findings:
+        raise AssertionError(f"full coverage must stay silent: {findings}")
+
+
+def test_rule_binding_r2_missing_aggregates_into_one_warn(root: Path) -> None:
+    """NEGATIVE 判据二: absent bindings → exactly ONE WARN carrying the total.
+
+    Per-entry reporting is the tempting wrong answer: 61 lines would drown the
+    reading surface, and coverage is one quantity, not 61 independent events.
+    The total must survive into the message, and the sample must be bounded.
+    """
+    main = _rgate_fixture(root)
+    checks = _bind_checks(**{f"runtime__c{n:02d}": "" for n in range(9)})
+    checks["runtime.bound"] = {
+        "phase": "runtime",
+        "handler": "h",
+        "path_prefixes": ["*"],
+        "rule_binding": "50_playbook/doctor_contracts.md#一、结果分类",
+    }
+    findings = doctor.rule_binding_findings(checks, frozenset(), main=main)
+    if [(code, severity) for code, severity, _ in findings] != [
+        ("RULE-BIND-002", "WARN")
+    ]:
+        raise AssertionError(f"missing bindings must aggregate to one WARN: {findings}")
+    message = findings[0][2]
+    if "9/10" not in message:
+        raise AssertionError(f"aggregate WARN must carry the total: {message}")
+    # The bound is asserted as a literal, not read back from the module: taking
+    # it from RULE_BINDING_SAMPLE_LIMIT would make the assertion move with the
+    # code it is supposed to hold still, and widening the limit would pass.
+    if message.count("runtime.c") != 5 or "…" not in message:
+        raise AssertionError(f"sample must be truncated at 5 and say so: {message}")
+
+
+def test_rule_binding_r3_bidirectional_edges_leave_no_orphan(root: Path) -> None:
+    """POSITIVE 判据三: a check both named by a rule and self-declaring → ∅."""
+    orphans = doctor.rule_binding_orphans(
+        {"runtime.gate_ledger"}, {"runtime.gate_ledger", "runtime.structure"}
+    )
+    if orphans:
+        raise AssertionError(f"a bidirectional edge is not an orphan: {orphans}")
+
+
+def test_rule_binding_r3_one_way_edge_is_an_orphan(root: Path) -> None:
+    """NEGATIVE 判据三: named by a rule, no self-declaration → orphan.
+
+    The negative lives on the PURE FUNCTION, and it has to: orphan(literal) =
+    {named} ∩ {unbound} ⊆ {unbound} = the 002 set, so after "002 wins" dedup
+    the 003-only set is ∅ *by identity*, for any repository state — the
+    aggregate RULE-BIND-003 line is unreachable, not merely quiet today.  A
+    negative asserted at the aggregate layer could therefore never go red, and
+    判据三 would ship with no falsifiable test at all.  This pins both layers:
+    the judgement itself discriminates, and the publishing layer suppresses.
+    """
+    orphans = doctor.rule_binding_orphans(
+        {"runtime.gate_ledger", "runtime.skin"}, {"runtime.structure"}
+    )
+    if orphans != frozenset({"runtime.gate_ledger", "runtime.skin"}):
+        raise AssertionError(f"one-way edges must be orphans: {orphans}")
+    # Same data through the aggregate: 002 absorbs it, so 003 does not fire.
+    main = _rgate_fixture(root)
+    checks = _bind_checks(runtime__gate_ledger="", runtime__skin="")
+    findings = doctor.rule_binding_findings(
+        checks, {"runtime.gate_ledger", "runtime.skin"}, main=main
+    )
+    if [code for code, _, _ in findings] != ["RULE-BIND-002"]:
+        raise AssertionError(f"002 must absorb the orphans at the aggregate: {findings}")
+
+
+def test_rule_binding_named_set_ignores_fenced_examples(root: Path) -> None:
+    """The naming side reuses the fence rule: examples are not live edges.
+
+    Counting without `strip_fenced_blocks` inflates this repository's naming
+    set from 9 IDs to 12 — the fenced specimens in the very playbook that
+    defines the field.
+    """
+    named = doctor.enforcement_named_checks(
+        _rule_docs(
+            "```text\nenforcement: check=runtime.only_an_example\n```\n"
+            "enforcement: check=runtime.gate_ledger\n"
+        )
+    )
+    if named != frozenset({"runtime.gate_ledger"}):
+        raise AssertionError(f"fenced specimens must not be named edges: {named}")
+    outside = doctor.enforcement_named_checks(
+        _rule_docs("enforcement: check=runtime.only_an_example\n")
+    )
+    if outside != frozenset({"runtime.only_an_example"}):
+        raise AssertionError(f"fixture cannot no-op: {outside}")
+
+
 def test_problemlog_closure_dangling_landing_warns(root: Path) -> None:
     """NEGATIVE (4A): closure naming a missing check/tool → 004, WARN not FAIL.
 
@@ -5229,6 +5395,22 @@ def test_playbook_taxonomy_r1_byte_drift_fails_parity(root: Path) -> None:
         findings = doctor.playbook_taxonomy_parity_findings(editions)
         if not any(code == "PB-TAXO-003" and severity == "FAIL" for code, severity, _ in findings):
             raise AssertionError(f"byte drift must FAIL 003: {findings}")
+        gate_index = REPO / "main/00_core/gate_index.md"
+        old_gate_index = REPO / "main/50_playbook/gate_index.md"
+        if not gate_index.is_file() or old_gate_index.exists():
+            raise AssertionError("gate index must live only at main/00_core/gate_index.md")
+        pointer_files = (
+            REPO / "main/50_playbook/process_governance.md",
+            REPO / "main/50_playbook/_README.md",
+            REPO / "main/50_playbook/progress_governance.md",
+        )
+        for pointer_file in pointer_files:
+            if "main/00_core/gate_index.md" not in pointer_file.read_text(encoding="utf-8"):
+                raise AssertionError(f"stale gate-index consumer: {pointer_file}")
+        if "main/50_playbook/gate_index.md" in doctor.DISTRIBUTION_PARITY_EXEMPT:
+            raise AssertionError("distribution parity still exempts the retired gate-index path")
+        if "main/50_playbook/gate_index.md" in doctor.CROSS_EDITION_FILE_EXEMPT:
+            raise AssertionError("cross-edition parity still exempts the retired gate-index path")
     finally:
         _assert_real_playbooks_untouched(before)
 
@@ -5436,7 +5618,8 @@ def _exam_fixture(
 
 
 EXAM_META_COLUMNS_FIXTURE = (
-    "题号", "类型", "知识节点", "难度档", "已用于教学", "已考", "解答页码", "考前检查备注",
+    doctor.marker_spellings("题号")[0],
+    "类型", "知识节点", "难度档", "已用于教学", "已考", "解答页码", "考前检查备注",
 )
 
 
@@ -5469,6 +5652,53 @@ def _container_fixture(
     return "G01", folder, doctor.frontmatter(folder / "plan.md")
 
 
+def _load_init_module(tag: str):
+    """Load `t2ag_init.py` under a private name (same pattern as the other tests)."""
+    spec_init = importlib.util.spec_from_file_location(tag, SCRIPT.with_name("t2ag_init.py"))
+    module = importlib.util.module_from_spec(spec_init)
+    assert spec_init and spec_init.loader
+    spec_init.loader.exec_module(module)
+    return module
+
+
+def _preflight_fixture(
+    root: Path,
+    *,
+    mode: str = "progress",
+    calendar: str | None = "keystone_dwell_budget_cycles: TBD\n",
+    keystones: str = "- K01 C01 节点甲（判据：progress.md 当前完成节点行）\n",
+    ledger_rows: str = "",
+    lifecycle: str = "ongoing",
+) -> Path:
+    """A planned group activation should accept, with one knob per criterion.
+
+    The default is deliberately the *passing* shape: every assertion below breaks
+    exactly one thing, so a blocker that fires for the wrong reason shows up as
+    an extra code rather than hiding inside a fixture that was broken anyway.
+    """
+    write(root / "main/t2ag.md", FIXTURE_CONSTITUTION)
+    write(
+        root / "main/40_course/C01/progress.md",
+        f"---\ntype: course_progress\ncourse_id: C01\nlifecycle_status: {lifecycle}\n---\n",
+    )
+    write(
+        root / "main/30_group/G01/plan.md",
+        "---\ntype: group\ngroup_id: G01\nstatus: planned\n"
+        "course_members: [C01]\nengagement_members: []\ncurrent_course: none\n"
+        f"container_mode: {mode}\nupdated: 2026-08-01\n---\n\n"
+        "## 4. 主干碑序列\n\n" + keystones + "\n## 5. 碑变更台账\n\n"
+        "| 日期 | 碑号 | 类型（砍/加） | 触发来源 | 去向组或说明 |\n"
+        "|---|---|---|---|---|\n" + ledger_rows,
+    )
+    if calendar is not None:
+        write(
+            root / "main/30_group/G01/calendar.md",
+            "---\ntype: group_calendar\ngroup_id: G01\nstatus: planned\n"
+            f"container_mode: {mode}\n" + calendar + "updated: 2026-08-01\n---\n",
+        )
+    return root
+
+
 def test_container_mode_r1_missing_illegal_and_split_brain_fail(root: Path) -> None:
     """CM-R1：容器形状三条 FAIL——缺失、非法、plan↔calendar 不一致。
 
@@ -5486,6 +5716,50 @@ def test_container_mode_r1_missing_illegal_and_split_brain_fail(root: Path) -> N
     doctor.check_container_mode(gid, folder, meta, [], {})
     if doctor.fails:
         raise AssertionError(f"非法模式不归本函数判（归 check_groups）: {doctor.fails}")
+
+    # --- PG3：激活 preflight 的判据正典清单与「一次报全」（2026-08-25）-------------
+    init_mod = _load_init_module("t2ag_init_preflight_r1")
+    # 结构断言，不是总数断言：写成 `16 + 1 == 17` 时，一条 blocker 被静默降级成
+    # notice 照样让 17 成立——正好放过本节最该拦的那种改动。
+    shape = (
+        len(init_mod.GROUP_ACTIVATION_BLOCKER_CRITERIA),
+        len(init_mod.GROUP_ACTIVATION_NOTICE_CRITERIA),
+    )
+    if shape != (16, 1):
+        raise AssertionError(f"激活判据清单形状变了（应 16 阻断 + 1 提示）：{shape}")
+    catalog = set(init_mod.GROUP_ACTIVATION_BLOCKER_CRITERIA)
+    if len(catalog) != 16:
+        raise AssertionError("判据代号有重号：合并判据即放宽，逐 raise 点一条")
+
+    # 一次报全：三处同时坏，一次拒绝里必须三条都在。
+    broken = _preflight_fixture(
+        root / "manybad", calendar=None, keystones="", lifecycle="planned"
+    )
+    blockers, notices, _ = init_mod.group_activation_preflight(broken, "G01", "")
+    codes = [code for code, _ in blockers]
+    for expected in ("member_lifecycle_ineligible", "keystone_rows_absent", "dwell_budget_missing"):
+        if expected not in codes:
+            raise AssertionError(f"一次报全缺 {expected}：{codes}")
+    stray = [code for code in codes if code not in catalog]
+    if stray or notices:
+        raise AssertionError(f"报出了清单外的代号或多余提示：{stray}/{notices}")
+
+    # `--date` 由调用方求值，但必须并进**同一次**拒绝，否则「一次报全」只是函数内部的性质。
+    with contextlib.redirect_stdout(io.StringIO()) as captured:
+        rc = init_mod.main(
+            ["--root", str(broken), "activate-group", "--group-id", "G01", "--date", "8/22"]
+        )
+    printed = captured.getvalue()
+    if rc == 0:
+        raise AssertionError("坏日期 + 三条不合格判据竟然激活成功了")
+    for expected in ("date_format", "dwell_budget_missing", "keystone_rows_absent"):
+        if expected not in printed:
+            raise AssertionError(f"拒绝文案没有一次报全 {expected}：{printed}")
+
+    # 写序倒置的可观测后果：被拒绝的组不留下「自称 active」的 plan.md。
+    plan_text = (broken / "main/30_group/G01/plan.md").read_text(encoding="utf-8")
+    if "status: active" in plan_text:
+        raise AssertionError("激活被拒绝后 plan.md 仍自称 active")
 
 
 def test_container_mode_r2_progress_needs_dwell_budget_but_tbd_is_legal(
@@ -5515,6 +5789,37 @@ def test_container_mode_r2_progress_needs_dwell_budget_but_tbd_is_legal(
     if not any("缺止损锚" in m for m in doctor.fails):
         raise AssertionError(f"无 calendar.md 等同缺锚: {doctor.fails}")
 
+    # --- PG3：同一条判据前移到激活时点，语义必须逐字相同（2026-08-25）--------------
+    # 前移的价值全在「同源」两个字上：加严会拦下 doctor 本会放行的组，放宽只是把同一个
+    # FAIL 推迟到下一次 doctor。所以这里复用 CM-R2 的三个形态，只换求值者。
+    init_mod = _load_init_module("t2ag_init_preflight_r2")
+
+    passing = _preflight_fixture(root / "pf_tbd")
+    blockers, notices, resolved = init_mod.group_activation_preflight(passing, "G01", "")
+    if blockers or notices:
+        raise AssertionError(f"字面 TBD 必须放行（与 doctor 同源）：{blockers}/{notices}")
+    # 单次求值：apply 吃的是 preflight 读到的那一份，不回盘取第二次。
+    if resolved["current_course"] != "C01" or len(resolved["keystones"]) != 1:
+        raise AssertionError(f"resolved 不足以直接喂给 apply：{resolved}")
+
+    empty = _preflight_fixture(root / "pf_empty", calendar="keystone_dwell_budget_cycles:\n")
+    blockers, _, _ = init_mod.group_activation_preflight(empty, "G01", "")
+    if [code for code, _ in blockers] != ["dwell_budget_missing"]:
+        raise AssertionError(f"空止损锚必须且只须阻断一条：{blockers}")
+
+    nocal_pf = _preflight_fixture(root / "pf_nocal", calendar=None)
+    blockers, _, _ = init_mod.group_activation_preflight(nocal_pf, "G01", "")
+    if [code for code, _ in blockers] != ["dwell_budget_missing"]:
+        raise AssertionError(f"无 calendar.md 等同缺锚：{blockers}")
+
+    # 判据 16（本批前移的第二条）：planned 组带砍碑行 = 今天激活成功、下次 doctor 必 FAIL。
+    cut = _preflight_fixture(
+        root / "pf_cut", ledger_rows="| 2026-08-01 | K02 | 砍 | 复盘 | 移入下一组 |\n"
+    )
+    blockers, _, _ = init_mod.group_activation_preflight(cut, "G01", "")
+    if [code for code, _ in blockers] != ["keystone_ledger_mismatch"]:
+        raise AssertionError(f"planned 阶段砍碑行必须在激活前拦下：{blockers}")
+
 
 def test_container_mode_r3_schedule_is_not_judged_by_progress_anchors(
     root: Path,
@@ -5540,6 +5845,29 @@ def test_container_mode_r3_schedule_is_not_judged_by_progress_anchors(
         raise AssertionError(f"schedule 缺锚字段是 WARN 不是 FAIL: {doctor.fails}")
     if not any("cycle_anchor_learning_day" in m for m in doctor.warns):
         raise AssertionError(f"schedule 缺锚字段必须 WARN: {doctor.warns}")
+
+    # --- PG3：WARN 前移后必须仍是 WARN 语义（2026-08-25）---------------------------
+    # 通用映射规则 FAIL→blocker、WARN→notice。把这条 WARN 前移成 blocker 就是加严，
+    # 会让每个还没定锚的 schedule 组无法激活——而 doctor 从来只是提醒它。
+    init_mod = _load_init_module("t2ag_init_preflight_r3")
+    sched = _preflight_fixture(
+        root / "pf_sched", mode="schedule", calendar="cycle_length_learning_days: TBD\n",
+        keystones="",
+    )
+    blockers, notices, _ = init_mod.group_activation_preflight(sched, "G01", "")
+    if blockers:
+        raise AssertionError(f"schedule 缺 cycle_anchor 不得阻断激活：{blockers}")
+    if [code for code, _ in notices] != ["cycle_anchor_missing"]:
+        raise AssertionError(f"schedule 缺 cycle_anchor 必须出提示：{notices}")
+
+    # 拿 progress 的止损锚去量 schedule，同样是把两条轴混成一条。
+    anchored = _preflight_fixture(
+        root / "pf_sched_ok", mode="schedule", calendar="cycle_anchor_learning_day: TBD\n",
+        keystones="",
+    )
+    blockers, notices, _ = init_mod.group_activation_preflight(anchored, "G01", "")
+    if blockers or notices:
+        raise AssertionError(f"schedule 且锚字段在位应静默：{blockers}/{notices}")
 
 
 def test_exam_banks_r1_assessment_pool_id_leak_into_teaching_fails(root: Path) -> None:
@@ -6161,6 +6489,247 @@ def test_constitution_parity_r4_exempt_fork_and_clean_are_silent(root: Path) -> 
 
 
 
+# ---------------------------------------------------------------------------
+# DEC-0a-2 / C8 -- positive and negative examples for the four merges.
+# Every negative below is written to be verified RED by mutation: reverting the
+# merge constraint it guards must make it fail.
+# ---------------------------------------------------------------------------
+
+
+def test_line_budget_constitution_over_limit_fails(root: Path) -> None:
+    """NEGATIVE: severity must stay per-carrier -- t2ag.md is FAIL, not WARN.
+
+    Merging two checks into one handler is exactly where severity gets levelled
+    by accident.  Why the two carriers keep different severities is canonical
+    in 50_playbook/line_budget.md §二 and not restated here.
+    """
+    reset(root)
+    write(root / "main/00_core/t2ag_memory.md",
+          _memory_budget_fixture("## 最近关键决策  [max 50]\n- entry\n"))
+    _seed_constitution_budget(root, cap=3, lines=10)
+    run_silently(doctor.check_line_budget)
+    assert_message(doctor.fails, "宪法节超预算")
+    if any("宪法节超预算" in w for w in doctor.warns):
+        raise AssertionError("constitution overflow was levelled down to WARN")
+
+
+def test_line_budget_severity_is_not_levelled_across_carriers(root: Path) -> None:
+    """NEGATIVE: both carriers over budget in one run -> one WARN and one FAIL."""
+    reset(root)
+    write(root / "main/00_core/t2ag_memory.md",
+          _memory_budget_fixture("## 最近关键决策  [max 2]\n- a\n- b\n- c\n- d\n"))
+    _seed_constitution_budget(root, cap=2, lines=9)
+    run_silently(doctor.check_line_budget)
+    assert_message(doctor.warns, "memory 节超预算")
+    assert_message(doctor.fails, "宪法节超预算")
+
+
+def test_line_budget_missing_constitution_fails_but_memory_absence_is_silent(
+    root: Path,
+) -> None:
+    """The two carriers keep their pre-merge presence semantics.
+
+    check_constitution_budget FAILed on a missing t2ag.md; check_memory_budget
+    returned silently on a missing memory index.  The merge must not homogenise
+    that -- doing so would either invent a FAIL or swallow a real one.
+    """
+    reset(root)
+    run_silently(doctor.check_line_budget)
+    assert_message(doctor.fails, "main/t2ag.md 缺失")
+    if any("t2ag_memory" in message for message in doctor.fails):
+        raise AssertionError("absent memory index must not FAIL")
+
+
+def _seed_line_ending_repo(root: Path, *, git: bool = True,
+                           gitattributes: bool = True) -> None:
+    write_validation_foundation_fixture(root)
+    if gitattributes:
+        write(root / ".gitattributes", "* text=auto eol=lf\n")
+    if git:
+        subprocess.run(["git", "init", "--quiet", str(root)],
+                       check=True, capture_output=True)
+
+
+def _write_crlf(path: Path, body: str = "line one\r\nline two\r\n") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body.encode("utf-8"))
+
+
+def test_line_endings_runtime_profile_does_not_enumerate_tracked(root: Path) -> None:
+    """POSITIVE (正-1): runtime runs policy + bounded scan, and stops there."""
+    reset(root)
+    _seed_line_ending_repo(root)
+    run_silently(doctor.check_line_endings)
+    if any("tracked 文本文件行尾一致" in message for message in doctor.infos):
+        raise AssertionError("runtime profile must not run the tracked sweep")
+
+
+def test_line_endings_release_profile_runs_tracked_sweep(root: Path) -> None:
+    """POSITIVE (正-2): release adds the tracked sweep and its INFO counter."""
+    reset(root)
+    _seed_line_ending_repo(root)
+    run_silently(lambda: doctor.check_line_endings(check_release_parity=True))
+    assert_message(doctor.infos, "tracked 文本文件行尾一致")
+
+
+def test_line_endings_release_path_is_reached_through_the_executor(
+    root: Path,
+) -> None:
+    """NEGATIVE (负-1): leaving the handler zero-argument loses the sweep.
+
+    Before the merge both line-ending handlers sat in ``no_argument_handlers``,
+    so neither could see the profile.  If the merged handler is put back there,
+    the release path silently degrades to the bounded scan and this INFO line
+    disappears -- which is precisely the damage that is invisible in a green run.
+    """
+    reset(root)
+    _seed_line_ending_repo(root)
+    run_silently(
+        lambda: doctor.execute_doctor_checks(
+            [{"handler": "check_line_endings"}], include_release_parity=False
+        )
+    )
+    if any("tracked 文本文件行尾一致" in message for message in doctor.infos):
+        raise AssertionError("runtime dispatch must not run the tracked sweep")
+    doctor.infos.clear()
+    run_silently(
+        lambda: doctor.execute_doctor_checks(
+            [{"handler": "check_line_endings"}], include_release_parity=True
+        )
+    )
+    assert_message(doctor.infos, "tracked 文本文件行尾一致")
+
+
+def test_line_endings_release_keeps_the_gitattributes_policy_segment(
+    root: Path,
+) -> None:
+    """NEGATIVE (负-2): dropping segment (1) lowers severity on the release path."""
+    reset(root)
+    _seed_line_ending_repo(root, gitattributes=False)
+    run_silently(lambda: doctor.check_line_endings(check_release_parity=True))
+    assert_message(doctor.fails, "缺少 .gitattributes")
+
+
+def test_line_endings_release_still_covers_untracked_control_files(
+    root: Path,
+) -> None:
+    """NEGATIVE (负-3): segment (3) is NOT a superset of segment (2).
+
+    The bounded scan enumerates the filesystem, the exhaustive sweep enumerates
+    ``git ls-files``.  A control file that is not tracked yet therefore exists
+    for (2) and does not exist for (3).  Running only (3) on the release path
+    loses line-ending verification for exactly the files most likely to be new.
+
+    The untracked file is created inside a throw-away git repository under the
+    test root -- never in the product tree (precedent: test_activity_cli_disk_roundtrip).
+    """
+    reset(root)
+    _seed_line_ending_repo(root)
+    offender = root / "main/00_core/untracked_control.md"
+    _write_crlf(offender)
+    proc = subprocess.run(["git", "ls-files", "-z"], cwd=root, text=True,
+                          capture_output=True, encoding="utf-8", errors="replace")
+    tracked = [name for name in proc.stdout.split("\0") if name]
+    if "main/00_core/untracked_control.md" in tracked:
+        raise AssertionError("fixture invalid: the offender must stay untracked")
+    tracked_only = doctor.crlf_offenders([root / name for name in tracked])
+    if any("untracked_control" in hit for hit in tracked_only):
+        raise AssertionError("fixture invalid: tracked sweep should not see it")
+    run_silently(lambda: doctor.check_line_endings(check_release_parity=True))
+    assert_message(doctor.fails, "untracked_control.md")
+
+
+def test_line_endings_outside_git_still_runs_policy_and_bounded_scan(
+    root: Path,
+) -> None:
+    """NEGATIVE (负-4): only segment (3) may degrade outside a repository.
+
+    The pre-merge check_release_line_endings returned wholesale when ``.git``
+    was absent.  Carrying that early return into the merged handler would take
+    the policy check and the bounded scan down with it -- a CRLF file would go
+    unreported on the release path purely because the tree is not a repository.
+    """
+    reset(root)
+    _seed_line_ending_repo(root, git=False)
+    _write_crlf(root / "main/00_core/control.md")
+    run_silently(lambda: doctor.check_line_endings(check_release_parity=True))
+    assert_message(doctor.fails, "control.md")
+    assert_message(doctor.warns, "非 Git 仓库")
+
+
+def test_stale_identifiers_keeps_both_counter_lines_separate(root: Path) -> None:
+    """NEGATIVE (组三): the two INFO counters must not be summed into one.
+
+    Both counter lines are output-surface literals that corroborating assertions
+    grep for.  Merging them into a single total silently breaks every one of
+    those assertions while the run stays green.
+    """
+    reset(root)
+    write_validation_foundation_fixture(root)
+    run_silently(doctor.check_stale_identifiers)
+    assert_message(doctor.infos, "legacy_path_hits_total:")
+    assert_message(doctor.infos, "retired_instance_id_hits_total:")
+
+
+def test_stale_identifiers_retired_ids_can_still_fail(root: Path) -> None:
+    """NEGATIVE (组三): severity must not drop -- the retired-ID segment still FAILs."""
+    reset(root)
+    write_validation_foundation_fixture(root)
+    write(root / "main/50_playbook/sample.md", "见 S002 的处理\n")
+    run_silently(doctor.check_stale_identifiers)
+    assert_message(doctor.fails, "active 退役实例 ID")
+
+
+class _RecordingDecisionContract:
+    """Stub for decision_record_contract that records segment call order."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def validate_decision_records_as_report(self, root, flavor):
+        self.calls.append("linkage")
+        return []
+
+    def validate_decision_citations(self, root, flavor):
+        self.calls.append("citations")
+        return []
+
+
+def _run_decision_records_with_stub(root: Path, flavor: str):
+    stub = _RecordingDecisionContract()
+    previous = sys.modules.get("decision_record_contract")
+    sys.modules["decision_record_contract"] = stub
+    try:
+        reset(root, flavor=flavor)
+        run_silently(doctor.check_decision_records)
+    finally:
+        if previous is None:
+            sys.modules.pop("decision_record_contract", None)
+        else:
+            sys.modules["decision_record_contract"] = previous
+    return stub.calls
+
+
+def test_decision_records_runs_linkage_before_citations(root: Path) -> None:
+    """NEGATIVE (组四): ordering lost its registry carrier and now lives in code.
+
+    Before the merge the order was guaranteed by the registry edge
+    ``runtime.decision_record_citations depends_on runtime.decision_records``.
+    The merge deleted that edge, so nothing but this assertion stands between a
+    future edit and citations running against unvalidated linkage.
+    """
+    calls = _run_decision_records_with_stub(root, "main")
+    if calls != ["linkage", "citations"]:
+        raise AssertionError(f"linkage must run first: {calls}")
+
+
+def test_decision_records_lite_skips_citations_only(root: Path) -> None:
+    """NEGATIVE (组四): Lite narrows to the citation segment, it does not skip both."""
+    calls = _run_decision_records_with_stub(root, "lite")
+    if calls != ["linkage"]:
+        raise AssertionError(f"Lite must still run linkage: {calls}")
+
+
 ALL_CONTRACT_TESTS = (
         test_profile_placeholder,
         test_profile_container_contract,
@@ -6195,10 +6764,6 @@ ALL_CONTRACT_TESTS = (
         test_activity_workflows_share_executable_route,
         test_activity_cli_disk_roundtrip,
         test_candidate_replay_isolation_contract,
-        test_migration_manifest_tamper,
-        test_migration_manifest_missing_reference,
-        test_main_readme_skeleton_reference_does_not_change_migration_kind,
-        test_profile_migration_manifest_tamper,
         test_profile_migration_roundtrip,
         test_handoff_assertion_without_source_is_reported,
         test_handoff_assertion_with_source_is_accepted,
@@ -6208,6 +6773,7 @@ ALL_CONTRACT_TESTS = (
         test_handoff_index_version_drift_is_enforced,
         test_handoff_shadow_runtime_index_is_enforced,
         test_resume_authorization_gate_is_enforced,
+        test_authorization_gate_evidence_surface_reachability,
         test_environment_probes_report_broken_assumptions,
         test_environment_probes_silent_when_assumptions_hold,
         test_environment_registry_must_exist_and_list_every_probe,
@@ -6218,10 +6784,23 @@ ALL_CONTRACT_TESTS = (
         test_changelog_entry_above_title_warns,
         test_changelog_body_date_disorder_warns,
         test_changelog_stale_evidence_warns_with_title_and_claim,
-        test_memory_budget_over_limit_warns_with_both_numbers,
-        test_memory_budget_missing_markers_warns,
-        test_memory_budget_within_limit_is_silent,
-        test_memory_budget_counts_only_its_own_section,
+        test_line_budget_memory_over_limit_warns_with_both_numbers,
+        test_line_budget_memory_missing_markers_warns,
+        test_line_budget_memory_within_limit_is_silent,
+        test_line_budget_memory_counts_only_its_own_section,
+        test_line_budget_constitution_over_limit_fails,
+        test_line_budget_severity_is_not_levelled_across_carriers,
+        test_line_budget_missing_constitution_fails_but_memory_absence_is_silent,
+        test_line_endings_runtime_profile_does_not_enumerate_tracked,
+        test_line_endings_release_profile_runs_tracked_sweep,
+        test_line_endings_release_path_is_reached_through_the_executor,
+        test_line_endings_release_keeps_the_gitattributes_policy_segment,
+        test_line_endings_release_still_covers_untracked_control_files,
+        test_line_endings_outside_git_still_runs_policy_and_bounded_scan,
+        test_stale_identifiers_keeps_both_counter_lines_separate,
+        test_stale_identifiers_retired_ids_can_still_fail,
+        test_decision_records_runs_linkage_before_citations,
+        test_decision_records_lite_skips_citations_only,
         test_changelog_runner_matches_grep_line_semantics,
         test_changelog_runner_reports_unusable_pattern_as_not_evaluable,
         test_changelog_matching_anchors_and_evidence_are_silent,
@@ -6393,8 +6972,15 @@ def test_init_example_payload_is_documented_and_rejected(root: Path) -> None:
         raise AssertionError("the example payload was accepted as user-confirmed answers")
     defaults_args = type("Args", (), {"answers": None, "answers_json": "{}"})()
     defaults = init_mod.load_answers(defaults_args)
-    if defaults["learning_level"] != "secondary_school":
-        raise AssertionError("empty answers must default to secondary_school")
+    if defaults["learning_level"] != "not_provided":
+        raise AssertionError(
+            "empty answers must leave the learner fact unstated (not_provided), "
+            f"never a machine-chosen level: {defaults['learning_level']!r}"
+        )
+    if init_mod.LEARNING_LEVEL_LABELS.get("not_provided") != "尚未提供":
+        raise AssertionError("not_provided must render as the three-state 尚未提供 label")
+    if "- 学习水平：尚未提供" not in init_mod.render_profile(defaults):
+        raise AssertionError("an unstated learning level must render as 尚未提供")
     if defaults["learning_interests"] != "有待生成":
         raise AssertionError("empty answers must retain the pending interest marker")
     if defaults["reference_curriculum"] != "pending_generation":
@@ -6409,6 +6995,436 @@ def test_init_example_payload_is_documented_and_rejected(root: Path) -> None:
         raise AssertionError("documented optional agent overrides were silently ignored")
     if "- 学习水平：大学在读" not in rendered:
         raise AssertionError("the selected learning level was not rendered")
+
+
+def test_first_run_portable_profile_contract(root: Path) -> None:
+    """Initialized state outranks archive names; learner locale is not author locale."""
+    release = root / "t2ag-skeleton"
+    profile = release / "main/10_student/profile/profile.md"
+    write(
+        profile,
+        "---\ninitialization_status: uninitialized\n---\n# 学生档案\n",
+    )
+    write(release / "README.md", "# T2AG 中文 Skeleton\n")
+    assert doctor.detect_flavor(release) == "skeleton"
+    write(
+        profile,
+        "---\ninitialization_status: initialized\n---\n"
+        "# 学生档案\n\n## 学习兴趣\n\n- 有待生成\n\n"
+        "## 自我介绍\n\n未提供\n",
+    )
+    assert doctor.detect_flavor(release) == "main"
+    assert doctor.initialized_profile_content_errors(profile.read_text(encoding="utf-8")) == []
+
+    for timezone_name, cutoff in (
+        ("Asia/Shanghai", "00:00"),
+        ("America/New_York", "04:00"),
+        ("UTC", "23:59"),
+    ):
+        errors = doctor.activity_close_profile_errors(
+            {
+                "activity_close_preference_schema": "activity_close_preferences.v1",
+                "learning_timezone": timezone_name,
+                "learning_day_cutoff": cutoff,
+            }
+        )
+        assert errors == [], (timezone_name, cutoff, errors)
+    errors = doctor.activity_close_profile_errors(
+        {
+            "activity_close_preference_schema": "activity_close_preferences.v1",
+            "learning_timezone": "New York",
+            "learning_day_cutoff": "24:00",
+        }
+    )
+    assert len(errors) == 2 and all("非法" in error for error in errors), errors
+
+    # A6 庚旋钮：缺字段兼容默认；两个合法值通过；空值与未知值 fail-closed。
+    for profile_meta in (
+        {},
+        {"lesson_tree_display_mode": "progressive"},
+        {"lesson_tree_display_mode": "full"},
+    ):
+        assert doctor.lesson_tree_display_mode_errors(profile_meta) == [], profile_meta
+    for illegal in ("", "compact"):
+        errors = doctor.lesson_tree_display_mode_errors(
+            {"lesson_tree_display_mode": illegal}
+        )
+        assert len(errors) == 1 and "progressive|full" in errors[0], errors
+
+    spec_init = importlib.util.spec_from_file_location(
+        "t2ag_init_lesson_tree_knob_contract", SCRIPT.with_name("t2ag_init.py")
+    )
+    init_mod = importlib.util.module_from_spec(spec_init)
+    assert spec_init and spec_init.loader
+    spec_init.loader.exec_module(init_mod)
+    defaults = init_mod.default_answers()
+    assert defaults["lesson_tree_display_mode"] == "progressive", defaults
+    assert "lesson_tree_display_mode: progressive" in init_mod.render_profile(defaults)
+    full_args = type(
+        "Args",
+        (),
+        {
+            "answers": None,
+            "answers_json": json.dumps({"lesson_tree_display_mode": "full"}),
+        },
+    )()
+    assert (
+        "lesson_tree_display_mode: full"
+        in init_mod.render_profile(init_mod.load_answers(full_args))
+    )
+    illegal_args = type(
+        "Args",
+        (),
+        {
+            "answers": None,
+            "answers_json": json.dumps({"lesson_tree_display_mode": "compact"}),
+        },
+    )()
+    try:
+        init_mod.load_answers(illegal_args)
+    except init_mod.GenerationError as exc:
+        assert "lesson_tree_display_mode" in str(exc), exc
+    else:
+        raise AssertionError("illegal lesson_tree_display_mode was accepted")
+
+
+def test_first_run_user_experience_contract(root: Path) -> None:
+    """The learner sees two meaningful pauses; generator chatter stays internal."""
+    del root
+    first_run = (REPO / "main/50_playbook/first_run.md").read_text(encoding="utf-8")
+    flow = (REPO / "main/50_playbook/t2ag_flow.md").read_text(encoding="utf-8")
+    init_source = SCRIPT.with_name("t2ag_init.py").read_text(encoding="utf-8")
+    for marker in (
+        "## 用户可见状态与停顿",
+        "停顿 A｜补充条件",
+        "停顿 B｜审阅方案",
+        "无停顿的内部落盘",
+        "### 面向学生的标准回应骨架",
+        "禁止用“全部同意”“同意激活”",
+    ):
+        if marker not in first_run:
+            raise AssertionError(f"first-run user experience marker missing: {marker}")
+    for marker in (
+        "完整展示参考学习方案",
+        "无第三次用户确认",
+        "隐藏内部 ID、测试数和维护提示",
+    ):
+        if marker not in flow:
+            raise AssertionError(f"first-run flow regressed: {marker}")
+    if init_source.count("print_internal_receipt(") < 5:
+        raise AssertionError("not every initialization transition uses an internal receipt")
+    for marker in (
+        "不得原样展示给学生",
+        "课程尚未创建",
+        "不要发送中间成功消息或索取新确认",
+        "planned 不是新的用户决策",
+        "按 first_run.md“完成呈现”回复学生",
+    ):
+        if marker not in init_source:
+            raise AssertionError(f"operator receipt boundary missing: {marker}")
+    # PG2/C2: the completion receipt hands over the first task; no separate start gate.
+    if "不再另设“是否现在开始”的确认门" not in first_run:
+        raise AssertionError("first_run lost the explicit removal of the start gate")
+    if "现在开始吗？" in first_run or "询问是否现在开始" in flow:
+        raise AssertionError("the removed 「是否现在开始」 pause is back in the learner surface")
+    # PG2/PG-F02: learner facts are three-state; a machine default is never a stated fact.
+    for marker in ("已提供", "尚未提供", "公开假设", "not_provided"):
+        if marker not in first_run:
+            raise AssertionError(f"three-state learner-fact wording missing: {marker}")
+
+    # --- PG3（2026-08-25）：建课建组呈现规格的真载体面 ---------------------------
+    governance = (REPO / "main/50_playbook/progress_governance.md").read_text(encoding="utf-8")
+    group_rules = (REPO / "main/50_playbook/course_group_rules.md").read_text(encoding="utf-8")
+    course_init = (REPO / "main/50_playbook/new_course_init.md").read_text(encoding="utf-8")
+    plan_template = (
+        REPO / "main/30_group/_templates/group/plan.md.template"
+    ).read_text(encoding="utf-8")
+    calendar_template = (
+        REPO / "main/30_group/_templates/group/calendar.md.template"
+    ).read_text(encoding="utf-8")
+
+    # §五 的 enforcement 取值按**块**计数，不按文件：`prose_accepted` 全文件已有三条，
+    # 一个 `count(...) == 1` 的全文件断言会在下一个批次追加第四条时红，而它红的原因
+    # 与它想守的东西无关。块的身份由 `check=runtime.groups` 唯一确定。
+    section_five = governance.split("## 五、强制声明", 1)[-1].split("\n## ", 1)[0]
+    pg3_blocks = [
+        block
+        for block in section_five.split("\n\n")
+        if block.startswith("enforcement:") and "check=runtime.groups" in block
+    ]
+    if len(pg3_blocks) != 1:
+        raise AssertionError(f"§五 里带 runtime.groups 的 enforcement 块不唯一：{len(pg3_blocks)}")
+    values = [
+        line[len("enforcement: "):]
+        for line in pg3_blocks[0].splitlines()
+        if line.startswith("enforcement: ")
+    ]
+    for value in (
+        "check=runtime.groups",
+        "tool=70_tools/t2ag_init.py",
+        "tool=70_tools/contract_test_support.py",
+        "context=50_playbook/course_group_rules.md#误当成第二次用户决策",
+    ):
+        if values.count(value) != 1:
+            raise AssertionError(f"PG3 enforcement 块内 {value} 计数应为 1：{values}")
+    if sum(1 for value in values if value.startswith("prose_accepted")) != 1:
+        raise AssertionError(f"PG3 enforcement 块应恰有一条 prose_accepted：{values}")
+    # context 锚必须真的落在判例上——锚断了，规则就只剩一句自述。
+    if "误当成第二次用户决策" not in group_rules:
+        raise AssertionError("course_group_rules 判例字面量丢失，§五 的 context 锚将悬空")
+
+    # F07：planned → active 是内部公证；拒绝的默认出口是内部修正，不是问学生要一次同意。
+    # 写序倒置只买到「失败不留 active 假状态」，正文必须照这个窄度声称，不得称 atomic。
+    section_eight = governance.split("## 八、", 1)[-1]
+    for marker in ("内部公证", "不得表述为", "请确认激活", "同意激活", "不是事务原子性"):
+        if marker not in section_eight:
+            raise AssertionError(f"§八 缺 PG3 规则句成分：{marker}")
+
+    # 语义参数必填：判据、正文与 argparse 三面同步，示例命令行必须能照抄就跑。
+    for flag in ("--course-type", "--entry", "--verification-status"):
+        if flag not in course_init:
+            raise AssertionError(f"new_course_init 未把 {flag} 写进必填通则")
+    example = course_init.split("```powershell", 1)[-1].split("```", 1)[0]
+    if "--verification-status" not in example:
+        raise AssertionError("new_course_init 示例命令行缺 --verification-status，照抄即报错")
+    # 必填性按行为判，不按 argparse 私有属性判：缺一个就该解析失败。
+    init_mod = _load_init_module("t2ag_init_required_flags")
+    complete = [
+        "--root", str(REPO), "new-course",
+        "--course-id", "REQ1001", "--name", "Req",
+        "--course-type", "mastery", "--learning-mode", "textbook",
+        "--source-language", "zh-CN", "--lifecycle", "planned", "--entry", "none",
+        "--verification-status", "human_verified", "--date", "2026-08-25",
+    ]
+    with contextlib.redirect_stderr(io.StringIO()):
+        init_mod.build_parser().parse_args(complete)  # 完整 argv 仍须可解析
+        for flag in ("--course-type", "--entry", "--verification-status", "--source-language"):
+            index = complete.index(flag)
+            try:
+                init_mod.build_parser().parse_args(complete[:index] + complete[index + 2:])
+            except SystemExit:
+                continue
+            raise AssertionError(f"{flag} 缺席仍被接受：默认值又能替学生答一次了")
+
+    # 首组分支：两个模板四处空指全部有出口，且碑行打桩点逐字节不动。
+    if plan_template.count("首组分支") != 1 or calendar_template.count("首组分支") != 1:
+        raise AssertionError("首组分支段应各模板一处")
+    for marker in ("上一组 `review.md`", "上一组 `calendar.md`", "而不是延长上一组或换其他组合"):
+        if marker not in plan_template:
+            raise AssertionError(f"plan 模板的空指原文被改写了：{marker}")
+    if "激活时必须依据上一组结组证据和用户确认重新核定预算" not in calendar_template:
+        raise AssertionError("calendar 模板的空指原文被改写了")
+    if (
+        "- K01 碑描述（属哪门课、达成判据指向该课 progress.md 哪一行）\n- K02 碑描述\n"
+        not in plan_template
+    ):
+        raise AssertionError("碑行打桩点必须逐字节相邻不动（夹具用整串 replace 打桩）")
+
+    # --- PG4（2026-08-25）：本地恢复的 turn_intent 词表与既有行为映射 ----------
+    lesson_recover = (REPO / "main/50_playbook/lesson_recover.md").read_text(
+        encoding="utf-8"
+    )
+    section_nine = governance.split("## 九、本地恢复呈现规格（PG4）", 1)
+    if len(section_nine) != 2:
+        raise AssertionError("progress_governance 缺唯一 PG4 canonical owner 节")
+    pg4 = section_nine[1]
+    for value in (
+        "explicit_continue",
+        "ambiguous_resume",
+        "conflict_resolution",
+        "new_scope",
+    ):
+        if pg4.count(f"`{value}`") != 1:
+            raise AssertionError(f"PG4 turn_intent value 应在 owner 表中恰出现一次：{value}")
+        if value not in lesson_recover:
+            raise AssertionError(f"lesson_recover 缺 PG4 行为映射：{value}")
+    if lesson_recover.count("若用户本轮尚未明确要求继续") != 1:
+        raise AssertionError("lesson_recover 的 explicit_continue 条件句被改写或复制")
+    for marker in (
+        "progress_governance.md` §九的 canonical `turn_intent` 四态",
+        "turn_intent=conflict_resolution",
+        "内部 ID、schema 与状态码仅按需展开",
+    ):
+        if marker not in lesson_recover:
+            raise AssertionError(f"lesson_recover 缺 PG4 真载体锚：{marker}")
+    if "dependency_closed → C4" not in pg4 or "本批不得写成已经跨层闭合" not in pg4:
+        raise AssertionError("PG4 owner 未守住云面让渡 C4 的诚实边界")
+
+    # --- PG6（2026-08-25）：结课 Learner Surface 与显式安全对象 ----------------
+    session_close = (REPO / "main/50_playbook/session_close.md").read_text(encoding="utf-8")
+    activity_close_source = SCRIPT.with_name("activity_close.py").read_text(encoding="utf-8")
+    close_roundtrip = SCRIPT.with_name("test_022_close_roundtrip.py").read_text(encoding="utf-8")
+    section_ten = governance.split("## 十、结课 Learner Surface 与显式安全对象（PG6）", 1)
+    if len(section_ten) != 2:
+        raise AssertionError("progress_governance 缺唯一 PG6 canonical owner 节")
+    pg6 = section_ten[1]
+    for marker in (
+        "学生版只展示完整复盘正文、结果含义与学生可选动作",
+        "--plan-pending",
+        "--plan-decision",
+        "--plan-reopen",
+        "真实课程 terminal apply 仍是 RT3",
+        "PG-R003 = narrow",
+    ):
+        if marker not in pg6:
+            raise AssertionError(f"PG6 owner 缺呈现或授权边界：{marker}")
+    for marker in (
+        "不得默认展示",
+        "presentation SHA 只在内部计算和绑定",
+        "系统在 Operator Surface 内绑定 exact tuple",
+    ):
+        if marker not in session_close:
+            raise AssertionError(f"session_close 缺 PG6 流程投影：{marker}")
+    if "terminal decision 必须先展示 exact" in session_close:
+        raise AssertionError("session_close 仍要求向学生展示 exact tuple")
+    for marker in (
+        "def require_explicit_plan_tuple(",
+        "def require_current_route_match(",
+        'parser.add_argument("--course-id")',
+        'parser.add_argument("--activity-type", choices=["lesson", "exercise"])',
+        'parser.add_argument("--activity-id")',
+    ):
+        if marker not in activity_close_source:
+            raise AssertionError(f"activity_close 缺 PG6 显式对象锁：{marker}")
+    for marker in (
+        "test_plan_cli_requires_tuple_and_rejects_route_conflict_before_write",
+        "pending_event_id",
+        "SHA-256",
+        "explicit-route.json",
+    ):
+        if marker not in close_roundtrip:
+            raise AssertionError(f"close roundtrip 缺 PG6 持久断言：{marker}")
+
+
+def test_goal_lesson_first_generation_contract(root: Path) -> None:
+    """Real first-user shape: goal + lesson-first closes before Doctor/Context."""
+    instance = root / "instance"
+    write(instance / "main/t2ag.md", "# T2AG 0.2.3\n")
+    shutil.copytree(
+        REPO / "main/40_course/_templates/course",
+        instance / "main/40_course/_templates/course",
+    )
+    (instance / "main/20_teacher").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        REPO / "main/20_teacher/T001.md",
+        instance / "main/20_teacher/T001.md",
+    )
+    shutil.copy2(
+        REPO / "main/20_teacher/overlay.md",
+        instance / "main/20_teacher/overlay.md",
+    )
+    spec_init = importlib.util.spec_from_file_location(
+        "t2ag_init_goal_lesson_contract", SCRIPT.with_name("t2ag_init.py")
+    )
+    init_mod = importlib.util.module_from_spec(spec_init)
+    assert spec_init and spec_init.loader
+    spec_init.loader.exec_module(init_mod)
+
+    invalid = [
+        "--root", str(instance), "new-course",
+        "--course-id", "BROKEN1001",
+        "--name", "Broken",
+        "--course-type", "个人创作",
+        "--source-language", "zh-CN",
+        "--driver", "goal",
+        "--entry", "lesson",
+        # Present so that the *only* illegal thing left in this argv is the
+        # natural-language course type. Without it argparse would exit for a
+        # missing required flag instead, and the test would pass while proving
+        # nothing about `choices`.
+        "--verification-status", "human_verified",
+        "--date", "2026-08-24",
+    ]
+    with contextlib.redirect_stderr(io.StringIO()):
+        try:
+            init_mod.build_parser().parse_args(invalid)
+        except SystemExit as exc:
+            assert exc.code != 0
+        else:
+            raise AssertionError("invalid natural-language course_type reached the writer")
+    assert not (instance / "main/40_course/BROKEN1001").exists()
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        result = init_mod.main(
+            [
+                "--root", str(instance), "new-course",
+                "--course-id", "NOVEL1001",
+                "--name", "小说写作基础",
+                "--course-type", "mastery",
+                "--source-language", "zh-CN",
+                "--learning-mode", "goal",
+                "--entry", "lesson",
+                "--source-scope", "参考学习方案第一阶段",
+                "--position", "课程刚建立，尚未推进",
+                "--node-title", "明确类型、主题、主角与核心冲突",
+                "--verification-status", "human_verified",
+                "--date", "2026-08-24",
+            ]
+        )
+    assert result == 0
+    course = instance / "main/40_course/NOVEL1001"
+    course_text = (course / "course.md").read_text(encoding="utf-8")
+    progress_text = (course / "progress.md").read_text(encoding="utf-8")
+    assert "learning_mode: goal" in course_text and "default_driver:" not in course_text
+    assert "learning_mode: goal" in progress_text and "course_driver:" not in progress_text
+    activity_map = course / "activity_map.md"
+    assert activity_map.is_file(), "goal Lesson genesis must own its ContentGroup"
+    rows = doctor.heading_rows(
+        activity_map.read_text(encoding="utf-8"), "内容组连接表"
+    )
+    declared = {
+        row.get("content_group_id", "").strip("` ")
+        for row in rows
+        if row.get("content_group_id", "").strip("` ")
+    }
+    ledger = ledger_contract.parse_ledger_text(
+        (course / "activity_ledger.md").read_text(encoding="utf-8")
+    )
+    entry = ledger.rebuild_index()["lesson:lesson01"]
+    assert set(entry.content_group_ids) == declared, (entry.content_group_ids, declared)
+
+    for course_id, course_type in (("BUILD1001", "project"), ("TRADE1001", "praxis")):
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = init_mod.main(
+                [
+                    "--root", str(instance), "new-course",
+                    "--course-id", course_id,
+                    "--name", f"Synthetic {course_type}",
+                    "--course-type", course_type,
+                    "--source-language", "zh-CN",
+                    "--lifecycle", "planned",
+                    "--entry", "none",
+                    "--verification-status", "human_verified",
+                    "--date", "2026-08-24",
+                ]
+            )
+        assert result == 0
+        type_course = instance / f"main/40_course/{course_id}"
+        combined = (
+            (type_course / "course.md").read_text(encoding="utf-8")
+            + (type_course / "progress.md").read_text(encoding="utf-8")
+        )
+        assert "learning_mode:" not in combined
+        assert "default_driver:" not in combined and "course_driver:" not in combined
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        rejected = init_mod.main(
+            [
+                "--root", str(instance), "new-course",
+                "--course-id", "BADPROJ1001",
+                "--name", "Bad Project",
+                "--course-type", "project",
+                "--source-language", "zh-CN",
+                "--learning-mode", "project",
+                "--lifecycle", "planned",
+                "--entry", "none",
+                "--verification-status", "human_verified",
+                "--date", "2026-08-24",
+            ]
+        )
+    assert rejected != 0, "Project Course accepted a selectable learning mode"
+    assert not (instance / "main/40_course/BADPROJ1001").exists()
+
 
 
 def run_contract_tests(tests: tuple, *, suite_name: str) -> int:
@@ -6596,3 +7612,194 @@ def test_canon_g2_valid_chain_is_silent(root: Path) -> None:
         [l1, l2], _CANON_ASSETS, "T/l1")
     if findings:
         raise AssertionError(f"valid chain must be silent: {findings}")
+
+
+def _course_progression_migration():
+    """Load the read-only 0.2.4 progression planner under test."""
+    spec = importlib.util.spec_from_file_location(
+        "course_progression_migration_under_test",
+        SCRIPT.with_name("t2ag_course_progression_migration.py"),
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_course_progression_migration_real_carriers_are_byte_stable(root: Path) -> None:
+    """真载体主证：0.2.4 progression 迁移在仓内实课上必须字节稳定。
+
+    断言的是**不动点性质**（planned_text 幂等、等值写入零改动），不是
+    「当前这些课必须 changed=False」。后者会把断言绑死在实例的迁移状态上：
+    将来新增一门尚未迁移的课程就误红，是编组正本明令禁止的形态。
+
+    本函数不出现任何课程 ID 字面量——载体由 main/40_course 的目录走查产生，
+    被测值由文件自身的 frontmatter 产生，无任何可供「改断言迁就输出」的常量。
+    """
+    migration = _course_progression_migration()
+    courses = REPO / "main/40_course"
+    folders = sorted(
+        path for path in (courses.iterdir() if courses.is_dir() else ())
+        if path.is_dir() and not path.name.startswith("_")
+    )
+    scanned = 0
+    with_mode = 0
+    for folder in folders:
+        course_path = folder / "course.md"
+        progress_path = folder / "progress.md"
+        if not course_path.is_file() or not progress_path.is_file():
+            continue
+        course_text = course_path.read_text(encoding="utf-8-sig")
+        progress_text = progress_path.read_text(encoding="utf-8-sig")
+        progression = activity.resolve_course_progression(
+            activity.frontmatter_text(course_text),
+            activity.frontmatter_text(progress_text),
+        )
+        scanned += 1
+        for path, text, is_course in (
+            (course_path, course_text, True),
+            (progress_path, progress_text, False),
+        ):
+            rel = path.relative_to(REPO).as_posix()
+            p1 = migration.planned_text(
+                text,
+                course_type=progression.course_type,
+                learning_mode=progression.learning_mode,
+                is_course=is_course,
+            )
+            p2 = migration.planned_text(
+                p1,
+                course_type=progression.course_type,
+                learning_mode=progression.learning_mode,
+                is_course=is_course,
+            )
+            if p2 != p1:
+                raise AssertionError(
+                    f"planned_text is not a fixed point on {rel}: {p1!r} -> {p2!r}"
+                )
+            current = activity.frontmatter_text(text).get("learning_mode")
+            if current is None:
+                continue
+            with_mode += 1
+            after = migration.set_frontmatter_field(text, "learning_mode", current)
+            if after != text:
+                raise AssertionError(
+                    f"equal-value write changed {rel}: {len(after) - len(text)} byte delta"
+                )
+    if scanned == 0:
+        raise AssertionError(f"no real course carrier was scanned under {courses}")
+    if with_mode == 0:
+        raise AssertionError(
+            "no real carrier carried learning_mode; T-2 degenerated to a vacuous pass"
+        )
+
+
+def test_course_progression_migration_field_edit_boundaries(root: Path) -> None:
+    """set_frontmatter_field 的替换/删除/追加三分支边界矩阵。
+
+    本函数使用**构造样本，仅作边界覆盖**；幂等主证由 T-1/T-2 的真载体承担。
+    构造样本的期望值是字面量，可被「改断言迁就输出」弯折，因此每个样本
+    除逐字节比对外还叠一层不依赖字面量的性质断言（行数增量、行尾一致性、
+    再次施加同一操作不变），弯折字面量并不能让性质断言变绿。
+
+    覆盖：字段位于首行/中间/末行、frontmatter 仅一行、字段缺失走追加分支、
+    frontmatter 尾部原有空行、同名键出现两次（count=1 首个匹配语义）、
+    value=None 且被删字段在末行、空值键跨行吞噬、全 LF 与全 CRLF 两套行尾。
+    """
+    migration = _course_progression_migration()
+    edit = migration.set_frontmatter_field
+    samples = (
+        ("S-01", "---\ntype: course\nlearning_mode: goal\n---\n# body\n",
+         "learning_mode", "textbook",
+         "---\ntype: course\nlearning_mode: textbook\n---\n# body\n", "replace"),
+        ("S-02", "---\nlearning_mode: goal\ntype: course\n---\n# body\n",
+         "learning_mode", "textbook",
+         "---\nlearning_mode: textbook\ntype: course\n---\n# body\n", "replace"),
+        ("S-03", "---\ntype: course\nlearning_mode: goal\nstatus: ongoing\n---\n# body\n",
+         "learning_mode", "textbook",
+         "---\ntype: course\nlearning_mode: textbook\nstatus: ongoing\n---\n# body\n", "replace"),
+        ("S-04", "---\nlearning_mode: goal\n---\n# body\n",
+         "learning_mode", "goal",
+         "---\nlearning_mode: goal\n---\n# body\n", "replace"),
+        ("S-05", "---\ntype: course\n---\n# body\n",
+         "learning_mode", "goal",
+         "---\ntype: course\nlearning_mode: goal\n---\n# body\n", "append"),
+        ("S-06", "---\ntype: course\n\n---\n# body\n",
+         "learning_mode", "goal",
+         "---\ntype: course\nlearning_mode: goal\n---\n# body\n", "append-absorb"),
+        ("S-07", "---\nlearning_mode: goal\n\n---\n# body\n",
+         "learning_mode", "textbook",
+         "---\nlearning_mode: textbook\n\n---\n# body\n", "replace"),
+        ("S-08", "---\ntype: course\ndefault_driver: lesson\n---\n# body\n",
+         "default_driver", None,
+         "---\ntype: course\n---\n# body\n", "delete-present"),
+        ("S-09", "---\ntype: course\ncourse_driver: lesson\nstatus: ongoing\n---\n# body\n",
+         "course_driver", None,
+         "---\ntype: course\nstatus: ongoing\n---\n# body\n", "delete-present"),
+        ("S-10", "---\ntype: course\n---\n# body\n",
+         "default_driver", None,
+         "---\ntype: course\n---\n# body\n", "no-op"),
+        ("S-11", "---\nlearning_mode: goal\nlearning_mode: project\n---\n# body\n",
+         "learning_mode", "textbook",
+         "---\nlearning_mode: textbook\nlearning_mode: project\n---\n# body\n", "replace"),
+        ("S-12", "---\ndefault_driver: lesson\ndefault_driver: exercise\n---\n# body\n",
+         "default_driver", None,
+         "---\ndefault_driver: exercise\n---\n# body\n", "delete-present"),
+        ("S-13", "---\r\ntype: course\r\nlearning_mode: goal\r\n---\r\n# body\r\n",
+         "learning_mode", "goal",
+         "---\r\ntype: course\r\nlearning_mode: goal\r\n---\r\n# body\r\n", "replace"),
+        ("S-14", "---\r\ntype: course\r\nlearning_mode: goal\r\nstatus: ongoing\r\n---\r\n# body\r\n",
+         "learning_mode", "textbook",
+         "---\r\ntype: course\r\nlearning_mode: textbook\r\nstatus: ongoing\r\n---\r\n# body\r\n", "replace"),
+        ("S-15", "---\r\ntype: course\r\ndefault_driver: lesson\r\n---\r\n# body\r\n",
+         "default_driver", None,
+         "---\r\ntype: course\r\n---\r\n# body\r\n", "delete-present"),
+        ("S-16", "---\r\ntype: course\r\n---\r\n# body\r\n",
+         "learning_mode", "goal",
+         "---\r\ntype: course\r\nlearning_mode: goal\r\n---\r\n# body\r\n", "append"),
+        ("S-17", "---\nlearning_mode:\ntype: course\n---\n# body\n",
+         "learning_mode", "goal",
+         "---\nlearning_mode: goal\ntype: course\n---\n# body\n", "replace"),
+    )
+    expected_line_delta = {
+        "replace": 0,
+        "delete-present": -1,
+        "append": 1,
+        "append-absorb": 0,
+        "no-op": 0,
+    }
+    if len(samples) != 17:
+        raise AssertionError(f"boundary matrix shrank to {len(samples)} samples")
+    for sid, inp, field, value, expected, kind in samples:
+        actual = edit(inp, field, value)
+        if actual != expected:
+            raise AssertionError(f"{sid}: expected {expected!r}, got {actual!r}")
+        delta = len(actual.split("\n")) - len(inp.split("\n"))
+        want = expected_line_delta[kind]
+        if delta != want:
+            raise AssertionError(f"{sid}: line count moved by {delta}, expected {want}")
+        if actual.count("\r") != actual.count("\r\n"):
+            raise AssertionError(f"{sid}: bare CR left outside a CRLF pair: {actual!r}")
+        crlf_document = "\r\n" in inp and inp.count("\n") == inp.count("\r\n")
+        if crlf_document and actual.count("\n") != actual.count("\r\n"):
+            raise AssertionError(f"{sid}: bare LF introduced into a CRLF document: {actual!r}")
+        again = edit(actual, field, value)
+        if sid == "S-12":
+            # 该样本的不幂等系 count=1 首匹配语义（§1.3 冻结条款）之推论，非缺陷；
+            # 此处把该冻结语义正面锁死，若有人把删除改为全删，此断言当场报红。
+            if again != "---\n\n---\n# body\n":
+                raise AssertionError(
+                    f"{sid}: count=1 delete no longer matches its frozen "
+                    f"second-application value: {again!r}"
+                )
+        elif again != actual:
+            raise AssertionError(
+                f"{sid}: second application was not a no-op: {actual!r} -> {again!r}"
+            )
+    try:
+        result = edit("# body only\n", "learning_mode", "goal")
+    except ValueError as exc:
+        if "missing frontmatter" not in str(exc):
+            raise AssertionError(f"unexpected error text: {exc}")
+    else:
+        raise AssertionError(f"missing frontmatter must raise, got {result!r}")

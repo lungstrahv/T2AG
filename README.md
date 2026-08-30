@@ -1,23 +1,58 @@
 # T2AG
 
-T2AG 是一套跑在文件系统上、由 AI agent（Claude、Codex 等）驱动的个人学习系统：课程、
-练习、活动台账，以及检查全仓状态的 Doctor。本仓只提供空骨架，不携带真实学生数据。
+T2AG 是考你而不是替你答的 AI 学习框架。你的错题、你证明过的理解、每一次裁决，都存在
+归你所有的纯文本文件里——Claude Code、Codex 或任何 agent 都能读，随时可带走。考试从
+你自己的材料盲提取、签认计分、可重放；自带 Doctor 全仓自检；环上的裁决者是你，不是
+模型。本仓只提供空骨架，不携带真实学生数据。
 
-T2AG is a file-based personal learning system driven by an AI agent (Claude,
-Codex, or similar): courses, exercises, activity ledgers, and a Doctor that checks
-the whole repository. This release contains empty skeletons, not student data.
+T2AG is an AI learning harness that tests you instead of answering. Your mistakes,
+your proofs of understanding, and every verdict live in plain-text files you own —
+readable by Claude Code, Codex, or any agent, and portable between them. Exams are
+blind-extracted from your own materials, scored under a countersign protocol, and
+replayable; a built-in doctor checks the whole instance; the judge in the loop is
+you, not the model. This release contains empty skeletons, not student data.
+
+## 工作原理 / How it works
+
+```text
+you 你 ─────────────── every verdict is yours 每一次裁决在你
+  │ rules & gates flow down                ▲ evidence flows up
+  │ 规则与门下行                            │ 证据与错误上行
+  v                                        │
+discipline 纪律层 ── check registry 检验注册表 · gates 门
+  problemlog closure 闭包 · doctor 全仓自检 · append-only ledgers
+  ── this layer GROWS with every cycle 每一圈都让这层变厚 ──
+  │                                        ▲
+  v                                        │
+learning 学习活动（多模型） ── textbook courses (exams are one
+  instrument 考试只是其一) · project courses · reading chains …
+
+all state = plain text on your disk, readable by any agent
+全部状态 = 你磁盘上的纯文本，任何 agent 可读
+```
+
+文档即程序（prompt harness）。学习活动多模型——教材课、项目课、阅读链——考核只是仪器
+之一。纪律层在机器层兜底每条散文规则，并随每一圈裁决增厚。环上唯一的裁决者是你。全部
+状态是你磁盘上的纯文本。
+
+The documents are the program (a prompt harness). Learning activities come in
+multiple models — textbook courses, project courses, reading chains — and exams are
+one instrument, not the spine. A machine discipline layer (check registry, gates,
+problemlog closure, doctor) backs every prose rule and thickens with every cycle of
+your verdicts. The only adjudicator on the loop is you. All state is plain text on
+your disk.
 
 | 版本 / Edition | 入口 / Entry | 生成来源 / Generated from |
 |---|---|---|
-| 中文（正本） | [`zh/README.md`](zh/README.md) | Skeleton 0.2.4 development, commit `538a5c9` |
-| English | [`en/README.md`](en/README.md) | Skeleton EN 0.2.4 development, commit `0f151eb` |
+| 中文（正本） | [`zh/README.md`](zh/README.md) | Skeleton 0.2.4 development, commit `60b8412` |
+| English | [`en/README.md`](en/README.md) | Skeleton EN 0.2.4 development, commit `0f151eb`（EN 已改判出 0.2.4 收口射程，旧投影保留 / EN rescoped out of the 0.2.4 closeout, prior projection retained — T2AC closeout workorder §14.126） |
 
-> **版本状态 / Version status**：当前树是 `0.2.4` 开发态：
-> `implementation_status = partial`、`candidate_review = not_run`、
-> `release_qualification = not_claimed`。`0.2.3` 仍是最近完成候选复审与
+> **版本状态 / Version status**：当前树是 `0.2.4`：zh 轴
+> `implementation_status = complete`（G2，T2AC 收口 §14.127；EN 已改判出 0.2.4 射程 §14.126）、
+> `candidate_review = not_run`、`release_qualification = not_claimed`。`0.2.3` 仍是最近完成候选复审与
 > finalization-delta 独立复审的发行版本。
-> This tree is the `0.2.4` development baseline: `implementation_status = partial`,
-> `candidate_review = not_run`, and `release_qualification = not_claimed`.
+> This tree is `0.2.4`: zh-axis `implementation_status = complete` (G2; EN rescoped out per
+> workorder 14.126), `candidate_review = not_run`, and `release_qualification = not_claimed`.
 > T2AG `0.2.3` remains the latest release-qualified version.
 
 ## 下载与初始化 / Download and initialize

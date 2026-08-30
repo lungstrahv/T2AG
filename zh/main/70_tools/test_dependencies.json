@@ -4,6 +4,8 @@
   "tests": {
     "foundation.structure": {"path": "main/70_tools/test_distribution_foundation.py", "tier": "fast", "kind": "atomic"},
     "contracts.runtime": {"path": "main/70_tools/test_runtime_contracts.py", "tier": "fast", "kind": "atomic"},
+    "contracts.learner_journey": {"path": "main/70_tools/test_learner_journey_contracts.py", "tier": "fast", "kind": "atomic"},
+    "contracts.operator_result": {"path": "main/70_tools/test_operator_result_contracts.py", "tier": "fast", "kind": "atomic"},
     "contracts.activity": {"path": "main/70_tools/test_activity_contracts.py", "tier": "fast", "kind": "atomic"},
     "contracts.release": {"path": "main/70_tools/test_release_contracts.py", "tier": "release_only", "kind": "atomic"},
     "migrations.legacy": {"path": "main/70_tools/test_legacy_migrations.py", "tier": "deep", "kind": "atomic"},
@@ -84,6 +86,46 @@
         "main/70_tools/test_runtime_contracts.py"
       ],
       "tests": ["contracts.runtime"]
+    },
+    "gate_index": {
+      "sources": [
+        "main/50_playbook/gate_index.md",
+        "main/00_core/gate_index.md",
+        "main/50_playbook/process_governance.md",
+        "main/50_playbook/_README.md",
+        "main/50_playbook/progress_governance.md",
+        "main/70_tools/t2ag_doctor.py",
+        "main/70_tools/contract_test_support.py",
+        "main/70_tools/test_dependencies.json"
+      ],
+      "tests": ["foundation.structure", "contracts.runtime"]
+    },
+    "learner_journey": {
+      "sources": [
+        "main/50_playbook/progress_governance.md",
+        "main/70_tools/learner_journey.py",
+        "main/70_tools/learner_journey_scenarios.json",
+        "main/70_tools/test_learner_journey_contracts.py",
+        "main/70_tools/activity_close.py",
+        "main/70_tools/test_022_close_roundtrip.py",
+        "main/70_tools/test_dependencies.json"
+      ],
+      "tests": ["contracts.learner_journey", "activity.close_roundtrip"]
+    },
+    "operator_result": {
+      "sources": [
+        "main/50_playbook/progress_governance.md",
+        "main/70_tools/operator_result.py",
+        "main/70_tools/t2ag_init.py",
+        "main/70_tools/t2ag_doctor.py",
+        "main/70_tools/t2ag_state_refresh.py",
+        "main/70_tools/t2ag_context.py",
+        "main/70_tools/activity_close.py",
+        "main/70_tools/sync_cloud.py",
+        "main/70_tools/test_operator_result_contracts.py",
+        "main/70_tools/test_dependencies.json"
+      ],
+      "tests": ["contracts.operator_result", "contracts.runtime"]
     },
     "external_source_backlink": {
       "sources": [
@@ -182,6 +224,10 @@
     "migrations": {
       "sources": ["main/70_tools/migrate_021.py", "main/70_tools/migrate_021_activity_records.py", "main/70_tools/migrate_022_activity_close.py", "main/70_tools/migration_test_support.py"],
       "tests": ["migration.022", "migrations.legacy"]
+    },
+    "course_progression_migration": {
+      "sources": ["main/70_tools/t2ag_course_progression_migration.py"],
+      "tests": ["contracts.runtime"]
     },
     "reading_bridge": {
       "sources": ["main/70_tools/t2ag_reading_bridge.py", "main/70_tools/contracts/reading_bridge_v1"],

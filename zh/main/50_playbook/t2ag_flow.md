@@ -1,4 +1,4 @@
-# T2AG 0.2.3 功能流程图
+# T2AG 0.2.4 功能流程图
 
 **保护级别**：core-playbook
 
@@ -29,34 +29,44 @@ Mermaid 作为一种格式没有问题，只是这份文件不用它。
 ◇ 首次启动判据成立？
 │  └─ 否 ─→ 日常接管：进入图 1，不做任何初始化
 │
-▼ 逐项确认身份、时区、目标、已有基础与辅导偏好
-▼ 写 answers.json           · 缺任一必答项即拒绝，不代填默认值
-▼ t2ag_init.py init         · profile 与发行身份（云仍 paused）
+◇ 一次自然对话：资料 + 条件 · 停顿 A；注册资料与规划条件同问，可全部跳过
+│  └─ 未答 ─→ 记 not_provided 或公开假设；不用默认档位冒充学生事实
 │
-◇ 用户已确认首门 Course 与真实入口？
-│  └─ 否 ─→ 等待确认；不代选课程，也不代选 Lesson / Exercise 入口
+▼ t2ag_init.py init         · 只初始化 profile 与发行身份（云仍 paused）
+▼ 回显已收到的条件         · 标出仍是假设的部分；不再开第二次提问
 │
-▼ t2ag_init.py new-course   · Course、首个活动、teacher 映射
-▼ t2ag_init.py new-group    · plan / calendar / review / bindings
+▼ 完整展示参考学习方案     · 先方案正文，再解释 Course Type 与（仅 Mastery）三种 Learning Mode
+│
+◇ 用户确认或修改方案？     · 停顿 B；不询问 G01、入口或节奏码
+│  ├─ 修改 ─→ 修订并重新完整展示方案
+│  └─ 未确认 ─→ 等待；不创建 Course / Group
+│
+▼ 内部连续落盘             · 无第三次用户确认
+├─ t2ag_init.py new-course  · Course、首个活动、teacher 映射
+├─ t2ag_init.py new-group   · planned 组；内部映射方案参数与里程碑
+└─ t2ag_init.py activate-group · 公证已确认方案，不是再次授权
 ▼ state refresh --write + --check
 │
 ◇ doctor 为 0 FAIL？
 │  └─ 否 ─→ 修复状态，不开新内容
 │
-◉ 进入图 1
+▼ 只展示课程、学习模式与第一步 · 隐藏内部 ID、测试数和维护提示
+◉ 直接给出并开始第一件事；进入图 1 · 不设第三个停顿，也不问是否删除发行源
 ```
 <!-- /FLOW:first_run -->
 
 首次判据是：profile 未初始化、仍有必填占位符，或 memory 上次课日期为 `—`。
 
 实例由 `main/70_tools/t2ag_init.py` 生成，模型不照 `first_run.md` 手抄文件：模型的职责是
-提问、把答案写成 `answers.json`、调用工具、复核输出。工具只从 `40_course/_templates/` 与
-`30_group/_templates/` 实例化，缺任一必答项即拒绝并一次报全；不代选课程与入口，不装依赖、
-不建 `.venv`、不下教材、不生成 Engagement、不做 git 写，也不代跑 doctor 与 state refresh。
-前置校验全部先于第一次写盘，失败不留半个课程。
+回显条件、展示参考学习方案、解释学习模式、取得一次方案确认、调用工具并复核输出。工具只从
+`40_course/_templates/` 与 `30_group/_templates/` 实例化；注册资料全部可选，但课程生成所需的
+机器参数仍须在内部完整且合法。不代选学生没有确认的目标，不装依赖、不建 `.venv`、不下教材、
+不生成 Engagement、不做 git 写，也不代跑 doctor 与 state refresh。前置校验全部先于第一次
+写盘，失败不留半个课程。
 
 ## 图 1 · 一次教学会话
 
+<!-- rule: ACT-ROUTE-012 -->
 <!-- FLOW:panorama -->
 ```text
 ● 学生要求继续课程
@@ -236,8 +246,8 @@ doctor：active、registry、目录、元数据、art_file、未登记皮肤、�
 │
 ▼ 显式 add → cached diff → commit
 │
-◇ 本批改了 Main / Skeleton 共享文件？
-│  └─ 是 ─→ cmp 核对两仓字节同源，再各自 commit
+◇ 本批触及发行投影？
+│  └─ 是 ─→ 按发行投影 owner 的具名 H5 补齐 zh 机制路径并过独立门
 │
 ▼ sync_lite.py --write     · 只从干净 Main 再生；脏树必被拒绝
 │
@@ -253,13 +263,10 @@ doctor：active、registry、目录、元数据、art_file、未登记皮肤、�
 
 禁止自行使用 `reset --hard`、`clean -fd` 或强推。Git 是保护层，不是课程真相源。
 
-三发行的投影方向不对称，且都排在 commit 之后：
-
-- **Main ↔ Skeleton** 是镜像关系。共享实现、契约与 core/meta-playbook 必须字节同源，改完用
-  `cmp` 逐一核对；Skeleton 只保留发行面差异（清零的实例、清零的 EV register、隐私豁免）。
-- **Main → Lite** 是单向投影。`sync_lite.py` 在 Main 工作树脏时**拒绝执行**——把不存在于任何
-  commit 的中间态投到无 git 的 Lite 不可追回。`--force` 存在但不推荐；正确顺序永远是
-  先 commit，再投影。Lite 是只读审查快照，其验收是全量投影哈希，不在 Lite 内跑 doctor。
+发行投影方向、目标集合、命令顺序、合法分叉与 0.2.4/0.2.5 边界只由
+`playbook_management.md` §五拥有。本图只固定两条依赖：Main 是唯一 canonical source；Main
+提交并恢复 clean 后，具名 H5 才能补 zh 机制路径并运行 Lite check/write。zh 与 Lite 都不得
+反向成为规则源，投影闭合须同时通过各自 byte/SHA、隐私与全量哈希门。
 
 Git 证据边界分三层：
 

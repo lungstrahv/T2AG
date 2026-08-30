@@ -62,13 +62,12 @@
 **功能判据**（主）：管理治理对象的生命周期——playbook、journal、memory、
 problemlog、changelog、门与规则准入、流程。这是开放式列举，不是封闭枚举。
 
-**再生判据**（验证推论）：从 skeleton 抽走即不可再生。项目围绕 meta 再生；
-skeleton 必含全部 meta，三发行字节同源。
+**再生判据**（验证推论）：从发行投影抽走且没有 canonical owner 即不可再生。项目围绕 meta
+再生；共享 meta 必须有唯一 Main 真相源和可验证的下游投影，具体机制只由 §五拥有。
 
 两判据不一致时必须裁决并登记，不得静默沿用。
 
-meta 的保护语义：skeleton 必含 + 三仓字节全同 + 大改默认 diff-patch + 语义迁移须
-`rule_migration`。
+meta 的保护语义：发行投影按 §五闭合 + 大改默认 diff-patch + 语义迁移须 `rule_migration`。
 
 ### 4.2 core-playbook
 
@@ -115,28 +114,58 @@ enforcement: check=runtime.playbook_taxonomy
 enforcement: check=release.playbook_taxonomy_parity
 ```
 
-## 五、发行版同步纪律
+## 五、发行投影纪律（唯一操作 owner）
 
-- 每个标记为 `core-playbook` 的文件都必须存在于 main、skeleton 与 lite，文件正文保持一致。
-- 每个标记为 `meta-playbook` 的文件都必须存在于 skeleton，且 main / skeleton / lite
-  三仓字节全同。
-- 宪法与 00_core 模型**不走文件级字节同源，走分节同源**：`main/t2ag.md` 与
-  `00_core/` 三模型按 `## ` 节比对 SHA（Skeleton 宪法 §6 去实例化是合法分叉，以
-  节级豁免带理由登记；`AGENTS.md` 受众不同走文件级豁免；2026-08-21 D1–D3 裁）。
-  owner=`70_tools/t2ag_doctor.py` `check_constitution_parity`。
-  enforcement: check=release.constitution_parity
-- core-playbook 不得写入真实学生姓名、绝对路径、当前课程进度、固定 commit 或私人远端地址；实例参数从运行时文件读取。
-- 新增或重大修改 core-playbook 时，同一批次同步三版本，再分别运行 doctor。
-- 三仓同处一个工作区时，doctor 比较 core-playbook 文件集合与 SHA-256；缺失或正文分叉均为 FAIL。独立发行时只检查本地必需文件。
-- skeleton 是通用模板和流程的唯一模板源；main 吸收通用规则并保留实例数据。
-- lite 是由 main 生成的线上模型审查快照，可省略教材二进制、环境、缓存和生成资产，
-  但不得省略审查所需规则、实例状态或 core-playbook / meta-playbook。
-- **一致性预演**：`python -B main/70_tools/sync_lite.py`（默认只读）。
-- **再生机制（A 案）**：`python -B main/70_tools/sync_lite.py --write`
-  （可选 `--root <T2AC>`）。全量清空后重建；**main 工作区必须干净**
-  （工具默认拒绝脏树；施工期只有经明确裁决才可追加 `--force`）。
-  再生结束全量哈希核对投影文件。禁止手改 lite 当长期维护面。
-- lite 不得反向成为规则源；线上模型的修改只能以审查建议返回，再由 skeleton/main 裁决。
+本节是 Main → zh Skeleton / Lite 的唯一操作 owner。宪法只保留单一真相源与可验证投影的
+硬边界，流程图只画调用关系；不得在其他载体复制命令、顺序或“镜像仓”规则。
+
+### 5.1 当前 0.2.4 边界
+
+- **Main 是唯一 canonical source**。zh Skeleton 是通用机制投影，不是反向模板源；Lite 是
+  Main 的单向脱敏审查投影，也不得反向成为规则源。
+- **zh 机制投影**没有全仓 generator。跨发行 H5 必须逐批具名、从已提交的 Main 取显式路径，
+  只同步低隐私共享机制与已登记的宪法分节；完成后对具名路径做 byte/SHA 核对。真实实例、
+  宿主日志和合法发行身份分叉不得复制。
+- **Lite 投影**只由 `main/70_tools/sync_lite.py` 生成：默认命令做 check-only；`--write`
+  只接受干净 Main 并全量再生、脱敏、哈希复核。禁止长期手改 Lite。
+- **EN 不在本节的 0.2.4 target 集合**；其内容同步另走具名发行批。
+- 类级 machine-query artifact manifest 明确列入 **0.2.5**，0.2.4 不新建第二 registry，
+  也不得把设计文书冒充已生效机器真相。当前机制以本节、`sync_lite.py` 与既有 Doctor 门闭合。
+
+### 5.2 投影门与顺序
+
+#### 5.2.1 宪法与 00_core 分节同源
+
+`main/t2ag.md` 与 `00_core` 三模型按 `## ` 节比对 SHA；Skeleton 宪法 §6 去实例化是登记分叉，
+`AGENTS.md` 因受众不同走文件级豁免。owner=`t2ag_doctor.py` `check_constitution_parity`。
+enforcement: check=release.constitution_parity
+
+#### 5.2.2 core/meta 发行完整性
+
+core/meta-playbook 的具名投影集合与应同源正文须完整；低隐私共享文件不得夹带学生姓名、
+宿主绝对路径、当前课程进度、固定 commit 或私人远端。enforcement: check=release.core_playbooks
+
+#### 5.2.3 顺序
+
+1. Main 变更先通过定向测试、runtime Doctor 与 state check，再提交具名源路径。
+2. 同一具名 H5 内补齐 zh 机制路径；宪法与 `00_core` 按登记分节比对，core/meta-playbook
+   按文件比对；`AGENTS.md`、发行身份和脱敏输出只接受已登记分叉。
+3. Main clean 后先运行 `python -B main/70_tools/sync_lite.py` 预演；需要更新时再运行
+   `python -B main/70_tools/sync_lite.py --write`（可选 `--root <T2AC>`）。
+4. `runtime.skeleton_privacy` 与 Lite 全量投影哈希是独立门，任一失败都不得宣称投影闭合。
+5. 新增或重大修改 core/meta-playbook 时，完成上述投影与各发行适用 Doctor；线上建议只能
+   返回 Main 裁决，不能直接改 Lite 或从 zh 反灌 Main。
+
+### 5.3 DEC-4 A8 rule_migration
+
+| rule_id | 旧位置/动作 | 新 owner/等价门 | 消费方 | 验证 |
+|---|---|---|---|---|
+| DEC4-PROJ-01 | 宪法 §1.9 “三发行字节同源” → keep 硬边界、sink 操作细节 | 本节 §5.1；宪法只指针 | 所有发行批 | 宪法含 `playbook_management.md` §五指针 |
+| DEC4-PROJ-02 | `t2ag_flow.md` 的镜像/cmp 手工路径 → sink | 本节 §5.1–§5.2 | Git/发行流程图 | 流程图含“发行投影 owner”且无“Main ↔ Skeleton” |
+| DEC4-PROJ-03 | 本文件原 §五多条分散同步纪律 → rewrite | 本节 §5.1–§5.2；`sync_lite.py`；`runtime.skeleton_privacy` | Main/zh/Lite | A9 mutation + 具名 H5 probe |
+
+未登记删除审查：没有退役单一真相源、隐私、宪法分节同源、core/meta 完整性或 Main clean
+硬门；只退役重复的手工镜像表述，并把机器 manifest 的新能力显式切到 0.2.5。
 
 ---
 
@@ -176,7 +205,7 @@ T2AG 沿用以下治理原则：
 
 本批对 §四 为语义扩张（三级着床；无删除条款）。表与工单 §六 同构，行数冻结。
 
-| rule_id | 旧位置/原文锚点 | 动作 | 新 owner/等价门 | 消费方 | 验证 |
+| rule_id | rule_id | 动作 | 新 owner/等价门 | 消费方 | 验证 |
 |---|---|---|---|---|---|
 | PB-TAX-001 | §四 首句「用 core-playbook 语义保护高价值流程」 | keep（改写为三级总述） | 本文件 §四 | 维护会话 / doctor 分级仪器 | `grep -n "合法标记值只有三个" 50_playbook/playbook_management.md` |
 | PB-TAX-002 | §四 条件「用户明确要求长期保留」 | keep | 本文件 §4.2 | 升 core 裁决 | `grep -n "用户明确要求长期保留" 50_playbook/playbook_management.md` |

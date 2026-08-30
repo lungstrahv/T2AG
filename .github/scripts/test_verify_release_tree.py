@@ -31,12 +31,24 @@ class ReleaseTreeTests(unittest.TestCase):
         findings = verifier.validate_paths(paths)
         self.assertTrue(any("missing required files" in row for row in findings))
 
-    def test_cross_edition_path_drift_fails(self) -> None:
+    def test_en_orphan_file_fails(self) -> None:
+        paths = valid_surface()
+        paths.add("en/main/only_in_en.md")
+        findings = verifier.validate_paths(paths)
+        self.assertTrue(any("en has files absent from zh" in row for row in findings))
+
+    def test_zh_lead_is_allowed(self) -> None:
+        # EN rescoped out of the 0.2.4 closeout (workorder 14.126); zh may lead.
+        paths = valid_surface()
+        paths.add("zh/main/70_tools/only_in_zh.py")
+        self.assertEqual(verifier.validate_paths(paths), [])
+
+    def test_missing_en_required_file_still_fails(self) -> None:
         paths = valid_surface()
         relative = "main/40_course/_templates/course/_exam/index.md.template"
         paths.remove(f"en/{relative}")
         findings = verifier.validate_paths(paths)
-        self.assertTrue(any("edition path sets differ" in row for row in findings))
+        self.assertTrue(any("missing required files" in row for row in findings))
 
     def test_instance_ledger_in_skeleton_fails(self) -> None:
         paths = valid_surface()

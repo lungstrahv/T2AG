@@ -146,6 +146,7 @@ Snapshot 的 `content_consumed=true` 与 load receipt 只证明 prepare 当时�
 | **A3** | 所消费内容的来源身份可**逐环追溯**至 manifest 中的 canonical `SourceDocument`，链上每一环均有 SHA 绑定，且 canonical 文件的实际 SHA 与 manifest 逐位相符 |
 | **A4** | 实际消费的页集合与 snapshot Scope **完全相等**；混合证据形式下按各形式覆盖页集合之**并集**判定。**遗漏为 FAIL；重复只报 WARN（成本提示），不判失败** |
 | **A5** | 当前页一致，无来源冲突 |
+<!-- rule: SCAN-ADMISSION-003 -->
 | **A6** | 完成判据（ADR-0003）：A1–A5 经**宿主可观察投递**在本会话内证成即为 session scan complete；**无投递的**自报 `opened` / complete **不构成完成**。宿主 orchestrator 签发保留为未来态，落地后回收签发权 |
 
 该结果只在当前会话内有效，不写成第二真相源。
@@ -204,10 +205,13 @@ prepare / 首次核验成本，与每会话 A1 证明分离。
 - 只看当前页或抽样
 - 复用历史 Snapshot、历史 load receipt、或其它会话的扫描结果冒充本轮
 
+<!-- rule: SCAN-ADMISSION-001 -->
 **B 层不算数（证据形式不合格 —— 即使页号齐全也不构成消费证明）**
 
 - 仅看**未核验**的机器 OCR 或摘要
 - 只验 SHA / 路径存在，未投递内容本体
+<!-- rule: SCAN-ADMISSION-008 -->
+<!-- rule: SCAN-ADMISSION-009 -->
 - **子进程摘要**（如 `fitz.get_text()` 的哈希或脚本 stdout）——证明脚本读过文件，
   **不**证明本轮模型上下文收到了内容本体
 - **未核验机器 OCR** 与 **已核验 `SourcePageAsset`** 必须分开：后者带
@@ -246,6 +250,8 @@ prepare / 首次核验成本，与每会话 A1 证明分离。
    新页、新 Scope、其它教材都需先跑 `layout-scan`（§3.2.5）。
 2. **成本下降 ≠ 教学解锁**，见下 A6。
 
+<!-- rule: SCAN-ADMISSION-005 -->
+<!-- rule: SCAN-ADMISSION-006 -->
 **A6（ADR-0003，2026-08-08 改判）**：session scan complete 的正式判据＝A1–A5 经**宿主可
 观察投递**在本会话内证成。证成前 `pending_visual_scan` 等 pending 状态**不得清除**；
 **无投递的**自报 `opened` / complete、Snapshot、历史 receipt、哈希核对均不构成证成
@@ -260,6 +266,7 @@ prepare / 首次核验成本，与每会话 A1 证明分离。
 
 #### 3.2.1 准入判据
 
+<!-- rule: SCAN-ADMISSION-002 -->
 > **一种证据形式可被承认，当且仅当宿主能观察到内容本体进入本轮模型上下文这一事件本身。**
 > agent 回报的任何摘要、哈希或自述**都不是**观察，无论它多么可复算。
 
@@ -302,6 +309,8 @@ prepare / 首次核验成本，与每会话 A1 证明分离。
 
 混合形式下的 A4 判定见 §3.1 A4 行（并集；遗漏 FAIL、重复只 WARN），本节不重复。
 
+<!-- rule: SCAN-ADMISSION-004 -->
+<!-- rule: SCAN-ADMISSION-007 -->
 > **⚠ frontmatter 陷阱**：上表四个前置**全部**可从 `page_NN.md` 的 frontmatter 读到。
 > 因此「只读 frontmatter」能满足全部前置而**正文一字未投递**——这不是理论漏洞，是当前
 > 文件结构下现成可走的路径。故 A1 要求**完整正文段**投递，宿主观察事件须能区分

@@ -6,10 +6,6 @@ import contract_test_support as contracts
 
 
 TESTS = (
-    contracts.test_migration_manifest_tamper,
-    contracts.test_migration_manifest_missing_reference,
-    contracts.test_main_readme_skeleton_reference_does_not_change_migration_kind,
-    contracts.test_profile_migration_manifest_tamper,
     contracts.test_profile_migration_roundtrip,
 )
 

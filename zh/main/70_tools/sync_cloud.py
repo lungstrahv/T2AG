@@ -25,6 +25,8 @@ import re
 import sys
 from pathlib import Path
 
+import operator_result
+
 ROOT = Path(__file__).resolve().parents[2]
 
 TEMPLATE_REL = "main/50_playbook/cloud_instructions_template.md"
@@ -138,7 +140,7 @@ def run_checks(root: Path) -> list[tuple[str, str]]:
     return reports
 
 
-def main(argv: list[str] | None = None) -> int:
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--write", action="store_true", help="再生并写回 instructions")
     parser.add_argument("--root", type=Path, default=ROOT)
@@ -167,6 +169,16 @@ def main(argv: list[str] | None = None) -> int:
         if level == "FAIL":
             worst = 1
     return worst
+
+
+def main(argv: list[str] | None = None) -> int:
+    code = _main(argv)
+    operator_result.emit_exit(
+        tool="sync_cloud",
+        operation="cloud_projection_check_or_write",
+        exit_code=code,
+    )
+    return code
 
 
 if __name__ == "__main__":

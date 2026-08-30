@@ -46,6 +46,7 @@
 | Runtime Sentinel | 验证本地教学运行状态 | 只读运行 runtime Doctor 与 state refresh `--check` |
 | Context Prefetcher | 生成并消费当前课程上下文，准备一份暂不发送的首轮候选 | 只读运行 context；不得写回、不得自行进入 L2 |
 
+<!-- rule: CTX-PACKET-005 -->
 ## 二、先建依赖树，再分配 Agent
 
 Main Conductor 在派发前先画最小依赖树并估算关键路径；固定启动可直接复用下图，不能先
@@ -138,6 +139,7 @@ handoff 包含：
   覆盖寄存器，以及理解确认、感受反馈、单次继续授权和翻页通知四类门。不得把本轮入口的
   “继续学习”解释成整节课持续授权。
 
+<!-- rule: CTX-PACKET-006 -->
 候选在 Main 裁决前必须保持 withheld。宿主落地后，教材教学正文只经 `lesson_emit`；
 textbook gated 会话中普通 freeform assistant 出口关闭或仅宿主固定模板（见
 `docs/protocol/host-teaching-egress-api.md`）。`confirm_close` 的 latest pending 解码属于 critical
@@ -296,3 +298,113 @@ handoff 后，既有授权只能保持或缩小。
 并行只读分支 × 首交付足够小 × Main 零重复 × 用完释放槽
 ≠ 再堆 Agent
 ```
+
+## 十一、入口轴合同（entry.*）
+
+宪法 `main/t2ag.md` §3 只留指针；入口轴合同正文只在本文件。本轴 **不是** `session_lane` 正本（0a-4／closeout §14.66／§14.81）：词面同四名，轴独立演化。本文件不拥有 `session_lane`。
+
+前缀 token 写死为 **`entry.`**（AS-8；能裁则裁）。四入口：
+
+| 入口 | I/O | 禁止 |
+|---|---|---|
+| `entry.teach` | 课程恢复 + Scope | 不得绕过 kernel |
+| `entry.maintain` | 不触发课程恢复 | 不得绕过 kernel |
+| `entry.audit` | 只读取证；不触发恢复 | 不得绕过 kernel |
+| `entry.release` | 不获发布授权 | 不得绕过 kernel |
+
+四入口共用前缀只有三项：读取 `main/t2ag.md`、按 §零展示欢迎信息、经过既有
+`runtime.authorization` kernel（closeout §14.80；**不**新增 check ID）。分流后，只有 `entry.teach`
+运行课程恢复、Context Prefetcher 与 textbook Scope scan，并产出
+`learning-ready`；各入口在发生写动作前分别取得其适用的 `recovery-settled`。本轴不调度代码、
+不新建 dispatcher。
+
+## 十二、rule_migration（DEC-3 A3 · 宪法 §3 子约束）
+
+分母＝子约束 ≥18（closeout §14.77 AS-5；能裁：S3-10 拆 4、S3-13 拆 2、S3-09 拆 4 条时间/halt 子句）。本表 20 行（S3-01..08 + S3-09a..d + S3-10a..d + S3-11 + S3-12 + S3-13a..b）。无 retire。S3-03／S3-12 未判定已裁为 sink。不新增 check ID。A3 冻结批未改 `main/t2ag.md`；收口修复将 §3 压为入口指针与不可变门，不改变本表 keep/sink 裁决。
+
+| rule_id | 旧位置/原文锚点 | 动作 | 新 owner/等价门 | 消费方 | 验证 |
+|---|---|---|---|---|---|
+| S3-01 | `main/t2ag.md` §3 L85–86「每次进入本项目：立即按当前皮肤展示欢迎信息」 | sink | `50_playbook/startup_orchestration.md` §零 | `main/bin/t2ag`；`80_interface/README.md`；`skin_playbook.md`；`first_run.md`（E1：Doctor 零消费） | `grep -n "自宪法 §3.0 下沉" main/50_playbook/startup_orchestration.md` |
+| S3-02 | `main/t2ag.md` §3 L85–87「同时并行启动只读恢复分支（Runtime Sentinel + Context Prefetcher）」 | sink | `startup_orchestration.md` §一／§三 | `AGENTS.md`「启动」条目（E1：Doctor 零消费） | `grep -n "python -B main/70_tools/t2ag_doctor.py --profile runtime" main/50_playbook/startup_orchestration.md` |
+| S3-03 | `main/t2ag.md` §3 L87–88「不得等全部恢复检查串行结束后才给学生第一条反馈」 | sink | `startup_orchestration.md` §三／§四.1（E1：等价正文已在；能裁：未判定→sink） | Main Conductor 汇合（E1 T-08）；Doctor 零消费 | `grep -n "不必等待 Runtime Sentinel 全部返回" main/50_playbook/startup_orchestration.md` |
+| S3-04 | `main/t2ag.md` §3 L90「两个可观察状态（判据 canonical：startup_orchestration.md §4.1/§4.2）」 | keep | 宪法留指针；等价门 `startup_orchestration.md` §4.1／§4.2 | 启动会话；Doctor 零消费 | `grep -n "两个可观察状态" main/t2ag.md` |
+| S3-05 | `main/t2ag.md` §3 L92–93 `learning-ready` 定义（critical 来源未变、route 唯一精确停点、无教学阻断；textbook Scope 扫描 A1–A5／A6） | sink | `startup_orchestration.md` §4.1 | ADR-0003；`source_page_assets.md` §3.1（E1：Doctor 零消费） | `grep -n "### 4.1 Learning-ready" main/50_playbook/startup_orchestration.md` |
+| S3-06 | `main/t2ag.md` §3 L93–94「Snapshot、content_consumed、历史 receipt 均不得冒充本轮」 | sink | `startup_orchestration.md` §4.1 | `AGENTS.md`「textbook 扫描门」（E1：Doctor 零消费） | `grep -n "content_consumed" main/50_playbook/startup_orchestration.md` |
+| S3-07 | `main/t2ag.md` §3 L95 `recovery-settled` 定义（Doctor 0 FAIL、state 无漂移、完整来源核对完成） | sink | `startup_orchestration.md` §4.2 | `t2ag_doctor.py --profile runtime`；`t2ag_state_refresh.py --check`（E1） | `grep -n "doctor_exit == 0" main/50_playbook/startup_orchestration.md` |
+| S3-08 | `main/t2ag.md` §3 L95–96「任何进度写入、checkpoint 确认、terminal/RT3、切换前台或『状态已闭合』宣称必须等待该状态」 | keep | 宪法级正本（closeout §14.80）；机器 leftover＝既有 `runtime.authorization`（§6.2）；无新 check | 写回路径；A1 kernel（E1：Doctor 零消费本句） | `grep -n "runtime.authorization" main/70_tools/validation_workflow.json` |
+| S3-09a | `main/t2ag.md` §3 L98「critical ≤10 秒」 | sink | `startup_orchestration.md` §一／§五 | 启动编排（E1：Doctor 零消费） | `grep -n "critical 单独等待上限为 10 秒" main/50_playbook/startup_orchestration.md` |
+| S3-09b | `main/t2ag.md` §3 L98「首条内容 ≤15 秒」 | sink | `startup_orchestration.md` §一／§五 | 启动编排（E1：Doctor 零消费） | `grep -n "第一条可执行学习内容 ≤15 秒" main/50_playbook/startup_orchestration.md` |
+| S3-09c | `main/t2ag.md` §3 L98「完整后台 ≤45–60 秒」 | sink | `startup_orchestration.md` §五（机器上限＝已写 45 秒，**不是**宪法 45–60） | 启动编排（E1：Doctor 零消费） | `grep -n "等待上限仍为 45 秒" main/50_playbook/startup_orchestration.md` |
+| S3-09d | `main/t2ag.md` §3 L98「迟到阻断暂停后续推进」 | sink | `startup_orchestration.md` §五 | Main Conductor（E1） | `grep -n "暂停下一动作" main/50_playbook/startup_orchestration.md` |
+| S3-10a | `main/t2ag.md` §3 L100–101「未初始化判据与初始化流程 canonical：first_run.md」 | sink | `50_playbook/first_run.md`（`## 判据`／`## 步骤`） | `t2ag_init.py`（E1） | `grep -n "^## 判据" main/50_playbook/first_run.md` |
+| S3-10b | `main/t2ag.md` §3 L100–101「模板须用 40_course/_templates/course/」 | sink | `40_course/_templates/course/`（能裁拆条；E1 复合 owner 原为 `first_run.md`，该路径为 E1 原文已点名） | `t2ag_init.py`／`first_run.md`（E1） | `grep -n "不是真实课程实例" main/40_course/_templates/course/README.md` |
+| S3-10c | `main/t2ag.md` §3 L101「不预置真实学生编号」 | sink | `50_playbook/first_run.md` | `t2ag_init.py`（E1） | `grep -n "不创建学生编号层" main/50_playbook/first_run.md` |
+| S3-10d | `main/t2ag.md` §3 L101「不自动创建 .venv」 | sink | `50_playbook/first_run.md` | `t2ag_init.py`（E1） | `grep -n "venv" main/50_playbook/first_run.md` |
+| S3-11 | `main/t2ag.md` §3 L102–103 日常接管 canonical `context_packet.md` | keep | `50_playbook/context_packet.md`；enforcement 既有 `runtime.context_packet`（rule_binding → `context_packet.md#九、规则层按 session_lane 加载`） | `runtime.context_packet`（E1：唯一有 Doctor 强制的日常接管条） | `runtime.context_packet` |
+| S3-12 | `main/t2ag.md` §3 L104「runtime doctor FAIL：先修本地教学状态，不开新内容；release 侧 FAIL 只阻断候选与发布」 | sink | `50_playbook/doctor_contracts.md`（FAIL 语义正本；能裁：未判定→sink；无新 doctor check） | runtime／release 启动路径（E1） | `grep -n "Doctor 返回 FAIL 后必须阻断" main/50_playbook/doctor_contracts.md` |
+| S3-13a | `main/t2ag.md` §3 L105「Cloud bridge paused 时云端投影只读」 | keep | `doctor_contracts.md#Cloud 暂停态`；enforcement 既有 `runtime.cloud_pause` | `runtime.cloud_pause`（E1） | `runtime.cloud_pause` |
+| S3-13b | `main/t2ag.md` §3 L105–106「上下文工具不可执行时按 lesson_recover.md 手工分层摘录，不退回无差别全量读取」 | sink | `50_playbook/lesson_recover.md` | 降级路径（E1 T-13）；`startup_orchestration.md` §五 | `grep -n "工具失败时才按这些步骤手工做逐段摘录" main/50_playbook/lesson_recover.md` |
+
+**下沉闭包四项**（整表共用）：
+
+1. **新 canonical owner**：sink 行见上表；keep 行正本仍在宪法或既有 playbook／既有 check。
+2. **必要入口指针**：宪法 §3 现只保留显式入口声明、公共前缀、状态硬门与下沉 owner 指针。
+3. **消费方**：见上表。Doctor 强制面仍仅 S3-11（`runtime.context_packet`）与 S3-13a（`runtime.cloud_pause`）。S3-08 机器 leftover＝既有 `runtime.authorization`。
+4. **验证证据**：上表「验证」列；全部为既有 grep 或既有 check ID，无新 ID。
+
+**未登记删除审查**：无 retire。E1 初判 sink／keep 的条目均 follow；S3-03／S3-12 按能裁 sink，不 retire。
+
+## 十三、入口 cutover（DEC-3 A6）
+
+合同正文见 §十一；宪法 §3 子约束迁移表见 §十二（20 行，本批不复制）。本 cutover 只改启动调用面：不调度代码、不新建 dispatcher、不新增 check ID。
+
+### 13.1 两轴声明（调用方必填）
+
+凡调用「启动」者必须**同时、分别**声明：
+
+1. **入口轴** token：`entry.teach` | `entry.maintain` | `entry.audit` | `entry.release`（§十一）。
+2. **`session_lane`**（本文件不拥有；0a-4／closeout §14.66／§14.81）。两轴独立，不得用一词顶两轴。
+
+`--profile runtime` / `--profile release` **不是**入口。那是 Doctor 档位轴（AS-7：`--profile release`＝59 条；与入口轴正交）。不得把档位词读成 `entry.*`。
+
+### 13.2 四入口 I/O（cutover）
+
+| 入口 | 允许 | 禁止 |
+|---|---|---|
+| `entry.teach` | **仅此入口**可启动课程恢复 + textbook Scope 扫描（`first_run.md` / `t2ag_init.py`） | 不得绕过 kernel |
+| `entry.maintain` | runtime Doctor + `state --check`；**不**启动课程恢复 | 不得绕过 kernel |
+| `entry.audit` | 只读取证；**不**启动课程恢复 | 不得绕过 kernel |
+| `entry.release` | **不**授予发布授权 | 不得把本入口当成 publish 许可；Doctor `--profile release` 是另一轴 |
+
+四入口写动作一律等 `recovery-settled`（§4.2）。kernel＝既有 `runtime.authorization`（§十一／closeout §14.80；不新增 check ID）。
+
+### 13.3 协议退役
+
+隐式「每次进入跑全套启动」**在此协议退役**。调用方必须显式给入口轴 token；缺 token 不得默认为 `entry.teach` 全套恢复。
+
+### 13.4 A6 原批未改的 3.0 leftover 锚点
+
+A6 原批未编辑下列当时仍指向宪法「3.0 启动欢迎信息」的 dangling 锚点；A8 已在后续批
+全部改准为本文件 §零：
+
+- `main/50_playbook/first_run.md:152`
+- `main/50_playbook/skin_playbook.md:153`
+- `main/80_interface/README.md:44`
+- `main/bin/t2ag:6`
+
+A6 原批写面仅 `startup_orchestration.md`。当前收口修复另行改准 `t2ag.md` 与活跃
+`AGENTS.md` 调用点；仍不改 doctor、`--profile` 调用点、zh/EN/Lite。
+
+## 十四、正负矩阵（DEC-3 A7）
+
+合同／cutover／rule_migration 正文见 §十一–十三；本表不复写那三节，只记极性。
+
+| 极性 | 命题 |
+|---|---|
+| + | `entry.teach` 启动课程恢复 + Scope |
+| − | `entry.maintain`／`entry.audit` 不启动课程恢复 |
+| − | `entry.release` 不授予发布授权 |
+| − | `--profile` 不是入口（Doctor 档位轴，与入口轴正交） |
+| − | 缺入口 token 不得默认 teach 全套恢复 |
+| − | 写动作一律等 `recovery-settled` |
+| − | kernel＝既有 `runtime.authorization`（不新增 check ID） |
