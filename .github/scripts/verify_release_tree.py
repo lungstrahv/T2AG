@@ -28,6 +28,7 @@ REQUIRED_ROOT_FILES = frozenset(
         ".gitignore",
         "AGENTS.md",
         "INSTALL.md",
+        "KNOWN_ISSUES_0.2.3.md",
         "LICENSE",
         "LICENSE-DOCS.md",
         "LICENSING.md",
