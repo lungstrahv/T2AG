@@ -11,7 +11,7 @@
 0.2.4 Skeleton 处于开发态：首次启动以一次可跳过的条件对话和一次完整方案审阅推进，
 Edition 固定 `zh-CN`；安装器把所选 Edition 复制为同级 `t2ag/`，发行源默认保留且不另设
 删除询问。版本状态为
-`partial / not_run / not_claimed`；它不含真实课程活动、AR、书籍、sidecar、候选贡献或
+`complete / not_run / not_claimed`；它不含真实课程活动、AR、书籍、sidecar、候选贡献或
 消费回执。最近 release 资格基线仍为 0.2.3。
 
 本 Skeleton 作为可复用开源基础持续维护，通用教学机制由真实实例反馈验证后再吸收，

@@ -462,21 +462,29 @@ cloud/         本地和云端（手机/网页版）之间的桥接文件——�
 ◇ 首次启动判据成立？
 │  └─ 否 ─→ 日常接管：进入图 1，不做任何初始化
 │
-▼ 逐项确认身份、时区、目标、已有基础与辅导偏好
-▼ 写 answers.json           · 缺任一必答项即拒绝，不代填默认值
-▼ t2ag_init.py init         · profile 与发行身份（云仍 paused）
+◇ 一次自然对话：资料 + 条件 · 停顿 A；注册资料与规划条件同问，可全部跳过
+│  └─ 未答 ─→ 记 not_provided 或公开假设；不用默认档位冒充学生事实
 │
-◇ 用户已确认首门 Course 与真实入口？
-│  └─ 否 ─→ 等待确认；不代选课程，也不代选 Lesson / Exercise 入口
+▼ t2ag_init.py init         · 只初始化 profile 与发行身份（云仍 paused）
+▼ 回显已收到的条件         · 标出仍是假设的部分；不再开第二次提问
 │
-▼ t2ag_init.py new-course   · Course、首个活动、teacher 映射
-▼ t2ag_init.py new-group    · plan / calendar / review / bindings
+▼ 完整展示参考学习方案     · 先方案正文，再解释 Course Type 与（仅 Mastery）三种 Learning Mode
+│
+◇ 用户确认或修改方案？     · 停顿 B；不询问 G01、入口或节奏码
+│  ├─ 修改 ─→ 修订并重新完整展示方案
+│  └─ 未确认 ─→ 等待；不创建 Course / Group
+│
+▼ 内部连续落盘             · 无第三次用户确认
+├─ t2ag_init.py new-course  · Course、首个活动、teacher 映射
+├─ t2ag_init.py new-group   · planned 组；内部映射方案参数与里程碑
+└─ t2ag_init.py activate-group · 公证已确认方案，不是再次授权
 ▼ state refresh --write + --check
 │
 ◇ doctor 为 0 FAIL？
 │  └─ 否 ─→ 修复状态，不开新内容
 │
-◉ 进入图 1
+▼ 只展示课程、学习模式与第一步 · 隐藏内部 ID、测试数和维护提示
+◉ 直接给出并开始第一件事；进入图 1 · 不设第三个停顿，也不问是否删除发行源
 </pre>
 <!-- /T2AG_GENERATED:flow_first_run -->
       <p>你拿到的是一个极简的基础安装包。把它复制为自己的 <code>t2ag</code> 文件夹，在 AI 环境中打开并发送“T2AG”，然后回答昵称、课程、教材、当前进度和学习偏好。确认信息后，你会看到自己的档案与课程生成、欢迎信息出现，并得到一条可以直接开始的下一步。此后文件会随着使用和反馈继续变化，最终成为更贴近你习惯的个人学习系统。</p>
@@ -660,8 +668,8 @@ doctor：active、registry、目录、元数据、art_file、未登记皮肤、�
 │
 ▼ 显式 add → cached diff → commit
 │
-◇ 本批改了 Main / Skeleton 共享文件？
-│  └─ 是 ─→ cmp 核对两仓字节同源，再各自 commit
+◇ 本批触及发行投影？
+│  └─ 是 ─→ 按发行投影 owner 的具名 H5 补齐 zh 机制路径并过独立门
 │
 ▼ sync_lite.py --write     · 只从干净 Main 再生；脏树必被拒绝
 │

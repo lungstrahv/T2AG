@@ -363,3 +363,162 @@ never judges whether a given playbook ought to be meta or core under the §4 fun
 The existing `check_core_playbooks` (`release.core_playbooks`) only swaps in the same parser in
 this batch, with its registration unchanged; how it divides labour with the parity check is
 pooled separately.
+
+## 11. Doctor verdicts and three-state depreciation (2026-08-26, DEC-0a-2)
+
+This section sits beside §4 "Not activated, and retired" and §5 "Waiver boundary": §4 governs the
+lifecycle of an **object**, §5 governs exemptions caused by the **environment**, and this section
+governs the **disposition ruling on a single finding** and its expiry conditions.
+
+### 11.1 The two-layer verdict structure
+
+| Layer | Field | Domain | Standing |
+|---|---|---|---|
+| First | `act` | `yes` \| `no` | Binary. `yes` = the finding must be disposed of; `no` = not disposed of this time |
+| Second | `reason` | the five-word table of §11.2 | **Required** when `act=no`; not filled when `act=yes` |
+
+The intent of the two layers: **"whether to dispose" and "why not dispose" are two questions** —
+merging them into one multi-valued field makes "deferred" and "not applicable" statistically
+inseparable, and their next actions are entirely different.
+
+### 11.2 The `reason` five-word table (a closed vocabulary, each with a next action)
+
+| `reason` | Meaning | Next action |
+|---|---|---|
+| `checker_defect` | the checker judged wrongly; the finding itself does not stand | fix the checker; **never edit the checked object** |
+| `not_applicable` | the criterion inherently does not apply to this object | note it on the object side; the checker gains an explicit exemption surface |
+| `env_waiver` | caused by the external environment; repository correctness unaffected | **reuse the formal waiver record of §5** (see item 1 of "interfaces that must not be invented" below) |
+| `known_debt` | the judgment stands; repayment deferred | record the debt with an optional `wake_condition`; enters the debt ledger |
+| `paused` | disposition blocked by an undecided upstream matter | `wake_condition` **required**; expires automatically the moment upstream rules |
+
+### 11.3 Expiry rules (by **event**, not by time)
+
+A verdict **expires immediately** on any of the following events and must be re-ruled; there is no
+expiry date:
+
+```text
+object_fingerprint changed   the ruled object's content changed => the ruling's factual premise is gone
+checker_version   changed    the criterion changed => the ruling no longer addresses the same judgment
+wake_condition    triggered  the wake condition of paused / known_debt arrived
+env_waiver        expired    the §5 waiver's own expiry time arrived
+```
+
+Time-based expiry produces "re-rule everything on schedule" churn; event-based expiry demands a
+re-ruling **only when a premise actually changed**.
+
+### 11.4 The three-state depreciation thresholds (**written down only, not wired**)
+
+| State | Criterion (within a 15-run window) | Disposition |
+|---|---|---|
+| Stable | hit ≥ 8 times | keep |
+| Ordinary | hit 3–7 times | keep, observe |
+| Archive candidate | hit < 3 times | **merge or archive, not delete** |
+
+**The missed-selection penalty**: a check left unexecuted because the selector missed it does not
+count its miss into the window denominator — otherwise "narrowing a check's `path_prefixes`"
+becomes a shortcut that walks it into the archive-candidate state automatically, i.e. adverse
+selection.
+
+> ⚠ **These thresholds currently have no data source**: the F′ qualification window's
+> `eligible_entries` measures **0**, the producer is not wired, and **the judge is not in this
+> batch**. Reading this section does not mean it is running.
+
+### 11.5 Two interfaces that must not be invented
+
+1. **`env_waiver` is the §5 waiver that already exists — reuse it, do not rebuild it.** This
+   section creates no second exemption wording outside §5; the evidence, risk, owner, approver
+   and expiry of an `env_waiver` are filled per §5's requirements.
+2. **The depreciation thresholds are written down but not wired** (see the warning at the end of
+   §11.4). This batch adds no top-level check ID and gives the verdict ledger no checker — that
+   would touch the `doctor_checks` atom set sha a second time, which stacked on this batch's
+   in-flight update of the same value could not be pinned.
+
+### 11.6 Carrier
+
+Verdict records land in `main/00_core/t2ag_verdict_ledger.md` (beside `t2ag_problemlog.md`).
+This section defines the semantics only; the ledger's format judgment belongs to a later batch.
+
+## 12. `rule_binding` — the reverse edge from a check back to its rule text
+
+### 12.1 Field semantics
+
+`enforcement:` records the forward edge: a rule says "I am executed by this check". This
+section's `rule_binding` records the reverse edge: a `doctor_checks` entry in
+`validation_workflow.json` says "the rule I execute is written here".
+
+The field hangs on the check entry, and its value is a **bare** `path-relative-to-main#anchor`:
+
+```text
+"runtime.problemlog_closure": {
+  "handler": "check_problemlog_closure",
+  "rule_binding": "00_core/t2ag_problemlog.md#出局规则"
+}
+```
+
+The value carries no `context=` prefix — the prefix is part of the landing syntax, while this
+field's value is **always** a document position, with no second value kind that a prefix would
+disambiguate. How the anchor parses, what the path is relative to, where the `#` splits — all of
+that lives in `rule_admission_gate.md` §2 and is not restated here: two wordings of the anchor
+semantics are two places that drift apart, and no machine means would notice when they do. Same on
+the implementation side: anchor parsing exists only in `landing_defect`.
+
+### 12.2 The three criteria
+
+| # | Criterion | The question it asks |
+|---|---|---|
+| 1 | the value holds | for an entry that declared `rule_binding`, does the position it points at exist |
+| 2 | coverage | which entries **should declare it and have not** |
+| 3 | reverse-edge gap | for a check named by a rule file's `enforcement:`, does the check acknowledge that rule |
+
+Criteria 2 and 3 each **aggregate into a single** WARN whose body carries the total and a bounded
+sample. Reporting all entries one by one would drown the reading surface, and coverage is one
+total, not dozens of unrelated events.
+
+Criterion 3 deduplicates against criterion 2 by `check_id`, **002 first**.
+
+> ⚠ **Criterion 3 is forever unreachable on the aggregated reading surface, as an identity rather
+> than a current datum**: literal orphans = {named} ∩ {no binding} ⊆ {no binding} = 002's missing set,
+> so after 002-first dedup, 003's exclusive set is ∅ **for any repository state**. Criterion 3 is
+> therefore implemented as an independent pure function (`rule_binding_orphans`), with dedup
+> applied only at the aggregation layer: the criterion itself can be taken true on its own and its
+> negative case can genuinely go red; pressing the dedup into the criterion would leave it forever
+> without a falsifiable test. Once coverage rises (002 stops firing), 003 regains its reading
+> surface.
+
+### 12.3 Severity
+
+| Code | Criterion | Severity | Why this tier |
+|---|---|---|---|
+| `RULE-BIND-001` | 1 | **FAIL** | a binding that points at a nonexistent position is worse than no binding: it bought confidence without buying the text (the P-0067 family) |
+| `RULE-BIND-002` | 2 | WARN | coverage is debt, not error; an undeclared check still runs — you just cannot ask which rule it executes |
+| `RULE-BIND-003` | 3 | WARN | a one-way edge means the two registries are uneven, not that either side is wrong |
+
+001 also judges an **expired anchor** as FAIL, deliberately tiered apart from `RULE-ENF-003`
+(a `context=` anchor expiry is WARN): there the anchor is a rule **citing** external text whose
+wording moved while the rule still stands; here the anchor is a check's **designation** of its own
+basis — when the designation lands on nothing, what that check is executing can no longer be
+answered.
+
+### 12.4 The cost of no content hash (declared, not caught)
+
+The field records position only, **not a content hash of the pointed-at text**. The third failure
+shape is therefore not caught:
+
+```text
+shape 1  anchor gone, file gone           criterion 1 catches it
+shape 2  never declared                   criterion 2 catches it
+shape 3  anchor alive, text rewritten     not caught — the binding still "holds" while pointing at what is now another rule
+```
+
+Catching shape 3 needs a content hash, at the price that every wording revision must update the
+hash in step, or the reading surface fills with unavoidable noise and nobody reads it after a few
+rounds. This batch **chooses to forgo shape 3** and records that openly: a reader must not take
+"`rule_binding` holds" to mean "the check is indeed executing that rule" — it only guarantees
+"that position still exists".
+
+### 12.5 Pricing
+
+Criterion 2 asks "should declare and has not" — a question only a **closed, finite registry** can
+afford: the `doctor_checks` key set is finite and machine-enumerable, so what is missing is plain
+to see. "Should have been written and was not" in open prose remains machine-undecidable and
+belongs to `rule_admission_gate.md` §6; this section does not cross that line.

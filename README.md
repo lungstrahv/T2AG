@@ -44,8 +44,8 @@ your disk.
 
 | 版本 / Edition | 入口 / Entry | 生成来源 / Generated from |
 |---|---|---|
-| 中文（正本） | [`zh/README.md`](zh/README.md) | Skeleton 0.2.4 development, commit `8740da3` |
-| English | [`en/README.md`](en/README.md) | Skeleton EN 0.2.4 development, commit `20281ab` |
+| 中文（正本） | [`zh/README.md`](zh/README.md) | Skeleton 0.2.4 development, commit `18e9f23` |
+| English | [`en/README.md`](en/README.md) | Skeleton EN 0.2.4 development, commit `9028f27` |
 
 > **版本状态 / Version status**：当前树是 `0.2.4`：三源
 > `implementation_status = complete`（G2 三源重做，T2AC 收口 §14.131；机制轴挂净室重构 §14.130）、

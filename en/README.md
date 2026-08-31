@@ -15,7 +15,7 @@ personal instance.
 conversation and one complete-plan review; this edition fixes the source language to `en-US`.
 The installer copies the selected edition to a sibling `t2ag/`; the release source is retained by
 default and creates no deletion question after initialization. Its status is
-`partial / not_run / not_claimed`; it contains no real course activity, AR, books,
+`complete / not_run / not_claimed`; it contains no real course activity, AR, books,
 sidecars, candidate contributions, or consumption receipts. The most recent
 release-qualified baseline remains 0.2.3.
 
