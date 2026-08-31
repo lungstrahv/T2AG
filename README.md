@@ -47,14 +47,14 @@ your disk.
 | 中文（正本） | [`zh/README.md`](zh/README.md) | Skeleton 0.2.4 development, commit `18e9f23` |
 | English | [`en/README.md`](en/README.md) | Skeleton EN 0.2.4 development, commit `9028f27` |
 
-> **版本状态 / Version status**：当前树是 `0.2.4`：三源
-> `implementation_status = complete`（G2 三源重做，T2AC 收口 §14.131；机制轴挂净室重构 §14.130）、
-> `candidate_review = not_run`、`release_qualification = not_claimed`。`0.2.3` 仍是最近完成候选复审与
-> finalization-delta 独立复审的发行版本。
-> This tree is `0.2.4`: `implementation_status = complete` across the three sources (G2 redo,
-> closeout 14.131; mechanism axis rescoped to the clean-room rebuild, 14.130),
-> `candidate_review = not_run`, and `release_qualification = not_claimed`.
-> T2AG `0.2.3` remains the latest release-qualified version.
+> **版本状态 / Version status**：`0.2.4` **已发行**（2026-08-31）：
+> `implementation_status = complete`、`candidate_review = passed`、
+> `release_qualification = finalization_delta_passed`；发行物与校验和见
+> [Release v0.2.4](https://github.com/lungstrahv/T2AG/releases/tag/v0.2.4)。`0.2.3` 为前一发行版。
+> `0.2.4` is **released** (2026-08-31): `implementation_status = complete`,
+> `candidate_review = passed`, `release_qualification = finalization_delta_passed`.
+> Artifacts and checksums:
+> [Release v0.2.4](https://github.com/lungstrahv/T2AG/releases/tag/v0.2.4). `0.2.3` is the previous release.
 
 ## 下载与初始化 / Download and initialize
 
