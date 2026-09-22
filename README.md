@@ -32,10 +32,10 @@ T2AG 把两条回路接在一起：**学习留下可恢复的证据，系统改�
 
 ```mermaid
 flowchart TB
-    learner(["你：裁决与授权<br/>确认理解 · 决定是否继续 · 批准规则修改"])
-    discipline["纪律层<br/>文档即程序：宪法 · 教学协议 · Playbook<br/>检查注册表 · 授权门 · Doctor"]
+    learner(["你：裁决与授权<br/>确认理解 · 决定是否继续<br/>批准规则修改"])
+    discipline["纪律层：文档即程序<br/>宪法 · 协议 · Playbook<br/>检查注册表 · 授权门<br/>Doctor 自检"]
     learning["学习活动<br/>教材课 · 项目课 · 阅读链<br/>考试只是考核工具之一"]
-    records["可恢复的学习记录<br/>作答与理解证据 · 知识错题 · 精确停点<br/>历史与裁决台账只追加"]
+    records["可恢复的学习记录<br/>作答与理解证据 · 知识错题<br/>精确停点<br/>历史与裁决台账只追加"]
 
     learner -->|规则与授权| discipline
     discipline -->|依约执行与检查| learning
@@ -52,18 +52,19 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    problem["系统问题台账：problemlog<br/>现象 · 归因 · 处置 · 复发与重开记录"]
-    repair["经授权的修复<br/>修改规则、流程、工具或检查"]
-    admission["规则准入与执行落点<br/>检查 / 工具 / 上下文 / 人工判断<br/>检查注册表记录具名检查"]
-    closure["验证关闭依据，回灌纪律层<br/>核对 closure 与实际落点<br/>保留可复用的 Playbook、工具与检查"]
+    problem["系统问题台账：problemlog<br/>现象 · 归因 · 处置<br/>复发与重开记录"]
+    repair["经授权的修复<br/>修订规则与流程<br/>修订工具或检查"]
+    admission["规则准入与执行落点<br/>检查 / 工具<br/>上下文 / 人工判断<br/>检查注册表记录具名检查"]
+    closure["验证关闭依据<br/>核对 closure 与实际落点<br/>保留可复用的修复<br/>Playbook、工具与检查回灌纪律层"]
 
     problem -->|调查与定位| repair
-    repair -->|需要保留的约束明确如何执行| admission
-    admission -->|验证修复；新增或修改检查须有触发负例| closure
-    closure -->|后续运行同类复发：重开并强化补救| problem
+    repair -->|明确约束执行方式| admission
+    admission -->|验证修复与检查触发负例| closure
+    closure -->|后续复发：重开与升级| problem
 ```
 
 - **问题有关闭依据**：登记问题、修复与验证结果；一句“以后注意”不能替代实际处置。
+  新增或修改检查时，必须附上能触发它的负例。
 - **经验进入后续执行**：经采纳的 Playbook、工具和检查回到第一张图的纪律层，约束后续活动。
   Doctor 在启动、结课、施工与发布这些既有节点检查适用状态；检查注册表让检查有明确身份。
 - **保障方式如实声明**：区分机器检查、工具执行、上下文约束与人工判断。规则准入要求失败可见性，
@@ -88,14 +89,14 @@ with decisions remaining yours.
 
 ```mermaid
 flowchart TB
-    learner(["You: decisions and permission<br/>Confirm understanding · Choose whether to continue<br/>Approve rule changes"])
-    discipline["Discipline layer<br/>Documents as the program: constitution, protocols, playbooks<br/>Check registry · Permission gates · Doctor"]
-    learning["Learning activities<br/>Textbook courses · Projects · Reading chains<br/>Exams are one assessment tool"]
-    records["Recoverable learning records<br/>Responses · Understanding · Mistakes · Stopping points<br/>Append-only history and decision ledgers"]
+    learner(["Your decisions<br/>Confirm understanding<br/>Allow the next step<br/>Approve rule changes"])
+    discipline["Discipline layer<br/>Documents as the program<br/>Constitution / Protocols<br/>Playbooks / Check registry<br/>Permission gates / Doctor"]
+    learning["Learning activities<br/>Textbook courses / Projects<br/>Reading chains<br/>Exams: one assessment tool"]
+    records["Recoverable records<br/>Responses / Understanding<br/>Mistakes / Stopping points<br/>Append-only history<br/>Append-only decision ledgers"]
 
     learner -->|Rules and permission| discipline
-    discipline -->|Execute and check the agreed process| learning
-    learning -->|Record what actually happened| records
+    discipline -->|Execute and check| learning
+    learning -->|Record actual events| records
     records -->|Resume · Review · Decide| learner
 ```
 
@@ -110,19 +111,20 @@ loop. Learners' subject-matter mistakes go into course mistake banks for future 
 
 ```mermaid
 flowchart TB
-    problem["System problem log: problemlog<br/>Symptoms · Causes · Remedies · Recurrence and reopening"]
-    repair["Authorized repair<br/>Change rules, workflows, tools, or checks"]
-    admission["Rule admission and execution basis<br/>Checks / Tools / Context / Human judgment<br/>Named checks enter the check registry"]
-    closure["Verify closure and feed back into the discipline layer<br/>Check closure declarations and their actual targets<br/>Retain reusable playbooks, tools, and checks"]
+    problem["System problem log<br/>problemlog<br/>Symptoms / Causes / Remedies<br/>Recurrence / Reopening"]
+    repair["Authorized repair<br/>Rules / Workflows<br/>Tools / Checks"]
+    admission["Rule admission<br/>Checks / Tools<br/>Context / Human judgment<br/>Named check registry"]
+    closure["Verify closure<br/>Check declared targets<br/>Retain reusable repairs<br/>Feed the discipline layer"]
 
     problem -->|Investigate and diagnose| repair
-    repair -->|State how retained constraints will operate| admission
-    admission -->|Validate repairs; changed checks need a triggering negative case| closure
-    closure -->|Recurrence in later operation: reopen and strengthen the remedy| problem
+    repair -->|Define execution basis| admission
+    admission -->|Validate with negative cases| closure
+    closure -->|Recurrence: reopen and strengthen| problem
 ```
 
 - **Closure has a basis**: record the problem, remedy, and verification result.
-  A promise to be more careful does not replace a repair.
+  A promise to be more careful does not replace a repair. New or changed checks
+  must include a negative case that triggers them.
 - **Experience shapes later execution**: adopted playbooks, tools, and checks
   return to the first diagram's discipline layer. Doctor checks applicable state
   at startup, session close, maintenance, and release; the registry gives checks
