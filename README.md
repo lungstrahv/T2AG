@@ -1,5 +1,14 @@
 # T2AG
 
+> **正在净室重构 / Clean-room rebuild in progress — 2026-09-22**
+>
+> T2AG 正在面向 **0.3.0** 进行净室重构，目前处于架构与状态模型设计阶段。
+> `0.3.0` 尚未发布；已发行版本仍为 `0.2.4`。详见[更新计划](#roadmap)。
+>
+> T2AG is undergoing a clean-room rebuild for **0.3.0**, currently in architecture
+> and state-model design. `0.3.0` has not been released; the released version remains
+> `0.2.4`. See the [development plan](#roadmap).
+
 T2AG 是考你而不是替你答的 AI 学习框架。你的错题、你证明过的理解、每一次裁决，都存在
 归你所有的纯文本文件里——Claude Code、Codex 或任何 agent 都能读，随时可带走。考试从
 你自己的材料盲提取、签认计分、可重放；自带 Doctor 全仓自检；环上的裁决者是你，不是
@@ -55,6 +64,75 @@ your disk.
 > `candidate_review = passed`, `release_qualification = finalization_delta_passed`.
 > Artifacts and checksums:
 > [Release v0.2.4](https://github.com/lungstrahv/T2AG/releases/tag/v0.2.4). `0.2.3` is the previous release.
+
+<a id="roadmap"></a>
+
+## 更新计划 / Development plan
+
+更新于 **2026-09-22**。目标版本：**0.3.0**；当前阶段：**设计中，尚未进入实现与真实数据迁移**。
+本节公开重构方向与阶段进展，发布日期尚未确定。
+
+Updated **2026-09-22**. Target: **0.3.0**. Current phase: **design; implementation
+and migration of real data have not started**. This plan describes the direction
+and progress of the rebuild; no release date has been set.
+
+### 重构目标 / Rebuild goals
+
+这里的“净室重构”指从学习需要、核心行为与真实使用证据重新设计教学系统。
+`0.2.4` 提供需求、失败案例和迁移输入；新系统不沿用旧目录、旧流程或旧 Doctor 检查清单作为结构模板。
+目标是保留核心学习行为与学生数据，重建实现结构，降低维护负担，让学习、存证与精确恢复成为清晰的最小闭环。
+
+“Clean-room rebuild” here means redesigning the teaching system from learning
+needs, core behavior, and evidence from actual use. `0.2.4` supplies requirements,
+failure cases, and migration inputs; its directories, workflows, and Doctor
+checklist are not the blueprint. The goal is to preserve core learning behavior
+and student data while rebuilding the implementation, reducing maintenance work,
+and making learning, evidence capture, and precise recovery a clear minimal loop.
+
+- **学生控制下一步**：继续学习的许可与学习表现证据分别记录；完成一个学习块与长期掌握分开。
+  **Learner control**: permission to continue is distinct from evidence of performance;
+  completing a learning block is distinct from long-term mastery.
+- **事实可追溯**：设计采用一条追加的权威事件序列，当前视图由其派生并可重建。
+  **Traceable facts**: the design uses one append-only authoritative event sequence,
+  with current views derived from it and rebuildable.
+- **写入前校验**：以 T2AG 自身的写入命令为主校验边界，宿主钩子作为可选的额外保护。
+  **Validation before writing**: T2AG's own write command is the primary validation
+  boundary; host hooks provide optional additional protection.
+- **保留数据再切换**：迁移计划先生成学生持有的冻结交换包，保留原始内容与校验信息，
+  再导入新系统并回放验收。**Preserve data before switching**: migration is planned around
+  a frozen exchange package held by the learner, preserving original content and
+  checksums, followed by import and replay validation.
+
+### 阶段进展 / Milestones
+
+| 阶段 / Stage | 状态 / Status |
+|---|---|
+| 功能图与结构种类 / Functional map and structural types | 已冻结 / Frozen |
+| 状态模型与精确停点 / State model and precise stopping points | 首稿已交并复核，待讨论与冻结 / Draft delivered and reviewed; discussion and freezing pending |
+| 其余行为场景展开与不变量表定稿 / Remaining behavior scenarios and finalized invariant table | 后续阶段，未开始 / Planned; not started |
+| 授权门、写入边界与校验 / Authorization gates, write boundaries, and validation | 后续阶段，未开始 / Planned; not started |
+| 迁移契约、载体与语言选型 / Migration contract, storage format, and implementation language | 后续阶段，未开始；选型待前置设计完成 / Planned; selection follows the preceding design work |
+| 最小闭环实现、迁移验收与切换 / Minimal working loop, migration validation, and cutover | 后续阶段，未开始 / Planned; not started |
+
+最小闭环的验收目标是：**建学生 → 建课程与来源 → 选活动 → 启动或精确恢复 → 完成一块 →
+存证据 → 写停点 → 关会话 → 再次精确恢复**。课程组、多发行版、云同步和复杂发布治理等扩展，
+留在这个闭环之后。
+
+The first working loop must support: **create a learner → create a course and
+sources → select an activity → start or resume precisely → complete one block →
+save evidence → record the stopping point → close the session → resume precisely
+again**. Extensions such as course groups, multiple editions, cloud sync, and
+complex release governance follow this loop.
+
+### 对现有用户的影响 / For existing users
+
+当前公开代码与安装说明仍对应 `0.2.4`。上述内容是 `0.3.0` 的设计与实施计划，尚不提供
+可执行的升级步骤；迁移工具、兼容范围与切换说明将在相应阶段验证后公布。
+
+The public code and installation instructions still correspond to `0.2.4`. The
+plan above describes future `0.3.0` work and does not yet provide executable
+upgrade steps. Migration tooling, compatibility scope, and cutover instructions
+will be published after validation at the relevant stage.
 
 ## 下载与初始化 / Download and initialize
 
