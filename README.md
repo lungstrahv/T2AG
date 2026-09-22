@@ -25,25 +25,53 @@ you, not the model. This release contains empty skeletons, not student data.
 
 以下展示现行 `0.2.4` 的工作方式；`0.3.0` 的重构方向见[更新计划](#roadmap)。
 
-**你定规则 → 按规则学习 → 留下证据 → 回到你来裁决。**
+T2AG 把两条回路接在一起：**学习留下可恢复的证据，系统改进把经验证的修复变成后续仍然生效的约束。**
+提问与答辩是教学交互的一部分；规则、状态、历史与检查机制跨会话保留下来，裁决权始终在你。
+
+### ① 学习执行：规则向下，证据向上
 
 ```mermaid
 flowchart TB
-    learner(["你<br/>决定目标、规则与下一步"])
-    discipline["规则与检查<br/>教学协议 · 授权门 · Doctor"]
-    learning["学习活动<br/>教材课 · 项目课 · 阅读链"]
-    evidence["学习记录<br/>理解证据 · 错题 · 精确停点"]
+    learner(["你：裁决与授权<br/>确认理解 · 决定是否继续 · 批准规则修改"])
+    discipline["纪律层<br/>文档即程序：宪法 · 教学协议 · Playbook<br/>检查注册表 · 授权门 · Doctor"]
+    learning["学习活动<br/>教材课 · 项目课 · 阅读链<br/>考试只是考核工具之一"]
+    records["可恢复的学习记录<br/>作答与理解证据 · 知识错题 · 精确停点<br/>历史与裁决台账只追加"]
 
-    learner -->|设定规则| discipline
-    discipline -->|约束过程| learning
-    learning -->|保存结果| evidence
-    evidence -->|供你复盘与裁决| learner
+    learner -->|规则与授权| discipline
+    discipline -->|依约执行与检查| learning
+    learning -->|记录实际过程与结果| records
+    records -->|恢复 · 复盘 · 再裁决| learner
 ```
 
-- **裁决在你**：学习证据帮助你判断，是否继续仍由你决定；考试只是考核工具之一。
-- **规则持续修订**：文档定义教学协议；检查注册表、授权门、问题闭包与 Doctor 支持执行，
-  规则随你的裁决迭代。
-- **记录归你**：台账只追加，全部状态保存在你磁盘上的纯文本文件里，任何 agent 都能读取。
+证据不代替继续授权。换会话或换 agent 时，从文件里的真实进度与精确停点恢复。
+全部状态由你持有，以本地纯文本保存，任何 agent 可读、可带走。
+
+### ② 系统改进：失误进入闭包，修复回灌纪律层
+
+学习和运行中发现的**系统／流程失误**进入下面的回路；学生的知识性错题进入课程错题本，服务后续学习。
+
+```mermaid
+flowchart TB
+    problem["系统问题台账：problemlog<br/>现象 · 归因 · 处置 · 复发与重开记录"]
+    repair["经授权的修复<br/>修改规则、流程、工具或检查"]
+    admission["规则准入与执行落点<br/>检查 / 工具 / 上下文 / 人工判断<br/>检查注册表记录具名检查"]
+    closure["验证关闭依据，回灌纪律层<br/>核对 closure 与实际落点<br/>保留可复用的 Playbook、工具与检查"]
+
+    problem -->|调查与定位| repair
+    repair -->|需要保留的约束明确如何执行| admission
+    admission -->|验证修复；新增或修改检查须有触发负例| closure
+    closure -->|后续运行同类复发：重开并强化补救| problem
+```
+
+- **问题有关闭依据**：登记问题、修复与验证结果；一句“以后注意”不能替代实际处置。
+- **经验进入后续执行**：经采纳的 Playbook、工具和检查回到第一张图的纪律层，约束后续活动。
+  Doctor 在启动、结课、施工与发布这些既有节点检查适用状态；检查注册表让检查有明确身份。
+- **保障方式如实声明**：区分机器检查、工具执行、上下文约束与人工判断。规则准入要求失败可见性，
+  不把“写了一条规则”当作“机器已经保证它”。每次修复也不必新增规则。
+
+相关协议：[问题台账维护](zh/main/50_playbook/problemlog_maintenance.md) ·
+[规则准入](zh/main/50_playbook/rule_admission_gate.md) ·
+[Doctor 契约](zh/main/50_playbook/doctor_contracts.md)。
 
 <details>
 <summary>English — How it works</summary>
@@ -51,28 +79,63 @@ flowchart TB
 This describes the current `0.2.4` workflow. See the [development plan](#roadmap)
 for the `0.3.0` rebuild.
 
-**You set the rules → learn within them → keep the evidence → make the next decision.**
+T2AG connects two loops: **learning leaves recoverable evidence; system improvement
+turns validated repairs into constraints that remain in use.** Questions and dialogue
+are part of teaching. Rules, state, history, and checks persist across sessions,
+with decisions remaining yours.
+
+### ① Learning: rules flow down, evidence flows up
 
 ```mermaid
 flowchart TB
-    learner(["You<br/>Choose goals, rules, and the next step"])
-    discipline["Rules and checks<br/>Teaching protocol · Permission gates · Doctor"]
-    learning["Learning activities<br/>Textbook courses · Projects · Reading chains"]
-    evidence["Learning records<br/>Evidence of understanding · Mistakes · Stopping points"]
+    learner(["You: decisions and permission<br/>Confirm understanding · Choose whether to continue<br/>Approve rule changes"])
+    discipline["Discipline layer<br/>Documents as the program: constitution, protocols, playbooks<br/>Check registry · Permission gates · Doctor"]
+    learning["Learning activities<br/>Textbook courses · Projects · Reading chains<br/>Exams are one assessment tool"]
+    records["Recoverable learning records<br/>Responses · Understanding · Mistakes · Stopping points<br/>Append-only history and decision ledgers"]
 
-    learner -->|Set the rules| discipline
-    discipline -->|Guide the process| learning
-    learning -->|Save the results| evidence
-    evidence -->|Inform your review and decisions| learner
+    learner -->|Rules and permission| discipline
+    discipline -->|Execute and check the agreed process| learning
+    learning -->|Record what actually happened| records
+    records -->|Resume · Review · Decide| learner
 ```
 
-- **You decide**: evidence informs your judgment; you decide whether to continue.
-  Exams are one assessment tool among others.
-- **Rules evolve**: documents define the teaching protocol. The check registry,
-  permission gates, problem closure, and Doctor support its execution; rules
-  evolve through your decisions.
-- **You own the records**: ledgers are append-only. All state lives in plain-text
-  files on your disk, readable by any agent.
+Evidence does not replace permission to continue. A new session or agent resumes
+from recorded progress and precise stopping points. All state lives in local
+plain-text files you own, readable and portable across agents.
+
+### ② System improvement: close problems and feed repairs back into the discipline layer
+
+**System and process failures** discovered during learning or operation enter this
+loop. Learners' subject-matter mistakes go into course mistake banks for future learning.
+
+```mermaid
+flowchart TB
+    problem["System problem log: problemlog<br/>Symptoms · Causes · Remedies · Recurrence and reopening"]
+    repair["Authorized repair<br/>Change rules, workflows, tools, or checks"]
+    admission["Rule admission and execution basis<br/>Checks / Tools / Context / Human judgment<br/>Named checks enter the check registry"]
+    closure["Verify closure and feed back into the discipline layer<br/>Check closure declarations and their actual targets<br/>Retain reusable playbooks, tools, and checks"]
+
+    problem -->|Investigate and diagnose| repair
+    repair -->|State how retained constraints will operate| admission
+    admission -->|Validate repairs; changed checks need a triggering negative case| closure
+    closure -->|Recurrence in later operation: reopen and strengthen the remedy| problem
+```
+
+- **Closure has a basis**: record the problem, remedy, and verification result.
+  A promise to be more careful does not replace a repair.
+- **Experience shapes later execution**: adopted playbooks, tools, and checks
+  return to the first diagram's discipline layer. Doctor checks applicable state
+  at startup, session close, maintenance, and release; the registry gives checks
+  explicit identities.
+- **Guarantees are stated honestly**: distinguish machine checks, tool execution,
+  contextual constraints, and human judgment. Rule admission requires observable
+  failure; writing a rule does not prove machine enforcement. Not every repair
+  requires another rule.
+
+Protocol references (Chinese canonical edition):
+[Problem-log maintenance](zh/main/50_playbook/problemlog_maintenance.md) ·
+[Rule admission](zh/main/50_playbook/rule_admission_gate.md) ·
+[Doctor contracts](zh/main/50_playbook/doctor_contracts.md).
 
 </details>
 
