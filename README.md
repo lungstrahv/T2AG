@@ -23,33 +23,58 @@ you, not the model. This release contains empty skeletons, not student data.
 
 ## 工作原理 / How it works
 
-```text
-you 你 ─────────────── every verdict is yours 每一次裁决在你
-  │ rules & gates flow down                ▲ evidence flows up
-  │ 规则与门下行                            │ 证据与错误上行
-  v                                        │
-discipline 纪律层 ── check registry 检验注册表 · gates 门
-  problemlog closure 闭包 · doctor 全仓自检 · append-only ledgers
-  ── this layer GROWS with every cycle 每一圈都让这层变厚 ──
-  │                                        ▲
-  v                                        │
-learning 学习活动（多模型） ── textbook courses (exams are one
-  instrument 考试只是其一) · project courses · reading chains …
+以下展示现行 `0.2.4` 的工作方式；`0.3.0` 的重构方向见[更新计划](#roadmap)。
 
-all state = plain text on your disk, readable by any agent
-全部状态 = 你磁盘上的纯文本，任何 agent 可读
+**你定规则 → 按规则学习 → 留下证据 → 回到你来裁决。**
+
+```mermaid
+flowchart TB
+    learner(["你<br/>决定目标、规则与下一步"])
+    discipline["规则与检查<br/>教学协议 · 授权门 · Doctor"]
+    learning["学习活动<br/>教材课 · 项目课 · 阅读链"]
+    evidence["学习记录<br/>理解证据 · 错题 · 精确停点"]
+
+    learner -->|设定规则| discipline
+    discipline -->|约束过程| learning
+    learning -->|保存结果| evidence
+    evidence -->|供你复盘与裁决| learner
 ```
 
-文档即程序（prompt harness）。学习活动多模型——教材课、项目课、阅读链——考核只是仪器
-之一。纪律层在机器层兜底每条散文规则，并随每一圈裁决增厚。环上唯一的裁决者是你。全部
-状态是你磁盘上的纯文本。
+- **裁决在你**：学习证据帮助你判断，是否继续仍由你决定；考试只是考核工具之一。
+- **规则持续修订**：文档定义教学协议；检查注册表、授权门、问题闭包与 Doctor 支持执行，
+  规则随你的裁决迭代。
+- **记录归你**：台账只追加，全部状态保存在你磁盘上的纯文本文件里，任何 agent 都能读取。
 
-The documents are the program (a prompt harness). Learning activities come in
-multiple models — textbook courses, project courses, reading chains — and exams are
-one instrument, not the spine. A machine discipline layer (check registry, gates,
-problemlog closure, doctor) backs every prose rule and thickens with every cycle of
-your verdicts. The only adjudicator on the loop is you. All state is plain text on
-your disk.
+<details>
+<summary>English — How it works</summary>
+
+This describes the current `0.2.4` workflow. See the [development plan](#roadmap)
+for the `0.3.0` rebuild.
+
+**You set the rules → learn within them → keep the evidence → make the next decision.**
+
+```mermaid
+flowchart TB
+    learner(["You<br/>Choose goals, rules, and the next step"])
+    discipline["Rules and checks<br/>Teaching protocol · Permission gates · Doctor"]
+    learning["Learning activities<br/>Textbook courses · Projects · Reading chains"]
+    evidence["Learning records<br/>Evidence of understanding · Mistakes · Stopping points"]
+
+    learner -->|Set the rules| discipline
+    discipline -->|Guide the process| learning
+    learning -->|Save the results| evidence
+    evidence -->|Inform your review and decisions| learner
+```
+
+- **You decide**: evidence informs your judgment; you decide whether to continue.
+  Exams are one assessment tool among others.
+- **Rules evolve**: documents define the teaching protocol. The check registry,
+  permission gates, problem closure, and Doctor support its execution; rules
+  evolve through your decisions.
+- **You own the records**: ledgers are append-only. All state lives in plain-text
+  files on your disk, readable by any agent.
+
+</details>
 
 | 版本 / Edition | 入口 / Entry | 生成来源 / Generated from |
 |---|---|---|
