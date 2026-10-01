@@ -1,6 +1,6 @@
 # T2AG 0.3 净室重构候选 / Cleanroom candidate
 
-2026-10-01：净室重构已有可运行的中英文候选。60 项必需结果经非作者角色复核通过；版本仍为 `0.3.0.dev0`，尚未作为稳定版发行，也未替换正在使用的旧课堂。
+2026-10-01：净室重构已有可运行的中英文候选。60 项必需结果经非作者角色复核通过；一次真实实例已切换到新入口，并恢复到最新待答停点，原件保留。版本仍为 `0.3.0.dev0`，尚未作为稳定版发行。
 
 验收关注相同输入、状态和授权下的教学结果与持久后果。旧文件布局、模块划分和操作步骤可以重建。实现从一份事务日志、具名领域动作和可重建视图出发；后续以实际使用场景的缺口增量完善。
 
@@ -21,16 +21,18 @@ python -m unittest discover -s tests
 
 验证记录见 [ACCEPTANCE.json](ACCEPTANCE.json)：一次冻结集成运行 356 项，354 通过、2 项 Windows 符号链接权限跳过；最终学习模块 45 项通过，最后变化另有 3 项非作者验证。候选中英文实际安装的 37 个运行文件一致。后续变化按文件差分绑定已有证据，没有把旧包的结果冒充新包全量重跑。
 
-迁移已做真实快照与恢复演练，保留原文、历史结果、未知项和原件。真实切换须在课堂明确停点核对快照后的增量；不把旧扫描当新读取，不为旧约定制造新学生同意，不用未知判据重评历史。原个人实例、教材、私有快照和协调记录均不随本目录发布。
+迁移已做真实快照与恢复演练，并在最新保存点完成一次实际入口切换。切换前源与快照无漂移；切换后只改变已备份的入口指引，教材、成绩和学习记录保持原字节。非作者从新运行时解析安装配置，实际恢复同一待答问题；切换没有生成学生回答、教学会话、扫描或继续许可。
+
+其他实例仍需在自己的明确停点核对增量。新旧任一侧产生后续事实时，保留并核对双方增量后再决定退回，不能丢弃新记录。未知项继续明确保留；不重评历史。个人实例、教材、私有快照和协调记录均不随本目录发布。
 
 计量已区分 provider token 回执、缓存输入、输出、质量样本与运行时耗时；缺失货币成本保持未知。未宣称已测真实手机网络、生产对端联调、物理断电、长期教学效果或不同模型的性能排名。
 
 ## English
 
-This is a reviewed, executable bilingual cleanroom candidate. All 60 required observable outcomes passed the bounded non-author review. Version `0.3.0.dev0` remains a candidate, with the existing live classroom retained.
+This is a reviewed, executable bilingual cleanroom candidate. All 60 required observable outcomes passed the bounded non-author review. One real instance has switched to the new entry and recovered its latest pending question, with originals retained. Version `0.3.0.dev0` remains a candidate.
 
 Equivalent input, state and authorization preserve required results; internal methods can change. The runtime uses one transaction journal, named actions, derived views and six short task loops. Source meaning, actual learning evidence and learner choices remain distinct. Direct explanation is part of teaching.
 
 The frozen integration suite passed 354 of 356 tests, with two Windows symlink permission skips. The final learning module passed 45 tests, with three further non-author delta checks. Both editions were actually installed and their 37 runtime payload files matched. See the acceptance record for scope and limits.
 
-Personal data and textbooks are excluded. Migration retains originals and unresolved history; live cutover requires a final delta check at a real stopping point. No real mobile network, production peer transport, physical power-loss or comparative model-performance claim is made.
+Personal data and textbooks are excluded. The actual cutover checked source drift, preserved original learning bytes and changed only backed-up entry instructions. A non-author recovered the same pending question through the installed runtime and its instance configuration. No answer, teaching session, scan or continuation permission was created by the switch. Other instances require their own final delta check; later writes must be retained and reconciled before returning to an earlier authority. No real mobile network, production peer transport, physical power-loss or comparative model-performance claim is made.

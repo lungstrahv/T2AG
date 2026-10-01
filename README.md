@@ -3,11 +3,11 @@
 > **净室重构候选已可运行 / Executable cleanroom candidate — 2026-10-01**
 >
 > **0.3.0.dev0** 已有可运行的中英文候选，60 项必需结果通过非作者角色复审。
-> 稳定版仍为 **0.2.4**；真实课堂尚未切换。见[候选说明与试用](cleanroom/CLEANROOM_STATUS.md)。
+> 稳定版仍为 **0.2.4**；已完成一次真实实例切换，原件保留。见[候选说明与试用](cleanroom/CLEANROOM_STATUS.md)。
 >
 > **0.3.0.dev0** is an executable bilingual candidate with 60 required outcomes
-> passing bounded non-author review. **0.2.4** remains the stable release; live
-> classrooms have not been switched. See the [candidate guide](cleanroom/CLEANROOM_STATUS.md).
+> passing bounded non-author review. **0.2.4** remains the stable release. One real
+> instance has switched with originals retained. See the [candidate guide](cleanroom/CLEANROOM_STATUS.md).
 
 T2AG 是考你而不是替你答的 AI 学习框架。你的错题、你证明过的理解、每一次裁决，都存在
 归你所有的纯文本文件里——Claude Code、Codex 或任何 agent 都能读，随时可带走。考试从
@@ -205,7 +205,7 @@ and making learning, evidence capture, and precise recovery a clear minimal loop
 | 日常任务与校验 / Daily tasks and validation | 六条短回路；反馈与保存状态分开，检查随相关变化触发 / Six short loops; feedback and save status distinguished, checks follow relevant changes |
 | 实现与验证 / Implementation and validation | 冻结集成 354 通过、2 环境跳过；最终学习模块 45 通过，另有 3 项非作者增量检查 / Frozen integration: 354 passed, 2 environment skips; final learning module: 45 passed, plus 3 non-author delta checks |
 | 真实数据迁移 / Real-data migration | 快照、导入与恢复演练完成；原件和未知项保留 / Snapshot, import and recovery rehearsed; originals and unknowns retained |
-| 交付与切换 / Delivery and cutover | 中英文候选可运行；正式稳定发行与真实课堂切换尚未进行 / Executable bilingual candidate; stable release and live classroom cutover pending |
+| 交付与切换 / Delivery and cutover | 中英文候选可运行；一次真实实例已切换并恢复最新停点，原件保留；正式稳定发行待定 / Executable bilingual candidate; one real instance switched and recovered its latest stop, with originals retained; stable release pending |
 
 已实现的最小闭环是：**建学生 → 建课程与来源 → 选活动 → 启动或精确恢复 → 完成一块 →
 存证据 → 写停点 → 关会话 → 再次精确恢复**。课程组、考核、阅读与项目课围绕实际结果扩展。

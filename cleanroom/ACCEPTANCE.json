@@ -328,5 +328,16 @@
     "No measured real-phone network, production peer transport, hardware power-loss or long-term learning outcome guarantee.",
     "The live classroom was not switched to an earlier migration snapshot.",
     "Source publication is not a formal stable release."
-  ]
+  ],
+  "live_migration": {
+    "status": "one_real_instance_cutover_verified",
+    "original_source_stable_before_switch": true,
+    "original_learning_and_source_bytes_retained": true,
+    "entry_only_changes_backed_up": true,
+    "actual_installed_runtime_recovered_latest_pending_question": true,
+    "non_author_role_review": true,
+    "cutover_created_learning_or_authorization": false,
+    "originals_retained": true,
+    "rollback_requires_preserving_and_reconciling_subsequent_facts": true
+  }
 }
