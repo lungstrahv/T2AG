@@ -49,3 +49,6 @@ bin/t2ag        text eol=lf
 *.ttf           binary
 *.woff          binary
 *.woff2         binary
+
+# The reviewed candidate manifest binds exact bytes across hosts.
+cleanroom/** -text

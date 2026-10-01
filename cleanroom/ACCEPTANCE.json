@@ -1,0 +1,332 @@
+{
+  "version": "0.3.0.dev0",
+  "status": "reviewed_executable_candidate",
+  "candidate_sha256": "0a8b3e6afdc48efd1e2026aa5012f16b9c7e9f591e4e8dad312f1ae6d1e0fc78",
+  "acceptance_basis": "Equivalent user input, prior state and authorization must preserve required observable results and durable consequences; internal methods may differ.",
+  "required_results": [
+    {
+      "id": "T2AG-F-STU-01",
+      "name": "学生实例、首次建档与可选条件收集",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-STU-02",
+      "name": "学生偏好、提示选择、领域信任与协作参数",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-TCH-01",
+      "name": "教师模板、课程映射与学生 overlay",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-CRS-01",
+      "name": "创建课程、planned 课程与首活动初始化",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-CRS-02",
+      "name": "Course 类型拥有完成与推进语义",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-CRS-03",
+      "name": "Project 里程碑外部验证",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-CRS-04",
+      "name": "Praxis 真实行动与开放世界复盘",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-CRS-05",
+      "name": "唯一前台、显式活动路由与容量",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-CRS-06",
+      "name": "精确停点、checkpoint、completion node 与学习日",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-ACT-01",
+      "name": "Lesson 学习循环、开场与内容导航",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-ACT-02",
+      "name": "Exercise 题目单元、原始题序和教学顺序",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-ACT-03",
+      "name": "Attempt、原始图片、Review、订正与复测",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-ACT-04",
+      "name": "Exercise 提示闸门与帮助暴露",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-ACT-05",
+      "name": "课堂临时提问、探索分支与题外交流",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-ACT-06",
+      "name": "活动生命周期、时段统计、纠错与别名",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-AR-01",
+      "name": "低治理 ActivityRecord 阅读与升级",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-EG-01",
+      "name": "持续现实 Engagement 与证据索引",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GRP-01",
+      "name": "课程组容量、计划、日历与复盘",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GRP-02",
+      "name": "弹性 R binding",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GRP-03",
+      "name": "换组、结组与用户阈值确认",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GRP-04",
+      "name": "未采纳建议登记与再访",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SRC-01",
+      "name": "教材、在线资源与共享资料入库",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SRC-02",
+      "name": "OCR 核验、持久页资产和来源身份链",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SRC-03",
+      "name": "LessonScope、Map、prepare 和不可变 Snapshot",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SRC-04",
+      "name": "本会话教材 Scope 扫描与证据形式选择",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SRC-05",
+      "name": "页图预热、PPI 核验、版式检测与安全缓存回收",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-TEA-01",
+      "name": "三门、单块继续许可与恢复时失效",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-TEA-02",
+      "name": "逐页课堂树、覆盖清单与翻页",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-TEA-03",
+      "name": "教材教学正典正文与 SHA 事件链",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-FDB-01",
+      "name": "疑问库与闭合/再访",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-FDB-02",
+      "name": "错题根因、间隔复测与陈年卷",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-FDB-03",
+      "name": "学生想法、课程反思与思维方法复利",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-FDB-04",
+      "name": "题库、选编考试、隔离、评分与考试台账",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-FDB-05",
+      "name": "承重推理 Keystone 保存与复审状态",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SES-01",
+      "name": "四入口与只读学习/恢复完成双阶段启动",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SES-02",
+      "name": "上下文 critical/L0/L1/L2、快照绑定与失效",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SES-03",
+      "name": "Micro 保存、手动存档与精确恢复",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SES-04",
+      "name": "Lesson/Exercise 完整结课、修订、拒绝与重新开启",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SES-05",
+      "name": "事务写入、并发保护、故障恢复与回滚",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SES-06",
+      "name": "派生缓存刷新与权威冲突诊断",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-SES-07",
+      "name": "按 lane/scope 的 Handoff 与跨对话恢复",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-UX-01",
+      "name": "学习者呈现、Meaningful Pause 与 Operator 结果",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GOV-01",
+      "name": "系统问题登记、复发、提炼与闭环",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GOV-02",
+      "name": "规则与过程准入、可观察失败和强制落点",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GOV-03",
+      "name": "规则 owner、保护层级、使用/折旧与语义迁移",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GOV-04",
+      "name": "追加历史、Evolution/ADR、版本三状态与索引",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GOV-05",
+      "name": "授权不放大、精确对象与预算止损",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GOV-06",
+      "name": "最小充分测试选择、计划绑定和机器证据",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-GOV-07",
+      "name": "Runtime/Release Doctor、环境诊断和 finding 裁定",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-XCH-01",
+      "name": "跨仓 T1 只读引用与身份/漂移边界",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-XCH-02",
+      "name": "阅读桥 context、candidate contribution 与 receipt",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-XCH-03",
+      "name": "Cloud 双通道、暂停门、冲突导入与回执",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-XCH-04",
+      "name": "OKF v0.2 知识包导出",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-DST-01",
+      "name": "皮肤创建/切换与欢迎信息",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-DST-02",
+      "name": "双语安装源到个人实例与不覆盖安装",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-DST-03",
+      "name": "中文/英文完整发行能力与隐私空模板",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-DST-04",
+      "name": "Main→Lite 只读投影",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-DST-05",
+      "name": "旧版本迁移、稳定 registry/alias 与可恢复升级",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-DST-06",
+      "name": "发行候选、只读重放、独立复审与最终资格",
+      "result": "PASS"
+    },
+    {
+      "id": "T2AG-F-DST-07",
+      "name": "离线指南、流程导航与历史索引生成",
+      "result": "PASS"
+    }
+  ],
+  "review": "Non-author role review with shared context/filesystem; not independent host authentication.",
+  "validation": {
+    "frozen_full_suite": {
+      "candidate": "r2",
+      "tests": 356,
+      "passed": 354,
+      "skipped": 2,
+      "duration_seconds": 95.88779370003613
+    },
+    "final_learning_module_tests": 45,
+    "non_author_final_delta_tests": 3,
+    "installed_languages": [
+      "zh",
+      "en"
+    ],
+    "runtime_payload_files": 37
+  },
+  "limits": [
+    "Two Windows symlink privilege tests skipped.",
+    "Fresh CLI processes do not mean fresh agent contexts.",
+    "No measured real-phone network, production peer transport, hardware power-loss or long-term learning outcome guarantee.",
+    "The live classroom was not switched to an earlier migration snapshot.",
+    "Source publication is not a formal stable release."
+  ]
+}

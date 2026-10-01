@@ -1,13 +1,13 @@
 # T2AG
 
-> **正在净室重构 / Clean-room rebuild in progress — 2026-09-22**
+> **净室重构候选已可运行 / Executable cleanroom candidate — 2026-10-01**
 >
-> T2AG 正在面向 **0.3.0** 进行净室重构，目前处于架构与状态模型设计阶段。
-> `0.3.0` 尚未发布；已发行版本仍为 `0.2.4`。详见[更新计划](#roadmap)。
+> **0.3.0.dev0** 已有可运行的中英文候选，60 项必需结果通过非作者角色复审。
+> 稳定版仍为 **0.2.4**；真实课堂尚未切换。见[候选说明与试用](cleanroom/CLEANROOM_STATUS.md)。
 >
-> T2AG is undergoing a clean-room rebuild for **0.3.0**, currently in architecture
-> and state-model design. `0.3.0` has not been released; the released version remains
-> `0.2.4`. See the [development plan](#roadmap).
+> **0.3.0.dev0** is an executable bilingual candidate with 60 required outcomes
+> passing bounded non-author review. **0.2.4** remains the stable release; live
+> classrooms have not been switched. See the [candidate guide](cleanroom/CLEANROOM_STATUS.md).
 
 T2AG 是考你而不是替你答的 AI 学习框架。你的错题、你证明过的理解、每一次裁决，都存在
 归你所有的纯文本文件里——Claude Code、Codex 或任何 agent 都能读，随时可带走。考试从
@@ -159,12 +159,15 @@ Protocol references (Chinese canonical edition):
 
 ## 更新计划 / Development plan
 
-更新于 **2026-09-22**。目标版本：**0.3.0**；当前阶段：**设计中，尚未进入实现与真实数据迁移**。
-本节公开重构方向与阶段进展，发布日期尚未确定。
+更新于 **2026-10-01**。目标版本：**0.3.0**；当前阶段：**可运行候选已验证，真实数据迁移已演练**。
+验收关注相同输入、状态与授权下的可观察结果；内部方法可以重建。以最小闭环为基础，按实际缺口增量完善。
+稳定版发布日期尚未确定；验证范围和未测边界见[候选验收](cleanroom/ACCEPTANCE.json)。
 
-Updated **2026-09-22**. Target: **0.3.0**. Current phase: **design; implementation
-and migration of real data have not started**. This plan describes the direction
-and progress of the rebuild; no release date has been set.
+Updated **2026-10-01**. Target: **0.3.0**. An **executable candidate has been validated
+and real-data migration rehearsed**. Acceptance preserves observable results for
+equivalent input, state and authorization; implementation methods may change.
+Build on the working loop and add what real use requires. No stable release date
+has been set; see the [acceptance record](cleanroom/ACCEPTANCE.json) for scope and limits.
 
 ### 重构目标 / Rebuild goals
 
@@ -197,32 +200,35 @@ and making learning, evidence capture, and precise recovery a clear minimal loop
 
 | 阶段 / Stage | 状态 / Status |
 |---|---|
-| 功能图与结构种类 / Functional map and structural types | 已冻结 / Frozen |
-| 状态模型与精确停点 / State model and precise stopping points | 首稿已交并复核，待讨论与冻结 / Draft delivered and reviewed; discussion and freezing pending |
-| 其余行为场景展开与不变量表定稿 / Remaining behavior scenarios and finalized invariant table | 后续阶段，未开始 / Planned; not started |
-| 授权门、写入边界与校验 / Authorization gates, write boundaries, and validation | 后续阶段，未开始 / Planned; not started |
-| 迁移契约、载体与语言选型 / Migration contract, storage format, and implementation language | 后续阶段，未开始；选型待前置设计完成 / Planned; selection follows the preceding design work |
-| 最小闭环实现、迁移验收与切换 / Minimal working loop, migration validation, and cutover | 后续阶段，未开始 / Planned; not started |
+| 可观察功能覆盖 / Observable capabilities | 60 项必需结果通过；12 项扩展保证保留边界提示 / 60 required outcomes passed; 12 capability entries retain limits on extended guarantees |
+| 状态与精确恢复 / State and precise recovery | 一份事务日志、可重建视图；实际新进程恢复通过 / One transaction journal, rebuildable views; actual new-process recovery passed |
+| 日常任务与校验 / Daily tasks and validation | 六条短回路；反馈与保存状态分开，检查随相关变化触发 / Six short loops; feedback and save status distinguished, checks follow relevant changes |
+| 实现与验证 / Implementation and validation | 冻结集成 354 通过、2 环境跳过；最终学习模块 45 通过，另有 3 项非作者增量检查 / Frozen integration: 354 passed, 2 environment skips; final learning module: 45 passed, plus 3 non-author delta checks |
+| 真实数据迁移 / Real-data migration | 快照、导入与恢复演练完成；原件和未知项保留 / Snapshot, import and recovery rehearsed; originals and unknowns retained |
+| 交付与切换 / Delivery and cutover | 中英文候选可运行；正式稳定发行与真实课堂切换尚未进行 / Executable bilingual candidate; stable release and live classroom cutover pending |
 
-最小闭环的验收目标是：**建学生 → 建课程与来源 → 选活动 → 启动或精确恢复 → 完成一块 →
-存证据 → 写停点 → 关会话 → 再次精确恢复**。课程组、多发行版、云同步和复杂发布治理等扩展，
-留在这个闭环之后。
+已实现的最小闭环是：**建学生 → 建课程与来源 → 选活动 → 启动或精确恢复 → 完成一块 →
+存证据 → 写停点 → 关会话 → 再次精确恢复**。课程组、考核、阅读与项目课围绕实际结果扩展。
+手机遥控同一宿主使用同一实例；独立离线交换默认不启用。
 
-The first working loop must support: **create a learner → create a course and
+The implemented working loop supports: **create a learner → create a course and
 sources → select an activity → start or resume precisely → complete one block →
 save evidence → record the stopping point → close the session → resume precisely
-again**. Extensions such as course groups, multiple editions, cloud sync, and
-complex release governance follow this loop.
+again**. Course groups, assessment, reading and projects extend this around actual
+outcomes. Mobile remote control uses the same host instance; independent offline
+exchange is disabled by default.
 
 ### 对现有用户的影响 / For existing users
 
-当前公开代码与安装说明仍对应 `0.2.4`。上述内容是 `0.3.0` 的设计与实施计划，尚不提供
-可执行的升级步骤；迁移工具、兼容范围与切换说明将在相应阶段验证后公布。
+现有 `zh/`、`en/` 和下方安装说明仍对应稳定版 `0.2.4`。候选源码、合成测试与操作说明
+独立放在 [`cleanroom/`](cleanroom/CLEANROOM_STATUS.md)，不含个人数据与教材。
+迁移工具保留原件；实际课堂切换需要核对最终停点及快照后的增量，不能用较早快照覆盖新进度。
 
-The public code and installation instructions still correspond to `0.2.4`. The
-plan above describes future `0.3.0` work and does not yet provide executable
-upgrade steps. Migration tooling, compatibility scope, and cutover instructions
-will be published after validation at the relevant stage.
+The existing `zh/`, `en/` and installation instructions below remain the stable
+`0.2.4` release. Candidate source, synthetic tests and instructions are in
+[`cleanroom/`](cleanroom/CLEANROOM_STATUS.md), without personal data or textbooks.
+Migration preserves originals; live cutover requires checking the final stopping
+point and subsequent changes instead of replacing new progress with an older snapshot.
 
 ## 下载与初始化 / Download and initialize
 

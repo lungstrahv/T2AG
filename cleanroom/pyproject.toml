@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "t2ag-next"
+version = "0.3.0.dev0"
+description = "Durable learning state with source-bound teaching and explicit student decisions"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+pdf = ["PyMuPDF>=1.24,<2"]
+okf = ["PyYAML>=6,<7"]
+
+[project.scripts]
+t2ag-next = "t2ag_next.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["t2ag_next*"]
