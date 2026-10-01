@@ -1,0 +1,162 @@
+{
+  "content_sha256": "4f67258e21f6637aea6419c25b373e492d564bf4a3dd328ebb54236f0cf3f5a7",
+  "editions": [
+    "zh",
+    "en"
+  ],
+  "files": {
+    "AGENTS.md": {
+      "bytes": 4313,
+      "sha256": "9a38dbad74adc9384df9ebb9a3f4580c6561a76549dcc4c7a043b99d8f76c5b7"
+    },
+    "LICENSE": {
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    "LICENSE-DOCS.md": {
+      "bytes": 1968,
+      "sha256": "d9f78460d41eb2ac93a3e95af5df0bd4d475aa1d48f77e41c8dc610709919004"
+    },
+    "LICENSING.md": {
+      "bytes": 1097,
+      "sha256": "adf6dd4e7b19f904974f54c6c00b99ab3a9baa7a2082877e94a2fa44b6bf8509"
+    },
+    "NOTICE": {
+      "bytes": 633,
+      "sha256": "64c97f48650d061577064f0313ba6a6bdca8a62ce87afe6c13d68fe853c3d4b4"
+    },
+    "README.md": {
+      "bytes": 2105,
+      "sha256": "0a757e31e917f5291bd90f89ddd4706d0f6faebb30863d072c1b1ce6994a4306"
+    },
+    "docs/access-authority.md": {
+      "bytes": 4267,
+      "sha256": "3f3db638a84ef7817174193526d5ada7c82108b44d6a31c54efdbacff8083a62"
+    },
+    "docs/control-boundaries.md": {
+      "bytes": 6128,
+      "sha256": "c4c9e845f00d90b60b2a3602002e72f43d972ec134e956a2df4c6083fc852678"
+    },
+    "docs/domain-model.md": {
+      "bytes": 2948,
+      "sha256": "150bf8d7cf2592396007e117b63a3eec9beadd8a9e37e0523f1dbc9b9e19cf37"
+    },
+    "docs/protocol.md": {
+      "bytes": 5959,
+      "sha256": "219b4d3e078d91734d9d4043c7165a0fdcd111de9e3a87ad7dc85cf46b979f4a"
+    },
+    "docs/runtime-entry.md": {
+      "bytes": 4313,
+      "sha256": "9a38dbad74adc9384df9ebb9a3f4580c6561a76549dcc4c7a043b99d8f76c5b7"
+    },
+    "docs/task-loops.md": {
+      "bytes": 4419,
+      "sha256": "598b0f5a33323f892793799a841b3c71b36eeac8f81cca18815fc2b497e8afe6"
+    },
+    "docs/user-guide.en.md": {
+      "bytes": 6596,
+      "sha256": "1dbcea838512f98dfe762d4eee769bfe6552956a3298d849436d997b8a76e7fb"
+    },
+    "docs/user-guide.zh.md": {
+      "bytes": 5983,
+      "sha256": "f0775854ed5a9adfe5dfbc169a91db2c3fb98ee07296e0b41dc9d6b2416d0672"
+    },
+    "pyproject.toml": {
+      "bytes": 473,
+      "sha256": "4232aa2764b5ca86716e7c5922afe7e2224bdafe8ee39c718c718fe7ccee2f24"
+    },
+    "t2ag_next/__init__.py": {
+      "bytes": 108,
+      "sha256": "01b3b900c8d3cf2fd113f886400610251e55afe6044ca946713513102829815b"
+    },
+    "t2ag_next/__main__.py": {
+      "bytes": 48,
+      "sha256": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d"
+    },
+    "t2ag_next/assets.py": {
+      "bytes": 26662,
+      "sha256": "15c06870092107223e83deac3646347e7a5707e6752a3daa2d6a1a2d42b9e4c5"
+    },
+    "t2ag_next/cli.py": {
+      "bytes": 14932,
+      "sha256": "a2a226c5eb6ed0e37d83f4e7e58f7c90167cbf42b9427b740e5a9fab48216f78"
+    },
+    "t2ag_next/cloud.py": {
+      "bytes": 19874,
+      "sha256": "9c02d8cb0b22f0fca97259b9488fd53e619443bec6c5e3f0d257c486bb8fc8cd"
+    },
+    "t2ag_next/continuity.py": {
+      "bytes": 20164,
+      "sha256": "0509595fb02144fa79e8cc00a6737f13c7a39e6083e48cd76da51d49550facc5"
+    },
+    "t2ag_next/distribution.py": {
+      "bytes": 15914,
+      "sha256": "e98ea03c15175b5c6d21fdef16e9081caf873468f3a60c8f42c79856487735b1"
+    },
+    "t2ag_next/distribution_projection.py": {
+      "bytes": 29260,
+      "sha256": "15b8527b6823bae8cd4036f5ca56ca2d7f54afef79fd98884ad61bd497784a46"
+    },
+    "t2ag_next/exchange.py": {
+      "bytes": 8477,
+      "sha256": "01cb9a8476d9328c2eff8a7cfeae5b84e7b11159cbe846657747a00f2ec87115"
+    },
+    "t2ag_next/governance.py": {
+      "bytes": 44581,
+      "sha256": "a33a5c8314ff9c37673d8e1fa9a0fe6f782a1e6870987b30dc5dc2a2aa7dd6e9"
+    },
+    "t2ag_next/groups.py": {
+      "bytes": 39554,
+      "sha256": "f7c87941ad6f219b63b99c961e0b3869afb59bc689f8208399c8cc2b146371b8"
+    },
+    "t2ag_next/journal.py": {
+      "bytes": 33362,
+      "sha256": "c4d4b32e2760f6e5e4949c65f5390b7ae4c8ec4a20593d6065abbd8b13dd2781"
+    },
+    "t2ag_next/learning.py": {
+      "bytes": 153216,
+      "sha256": "fe40080618c03321d0b68931bd17a298ba343c842d3f5e916f0196f63f08fcdc"
+    },
+    "t2ag_next/migration.py": {
+      "bytes": 76106,
+      "sha256": "670ed9c3a09a60e5f30044bb4fd03a01487c181224ff308e41f236e40f92980a"
+    },
+    "t2ag_next/migration_recovery.py": {
+      "bytes": 24163,
+      "sha256": "aa4197f4d217fc6f248937d7521f7ea57522585a089a8d71bf07033d94f3e10a"
+    },
+    "t2ag_next/model.py": {
+      "bytes": 5321,
+      "sha256": "c5fcf5a5ffe9425ff91584b503cfac32eb9464ddd5fc1667f9712faf22143077"
+    },
+    "t2ag_next/planning.py": {
+      "bytes": 31160,
+      "sha256": "392744b47311eab730cb0e22209b9987776b92267475653be76d43cd2a3e572a"
+    },
+    "t2ag_next/reading_bridge.py": {
+      "bytes": 11539,
+      "sha256": "607eee76b008a3e8548ac5c91e32c9d53466893fdbae6571adc554d9319bede6"
+    },
+    "t2ag_next/reconciliation.py": {
+      "bytes": 8076,
+      "sha256": "3f1abd488860687f00732f041af6d1d7c0207cd3e85d34e26c727d96fe77cf9d"
+    },
+    "t2ag_next/service.py": {
+      "bytes": 50651,
+      "sha256": "50bea925dad3fb6447ba21a8f6fc4462a9a41602f1bbdd1ed260e990daca52fa"
+    },
+    "t2ag_next/support.py": {
+      "bytes": 51565,
+      "sha256": "5370416daf95f0603baa155e76f6c373437ad1d5deefa4d745ed633be2838f7e"
+    },
+    "t2ag_next/workflows.py": {
+      "bytes": 16342,
+      "sha256": "3ece019bfb580563aed01373212a4cc150b00596d93ae4d2287b5b38f2372061"
+    }
+  },
+  "implementation_status": "candidate",
+  "release_status": "unreleased",
+  "review_status": "not_finalized",
+  "schema": "t2ag.distribution.v1",
+  "version": "0.3.0.dev0"
+}
